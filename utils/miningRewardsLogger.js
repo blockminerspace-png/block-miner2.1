@@ -14,6 +14,7 @@ const logger = require("./logger").child("MiningRewardsLogger");
  */
 async function logMiningReward(reward) {
   try {
+    // Log reward to mining_rewards_log
     await run(
       `
         INSERT INTO mining_rewards_log
@@ -31,6 +32,25 @@ async function logMiningReward(reward) {
         Date.now()
       ]
     );
+
+    // Update user balance in users_temp_power
+    await run(
+      "UPDATE users_temp_power SET balance = ? WHERE user_id = ?",
+      [reward.balanceAfter, reward.userId]
+    );
+
+    // Update user balance in users table
+    await run(
+      "UPDATE users SET pol_balance = ? WHERE id = ?",
+      [reward.balanceAfter, reward.userId]
+    );
+
+    logger.debug("Mining reward logged and balance updated", {
+      userId: reward.userId,
+      blockNumber: reward.blockNumber,
+      rewardAmount: reward.rewardAmount.toFixed(8),
+      newBalance: reward.balanceAfter.toFixed(8)
+    });
   } catch (error) {
     logger.error("Failed to log mining reward", {
       error: error.message,
