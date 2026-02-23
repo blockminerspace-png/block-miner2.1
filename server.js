@@ -382,6 +382,7 @@ const swapRouter = require("./routes/swap");
 
 // Import PTP router
 const ptpRouter = require("./routes/ptp");
+const shortlinkRouter = require("./routes/shortlink");
 
 const faucetRouter = require("./routes/faucet");
 const autoMiningGpuRouter = require("./routes/auto-mining-gpu");
@@ -532,6 +533,7 @@ app.get("/zeradsptc.php", zeradsCallbackLimiter, zeradsController.handlePtcCallb
 app.post("/zeradsptc.php", zeradsCallbackLimiter, zeradsController.handlePtcCallback);
 
 app.use("/api/ptp", ptpRouter);
+app.use("/api/shortlink", shortlinkRouter);
 app.use("/api/zerads", zeradsRouter);
 app.use("/api/faucet", faucetRouter);
 app.use("/api/wallet", walletRouter);

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#090f22" />
+  <link rel="icon" href="/assets/favcon/favicon.ico" type="image/x-icon" />
+  <link rel="apple-touch-icon" href="/assets/favcon/apple-touch-icon.png" />
+  <title>Shortlink Rewards | BlockMiner</title>
+  <link rel="stylesheet" href="/css/layout.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="/css/shortlink.css" />
+  <script src="/js/layout.js" defer></script>
+</head>
+<body>
+  <div id="layoutInclude"></div>
+  <main class="shortlink-main">
+    <section class="shortlink-hero">
+      <h1><i class="bi bi-link-45deg"></i> Complete Shortlinks & Earn 5 GHS</h1>
+      <p class="hero-desc">Complete 3 simple steps to earn a <strong>5 GHS Mining Machine</strong> every day!</p>
+    </section>
+
+    <section class="shortlink-container">
+      <div class="shortlink-box">
+        <div class="shortlink-status" id="shortlinkStatus">
+          <div class="status-loading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+
+        <div class="shortlink-content" id="shortlinkContent" style="display: none;">
+          <!-- Progress Bar -->
+          <div class="progress-section">
+            <div class="progress-header">
+              <h3>Daily Progress</h3>
+              <span class="progress-text" id="progressText">0/3 Steps Completed</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+          </div>
+
+          <!-- Steps -->
+          <div class="steps-container">
+            <!-- Step 1 -->
+            <div class="step-card" id="step1Card">
+              <div class="step-header">
+                <span class="step-number">1</span>
+                <h3>Visit Shortlink Lis</h3>
+                <span class="step-status" id="step1Status">Pending</span>
+              </div>
+              <p>Visit the shortlink provider and complete the first task.</p>
+              <a href="#" id="step1Link" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-open"></i> Visit Shortlink
+              </a>
+              <button id="step1Btn" class="btn btn-secondary" style="display: none;">
+                <i class="bi bi-check-circle"></i> Mark Complete
+              </button>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="step-card" id="step2Card">
+              <div class="step-header">
+                <span class="step-number">2</span>
+                <h3>Visit Shortlink Story</h3>
+                <span class="step-status" id="step2Status">Pending</span>
+              </div>
+              <p>Visit the second shortlink and complete this task.</p>
+              <a href="#" id="step2Link" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-open"></i> Visit Shortlink
+              </a>
+              <button id="step2Btn" class="btn btn-secondary" style="display: none;">
+                <i class="bi bi-check-circle"></i> Mark Complete
+              </button>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="step-card" id="step3Card">
+              <div class="step-header">
+                <span class="step-number">3</span>
+                <h3>Final Confirmation</h3>
+                <span class="step-status" id="step3Status">Pending</span>
+              </div>
+              <p>Confirm completion and claim your 5 GHS machine reward!</p>
+              <button id="step3Btn" class="btn btn-success btn-large">
+                <i class="bi bi-gift"></i> Claim 5 GHS Reward
+              </button>
+            </div>
+          </div>
+
+          <!-- Reward Info -->
+          <div class="reward-info" id="rewardInfo" style="display: none;">
+            <div class="reward-success">
+              <i class="bi bi-check-circle-fill"></i>
+              <h3>🎉 Reward Claimed!</h3>
+              <p>You've received a <strong>5 GHS Mining Machine</strong></p>
+              <p class="reset-info">Come back tomorrow at 9 AM BRT to complete another shortlink!</p>
+            </div>
+          </div>
+
+          <!-- Reset Info -->
+          <div class="reset-info-box" id="resetInfo" style="display: none;">
+            <i class="bi bi-info-circle"></i>
+            <p>You already completed this shortlink today. Try again tomorrow at <strong>9 AM BRT</strong></p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/shortlink.js"></script>
+</body>
+</html>

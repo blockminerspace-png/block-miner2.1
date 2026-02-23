@@ -4,6 +4,7 @@ const { startDepositMonitoring } = require("./depositsCron");
 const { startWithdrawalMonitoring } = require("./withdrawalsCron");
 const { startBackupCron } = require("./backupCron");
 const { startCallbackQueueProcessing } = require("./callbackQueueCron");
+const { startShortlinkResetCron } = require("./shortlinkResetCron");
 
 function startCronTasks({ engine, io, persistMinerProfile, run, buildPublicState, syncEngineMiners }) {
   const miningTimers = startMiningLoop(
@@ -16,6 +17,7 @@ function startCronTasks({ engine, io, persistMinerProfile, run, buildPublicState
   // const withdrawalTimers = startWithdrawalMonitoring();
   const backupTimers = startBackupCron({ run });
   const callbackQueueTimers = startCallbackQueueProcessing();
+  const shortlinkResetTimers = startShortlinkResetCron();
 
   return {
     ...miningTimers,
@@ -23,7 +25,8 @@ function startCronTasks({ engine, io, persistMinerProfile, run, buildPublicState
     ...depositTimers,
     // ...withdrawalTimers,
     ...backupTimers,
-    ...callbackQueueTimers
+    ...callbackQueueTimers,
+    ...shortlinkResetTimers
   };
 }
 

@@ -22,6 +22,7 @@ const pageMap = {
   "/checkin": "checkin.html",
   "/wallet": "wallet.html",
   "/ptp": "ptp.html",
+  "/shortlink": "shortlink.html",
   "/swap": "swap.html",
   "/referral": "referral.html",
   "/settings": "settings.html",
@@ -42,6 +43,7 @@ const protectedRoutes = new Set([
   "/checkin",
   "/wallet",
   "/ptp",
+  "/shortlink",
   "/swap",
   "/referral",
   "/settings"

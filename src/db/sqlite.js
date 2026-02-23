@@ -1003,6 +1003,27 @@ async function initializeDatabase() {
   await run(`
     CREATE INDEX IF NOT EXISTS idx_mining_rewards_log_created_at ON mining_rewards_log(created_at)
   `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS shortlink_completions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      shortlink_type TEXT NOT NULL DEFAULT 'internal',
+      current_step INTEGER NOT NULL DEFAULT 0,
+      completed_at INTEGER,
+      reset_at INTEGER,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_shortlink_completions_user_id ON shortlink_completions(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_shortlink_completions_completed_at ON shortlink_completions(completed_at)
+  `);
 }
 
 module.exports = {
