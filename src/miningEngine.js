@@ -49,7 +49,7 @@ class MiningEngine {
 
     const id = uuidv4();
     const initialRigs = Number(profile?.rigs || 1);
-    const initialBaseHashRate = Number(profile?.baseHashRate || 55);
+    const initialBaseHashRate = Number(profile?.baseHashRate || 0);
     const initialBalance = Number(profile?.balance || 0);
     const initialLifetimeMined = Number(profile?.lifetimeMined || 0);
 

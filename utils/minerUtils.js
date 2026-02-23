@@ -6,10 +6,10 @@ function getMinerNameFromHashRate(hashRate) {
 }
 
 function getHashRateForMinerName(minerName) {
-  if (!minerName) return 55;
+  if (!minerName) return 0;
   if (minerName.includes("Elite")) return 120;
   if (minerName.includes("Pro")) return 85;
-  return 55;
+  return 0;
 }
 
 function getSlotSizeForMiner(hashRate) {

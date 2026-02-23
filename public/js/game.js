@@ -207,7 +207,7 @@ function getGlobalSlotIndex(rackIndex, localSlotIndex) {
 }
 
 function getMachineDescriptor(machine) {
-  const hashRate = Number(machine?.hash_rate || 55);
+  const hashRate = Number(machine?.hash_rate || 0);
   const slotSize = Number.isInteger(machine?.slot_size) ? machine.slot_size : null;
 
   if (machine?.image_url) {

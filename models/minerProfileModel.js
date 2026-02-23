@@ -20,7 +20,7 @@ async function getOrCreateMinerProfile(user) {
       INSERT INTO users_temp_power (user_id, username, wallet_address, rigs, base_hash_rate, balance, lifetime_mined, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-    [user.id, user.name, null, 1, 55, 0, 0, now, now]
+    [user.id, user.name, null, 1, 0, 0, 0, now, now]
   );
 
   return {
@@ -28,7 +28,7 @@ async function getOrCreateMinerProfile(user) {
     username: user.name,
     wallet_address: null,
     rigs: 1,
-    base_hash_rate: 55,
+    base_hash_rate: 0,
     balance: 0,
     lifetime_mined: 0
   };
