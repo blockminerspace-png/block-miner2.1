@@ -1,5 +1,17 @@
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const logger = require("../utils/logger").child("AdminAuthController");
+
+function timingSafeStringEqual(a, b) {
+  const left = Buffer.from(String(a || ""), "utf8");
+  const right = Buffer.from(String(b || ""), "utf8");
+
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(left, right);
+}
 
 function createAdminAuthController() {
   const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
@@ -10,6 +22,9 @@ function createAdminAuthController() {
   // Validar configuração
   if (!ADMIN_EMAIL || !ADMIN_SECURITY_CODE) {
     logger.warn("Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured");
+    logger.security("Admin authentication disabled", {
+      reason: "Missing ADMIN_EMAIL or ADMIN_SECURITY_CODE environment variables"
+    });
   }
 
   async function login(req, res) {
@@ -17,6 +32,10 @@ function createAdminAuthController() {
       // Validar configuração
       if (!ADMIN_EMAIL || !ADMIN_SECURITY_CODE) {
         logger.warn("Admin login attempt but credentials not configured");
+        logger.security("Admin login blocked - not configured", {
+          ip: req.ip,
+          userAgent: req.get("user-agent")
+        });
         return res.status(503).json({
           ok: false,
           message: "Admin authentication not configured"
@@ -39,6 +58,11 @@ function createAdminAuthController() {
       // Validar tamanho mínimo
       if (!userEmail || userEmail.length < 5) {
         logger.warn(`Admin login attempt with invalid email: ${userEmail}`);
+        logger.security("Admin login failed - invalid email format", {
+          email: userEmail,
+          ip: req.ip,
+          userAgent: req.get("user-agent")
+        });
         return res.status(401).json({
           ok: false,
           message: "Credenciais inválidas"
@@ -47,6 +71,12 @@ function createAdminAuthController() {
 
       if (!userCode || userCode.length < 4) {
         logger.warn(`Admin login attempt with invalid code length`);
+        logger.security("Admin login failed - invalid security code length", {
+          email: userEmail,
+          codeLength: userCode.length,
+          ip: req.ip,
+          userAgent: req.get("user-agent")
+        });
         return res.status(401).json({
           ok: false,
           message: "Credenciais inválidas"
@@ -54,11 +84,18 @@ function createAdminAuthController() {
       }
 
       // Validar credenciais (timing-safe comparison para evitar timing attacks)
-      const emailMatch = userEmail === ADMIN_EMAIL;
-      const codeMatch = userCode === ADMIN_SECURITY_CODE;
+      const emailMatch = timingSafeStringEqual(userEmail, ADMIN_EMAIL);
+      const codeMatch = timingSafeStringEqual(userCode, ADMIN_SECURITY_CODE);
 
       if (!emailMatch || !codeMatch) {
         logger.warn(`Failed admin login attempt from email: ${userEmail}`);
+        logger.security("Admin login failed - invalid credentials", {
+          email: userEmail,
+          emailMatch,
+          codeMatch,
+          ip: req.ip,
+          userAgent: req.get("user-agent")
+        });
         return res.status(401).json({
           ok: false,
           message: "Credenciais inválidas"
@@ -79,6 +116,11 @@ function createAdminAuthController() {
       );
 
       logger.info("Admin successfully authenticated");
+      logger.audit("admin_login_success", userEmail, {
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        expiresIn: JWT_EXPIRES_IN
+      });
 
       // Retornar token (pode ser salvo em localStorage ou cookie)
       return res.json({
@@ -88,7 +130,7 @@ function createAdminAuthController() {
         expiresIn: JWT_EXPIRES_IN
       });
     } catch (error) {
-      logger.error("Admin login error:", error);
+      logger.error("Admin login error", { error: error.message });
       return res.status(500).json({
         ok: false,
         message: "Erro interno do servidor"

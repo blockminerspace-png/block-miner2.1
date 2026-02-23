@@ -1,55 +1,89 @@
-# BlockMiner — Configuration & Deployment
+# Block Miner
 
-This repo uses environment variables for secrets and a versioned `config/` folder for defaults.
+Servidor Node.js (Express + Socket.IO + SQLite) para simulação de mineração, carteira, faucet e recursos administrativos.
 
-Quick start
+**Domínio Oficial:** [blockminer.space](https://blockminer.space)
 
-1. Copy `.env.example` to `.env` and fill with secrets (DO NOT commit `.env`).
+## 🚀 Deploy Rápido (Produção)
 
-2. Install deps and run:
-
-```bash
-npm install
-npm start
-```
-
-Configuration locations
-
-- `.env` — secrets and sensitive flags (e.g. `WITHDRAWAL_PRIVATE_KEY`, `WITHDRAWAL_MNEMONIC`, `DB_PATH`, `ADMIN_EMAILS`).
-- `config/default.json` — versioned defaults (faucet cooldown, schedules, UI toggles).
-- `config/production.json` — overrides for production.
-- `src/config/index.js` — loader that merges JSON configs with `process.env` (env wins). It also performs strict validation.
-
-Important env vars (examples)
-
-- `DB_PATH` — path to SQLite DB (required).
-- `NODE_ENV` — `development` or `production`.
-- `ADMIN_EMAILS` — comma-separated admin emails (required in production).
-- `WITHDRAWAL_PRIVATE_KEY` or `WITHDRAWAL_MNEMONIC` — required in production.
-- `FAUCET_REWARD_MINER_SLUG` — overrides the faucet miner slug in `config`.
-- `DEPOSITS_CRON`, `WITHDRAWS_CRON`, `BACKUP_CRON` — cron expressions (node-cron) used by scheduler.
-
-Cron expressions
-
-The application supports cron expressions via `node-cron`. You can set them in `config/default.json` or via env vars. Examples:
-
-```json
-"schedules": { "depositsCron": "*/10 * * * * *" }
-```
-
-Security recommendations
-
-- Never commit secrets to `config/*.json`.
-- Keep `.env` out of git. Use a secure secret store in production.
-- CI will block changes that inject likely-secret strings into `config/*.json` (see `.github/workflows/config-guard.yml`).
-
-Local Git hooks
-
-You can enable a local pre-commit hook that blocks accidental commits containing secrets in `config/*.json`:
+**Novo domínio blockminer.space?** Leia primeiro:
+- **[DEPLOY_QUICK_START.md](./DEPLOY_QUICK_START.md)** - Guia rápido de deploy
+- **[DOMAIN_SETUP.md](./DOMAIN_SETUP.md)** - Configuração completa do domínio
 
 ```bash
-# run once per repo clone
-npm run install-hooks
+# Deploy automatizado (Linux/Mac)
+chmod +x deploy.sh
+./deploy.sh
+
+# Deploy manual (Windows/Linux)
+cp .env.production .env
+# Editar .env com suas configurações
+docker-compose up -d --build
 ```
 
-This sets `core.hooksPath` to the repository's `.githooks` folder which includes a `pre-commit` script that scans `config/*.json` for suspicious patterns.
+---
+
+## Requisitos
+
+- Node.js 20+
+- npm 10+
+- Docker & Docker Compose (para produção)
+- Variáveis de ambiente definidas (base em `.env.example`)
+
+## Setup local
+
+1. Instale dependências:
+   - `npm ci`
+2. Configure ambiente:
+   - copie `.env.example` para `.env`
+   - preencha segredos obrigatórios (`JWT_SECRET`, `WITHDRAWAL_PRIVATE_KEY` ou `WITHDRAWAL_MNEMONIC`, etc.)
+3. Rode em desenvolvimento:
+   - `npm run dev`
+
+## Comandos
+
+- `npm start`: inicia servidor em produção
+- `npm run dev`: inicia com nodemon
+- `npm test`: executa testes (`node:test`)
+- `npm run lint`: executa lint
+- `npm run format`: valida formatação
+- `npm run backup`: executa backup manual
+
+## Operação com Docker
+
+- Subir stack:
+  - `docker compose up -d --build`
+- Logs:
+  - `docker compose logs -f app`
+- Parar:
+  - `docker compose down`
+
+## Checklist de produção
+
+- [ ] `JWT_SECRET` com no mínimo 32 caracteres
+- [ ] `NODE_ENV=production`
+- [ ] `CORS_ORIGINS` configurado para domínio real
+- [ ] `ADMIN_EMAIL` e `ADMIN_SECURITY_CODE` configurados
+- [ ] Chave da hot wallet (`WITHDRAWAL_PRIVATE_KEY`/`WITHDRAWAL_MNEMONIC`) protegida
+- [ ] HTTPS ativo em proxy reverso (Nginx)
+- [ ] `DB_PATH`, `BACKUP_DIR` e retenção de backup configurados
+- [ ] Cron de backup habilitado e restore testado
+- [ ] CI verde (`test` + `lint`)
+
+## Segurança (resumo)
+
+- Sessão por cookie `HttpOnly` + CSRF
+- JWT com `issuer`/`audience`
+- Rate limit por endpoint
+- Hardening de headers com `helmet`
+- Logs com escrita assíncrona e rotação por tamanho
+
+## Estrutura (alto nível)
+
+- `server.js`: bootstrap HTTP e registro de rotas
+- `src/services/publicStateService.js`: agregações de estado público
+- `src/socket/registerMinerSocketHandlers.js`: handlers Socket.IO
+- `controllers/`: lógica de API
+- `middleware/`: auth, csrf, rate limit, csp
+- `routes/`: composição de rotas
+- `cron/`: tarefas recorrentes

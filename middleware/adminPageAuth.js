@@ -4,6 +4,13 @@ const logger = require("../utils/logger").child("AdminPageAuth");
 
 function adminPageAuth(req, res, next) {
   try {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      logger.error("Admin page auth unavailable: JWT secret missing");
+      res.redirect(302, "/admin/login");
+      return;
+    }
+
     const token = getTokenFromRequest(req);
 
     if (!token) {
@@ -14,8 +21,9 @@ function adminPageAuth(req, res, next) {
 
     let payload = null;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET, {
-        issuer: "blockminer-admin"
+      payload = jwt.verify(token, jwtSecret, {
+        issuer: "blockminer-admin",
+        algorithms: ["HS256"]
       });
     } catch (err) {
       // Token inválido, redireciona para login

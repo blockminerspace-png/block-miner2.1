@@ -2,6 +2,16 @@ const ACCESS_COOKIE_NAME = "blockminer_access";
 const REFRESH_COOKIE_NAME = "blockminer_refresh";
 const LEGACY_SESSION_COOKIE = "blockminer_session";
 
+function looksLikeJwt(value) {
+  const token = String(value || "").trim();
+  if (!token) {
+    return false;
+  }
+
+  const parts = token.split(".");
+  return parts.length === 3 && parts.every((part) => part.length > 0);
+}
+
 function parseCookie(headerValue) {
   if (!headerValue) {
     return {};
@@ -19,18 +29,21 @@ function parseCookie(headerValue) {
 }
 
 function getTokenFromRequest(req) {
+  const cookies = parseCookie(req.headers.cookie || "");
+  const cookieToken = cookies[ACCESS_COOKIE_NAME] || cookies[LEGACY_SESSION_COOKIE] || null;
+  if (cookieToken) {
+    return cookieToken;
+  }
+
   const authHeader = req.headers.authorization || "";
   if (authHeader.toLowerCase().startsWith("bearer ")) {
-    return authHeader.slice(7).trim();
+    const bearer = authHeader.slice(7).trim();
+    if (looksLikeJwt(bearer)) {
+      return bearer;
+    }
   }
 
-  const headerToken = req.headers["x-session-token"] || null;
-  if (headerToken) {
-    return headerToken;
-  }
-
-  const cookies = parseCookie(req.headers.cookie || "");
-  return cookies[ACCESS_COOKIE_NAME] || cookies[LEGACY_SESSION_COOKIE] || null;
+  return null;
 }
 
 function getRefreshTokenFromRequest(req) {

@@ -80,8 +80,17 @@ function createCheckinController(config) {
 
     const expectedDate = getBrazilCheckinDateKey(new Date(checkin.created_at));
     if (expectedDate !== checkin.checkin_date) {
-      await run("UPDATE daily_checkins SET checkin_date = ? WHERE id = ?", [expectedDate, checkin.id]);
-      checkin.checkin_date = expectedDate;
+      const normalizedCheckin = await get(
+        "SELECT id, status, tx_hash, checkin_date, created_at FROM daily_checkins WHERE user_id = ? AND checkin_date = ? ORDER BY created_at DESC LIMIT 1",
+        [userId, expectedDate]
+      );
+
+      if (normalizedCheckin) {
+        checkin = normalizedCheckin;
+      } else {
+        await run("UPDATE daily_checkins SET checkin_date = ? WHERE id = ?", [expectedDate, checkin.id]);
+        checkin.checkin_date = expectedDate;
+      }
     }
 
     return expectedDate === today ? checkin : null;
@@ -152,10 +161,17 @@ function createCheckinController(config) {
       const now = Date.now();
       const tx = await rpcCall("eth_getTransactionByHash", [txHash]);
       if (!tx) {
-        await run(
-          "INSERT INTO daily_checkins (user_id, checkin_date, created_at, tx_hash, status, amount, chain_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [req.user.id, today, now, txHash, "pending", 0.01, chainId]
-        );
+        try {
+          await run(
+            "INSERT INTO daily_checkins (user_id, checkin_date, created_at, tx_hash, status, amount, chain_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [req.user.id, today, now, txHash, "pending", 0.01, chainId]
+          );
+        } catch (insertError) {
+          const message = String(insertError?.message || "");
+          if (!message.includes("daily_checkins.user_id, daily_checkins.checkin_date")) {
+            throw insertError;
+          }
+        }
         res.json({ ok: true, status: "pending" });
         return;
       }
@@ -181,10 +197,17 @@ function createCheckinController(config) {
       const confirmed = receipt && receipt.status === "0x1";
       const status = confirmed ? "confirmed" : "pending";
 
-      await run(
-        "INSERT INTO daily_checkins (user_id, checkin_date, created_at, confirmed_at, tx_hash, status, amount, chain_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [req.user.id, today, now, confirmed ? now : null, txHash, status, 0.01, chainId]
-      );
+      try {
+        await run(
+          "INSERT INTO daily_checkins (user_id, checkin_date, created_at, confirmed_at, tx_hash, status, amount, chain_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [req.user.id, today, now, confirmed ? now : null, txHash, status, 0.01, chainId]
+        );
+      } catch (insertError) {
+        const message = String(insertError?.message || "");
+        if (!message.includes("daily_checkins.user_id, daily_checkins.checkin_date")) {
+          throw insertError;
+        }
+      }
 
       res.json({ ok: true, status });
     } catch (error) {

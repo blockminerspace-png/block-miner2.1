@@ -742,5 +742,9 @@ module.exports = {
   getTransactions,
   getDepositAddress,
   recordDeposit,
-  sendOnChainWithdrawal
+  sendOnChainWithdrawal,
+  __test: {
+    normalizeAmountInput,
+    validateWithdrawalInput
+  }
 };

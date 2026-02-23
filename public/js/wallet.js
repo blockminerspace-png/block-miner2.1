@@ -54,16 +54,35 @@ const state = {
 
 // Helper Functions
 function getToken() {
-  return localStorage.getItem("blockminer_token");
+  return "cookie-session";
 }
 
-function checkAuth() {
-  const token = getToken();
-  if (!token) {
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function checkAuth() {
+  try {
+    const response = await fetch("/api/auth/session", { credentials: "include" });
+    if (!response.ok) {
+      window.location.href = "/login";
+      return false;
+    }
+    const payload = await response.json();
+    if (!payload?.ok) {
+      window.location.href = "/login";
+      return false;
+    }
+    return true;
+  } catch {
     window.location.href = "/login";
     return false;
   }
-  return true;
 }
 
 function formatNumber(num, decimals = 6) {
@@ -129,15 +148,12 @@ async function disconnectWallet() {
 }
 
 async function saveWalletAddress(address) {
-  const token = getToken();
-  if (!token) return;
-
   try {
     const response = await fetch("/api/wallet/address", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ walletAddress: address })
     });
@@ -175,15 +191,8 @@ function updateWalletUI() {
 
 // Deposit Functions
 async function loadDepositAddress() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch("/api/wallet/deposit-address", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await fetch("/api/wallet/deposit-address", { credentials: "include" });
 
     const data = await response.json();
     if (data.ok && data.depositAddress) {
@@ -256,14 +265,9 @@ async function handleQuickDeposit(event) {
     return;
   }
 
-  const token = getToken();
-  if (!token) return;
-
   try {
     // Get deposit address from server
-    const response = await fetch("/api/wallet/deposit-address", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await fetch("/api/wallet/deposit-address", { credentials: "include" });
 
     const data = await response.json();
     if (!data.ok || !data.depositAddress) {
@@ -296,9 +300,9 @@ async function handleQuickDeposit(event) {
     // Notify server about the deposit
     await fetch("/api/wallet/deposit", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
         txHash,
@@ -364,15 +368,8 @@ function copyDepositAddress() {
 
 // Balance Functions
 async function loadBalance() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch("/api/wallet/balance", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await fetch("/api/wallet/balance", { credentials: "include" });
 
     const data = await response.json();
     if (data.ok) {
@@ -414,9 +411,6 @@ function updateWithdrawSummary() {
 async function handleWithdraw(event) {
   event.preventDefault();
 
-  const token = getToken();
-  if (!token) return;
-
   const address = elements.withdrawAddress?.value?.trim();
   const amountRaw = elements.withdrawAmount?.value?.trim();
   const amount = parseFloat(amountRaw);
@@ -449,9 +443,9 @@ async function handleWithdraw(event) {
   try {
     const response = await fetch("/api/wallet/withdraw", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ amount, address })
     });
@@ -481,15 +475,8 @@ async function handleWithdraw(event) {
 
 // Transaction History Functions
 async function loadTransactionHistory() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch("/api/wallet/transactions", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await fetch("/api/wallet/transactions", { credentials: "include" });
 
     const data = await response.json();
     if (data.ok) {
@@ -526,13 +513,13 @@ function renderTransactionHistory() {
         </div>
         <div class="transaction-details">
           <div class="transaction-type">${tx.type === "withdrawal" ? "Withdrawal" : "Deposit"}</div>
-          <div class="transaction-date">${formatDate(tx.created_at)}</div>
+          <div class="transaction-date">${escapeHtml(formatDate(tx.created_at))}</div>
         </div>
         <div class="transaction-amount ${typeClass}">
           ${amountPrefix}${formatNumber(tx.amount)} POL
         </div>
-        <div class="transaction-status ${tx.status}">
-          ${tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+        <div class="transaction-status ${escapeHtml(tx.status)}">
+          ${escapeHtml(tx.status.charAt(0).toUpperCase() + tx.status.slice(1))}
         </div>
       </div>
     `;
@@ -650,7 +637,7 @@ function setupEventListeners() {
 
 // Initialize
 async function init() {
-  if (!checkAuth()) return;
+  if (!(await checkAuth())) return;
 
   setupEventListeners();
   await loadBalance();

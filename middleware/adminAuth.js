@@ -4,6 +4,12 @@ const logger = require("../utils/logger").child("AdminAuthMiddleware");
 
 function requireAdminAuth(req, res, next) {
   try {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      logger.error("Admin JWT secret is missing");
+      return res.status(503).json({ ok: false, message: "Admin auth unavailable." });
+    }
+
     const token = getTokenFromRequest(req);
 
     if (!token) {
@@ -12,8 +18,9 @@ function requireAdminAuth(req, res, next) {
 
     let payload = null;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET, {
-        issuer: "blockminer-admin"
+      payload = jwt.verify(token, jwtSecret, {
+        issuer: "blockminer-admin",
+        algorithms: ["HS256"]
       });
     } catch (err) {
       if (process.env.NODE_ENV !== "production") {

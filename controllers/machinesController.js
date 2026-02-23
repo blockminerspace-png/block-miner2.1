@@ -4,16 +4,38 @@ const { getOrCreateMinerProfile } = require("../models/minerProfileModel");
 const { getMinerNameFromHashRate } = require("../utils/minerUtils");
 const { run } = require("../models/db");
 
+function normalizeMachineIdentifier(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function createMachinesController(io) {
   const SLOTS_PER_RACK = 8;
 
   async function listMachines(req, res) {
     try {
       const machines = await machineModel.listUserMachines(req.user.id);
-      const normalized = machines.map((machine) => ({
-        ...machine,
-        image_url: machine.image_url || (machine.miner_id ? `/assets/machines/${machine.miner_id}.png` : null)
-      }));
+      const normalized = machines.map((machine) => {
+        let image_url = machine.image_url || (machine.miner_id ? `/assets/machines/${machine.miner_id}.png` : null);
+        if (!image_url) {
+          const normalizedName = normalizeMachineIdentifier(machine.miner_name);
+          if (normalizedName === "gpu-1-ghs" || normalizedName === "auto-mining-gpu-1") {
+            image_url = "/assets/machines/auto_mining_gpu1.png";
+          }
+        }
+        if (!image_url) {
+          image_url = "/assets/machines/1.png";
+        }
+        return {
+          ...machine,
+          image_url
+        };
+      });
       res.json({ ok: true, machines: normalized });
     } catch (error) {
       console.error("Error loading machines:", error);

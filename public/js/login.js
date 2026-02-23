@@ -87,7 +87,6 @@ form?.addEventListener("submit", async (event) => {
       "blockminer_session",
       JSON.stringify({ name: payload.user.name, email: payload.user.email })
     );
-    localStorage.setItem("blockminer_token", payload.token);
     setFeedback("Login successful! Redirecting to dashboard...");
 
     setTimeout(() => {

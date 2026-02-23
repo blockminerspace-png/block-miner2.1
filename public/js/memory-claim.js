@@ -36,33 +36,32 @@ function loadLastStats() {
   }
 }
 
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 async function claimReward() {
-  const token = getToken();
-  if (!token) {
-    setStatus("Please login to claim rewards.", "error");
-    return;
-  }
-
   claimBtn.disabled = true;
   setStatus("Submitting reward...", "");
 
   try {
     const response = await fetch("/api/games/memory/claim", {
       method: "POST",
+      credentials: "include",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ rewardGh: 5 })
     });
 
-    const payload = await response.json();
+    const raw = await response.text();
+    let payload = null;
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        payload = { message: raw.trim() };
+      }
+    }
+
     if (!response.ok || !payload?.ok) {
-      throw new Error(payload?.message || "Unable to claim reward.");
+      throw new Error(payload?.message || `Unable to claim reward (HTTP ${response.status}).`);
     }
 
     rewardValue.textContent = `${payload.rewardGh} GH/s`;

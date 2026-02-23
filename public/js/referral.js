@@ -5,10 +5,6 @@ const copyLinkBtn = document.getElementById("copyLinkBtn");
 const invitedList = document.getElementById("invitedList");
 const refreshInvitesBtn = document.getElementById("refreshInvitesBtn");
 
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 function setStatus(message, isError = false) {
   if (!referralStatus) return;
   referralStatus.textContent = message;
@@ -58,17 +54,8 @@ function renderInvited(invited) {
 }
 
 async function loadInvited() {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   try {
-    const response = await fetch("/api/auth/referral/invited?limit=100", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await fetch("/api/auth/referral/invited?limit=100", { credentials: "include" });
     const payload = await response.json();
     if (!response.ok || !payload?.ok) {
       renderInvited([]);
@@ -82,19 +69,9 @@ async function loadInvited() {
 }
 
 async function loadReferral() {
-  const token = getToken();
-  if (!token) {
-    window.location.href = "/login";
-    return;
-  }
-
   try {
     setStatus("Loading...");
-    const response = await fetch("/api/auth/referral", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await fetch("/api/auth/referral", { credentials: "include" });
 
     const payload = await response.json();
     if (!response.ok || !payload?.ok || !payload.refCode) {

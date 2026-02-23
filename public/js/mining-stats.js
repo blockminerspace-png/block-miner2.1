@@ -17,10 +17,6 @@ function formatHashrate(value) {
   return `${scaled.toFixed(precision)} ${units[unitIndex]}`;
 }
 
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 function formatToken(value, symbol) {
   const safeValue = Number(value || 0);
   if (!Number.isFinite(safeValue)) {
@@ -36,17 +32,9 @@ async function updateEstimatedReward() {
     return;
   }
 
-  const token = getToken();
-  if (!token) {
-    estimatedEl.textContent = "Sign in to see";
-    return;
-  }
-
   try {
     const estimateResponse = await fetch("/api/estimated-reward", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      credentials: "include"
     });
     if (!estimateResponse.ok) {
       estimatedEl.textContent = estimateResponse.status === 401 ? "Sign in to see" : "Unavailable";

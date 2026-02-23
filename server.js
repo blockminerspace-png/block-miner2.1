@@ -35,6 +35,8 @@ const { getOrCreateMinerProfile } = require("./models/minerProfileModel");
 const walletModel = require("./models/walletModel");
 const { getBrazilCheckinDateKey } = require("./utils/checkinDate");
 const { startCronTasks } = require("./cron");
+const { createPublicStateService } = require("./src/services/publicStateService");
+const { registerMinerSocketHandlers } = require("./src/socket/registerMinerSocketHandlers");
 const logger = require("./utils/logger");
 
 // Validate JWT_SECRET before starting
@@ -54,6 +56,7 @@ app.set("trust proxy", 1);
 const server = http.createServer(app);
 const io = new Server(server);
 const engine = new MiningEngine();
+const publicStateService = createPublicStateService({ engine, get, run });
 
 const CHECKIN_RECEIVER = process.env.CHECKIN_RECEIVER || "0x95EA8E99063A3EF1B95302aA1C5bE199653EEb13";
 const CHECKIN_AMOUNT_WEI = BigInt(process.env.CHECKIN_AMOUNT_WEI || "10000000000000000");
@@ -74,7 +77,12 @@ const DEFAULT_POLYGON_RPC_URLS = [
 const POLYGON_RPC_URLS = Array.from(new Set([POLYGON_RPC_URL, ...DEFAULT_POLYGON_RPC_URLS]));
 
 const ONLINE_START_DATE = process.env.ONLINE_START_DATE || "2026-02-13";
-const MEMORY_GAME_REWARD_GH = Number(process.env.MEMORY_GAME_REWARD_GH || 5);
+const parsedMemoryGameRewardGh = Number(process.env.MEMORY_GAME_REWARD_GH);
+const MEMORY_GAME_REWARD_GH = Number.isFinite(parsedMemoryGameRewardGh) && parsedMemoryGameRewardGh > 0
+  ? parsedMemoryGameRewardGh
+  : 5;
+
+let usersPowersGamesHasCheckinId = null;
 
 async function fetchWithTimeout(url, init, timeoutMs) {
   const controller = new AbortController();
@@ -168,11 +176,37 @@ async function getTodayCheckinForUser(userId, todayKey) {
 
   const expectedDate = getBrazilCheckinDateKey(new Date(checkin.created_at));
   if (expectedDate !== checkin.checkin_date) {
-    await run("UPDATE daily_checkins SET checkin_date = ? WHERE id = ?", [expectedDate, checkin.id]);
-    checkin.checkin_date = expectedDate;
+    const normalizedCheckin = await get(
+      "SELECT id, status, tx_hash, checkin_date, created_at FROM daily_checkins WHERE user_id = ? AND checkin_date = ? ORDER BY created_at DESC LIMIT 1",
+      [userId, expectedDate]
+    );
+
+    if (normalizedCheckin) {
+      checkin = normalizedCheckin;
+    } else {
+      await run("UPDATE daily_checkins SET checkin_date = ? WHERE id = ?", [expectedDate, checkin.id]);
+      checkin.checkin_date = expectedDate;
+    }
   }
 
   return expectedDate === todayKey ? checkin : null;
+}
+
+async function hasUsersPowersGamesCheckinColumn() {
+  if (usersPowersGamesHasCheckinId !== null) {
+    return usersPowersGamesHasCheckinId;
+  }
+
+  try {
+    const row = await get(
+      "SELECT 1 as ok FROM pragma_table_info('users_powers_games') WHERE name = 'checkin_id' LIMIT 1"
+    );
+    usersPowersGamesHasCheckinId = Boolean(row?.ok);
+  } catch {
+    usersPowersGamesHasCheckinId = false;
+  }
+
+  return usersPowersGamesHasCheckinId;
 }
 
 const allowedOrigins = (process.env.CORS_ORIGINS || "")
@@ -348,15 +382,16 @@ const swapRouter = require("./routes/swap");
 const ptpRouter = require("./routes/ptp");
 
 const faucetRouter = require("./routes/faucet");
+const autoMiningGpuRouter = require("./routes/auto-mining-gpu");
+const adminAutoMiningRewardsRouter = require("./routes/admin-auto-mining-rewards");
 const ptpController = require("./controllers/ptpController");
+const zeradsController = require("./controllers/zeradsController");
+const zeradsRouter = require("./routes/zerads");
 
 // PTP Promo routes
 app.get("/ptp-promo/:hash", ptpController.viewPromoPage);
 app.get("/ptp/promote-:userId", ptpController.viewPromotePage);
 app.get("/ptp-r-:userId", ptpController.viewPromotePage);
-
-app.use("/api/auth", authRouter);
-app.use("/api/admin", adminAuthRouter);
 
 const healthController = createHealthController();
 const shopController = createShopController(io);
@@ -374,12 +409,16 @@ const checkinController = createCheckinController({
   checkinAmountWei: CHECKIN_AMOUNT_WEI
 });
 
+app.use("/api/auth", authRouter);
+app.use("/api/admin", adminAuthRouter);
+
 const inventoryLimiter = createRateLimiter({ windowMs: 60_000, max: 20 });
 const machinesLimiter = createRateLimiter({ windowMs: 60_000, max: 40 });
 const shopLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
 const shopListLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
 const checkinLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
 const adminLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
+const zeradsCallbackLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
 
 const purchaseSchema = z
   .object({
@@ -422,7 +461,12 @@ const clearRackSchema = z
 const rackUpdateSchema = z
   .object({
     rackIndex: z.union([z.number(), z.string()]),
-    customName: z.string().trim().min(1).max(30)
+    customName: z
+      .string()
+      .trim()
+      .min(1)
+      .max(30)
+      .regex(/^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 -]*$/)
   })
   .strict();
 
@@ -482,76 +526,20 @@ app.post("/api/racks/update", requireAuth, validateBody(rackUpdateSchema), racks
 app.get("/api/checkin/status", requireAuth, checkinLimiter, checkinController.getStatus);
 app.post("/api/checkin/verify", requireAuth, checkinLimiter, validateBody(checkinVerifySchema), checkinController.verify);
 
+app.get("/zeradsptc.php", zeradsCallbackLimiter, zeradsController.handlePtcCallback);
+
 app.use("/api/ptp", ptpRouter);
+app.use("/api/zerads", zeradsRouter);
 app.use("/api/faucet", faucetRouter);
 app.use("/api/wallet", walletRouter);
 app.use("/api/swap", swapRouter);
-
-async function getActiveGameHashRateTotal() {
-  const now = Date.now();
-  const row = await get("SELECT COALESCE(SUM(hash_rate), 0) as total FROM users_powers_games WHERE expires_at > ?", [now]);
-  return Number(row?.total || 0);
-}
-
-async function getUserGameHashRate(userId) {
-  if (!userId) {
-    return 0;
-  }
-  const now = Date.now();
-  const row = await get(
-    "SELECT COALESCE(SUM(hash_rate), 0) as total FROM users_powers_games WHERE user_id = ? AND expires_at > ?",
-    [userId, now]
-  );
-  return Number(row?.total || 0);
-}
-
-async function syncUserBaseHashRate(userId) {
-  if (!userId) {
-    return 0;
-  }
-
-  const row = await get(
-    "SELECT COALESCE(SUM(hash_rate), 0) as total FROM user_miners WHERE user_id = ? AND is_active = 1",
-    [userId]
-  );
-  const total = Number(row?.total || 0);
-  const now = Date.now();
-  await run(
-    "UPDATE users_temp_power SET base_hash_rate = ?, updated_at = ? WHERE user_id = ?",
-    [total, now, userId]
-  );
-  return total;
-}
-
-async function buildPublicState(minerId) {
-  const state = engine.getPublicState(minerId);
-  const baseNetworkRow = await get("SELECT COALESCE(SUM(base_hash_rate), 0) as total FROM users_temp_power");
-  const gameNetworkHash = await getActiveGameHashRateTotal();
-  const networkHashRate = Number(baseNetworkRow?.total || 0) + Number(gameNetworkHash || 0);
-
-  state.networkHashRate = networkHashRate;
-
-  if (state.miner) {
-    const miner = engine.miners.get(state.miner.id);
-    const userId = miner?.userId;
-    const userBaseRow = await get("SELECT COALESCE(base_hash_rate, 0) as total FROM users_temp_power WHERE user_id = ?", [
-      userId
-    ]);
-    const userGameHash = await getUserGameHashRate(userId);
-    const baseHash = Number(userBaseRow?.total || 0);
-    const boostMultiplier = Number(state.miner.boostMultiplier || 1);
-
-    state.miner.baseHashRate = baseHash;
-    state.miner.estimatedHashRate = baseHash * boostMultiplier + userGameHash;
-  }
-
-  return state;
-}
+app.use("/api/auto-mining-gpu", autoMiningGpuRouter);
+app.use("/api/admin/auto-mining-rewards", adminAutoMiningRewardsRouter);
 
 app.get("/api/state", async (req, res) => {
   try {
     const { minerId } = req.query;
-    const state = await buildPublicState(minerId);
+    const state = await publicStateService.buildPublicState(minerId);
     res.json(state);
   } catch {
     res.status(500).json({ ok: false, message: "Unable to load state." });
@@ -589,7 +577,7 @@ app.get("/api/network-stats", async (_req, res) => {
       "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'withdrawal' AND status = 'completed'"
     );
     const baseNetworkRow = await get("SELECT COALESCE(SUM(base_hash_rate), 0) as total FROM users_temp_power");
-    const gameNetworkHash = await getActiveGameHashRateTotal();
+    const gameNetworkHash = await publicStateService.getActiveGameHashRateTotal();
 
     const startMs = Date.parse(`${ONLINE_START_DATE}T00:00:00Z`);
     const nowMs = Date.now();
@@ -615,8 +603,8 @@ app.get("/api/estimated-reward", requireAuth, async (req, res) => {
       userId
     ]);
     const baseNetworkRow = await get("SELECT COALESCE(SUM(base_hash_rate), 0) as total FROM users_temp_power");
-    const userGameHash = await getUserGameHashRate(userId);
-    const gameNetworkHash = await getActiveGameHashRateTotal();
+    const userGameHash = await publicStateService.getUserGameHashRate(userId);
+    const gameNetworkHash = await publicStateService.getActiveGameHashRateTotal();
 
     const userHashRate = Number(userBaseRow?.total || 0) + Number(userGameHash || 0);
     const networkHashRate = Number(baseNetworkRow?.total || 0) + Number(gameNetworkHash || 0);
@@ -649,11 +637,19 @@ app.post("/api/games/memory/claim", requireAuth, async (req, res) => {
     const expiresInMs = boosted ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
     const expiresAt = now + expiresInMs;
     const game = await getOrCreateGame("memory-game", "Memory Game");
+    const hasCheckinIdColumn = await hasUsersPowersGamesCheckinColumn();
 
-    await run(
-      "INSERT INTO users_powers_games (user_id, game_id, hash_rate, played_at, expires_at, checkin_id) VALUES (?, ?, ?, ?, ?, ?)",
-      [user.id, game.id, MEMORY_GAME_REWARD_GH, now, expiresAt, boosted ? confirmedCheckin.id : null]
-    );
+    if (hasCheckinIdColumn) {
+      await run(
+        "INSERT INTO users_powers_games (user_id, game_id, hash_rate, played_at, expires_at, checkin_id) VALUES (?, ?, ?, ?, ?, ?)",
+        [user.id, game.id, MEMORY_GAME_REWARD_GH, now, expiresAt, boosted ? confirmedCheckin.id : null]
+      );
+    } else {
+      await run(
+        "INSERT INTO users_powers_games (user_id, game_id, hash_rate, played_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+        [user.id, game.id, MEMORY_GAME_REWARD_GH, now, expiresAt]
+      );
+    }
 
     res.json({
       ok: true,
@@ -661,7 +657,11 @@ app.post("/api/games/memory/claim", requireAuth, async (req, res) => {
       boosted,
       expiresAt
     });
-  } catch {
+  } catch (error) {
+    logger.error("Memory reward claim failed", {
+      userId: req.user?.id,
+      error: error?.message
+    });
     res.status(500).json({ ok: false, message: "Unable to claim reward." });
   }
 });
@@ -673,10 +673,21 @@ async function getOrCreateGame(slug, name) {
   }
 
   const now = Date.now();
-  const insert = await run(
-    "INSERT INTO games (name, slug, is_active, created_at) VALUES (?, ?, ?, ?)",
-    [name, slug, 1, now]
-  );
+  let insert;
+
+  try {
+    insert = await run(
+      "INSERT INTO games (name, slug, is_active, created_at) VALUES (?, ?, ?, ?)",
+      [name, slug, 1, now]
+    );
+  } catch (error) {
+    const message = String(error?.message || "").toLowerCase();
+    if (!message.includes("is_active") && !message.includes("created_at")) {
+      throw error;
+    }
+
+    insert = await run("INSERT INTO games (name, slug) VALUES (?, ?)", [name, slug]);
+  }
 
   return { id: insert.lastID, name, slug };
 }
@@ -714,110 +725,15 @@ async function persistMinerProfile(miner) {
   );
 }
 
-io.on("connection", (socket) => {
-  socket.on("miner:join", async ({ token } = {}, callback) => {
-    try {
-      if (!token) {
-        callback?.({ ok: false, message: "Sessao invalida. Faça login novamente." });
-        return;
-      }
-
-      const payload = verifyAccessToken(token);
-      const userId = Number(payload?.sub);
-      if (!userId) {
-        callback?.({ ok: false, message: "Sessao invalida. Faça login novamente." });
-        return;
-      }
-
-      const user = await getUserById(userId);
-      if (!user) {
-        callback?.({ ok: false, message: "Sessão inválida. Faça login novamente." });
-        return;
-      }
-
-      const profile = await getOrCreateMinerProfile(user);
-      await syncUserBaseHashRate(user.id);
-      const miner = engine.createOrGetMiner({
-        userId: user.id,
-        username: profile.username || user.name,
-        walletAddress: profile.wallet_address,
-        profile: {
-          rigs: profile.rigs,
-          baseHashRate: profile.base_hash_rate,
-          balance: profile.balance,
-          lifetimeMined: profile.lifetime_mined
-        }
-      });
-
-      engine.setConnected(miner.id, true);
-      socket.data.minerId = miner.id;
-      socket.data.userId = user.id;
-      socket.join(`user:${user.id}`);
-      const state = await buildPublicState(miner.id);
-      callback?.({ ok: true, minerId: miner.id, state });
-    } catch {
-      callback?.({ ok: false, message: "Não foi possível carregar sua sala de mineração." });
-    }
-  });
-
-  socket.on("miner:toggle", async ({ active } = {}, callback) => {
-    const minerId = socket.data.minerId;
-    if (!minerId) {
-      callback?.({ ok: false, message: "Conecte-se primeiro." });
-      return;
-    }
-
-    const miner = engine.setActive(minerId, active);
-    await persistMinerProfile(miner);
-    callback?.({ ok: true, state: engine.getPublicState(minerId) });
-  });
-
-  socket.on("miner:boost", (_payload, callback) => {
-    const minerId = socket.data.minerId;
-    if (!minerId) {
-      callback?.({ ok: false, message: "Conecte-se primeiro." });
-      return;
-    }
-
-    const result = engine.applyBoost(minerId);
-    callback?.({ ...result, state: engine.getPublicState(minerId) });
-  });
-
-  socket.on("miner:upgrade-rig", async (_payload, callback) => {
-    const minerId = socket.data.minerId;
-    if (!minerId) {
-      callback?.({ ok: false, message: "Conecte-se primeiro." });
-      return;
-    }
-
-    const result = engine.upgradeRig(minerId);
-    if (result?.ok) {
-      const miner = engine.miners.get(minerId);
-      await persistMinerProfile(miner);
-    }
-    callback?.({ ...result, state: engine.getPublicState(minerId) });
-  });
-
-  socket.on("miner:wallet-link", async ({ walletAddress } = {}, callback) => {
-    const minerId = socket.data.minerId;
-    if (!minerId) {
-      callback?.({ ok: false, message: "Conecte-se primeiro." });
-      return;
-    }
-
-    const miner = engine.setWallet(minerId, walletAddress);
-    await persistMinerProfile(miner);
-    callback?.({ ok: true, message: "Carteira conectada para depósito e saque.", state: engine.getPublicState(minerId) });
-  });
-
-  socket.on("disconnect", async () => {
-    const minerId = socket.data.minerId;
-    if (minerId) {
-      const miner = engine.miners.get(minerId);
-      await persistMinerProfile(miner);
-      engine.setConnected(minerId, false);
-    }
-  });
+registerMinerSocketHandlers({
+  io,
+  engine,
+  verifyAccessToken,
+  getUserById,
+  getOrCreateMinerProfile,
+  syncUserBaseHashRate: publicStateService.syncUserBaseHashRate,
+  persistMinerProfile,
+  buildPublicState: publicStateService.buildPublicState
 });
 
 const PORT = process.env.PORT || 3000;
@@ -848,7 +764,7 @@ initializeDatabase()
       logger.error("Startup: failed to mark pending withdrawals as failed", { error: error.message });
     }
 
-    startCronTasks({ engine, io, persistMinerProfile, run, buildPublicState });
+    startCronTasks({ engine, io, persistMinerProfile, run, buildPublicState: publicStateService.buildPublicState });
     server.listen(PORT, "0.0.0.0", () => {
       logger.info(`BlockMiner server started on port ${PORT}`, { env: process.env.NODE_ENV });
       const localAddresses = getLocalIpv4Addresses();

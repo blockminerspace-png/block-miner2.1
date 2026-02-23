@@ -8,10 +8,11 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-RUN mkdir -p data backups
+RUN mkdir -p data backups logs && \
+    chmod +x docker-entrypoint.sh
 
 ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

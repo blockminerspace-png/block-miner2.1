@@ -25,6 +25,15 @@ function normalizeUrl(value) {
   return `https://${trimmed}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function isValidUrl(value) {
   try {
     const parsed = new URL(value);
@@ -34,17 +43,9 @@ function isValidUrl(value) {
   }
 }
 
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 async function getUserIdFromSession() {
-  const token = getToken();
-  if (!token) return null;
   try {
-    const response = await fetch("/api/auth/session", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await fetch("/api/auth/session", { credentials: "include" });
     const data = await response.json();
     if (data.ok && data.user?.id) {
       return data.user.id;
@@ -56,13 +57,6 @@ async function getUserIdFromSession() {
 }
 
 async function loadPromoHash() {
-  const token = getToken();
-  if (!token) {
-    const ptpLinkInput = document.getElementById("ptpLink");
-    if (ptpLinkInput) ptpLinkInput.value = "Error: not authenticated";
-    return;
-  }
-
   const ptpLinkInput = document.getElementById("ptpLink");
   
   try {
@@ -80,7 +74,7 @@ async function loadPromoHash() {
 
     // If userId is unavailable, fall back to promo hash
     const response = await fetch("/api/ptp/promo-hash", {
-      headers: { Authorization: `Bearer ${token}` }
+      credentials: "include"
     });
     const data = await response.json();
     
@@ -112,13 +106,8 @@ async function loadPromoHash() {
 }
 
 async function loadMyAds() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch("/api/ptp/my-ads", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await fetch("/api/ptp/my-ads", { credentials: "include" });
     const data = await response.json();
     if (data.ok) {
       const adsList = document.getElementById("adsList");
@@ -138,8 +127,8 @@ async function loadMyAds() {
             return `
             <div class="ad-item">
               <div class="ad-info">
-                <strong>${ad.title}</strong>
-                <p><small>${ad.url}</small></p>
+                <strong>${escapeHtml(ad.title)}</strong>
+                <p><small>${escapeHtml(ad.url)}</small></p>
                 <p><small>Views: ${ad.views} / ${targetViews}</small></p>
                 <p><small>Paid: $${costUsd} | ${costAssetValue} ${assetLabel}</small></p>
               </div>
@@ -159,13 +148,8 @@ async function loadMyAds() {
 }
 
 async function loadEarnings() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch("/api/ptp/earnings", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await fetch("/api/ptp/earnings", { credentials: "include" });
     const data = await response.json();
     if (data.ok) {
       const earningsDisplay = document.getElementById("earningsDisplay");
@@ -193,7 +177,7 @@ async function loadEarnings() {
           .join("");
 
         chartAxis.innerHTML = dailyTotals
-          .map((day) => `<div>${day.label}</div>`)
+          .map((day) => `<div>${escapeHtml(day.label)}</div>`)
           .join("");
       }
       showFeedback(document.getElementById("earningsFeedback"), "", "info");
@@ -207,13 +191,6 @@ async function loadEarnings() {
 }
 
 async function createAd() {
-  const token = getToken();
-  if (!token) {
-    showFeedback(document.getElementById("createAdFeedback"), "You need to be logged in.", "error");
-    notifyToast("You need to be logged in.", "error");
-    return;
-  }
-
   const titleInput = document.getElementById("adTitle");
   const urlInput = document.getElementById("adUrl");
   const viewsInput = document.getElementById("adViews");
@@ -247,9 +224,9 @@ async function createAd() {
     if (submitBtn) submitBtn.disabled = true;
     const response = await fetch("/api/ptp/create-ad", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ title, url: normalizedUrl, views: viewsValue })
     });

@@ -64,7 +64,8 @@ async function initializeDatabase() {
       btc_balance REAL NOT NULL DEFAULT 0,
       eth_balance REAL NOT NULL DEFAULT 0,
       usdt_balance REAL NOT NULL DEFAULT 0,
-      usdc_balance REAL NOT NULL DEFAULT 0
+      usdc_balance REAL NOT NULL DEFAULT 0,
+      zer_balance REAL NOT NULL DEFAULT 0
     )
   `);
 
@@ -94,6 +95,12 @@ async function initializeDatabase() {
 
   try {
     await run("ALTER TABLE users ADD COLUMN usdc_balance REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN zer_balance REAL NOT NULL DEFAULT 0");
   } catch {
     // Column already exists in most cases.
   }
@@ -305,8 +312,8 @@ async function initializeDatabase() {
 
   const faucetMinerSlug = config.faucet?.rewardMinerSlug || "faucet-1ghs";
   const faucetMinerName = "Faucet Miner";
-  const faucetMinerImage = "/assets/machines/reward1.png";
-  const faucetMinerRow = await get("SELECT id FROM miners WHERE slug = ?", [faucetMinerSlug]);
+    const faucetMinerImage = "/assets/machines/reward1.png";
+  const faucetMinerRow = await get("SELECT id, image_url FROM miners WHERE slug = ?", [faucetMinerSlug]);
   let faucetMinerId = null;
   if (!faucetMinerRow) {
     const faucetNow = Date.now();
@@ -317,6 +324,10 @@ async function initializeDatabase() {
     faucetMinerId = result.lastID;
   } else {
     faucetMinerId = faucetMinerRow.id;
+    const currentImage = String(faucetMinerRow.image_url || "").trim();
+      if (!currentImage || currentImage === "/assets/machines/auto_mining_gpu1.png") {
+      await run("UPDATE miners SET image_url = ? WHERE id = ?", [faucetMinerImage, faucetMinerId]);
+    }
   }
 
   // Create faucet_rewards table
@@ -465,6 +476,7 @@ async function initializeDatabase() {
       level INTEGER NOT NULL DEFAULT 1,
       hash_rate REAL NOT NULL DEFAULT 55,
       slot_size INTEGER NOT NULL DEFAULT 1,
+      image_url TEXT,
       acquired_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id),
@@ -563,6 +575,26 @@ async function initializeDatabase() {
   await run("CREATE INDEX IF NOT EXISTS idx_ptp_views_ad_id ON ptp_views(ad_id)");
   await run("CREATE INDEX IF NOT EXISTS idx_ptp_earnings_user_id ON ptp_earnings(user_id)");
 
+  await run(`
+    CREATE TABLE IF NOT EXISTS zerads_ptc_callbacks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      amount_zer REAL NOT NULL,
+      exchange_rate REAL NOT NULL,
+      payout_amount REAL NOT NULL,
+      clicks INTEGER NOT NULL DEFAULT 0,
+      request_ip TEXT,
+      callback_hash TEXT NOT NULL UNIQUE,
+      callback_at INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run("CREATE INDEX IF NOT EXISTS idx_zerads_ptc_callbacks_user_id ON zerads_ptc_callbacks(user_id)");
+  await run("CREATE INDEX IF NOT EXISTS idx_zerads_ptc_callbacks_callback_at ON zerads_ptc_callbacks(callback_at)");
+
   try {
     await run("ALTER TABLE user_miners ADD COLUMN miner_id INTEGER");
   } catch {
@@ -589,6 +621,12 @@ async function initializeDatabase() {
 
   try {
     await run("ALTER TABLE user_inventory ADD COLUMN slot_size INTEGER NOT NULL DEFAULT 1");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE user_inventory ADD COLUMN image_url TEXT");
   } catch {
     // Column already exists in most cases.
   }
@@ -623,6 +661,22 @@ async function initializeDatabase() {
       );
     }
   }
+
+  const autoRewardDefaultImage = "/assets/machines/reward2.png";
+  await run(
+    `UPDATE auto_mining_rewards
+       SET image_url = ?, updated_at = ?
+     WHERE (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/assets/machines/auto_mining_gpu1.png')`,
+    [autoRewardDefaultImage, Date.now()]
+  );
+
+  await run(
+    `UPDATE user_inventory
+       SET image_url = ?
+     WHERE miner_name = 'GPU 1 GHS'
+       AND (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/assets/machines/auto_mining_gpu1.png')`,
+    [autoRewardDefaultImage]
+  );
 
   // Update existing Elite Miners to have slot_size = 2
   try {
@@ -767,6 +821,105 @@ async function initializeDatabase() {
   } catch {
     // Column already exists
   }
+
+  // Auto Mining Rewards table - configuração das GPUs para auto mining
+  await run(`
+    CREATE TABLE IF NOT EXISTS auto_mining_rewards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      gpu_hash_rate REAL NOT NULL DEFAULT 1,
+      image_url TEXT,
+      description TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_rewards_slug ON auto_mining_rewards(slug)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_rewards_is_active ON auto_mining_rewards(is_active)
+  `);
+
+  // Auto Mining GPU table - armazena permissões de GPU liberadas
+  await run(`
+    CREATE TABLE IF NOT EXISTS auto_mining_gpu (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      reward_id INTEGER NOT NULL,
+      gpu_hash_rate REAL NOT NULL DEFAULT 1,
+      is_available INTEGER NOT NULL DEFAULT 1,
+      is_claimed INTEGER NOT NULL DEFAULT 0,
+      released_at INTEGER NOT NULL,
+      claimed_at INTEGER,
+      expires_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (reward_id) REFERENCES auto_mining_rewards(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_user_id ON auto_mining_gpu(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_reward_id ON auto_mining_gpu(reward_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_is_available ON auto_mining_gpu(is_available)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_is_claimed ON auto_mining_gpu(is_claimed)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_released_at ON auto_mining_gpu(released_at)
+  `);
+
+  // Auto Mining GPU Logs - registra quando usuários ganham GPUs
+  await run(`
+    CREATE TABLE IF NOT EXISTS auto_mining_gpu_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      gpu_id INTEGER NOT NULL,
+      reward_id INTEGER,
+      gpu_hash_rate REAL NOT NULL,
+      action TEXT NOT NULL,
+      source TEXT NOT NULL,
+      claimed_at INTEGER NOT NULL,
+      expires_at INTEGER,
+      notes TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (gpu_id) REFERENCES auto_mining_gpu(id),
+      FOREIGN KEY (reward_id) REFERENCES auto_mining_rewards(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_user_id ON auto_mining_gpu_logs(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_gpu_id ON auto_mining_gpu_logs(gpu_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_reward_id ON auto_mining_gpu_logs(reward_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_claimed_at ON auto_mining_gpu_logs(claimed_at)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_action ON auto_mining_gpu_logs(action)
+  `);
 }
 
 module.exports = {

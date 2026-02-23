@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "lint": "eslint . --ext .js",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
     "backup": "node scripts/backup.js",
     "install-hooks": "git config core.hooksPath .githooks || true"
   },
@@ -29,6 +33,12 @@
     "zod": "^3.25.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "eslint": "^9.36.0",
+    "nodemon": "^3.1.11",
+    "prettier": "^3.6.2"
+  },
+  "overrides": {
+    "minimatch": "^10.2.1",
+    "tar": "^7.5.8"
   }
 }

@@ -36,7 +36,12 @@
         }
       }
 
-      return originalFetch(input, { ...init, headers });
+      const nextInit = { ...init, headers };
+      if (isSameOrigin && !nextInit.credentials) {
+        nextInit.credentials = "include";
+      }
+
+      return originalFetch(input, nextInit);
     } catch {
       return originalFetch(input, init);
     }
@@ -156,53 +161,30 @@
               credentials: "include"
             });
             const refreshPayload = await refreshResponse.json();
-            if (!refreshResponse.ok || !refreshPayload?.ok || !refreshPayload?.token) {
+            if (!refreshResponse.ok || !refreshPayload?.ok) {
               return false;
             }
-
-            localStorage.setItem("blockminer_token", refreshPayload.token);
             return true;
           } catch {
             return false;
           }
         };
 
-        let token = localStorage.getItem("blockminer_token");
-        if (!token) {
-          const refreshed = await attemptRefresh();
-          token = localStorage.getItem("blockminer_token");
-          if (!refreshed || !token) {
-            localStorage.removeItem("blockminer_session");
-            return false;
-          }
-        }
-
         try {
-          let response = await fetch("/api/auth/session", {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          });
+          let response = await fetch("/api/auth/session");
 
           if (!response.ok) {
             const refreshed = await attemptRefresh();
-            token = localStorage.getItem("blockminer_token");
-            if (!refreshed || !token) {
-              localStorage.removeItem("blockminer_token");
+            if (!refreshed) {
               localStorage.removeItem("blockminer_session");
               return false;
             }
 
-            response = await fetch("/api/auth/session", {
-              headers: {
-                Authorization: `Bearer ${token}`
-              }
-            });
+            response = await fetch("/api/auth/session");
           }
 
           const payload = await response.json();
           if (!response.ok || !payload?.ok) {
-            localStorage.removeItem("blockminer_token");
             localStorage.removeItem("blockminer_session");
             return false;
           }
@@ -216,23 +198,15 @@
           );
           return true;
         } catch {
-          localStorage.removeItem("blockminer_token");
           localStorage.removeItem("blockminer_session");
           return false;
         }
       };
 
       const handleLogout = () => {
-        const token = localStorage.getItem("blockminer_token");
         fetch("/api/auth/logout", {
-          method: "POST",
-          headers: token
-            ? {
-                Authorization: `Bearer ${token}`
-              }
-            : {}
+          method: "POST"
         }).catch(() => undefined).finally(() => {
-          localStorage.removeItem("blockminer_token");
           localStorage.removeItem("blockminer_session");
           renderAuth(false);
           window.location.href = "/login";

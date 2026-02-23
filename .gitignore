@@ -3,8 +3,10 @@ node_modules/
 
 # Env / secrets
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
+!.env.production
 
 # SQLite / local data
 data/*.db

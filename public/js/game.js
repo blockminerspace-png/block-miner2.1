@@ -37,10 +37,6 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 function formatHashrate(value) {
   return `${Math.round(value || 0)} H/s`;
 }
@@ -70,16 +66,9 @@ function applyLiveState(payload) {
 }
 
 async function loadMachines() {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   try {
     const response = await fetch("/api/machines", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      credentials: "include"
     });
     const data = await response.json();
     if (data.ok) {
@@ -92,16 +81,9 @@ async function loadMachines() {
 }
 
 async function loadInventory() {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   try {
     const response = await fetch("/api/inventory", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      credentials: "include"
     });
     const data = await response.json();
     if (data.ok) {
@@ -113,16 +95,9 @@ async function loadInventory() {
 }
 
 async function loadRackConfigs() {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   try {
     const response = await fetch("/api/racks", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      credentials: "include"
     });
     const data = await response.json();
     if (data.ok && data.racks) {
@@ -136,17 +111,12 @@ async function loadRackConfigs() {
 }
 
 async function saveRackName(rackIndex, customName) {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   try {
     const response = await fetch("/api/racks/update", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ rackIndex, customName })
     });
@@ -292,19 +262,14 @@ function showConfirmDialog(message) {
 }
 
 async function addMachineToSlot(rackIndex, localSlotIndex, inventoryId) {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   const slotIndex = getGlobalSlotIndex(rackIndex, localSlotIndex);
 
   try {
     const response = await fetch("/api/inventory/install", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ slotIndex, inventoryId })
     });
@@ -325,11 +290,6 @@ async function addMachineToSlot(rackIndex, localSlotIndex, inventoryId) {
 }
 
 async function removeInventoryItem(inventoryId) {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   const confirmed = await showConfirmDialog("Are you sure you want to remove this miner from inventory?");
   if (!confirmed) {
     return;
@@ -338,9 +298,9 @@ async function removeInventoryItem(inventoryId) {
   try {
     const response = await fetch("/api/inventory/remove", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ inventoryId })
     });
@@ -358,11 +318,6 @@ async function removeInventoryItem(inventoryId) {
 }
 
 async function removeMachine(machineId) {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   const confirmed = await showConfirmDialog("Are you sure you want to send this miner to inventory?");
   if (!confirmed) {
     return;
@@ -371,9 +326,9 @@ async function removeMachine(machineId) {
   try {
     const response = await fetch("/api/machines/remove", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ machineId })
     });
@@ -392,17 +347,12 @@ async function removeMachine(machineId) {
 }
 
 async function upgradeMachine(machineId) {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   try {
     const response = await fetch("/api/machines/upgrade", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ machineId })
     });
@@ -421,17 +371,12 @@ async function upgradeMachine(machineId) {
 }
 
 async function toggleMachine(machineId, isActive) {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   try {
     const response = await fetch("/api/machines/toggle", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ machineId, isActive })
     });
@@ -450,11 +395,6 @@ async function toggleMachine(machineId, isActive) {
 }
 
 async function clearRack(rackIndex) {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
   const confirmed = await showConfirmDialog(`Clear all machines from Rack ${rackIndex}?`);
   if (!confirmed) {
     return;
@@ -463,9 +403,9 @@ async function clearRack(rackIndex) {
   try {
     const response = await fetch("/api/machines/clear-rack", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ rackIndex })
     });
@@ -823,8 +763,8 @@ function renderState(payload) {
   renderInventory();
 }
 
-function requestJoin(token) {
-  socket.emit("miner:join", { token }, async (response) => {
+function requestJoin() {
+  socket.emit("miner:join", {}, async (response) => {
     if (!response?.ok) {
       return;
     }
@@ -838,12 +778,7 @@ function requestJoin(token) {
 }
 
 socket.on("connect", () => {
-  const token = getToken();
-  if (!token) {
-    return;
-  }
-
-  requestJoin(token);
+  requestJoin();
 });
 
 socket.on("state:update", async (payload) => {

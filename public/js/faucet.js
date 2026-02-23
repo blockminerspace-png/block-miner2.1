@@ -1,7 +1,3 @@
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 function formatDuration(ms) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -55,13 +51,8 @@ function startCountdown() {
 }
 
 async function loadFaucetStatus() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch("/api/faucet/status", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await fetch("/api/faucet/status", { credentials: "include" });
     const data = await response.json();
 
     if (!data.ok) {
@@ -100,18 +91,15 @@ async function loadFaucetStatus() {
 }
 
 async function claimFaucet() {
-  const token = getToken();
-  if (!token) return;
-
   const claimBtn = document.getElementById("faucetClaimBtn");
   if (claimBtn) claimBtn.disabled = true;
 
   try {
     const response = await fetch("/api/faucet/claim", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       }
     });
 

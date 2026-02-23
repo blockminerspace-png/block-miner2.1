@@ -6,10 +6,6 @@ function showSwapFeedback(target, message, type = "info") {
   if (type === "success") target.classList.add("is-success");
 }
 
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 const swapState = {
   balances: { POL: 0, USDC: 0 }
 };
@@ -31,17 +27,10 @@ function sanitizeAmountInput(value) {
 }
 
 async function loadSwapBalances() {
-  const token = getToken();
   const feedback = document.getElementById("swapFeedback");
-  if (!token) {
-    showSwapFeedback(feedback, "Please log in to view your balances.", "error");
-    return;
-  }
 
   try {
-    const response = await fetch("/api/swap/balances", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await fetch("/api/swap/balances", { credentials: "include" });
     const data = await response.json();
     if (data.ok) {
       const polBalance = document.getElementById("polBalance");
@@ -61,12 +50,7 @@ async function loadSwapBalances() {
 }
 
 async function updateQuote() {
-  const token = getToken();
   const feedback = document.getElementById("swapFeedback");
-  if (!token) {
-    showSwapFeedback(feedback, "Please log in to get a quote.", "error");
-    return;
-  }
 
   const amountInput = document.getElementById("swapAmount");
   const fromSelect = document.getElementById("swapFrom");
@@ -84,9 +68,9 @@ async function updateQuote() {
   try {
     const response = await fetch("/api/swap/quote", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
         fromAsset: fromSelect?.value,
@@ -129,12 +113,7 @@ function syncToAsset() {
 
 async function executeSwap(event) {
   event.preventDefault();
-  const token = getToken();
   const feedback = document.getElementById("swapFeedback");
-  if (!token) {
-    showSwapFeedback(feedback, "Please log in to swap.", "error");
-    return;
-  }
 
   const amountInput = document.getElementById("swapAmount");
   const fromSelect = document.getElementById("swapFrom");
@@ -158,9 +137,9 @@ async function executeSwap(event) {
     if (submitBtn) submitBtn.disabled = true;
     const response = await fetch("/api/swap/execute", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
         fromAsset,

@@ -141,7 +141,6 @@ form?.addEventListener("submit", async (event) => {
         email: payload.user.email
       })
     );
-    localStorage.setItem("blockminer_token", payload.token);
 
     setFeedback("Registration complete! Redirecting to dashboard...");
     setTimeout(() => {

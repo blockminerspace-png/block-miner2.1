@@ -1,0 +1,30 @@
+{
+  "root": true,
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "script"
+  },
+  "rules": {
+    "no-unused-vars": "off",
+    "no-undef": "off"
+  },
+  "overrides": [
+    {
+      "files": ["public/js/**/*.js", "admin/*.js"],
+      "env": {
+        "browser": true,
+        "node": false
+      }
+    },
+    {
+      "files": ["tests/**/*.js"],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}

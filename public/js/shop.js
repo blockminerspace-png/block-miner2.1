@@ -1,7 +1,3 @@
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 function formatPol(value) {
   if (!Number.isFinite(value)) return "0 POL";
   const formatted = value % 1 === 0 ? value.toFixed(0) : value.toFixed(2);
@@ -57,17 +53,7 @@ function renderPagination(container, page, pageSize, total) {
 }
 
 async function fetchMiners(page, pageSize) {
-  const token = getToken();
-  if (!token) {
-    window.notify?.("Please login first.", "error");
-    return null;
-  }
-
-  const response = await fetch(`/api/shop/miners?page=${page}&pageSize=${pageSize}`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  const response = await fetch(`/api/shop/miners?page=${page}&pageSize=${pageSize}`, { credentials: "include" });
 
   const data = await response.json();
   if (!data.ok) {
@@ -79,12 +65,6 @@ async function fetchMiners(page, pageSize) {
 }
 
 async function purchaseMinerFromShop(minerId, button) {
-  const token = getToken();
-  if (!token) {
-    window.notify?.("Please login first.", "error");
-    return;
-  }
-
   if (!Number.isInteger(minerId) || minerId <= 0) {
     window.notify?.("Invalid product data. Please refresh the page.", "error");
     return;
@@ -94,9 +74,9 @@ async function purchaseMinerFromShop(minerId, button) {
     button.disabled = true;
     const response = await fetch("/api/shop/purchase", {
       method: "POST",
+      credentials: "include",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ minerId })
     });

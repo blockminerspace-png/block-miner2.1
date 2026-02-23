@@ -5,10 +5,6 @@ const POLYGON_CHAIN_ID = "0x89";
 const statusEl = document.getElementById("checkinStatus");
 const checkinBtn = document.getElementById("checkinBtn");
 
-function getToken() {
-  return localStorage.getItem("blockminer_token");
-}
-
 function setStatus(message, type = "") {
   statusEl.textContent = message;
   statusEl.classList.remove("error", "success");
@@ -18,19 +14,8 @@ function setStatus(message, type = "") {
 }
 
 async function fetchStatus() {
-  const token = getToken();
-  if (!token) {
-    setStatus("Please log in to use daily check-in.", "error");
-    checkinBtn.disabled = true;
-    return;
-  }
-
   try {
-    const response = await fetch("/api/checkin/status", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await fetch("/api/checkin/status", { credentials: "include" });
 
     const payload = await response.json();
     if (!response.ok || !payload?.ok) {
@@ -93,11 +78,10 @@ async function sendCheckinPayment() {
 }
 
 async function verifyCheckin(txHash) {
-  const token = getToken();
   const response = await fetch("/api/checkin/verify", {
     method: "POST",
+    credentials: "include",
     headers: {
-      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ txHash, chainId: 137 })

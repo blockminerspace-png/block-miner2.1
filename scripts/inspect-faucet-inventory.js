@@ -4,7 +4,7 @@ const db = new sqlite3.Database("data/blockminer.db");
 
 db.serialize(() => {
   db.all(
-    "SELECT id, user_id, miner_id, miner_name, hash_rate FROM user_inventory WHERE hash_rate = 1",
+    "SELECT id, user_id, miner_id, miner_name, hash_rate, image_url FROM user_inventory WHERE hash_rate = 1",
     [],
     (err, rows) => {
       if (err) {

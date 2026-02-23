@@ -5,6 +5,32 @@ const { getOrCreateMinerProfile } = require("../models/minerProfileModel");
 const { getSlotSizeForMiner } = require("../utils/minerUtils");
 const { run } = require("../models/db");
 
+function normalizeMinerIdentifier(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function createMinersIdentifierMap(miners) {
+  const byIdentifier = new Map();
+
+  miners.forEach((miner) => {
+    const lowerName = String(miner.name || "").trim().toLowerCase();
+    const normalizedName = normalizeMinerIdentifier(miner.name);
+    const normalizedSlug = normalizeMinerIdentifier(miner.slug);
+
+    if (lowerName) byIdentifier.set(lowerName, miner);
+    if (normalizedName) byIdentifier.set(normalizedName, miner);
+    if (normalizedSlug) byIdentifier.set(normalizedSlug, miner);
+  });
+
+  return byIdentifier;
+}
+
 function createInventoryController(io) {
   async function listInventory(req, res) {
     try {
@@ -12,9 +38,7 @@ function createInventoryController(io) {
       const miners = await minersModel.listAllMiners();
 
       const minersById = new Map(miners.map((miner) => [Number(miner.id), miner]));
-      const minersByName = new Map(
-        miners.map((miner) => [String(miner.name || "").toLowerCase(), miner])
-      );
+      const minersByIdentifier = createMinersIdentifierMap(miners);
 
       const legacyNames = new Set(["basic miner", "pro miner", "elite miner"]);
 
@@ -22,10 +46,14 @@ function createInventoryController(io) {
         inventory.map(async (item) => {
           const currentName = String(item.miner_name || "").trim();
           const lowerName = currentName.toLowerCase();
+          const normalizedName = normalizeMinerIdentifier(currentName);
           const minerId = Number(item.miner_id || 0);
           let matchedMiner = Number.isFinite(minerId) && minerId > 0 ? minersById.get(minerId) || null : null;
           if (!matchedMiner) {
-            matchedMiner = minersByName.get(lowerName) || null;
+            matchedMiner = minersByIdentifier.get(lowerName) || null;
+          }
+          if (!matchedMiner && normalizedName) {
+            matchedMiner = minersByIdentifier.get(normalizedName) || null;
           }
 
           if (!matchedMiner && legacyNames.has(lowerName) && miners.length > 0) {
@@ -107,8 +135,31 @@ function createInventoryController(io) {
         ? inventoryItem.slot_size
         : getSlotSizeForMiner(inventoryItem.hash_rate);
 
-      const matchedMiner = await minersModel.getMinerByName(inventoryItem.miner_name);
-      const minerId = matchedMiner?.id || null;
+      let minerId = Number(inventoryItem.miner_id || 0);
+      if (!Number.isFinite(minerId) || minerId <= 0) {
+        const miners = await minersModel.listAllMiners();
+        const minersByIdentifier = createMinersIdentifierMap(miners);
+        const currentName = String(inventoryItem.miner_name || "").trim();
+        const lowerName = currentName.toLowerCase();
+        const normalizedName = normalizeMinerIdentifier(currentName);
+        const matchedMiner =
+          minersByIdentifier.get(normalizedName) ||
+          minersByIdentifier.get(lowerName) ||
+          null;
+
+        minerId = matchedMiner?.id || null;
+
+        if (matchedMiner) {
+          const desiredSlotSize = Number(matchedMiner.slot_size || slotSize || 1);
+          await inventoryModel.updateInventoryItemMeta(
+            req.user.id,
+            inventoryItem.id,
+            matchedMiner.name,
+            desiredSlotSize,
+            matchedMiner.id
+          );
+        }
+      }
 
       // 2-cell machines must start on even slots (0, 2, 4, 6 internally, shown as 1, 3, 5, 7 to user)
       if (slotSize === 2 && slotIndex % 2 !== 0) {

@@ -1,0 +1,311 @@
+const crypto = require("crypto");
+const { get, all, run } = require("../models/db");
+const logger = require("../utils/logger").child("ZerAdsController");
+
+const ZERADS_SITE_ID = String(process.env.ZERADS_SITE_ID || "10146").trim();
+const ZERADS_CALLBACK_PASSWORD = String(process.env.ZERADS_CALLBACK_PASSWORD || "password");
+const ZERADS_ALLOWED_IPS = new Set(
+  String(process.env.ZERADS_ALLOWED_IPS || "162.0.208.108")
+    .split(",")
+    .map((value) => normalizeIp(value))
+    .filter(Boolean)
+);
+const parsedExchangeRate = Number(process.env.ZERADS_PTC_EXCHANGE_RATE);
+const ZERADS_PTC_EXCHANGE_RATE = Number.isFinite(parsedExchangeRate) && parsedExchangeRate > 0 ? parsedExchangeRate : 0.03775;
+const ZERADS_OFFERWALL_URL_TEMPLATE = String(
+  process.env.ZERADS_OFFERWALL_URL_TEMPLATE || "https://zerads.com/?ref={siteId}&user={username}"
+).trim();
+const ZERADS_USER_TOKEN_SECRET = String(process.env.ZERADS_USER_TOKEN_SECRET || process.env.JWT_SECRET || "zerads-secret");
+const CALLBACK_BUCKET_MS = 5 * 60 * 1000;
+
+function normalizeIp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  if (raw.startsWith("::ffff:")) {
+    return raw.slice(7);
+  }
+
+  return raw;
+}
+
+function getRequestIp(req) {
+  return normalizeIp(req.ip || req.socket?.remoteAddress || "");
+}
+
+function buildCallbackHash({ username, amount, clicks, requestIp, bucket }) {
+  const raw = `${username}|${amount}|${clicks}|${requestIp}|${bucket}`;
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+function normalizeUsername(rawValue) {
+  return String(rawValue || "").trim().toLowerCase();
+}
+
+function buildExternalUserToken(userId) {
+  const safeUserId = Number(userId);
+  const idPart = Number.isFinite(safeUserId) && safeUserId > 0 ? Math.floor(safeUserId) : 0;
+  const signature = crypto
+    .createHmac("sha256", ZERADS_USER_TOKEN_SECRET)
+    .update(String(idPart))
+    .digest("hex")
+    .slice(0, 12);
+  return `u${idPart}_${signature}`;
+}
+
+function parseExternalUserToken(token) {
+  const raw = String(token || "").trim();
+  const match = raw.match(/^u(\d+)_([a-f0-9]{12})$/i);
+  if (!match) {
+    return null;
+  }
+
+  const userId = Number(match[1]);
+  const signature = String(match[2]).toLowerCase();
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return null;
+  }
+
+  const expected = crypto
+    .createHmac("sha256", ZERADS_USER_TOKEN_SECRET)
+    .update(String(userId))
+    .digest("hex")
+    .slice(0, 12);
+
+  if (signature !== expected) {
+    return null;
+  }
+
+  return { userId };
+}
+
+function parseClicks(value, amount) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    if (Number.isFinite(amount) && amount > 0) {
+      return 1;
+    }
+    return 0;
+  }
+
+  return Math.floor(parsed);
+}
+
+function toFixedNumber(value, digits = 8) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Number(parsed.toFixed(digits));
+}
+
+function getPtcUrlForUsername(username) {
+  const safeUser = encodeURIComponent(String(username || "").trim());
+  return `https://zerads.com/ptc.php?ref=${encodeURIComponent(ZERADS_SITE_ID)}&user=${safeUser}`;
+}
+
+function getOfferwallUrlForUsername(username) {
+  const safeUser = encodeURIComponent(String(username || "").trim());
+  return ZERADS_OFFERWALL_URL_TEMPLATE
+    .replaceAll("{siteId}", encodeURIComponent(ZERADS_SITE_ID))
+    .replaceAll("{username}", safeUser);
+}
+
+async function getPtcLink(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ ok: false, message: "Unauthorized" });
+      return;
+    }
+
+    const externalUser = buildExternalUserToken(userId);
+
+    const ptcUrl = getPtcUrlForUsername(externalUser);
+    res.json({ ok: true, siteId: ZERADS_SITE_ID, externalUser, ptcUrl, exchangeRate: ZERADS_PTC_EXCHANGE_RATE, rewardName: "USDC" });
+  } catch (error) {
+    logger.error("Failed to get ZerAds PTC link", { error: error.message, userId: req.user?.id });
+    res.status(500).json({ ok: false, message: "Unable to generate ZerAds link." });
+  }
+}
+
+async function getStats(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ ok: false, message: "Unauthorized" });
+      return;
+    }
+
+    const rows = await all(
+      `
+        SELECT payout_amount, clicks, callback_at
+        FROM zerads_ptc_callbacks
+        WHERE user_id = ?
+        ORDER BY callback_at DESC
+        LIMIT 100
+      `,
+      [userId]
+    );
+
+    const totalRewards = rows.reduce((sum, row) => sum + Number(row?.payout_amount || 0), 0);
+    const totalClicks = rows.reduce((sum, row) => sum + Number(row?.clicks || 0), 0);
+
+    res.json({
+      ok: true,
+      totalRewards: toFixedNumber(totalRewards, 8),
+      totalClicks,
+      callbackCount: rows.length,
+      recentCallbacks: rows.slice(0, 10)
+    });
+  } catch (error) {
+    logger.error("Failed to load ZerAds stats", { error: error.message, userId: req.user?.id });
+    res.status(500).json({ ok: false, message: "Unable to load ZerAds stats." });
+  }
+}
+
+async function getOfferwallLink(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ ok: false, message: "Unauthorized" });
+      return;
+    }
+
+    const externalUser = buildExternalUserToken(userId);
+
+    const offerwallUrl = getOfferwallUrlForUsername(externalUser);
+    res.json({ ok: true, siteId: ZERADS_SITE_ID, externalUser, offerwallUrl });
+  } catch (error) {
+    logger.error("Failed to get ZerAds offerwall link", { error: error.message, userId: req.user?.id });
+    res.status(500).json({ ok: false, message: "Unable to generate ZerAds Offerwall link." });
+  }
+}
+
+async function handlePtcCallback(req, res) {
+  const requestIp = getRequestIp(req);
+  const receivedPassword = String(req.query?.pwd || "");
+  const rawUser = String(req.query?.user || "").trim();
+  const normalizedUser = normalizeUsername(rawUser);
+  const amount = Number(req.query?.amount);
+  const clicks = parseClicks(req.query?.clicks, amount);
+
+  if (!receivedPassword || receivedPassword !== ZERADS_CALLBACK_PASSWORD) {
+    logger.warn("Rejected ZerAds callback by password", { requestIp, user: normalizedUser || null });
+    res.status(401).send("invalid_password");
+    return;
+  }
+
+  if (!normalizedUser) {
+    res.status(400).send("invalid_user");
+    return;
+  }
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    res.status(400).send("invalid_amount");
+    return;
+  }
+
+  if (ZERADS_ALLOWED_IPS.size > 0 && !ZERADS_ALLOWED_IPS.has(requestIp)) {
+    logger.warn("Rejected ZerAds callback by IP", { requestIp, user: normalizedUser });
+    res.status(403).send("forbidden_ip");
+    return;
+  }
+
+  let user = null;
+  const parsedToken = parseExternalUserToken(normalizedUser);
+  if (parsedToken?.userId) {
+    user = await get("SELECT id, username FROM users WHERE id = ? LIMIT 1", [parsedToken.userId]);
+  }
+
+  // Backward compatibility with old username-based links.
+  if (!user?.id) {
+    user = await get("SELECT id, username FROM users WHERE LOWER(username) = ? LIMIT 1", [normalizedUser]);
+  }
+
+  if (!user?.id) {
+    logger.warn("Rejected ZerAds callback for unknown user", { requestIp, user: normalizedUser });
+    res.status(404).send("user_not_found");
+    return;
+  }
+
+  const payoutAmount = toFixedNumber(amount * ZERADS_PTC_EXCHANGE_RATE, 8);
+  const bucket = Math.floor(Date.now() / CALLBACK_BUCKET_MS);
+  const callbackHash = buildCallbackHash({
+    username: normalizedUser,
+    amount: toFixedNumber(amount, 8),
+    clicks,
+    requestIp,
+    bucket
+  });
+
+  await run("BEGIN IMMEDIATE");
+  try {
+    await run(
+      `
+        INSERT INTO zerads_ptc_callbacks
+          (user_id, username, amount_zer, exchange_rate, payout_amount, clicks, request_ip, callback_hash, callback_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        user.id,
+        normalizedUser,
+        toFixedNumber(amount, 8),
+        ZERADS_PTC_EXCHANGE_RATE,
+        payoutAmount,
+        clicks,
+        requestIp || null,
+        callbackHash,
+        Date.now()
+      ]
+    );
+
+    if (payoutAmount > 0) {
+      await run("UPDATE users SET usdc_balance = usdc_balance + ? WHERE id = ?", [payoutAmount, user.id]);
+    }
+
+    if (amount > 0) {
+      await run("UPDATE users SET zer_balance = zer_balance + ? WHERE id = ?", [toFixedNumber(amount, 8), user.id]);
+    }
+
+    await run("COMMIT");
+  } catch (error) {
+    await run("ROLLBACK").catch(() => undefined);
+
+    if (String(error?.message || "").toLowerCase().includes("unique")) {
+      logger.info("Duplicate ZerAds callback ignored", { requestIp, user: normalizedUser, callbackHash });
+      res.status(200).send("ok_duplicate");
+      return;
+    }
+
+    logger.error("Failed to process ZerAds callback", {
+      error: error.message,
+      user: normalizedUser,
+      requestIp,
+      amount
+    });
+    res.status(500).send("server_error");
+    return;
+  }
+
+  logger.info("ZerAds callback credited", {
+    userId: user.id,
+    username: normalizedUser,
+    amountZer: toFixedNumber(amount, 8),
+    payoutAmount,
+    clicks,
+    requestIp
+  });
+
+  res.status(200).send("ok");
+}
+
+module.exports = {
+  getPtcLink,
+  getOfferwallLink,
+  getStats,
+  handlePtcCallback
+};

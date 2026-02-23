@@ -17,15 +17,22 @@
     <main class="app">
       <section class="card">
         <h1>Earnings | PTC</h1>
-        <p class="subtitle">Earn rewards by viewing timed ads.</p>
+        <p class="subtitle">Your ZerAds links and earnings are loaded automatically.</p>
+      </section>
+
+      <section class="card offerwall-showcase-card">
+        <h2>Offerwall Partners</h2>
+        <div id="offerwallGrid" class="offerwall-grid" aria-live="polite"></div>
       </section>
 
       <section class="card">
-        <h2>Coming soon</h2>
-        <p>We are preparing the first campaign list.</p>
+        <h2>ZerAds Earnings</h2>
+        <p id="zeradsTotals">Loading earnings...</p>
+        <p id="zeradsLastCallback">Last callback: -</p>
       </section>
     </main>
 
     <script src="/js/layout.js"></script>
+    <script src="/js/earnings-ptc.js"></script>
   </body>
 </html>

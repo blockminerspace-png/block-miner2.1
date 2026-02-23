@@ -312,7 +312,7 @@ async function viewPromoPage(req, res) {
       return res.status(404).send("Ad not found");
     }
 
-    const safeTitle = String(ad.title || "Anuncio").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const safeTitle = String(ad.title || "Ad").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const safeUrl = String(ad.url || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     res.send(`
@@ -416,9 +416,9 @@ async function viewPromotePage(req, res) {
         <body>
           <div class="wrap">
             <div class="card">
-              <div class="title">Nenhum anuncio disponivel</div>
-              <div class="desc">No momento nao ha anuncios ativos para promover. Tente novamente em alguns minutos.</div>
-              <a class="btn" href="/ptp">Voltar ao PTP</a>
+              <div class="title">No ads available</div>
+              <div class="desc">There are currently no active ads to promote. Please try again in a few minutes.</div>
+              <a class="btn" href="/ptp">Back to PTP</a>
             </div>
           </div>
         </body>
@@ -426,7 +426,7 @@ async function viewPromotePage(req, res) {
       `);
     }
 
-    const safeTitle = String(ad.title || "Anuncio").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const safeTitle = String(ad.title || "Ad").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const safeUrl = String(ad.url || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     res.send(`

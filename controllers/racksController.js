@@ -1,5 +1,7 @@
 const rackModel = require("../models/rackModel");
 
+const RACK_NAME_REGEX = /^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 -]*$/;
+
 function createRacksController() {
   async function listRacks(req, res) {
     try {
@@ -21,8 +23,8 @@ function createRacksController() {
         return;
       }
 
-      if (!customName || customName.length > 30) {
-        res.status(400).json({ ok: false, message: "Invalid rack name." });
+      if (!customName || customName.length > 30 || !RACK_NAME_REGEX.test(customName)) {
+        res.status(400).json({ ok: false, message: "Invalid rack name. Use letters, numbers, spaces and hyphens only." });
         return;
       }
 
