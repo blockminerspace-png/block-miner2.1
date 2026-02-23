@@ -153,7 +153,8 @@ class MiningEngine {
       return;
     }
 
-    const randomReward = this.rewardBase + Math.random() * 0.35;
+    // Fixed reward per block - no randomness to ensure consistent payouts
+    const blockReward = this.rewardBase;
     const minedBlockNumber = this.blockNumber;
 
     for (const [minerId, work] of this.roundWork.entries()) {
@@ -164,17 +165,17 @@ class MiningEngine {
       }
 
       const share = work / totalWork;
-      const reward = randomReward * share;
+      const reward = blockReward * share;
       miner.balance += reward;
       miner.lifetimeMined += reward;
       this.totalMinted += reward;
       this.roundWork.set(minerId, 0);
     }
 
-    this.lastReward = randomReward;
+    this.lastReward = blockReward;
     this.blockHistory.unshift({
       blockNumber: minedBlockNumber,
-      reward: randomReward,
+      reward: blockReward,
       minerCount: this.activeMiners,
       timestamp: Date.now()
     });

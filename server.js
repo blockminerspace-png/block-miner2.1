@@ -758,6 +758,8 @@ async function syncEngineMiners() {
     existingMiner.walletAddress = profile.wallet_address || null;
     existingMiner.rigs = Number(profile.rigs || 1);
     existingMiner.baseHashRate = Number(profile.base_hash_rate || 0);
+    existingMiner.balance = Number(profile.balance || 0);
+    existingMiner.lifetimeMined = Number(profile.lifetime_mined || 0);
   }
 }
 
