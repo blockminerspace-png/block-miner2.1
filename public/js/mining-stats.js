@@ -26,6 +26,13 @@ function formatToken(value, symbol) {
   return `${safeValue.toFixed(4)} ${symbol}`;
 }
 
+function formatCountdown(seconds) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const rest = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
 async function updateEstimatedReward() {
   const estimatedEl = document.getElementById("statEstimatedReward");
   if (!estimatedEl) {
@@ -33,9 +40,21 @@ async function updateEstimatedReward() {
   }
 
   try {
-    const estimateResponse = await fetch("/api/estimated-reward", {
+    let estimateResponse = await fetch("/api/estimated-reward", {
       credentials: "include"
     });
+
+    if (estimateResponse.status === 401) {
+      await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include"
+      }).catch(() => undefined);
+
+      estimateResponse = await fetch("/api/estimated-reward", {
+        credentials: "include"
+      });
+    }
+
     if (!estimateResponse.ok) {
       estimatedEl.textContent = estimateResponse.status === 401 ? "Sign in to see" : "Unavailable";
       return;
@@ -73,6 +92,17 @@ async function loadNetworkStats() {
     if (usersEl) usersEl.textContent = Number(payload.registeredUsers || 0).toLocaleString("en-US");
     if (paidEl) paidEl.textContent = `${Number(payload.totalPaid || 0).toLocaleString("en-US")} POL`;
     if (daysEl) daysEl.textContent = Number(payload.daysOnline || 0).toLocaleString("en-US");
+
+    const nextBlockEl = document.getElementById("statNextBlock");
+    if (nextBlockEl) {
+      try {
+        const stateResponse = await fetch("/api/state", { credentials: "include" });
+        const statePayload = await stateResponse.json();
+        nextBlockEl.textContent = formatCountdown(statePayload?.blockCountdownSeconds ?? 0);
+      } catch {
+        nextBlockEl.textContent = "Unavailable";
+      }
+    }
 
     await updateEstimatedReward();
 

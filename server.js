@@ -10,7 +10,7 @@ const { z } = require("zod");
 const { MiningEngine } = require("./src/miningEngine");
 const { pagesRouter } = require("./routes/pages");
 const { authRouter } = require("./routes/auth");
-const { initializeDatabase, run, get } = require("./src/db/sqlite");
+const { initializeDatabase, run, get, all } = require("./src/db/sqlite");
 const { createHealthController } = require("./controllers/healthController");
 const { createShopController } = require("./controllers/shopController");
 const { createInventoryController } = require("./controllers/inventoryController");
@@ -725,6 +725,37 @@ async function persistMinerProfile(miner) {
   );
 }
 
+async function syncEngineMiners() {
+  const profiles = await all(
+    "SELECT user_id, username, wallet_address, rigs, base_hash_rate, balance, lifetime_mined FROM users_temp_power"
+  );
+
+  for (const profile of profiles) {
+    if (!profile?.user_id) {
+      continue;
+    }
+
+    const miner = engine.createOrGetMiner({
+      userId: profile.user_id,
+      username: profile.username,
+      walletAddress: profile.wallet_address,
+      profile: {
+        rigs: profile.rigs,
+        baseHashRate: profile.base_hash_rate,
+        balance: profile.balance,
+        lifetimeMined: profile.lifetime_mined
+      }
+    });
+
+    miner.username = profile.username || miner.username;
+    miner.walletAddress = profile.wallet_address || null;
+    miner.rigs = Number(profile.rigs || 1);
+    miner.baseHashRate = Number(profile.base_hash_rate || 0);
+    miner.balance = Number(profile.balance || 0);
+    miner.lifetimeMined = Number(profile.lifetime_mined || 0);
+  }
+}
+
 registerMinerSocketHandlers({
   io,
   engine,
@@ -764,7 +795,16 @@ initializeDatabase()
       logger.error("Startup: failed to mark pending withdrawals as failed", { error: error.message });
     }
 
-    startCronTasks({ engine, io, persistMinerProfile, run, buildPublicState: publicStateService.buildPublicState });
+    await syncEngineMiners();
+
+    startCronTasks({
+      engine,
+      io,
+      persistMinerProfile,
+      run,
+      buildPublicState: publicStateService.buildPublicState,
+      syncEngineMiners
+    });
     server.listen(PORT, "0.0.0.0", () => {
       logger.info(`BlockMiner server started on port ${PORT}`, { env: process.env.NODE_ENV });
       const localAddresses = getLocalIpv4Addresses();

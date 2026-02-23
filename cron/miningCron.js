@@ -4,6 +4,7 @@ const DEFAULT_PERSIST_MS = 15000;
 function startMiningLoop({ engine, io, persistMinerProfile, buildPublicState }, options = {}) {
   const tickMs = Number(options.tickMs || DEFAULT_TICK_MS);
   const persistMs = Number(options.persistMs || DEFAULT_PERSIST_MS);
+  const syncEngineMiners = typeof options.syncEngineMiners === "function" ? options.syncEngineMiners : null;
 
   const tick = async () => {
     engine.tick();
@@ -23,6 +24,9 @@ function startMiningLoop({ engine, io, persistMinerProfile, buildPublicState }, 
   }, tickMs);
 
   const persist = async () => {
+    if (syncEngineMiners) {
+      await syncEngineMiners();
+    }
     const saves = [...engine.miners.values()].map((miner) => persistMinerProfile(miner));
     await Promise.allSettled(saves);
   };

@@ -6,7 +6,8 @@ const state = {
   machines: [],
   inventory: [],
   lastMiner: null,
-  currentBalance: 0
+  currentBalance: 0,
+  blockCountdownSeconds: 600
 };
 
 const elements = {
@@ -57,7 +58,8 @@ function applyLiveState(payload) {
   elements.netHashrate.textContent = formatHashrate(payload.networkHashRate);
   const blockReward = Number(payload.blockReward ?? 0.1);
   elements.coinPower.textContent = `${blockReward.toFixed(4)} ${state.tokenSymbol}`;
-  elements.blockCountdown.textContent = formatCountdown(payload.blockCountdownSeconds ?? 600);
+  state.blockCountdownSeconds = Math.max(0, Number(payload.blockCountdownSeconds ?? state.blockCountdownSeconds) || 0);
+  elements.blockCountdown.textContent = formatCountdown(state.blockCountdownSeconds);
 
   if (payload.miner) {
     state.currentBalance = Number(payload.miner.balance || 0);
@@ -746,7 +748,8 @@ function renderState(payload) {
   elements.netHashrate.textContent = formatHashrate(payload.networkHashRate);
   const blockReward = Number(payload.blockReward ?? 0.1);
   elements.coinPower.textContent = `${blockReward.toFixed(4)} ${state.tokenSymbol}`;
-  elements.blockCountdown.textContent = formatCountdown(payload.blockCountdownSeconds ?? 600);
+  state.blockCountdownSeconds = Math.max(0, Number(payload.blockCountdownSeconds ?? state.blockCountdownSeconds) || 0);
+  elements.blockCountdown.textContent = formatCountdown(state.blockCountdownSeconds);
 
   if (!payload.miner) {
     elements.myHashrate.textContent = "0 H/s";
@@ -775,6 +778,25 @@ function requestJoin() {
     await loadInventory();
     renderState(response.state);
   });
+}
+
+async function loadPublicStateFallback() {
+  try {
+    const minerQuery = state.minerId ? `?minerId=${encodeURIComponent(state.minerId)}` : "";
+    const response = await fetch(`/api/state${minerQuery}`, { credentials: "include" });
+    const payload = await response.json();
+    if (!payload) {
+      return;
+    }
+
+    if (state.minerId) {
+      applyLiveState(payload);
+    } else {
+      renderState(payload);
+    }
+  } catch {
+    // ignore fallback errors
+  }
 }
 
 socket.on("connect", () => {
@@ -821,6 +843,17 @@ elements.machineModal.addEventListener("click", (e) => {
 });
 
 renderMiningRoom(null);
+
+setInterval(() => {
+  state.blockCountdownSeconds = Math.max(0, Number(state.blockCountdownSeconds || 0) - 1);
+  if (elements.blockCountdown) {
+    elements.blockCountdown.textContent = formatCountdown(state.blockCountdownSeconds);
+  }
+}, 1000);
+
+setInterval(() => {
+  loadPublicStateFallback();
+}, 10000);
 
 // Expose functions globally for onclick handlers
 window.upgradeMachine = upgradeMachine;

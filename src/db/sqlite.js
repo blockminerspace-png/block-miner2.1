@@ -29,6 +29,18 @@ function get(sql, params = []) {
   });
 }
 
+function all(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (error, rows) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(rows || []);
+    });
+  });
+}
+
 async function initializeDatabase() {
   try {
     await run("ALTER TABLE miner_profiles RENAME TO users_temp_power");
@@ -930,5 +942,6 @@ module.exports = {
   db,
   run,
   get,
+  all,
   initializeDatabase
 };

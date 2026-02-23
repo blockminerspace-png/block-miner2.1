@@ -138,7 +138,7 @@ class MiningEngine {
   }
 
   getMinerHashRate(miner) {
-    if (!miner.active || !miner.connected) {
+    if (!miner.active) {
       return 0;
     }
 
