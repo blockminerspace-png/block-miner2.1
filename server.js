@@ -574,6 +574,40 @@ app.get("/api/landing-stats", async (_req, res) => {
   }
 });
 
+app.get("/api/recent-payments", async (_req, res) => {
+  try {
+    const payments = await all(
+      `
+        SELECT
+          p.id,
+          p.amount_pol,
+          p.source,
+          p.tx_hash,
+          p.created_at,
+          COALESCE(NULLIF(TRIM(u.username), ''), u.name, 'Miner') AS username
+        FROM payouts p
+        INNER JOIN users u ON u.id = p.user_id
+        ORDER BY p.created_at DESC
+        LIMIT 10
+      `
+    );
+
+    res.json({
+      ok: true,
+      payments: payments.map((payment) => ({
+        id: payment.id,
+        username: payment.username,
+        amountPol: Number(payment.amount_pol || 0),
+        source: payment.source || "mining",
+        txHash: payment.tx_hash || null,
+        createdAt: Number(payment.created_at || 0)
+      }))
+    });
+  } catch {
+    res.status(500).json({ ok: false, message: "Unable to load recent payments." });
+  }
+});
+
 app.get("/api/network-stats", async (_req, res) => {
   try {
     const usersRow = await get("SELECT COUNT(*) as total FROM users");

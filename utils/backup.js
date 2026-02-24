@@ -1,6 +1,7 @@
 const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
+const { spawn } = require("child_process");
 
 function pad2(value) {
   return String(value).padStart(2, "0");
@@ -21,6 +22,17 @@ function parseNumber(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseBoolean(value, fallback) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
 function getDefaultDbPath() {
   return path.resolve(process.env.DB_PATH || path.join(process.cwd(), "data", "blockminer.db"));
 }
@@ -29,10 +41,24 @@ function getBackupConfig() {
   const backupDir = path.resolve(process.env.BACKUP_DIR || path.join(process.cwd(), "backups"));
   const retentionDays = parseNumber(process.env.BACKUP_RETENTION_DAYS, 7);
   const filenamePrefix = process.env.BACKUP_FILENAME_PREFIX || "blockminer-db-";
+  const externalBackupDirRaw = String(process.env.BACKUP_EXTERNAL_DIR || "").trim();
+  const externalBackupEnabled = parseBoolean(process.env.BACKUP_EXTERNAL_ENABLED, Boolean(externalBackupDirRaw));
+  const externalBackupDir = externalBackupDirRaw ? path.resolve(externalBackupDirRaw) : "";
+  const externalRetentionDays = parseNumber(process.env.BACKUP_EXTERNAL_RETENTION_DAYS, retentionDays);
+  const cloudBackupEnabled = parseBoolean(process.env.BACKUP_CLOUD_ENABLED, false);
+  const cloudCommandTemplate = String(process.env.BACKUP_CLOUD_COMMAND || "").trim();
+  const cloudTimeoutMs = Math.max(1_000, parseNumber(process.env.BACKUP_CLOUD_TIMEOUT_MS, 120_000));
+
   return {
     backupDir,
     retentionDays,
-    filenamePrefix
+    filenamePrefix,
+    externalBackupEnabled,
+    externalBackupDir,
+    externalRetentionDays,
+    cloudBackupEnabled,
+    cloudCommandTemplate,
+    cloudTimeoutMs
   };
 }
 
@@ -111,6 +137,116 @@ async function pruneBackups({ backupDir, retentionDays, filenamePrefix, logger }
   return { deleted };
 }
 
+async function replicateBackupToExternal({ backupFile, externalBackupDir }) {
+  if (!backupFile || !externalBackupDir) {
+    return { backupFile: null, durationMs: 0, copied: false };
+  }
+
+  const startedAt = Date.now();
+  await ensureDir(externalBackupDir);
+
+  const targetFile = path.join(externalBackupDir, path.basename(backupFile));
+  await fsp.copyFile(backupFile, targetFile);
+
+  return {
+    backupFile: targetFile,
+    durationMs: Date.now() - startedAt,
+    copied: true
+  };
+}
+
+function applyTemplate(template, backupFile) {
+  const filename = path.basename(backupFile);
+  return String(template)
+    .replaceAll("{backupFile}", backupFile)
+    .replaceAll("{backupFilename}", filename);
+}
+
+async function runCloudBackupCommand({ backupFile, commandTemplate, timeoutMs }) {
+  if (!backupFile || !commandTemplate) {
+    return { executed: false, success: false, exitCode: null, durationMs: 0, command: null };
+  }
+
+  const command = applyTemplate(commandTemplate, backupFile);
+  const startedAt = Date.now();
+
+  return await new Promise((resolve) => {
+    const child = spawn(command, {
+      shell: true,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let finished = false;
+
+    const finish = (result) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      resolve(result);
+    };
+
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+
+      finish({
+        executed: true,
+        success: false,
+        timedOut: true,
+        exitCode: null,
+        durationMs: Date.now() - startedAt,
+        command,
+        stdout: stdout.slice(-4000),
+        stderr: stderr.slice(-4000)
+      });
+    }, timeoutMs);
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk || "");
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk || "");
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      finish({
+        executed: true,
+        success: false,
+        timedOut: false,
+        exitCode: null,
+        durationMs: Date.now() - startedAt,
+        command,
+        error: error.message,
+        stdout: stdout.slice(-4000),
+        stderr: stderr.slice(-4000)
+      });
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      finish({
+        executed: true,
+        success: code === 0,
+        timedOut: false,
+        exitCode: code,
+        durationMs: Date.now() - startedAt,
+        command,
+        stdout: stdout.slice(-4000),
+        stderr: stderr.slice(-4000)
+      });
+    });
+  });
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -118,5 +254,7 @@ function escapeRegExp(value) {
 module.exports = {
   getBackupConfig,
   createDatabaseBackup,
-  pruneBackups
+  pruneBackups,
+  replicateBackupToExternal,
+  runCloudBackupCommand
 };

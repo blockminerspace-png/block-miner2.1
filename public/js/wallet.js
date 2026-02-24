@@ -52,6 +52,9 @@ const state = {
   isConnecting: false  // Prevent multiple connection attempts
 };
 
+const MIN_WITHDRAWAL_POL = 10;
+const WITHDRAWAL_PROCESSING_NOTE = "Processing time: up to 10 business days.";
+
 let balanceAutoRefreshTimer = null;
 
 // Helper Functions
@@ -427,8 +430,8 @@ async function handleWithdraw(event) {
     return;
   }
 
-  if (amount < 0.1) {
-    window.notify?.("Minimum withdrawal amount is 0.1 POL", "error");
+  if (amount < MIN_WITHDRAWAL_POL) {
+    window.notify?.(`Minimum withdrawal amount is ${MIN_WITHDRAWAL_POL} POL. ${WITHDRAWAL_PROCESSING_NOTE}`, "error");
     return;
   }
 

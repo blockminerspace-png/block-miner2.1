@@ -44,6 +44,7 @@ const CHECKIN_RECEIVER = process.env.CHECKIN_RECEIVER || "0x95EA8E99063A3EF1B953
 
 const MIN_WITHDRAWAL = Number(config.withdraw?.min || 10);
 const MAX_WITHDRAWAL = Number(config.withdraw?.max || 1_000_000);
+const WITHDRAWAL_PROCESSING_TIME = "up to 10 business days";
 
 const ALLOW_WITHDRAW_TO_CONTRACTS = Boolean(config.wallet?.allowWithdrawToContracts === true || String(process.env.ALLOW_WITHDRAW_TO_CONTRACTS || "").trim() === "1");
 
@@ -477,7 +478,7 @@ async function withdraw(req, res) {
 
     res.json({
       ok: true,
-      message: "Withdrawal request submitted. Waiting for admin approval.",
+      message: `Withdrawal request submitted. Waiting for admin approval. Processing time: ${WITHDRAWAL_PROCESSING_TIME}.`,
       transaction: {
         ...transaction,
         status: "pending",
@@ -516,10 +517,10 @@ async function withdraw(req, res) {
       });
     }
 
-    if (error.message === "Minimum withdrawal amount is 0.1 POL") {
+    if (error.message.startsWith("Minimum withdrawal amount is")) {
       return res.status(400).json({
         ok: false,
-        message: error.message
+        message: `${error.message}. Processing time: ${WITHDRAWAL_PROCESSING_TIME}.`
       });
     }
 

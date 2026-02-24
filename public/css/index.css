@@ -111,6 +111,60 @@ body {
   margin-top: 0.5rem;
 }
 
+.recent-payments {
+  width: min(1180px, 94%);
+  margin: 0 auto;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.recent-payments-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.recent-payment-item {
+  border: 1px solid rgba(95, 224, 176, 0.2);
+  border-radius: 12px;
+  background: rgba(8, 14, 34, 0.5);
+  padding: 0.8rem 0.9rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.recent-payment-main,
+.recent-payment-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.recent-payment-main strong {
+  color: #d9e8ff;
+  font-size: 0.98rem;
+}
+
+.recent-payment-main span,
+.recent-payment-hash {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.recent-payment-amount {
+  color: #7fffd4;
+  font-weight: 700;
+  font-size: 0.94rem;
+}
+
+.recent-payments-empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 0.9rem;
+}
+
 .earnings {
   width: min(1180px, 94%);
   margin: 0 auto 2.5rem;
@@ -445,6 +499,15 @@ strong {
   .stats {
     grid-template-columns: 1fr;
     gap: 0.8rem;
+  }
+
+  .recent-payments {
+    width: min(100%, calc(100% - 1rem));
+    padding: 1rem;
+  }
+
+  .recent-payment-item {
+    padding: 0.75rem 0.85rem;
   }
 
   .stat-card {

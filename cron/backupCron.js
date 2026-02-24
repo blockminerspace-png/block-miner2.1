@@ -1,5 +1,11 @@
 const logger = require("../utils/logger").child("BackupCron");
-const { createDatabaseBackup, pruneBackups, getBackupConfig } = require("../utils/backup");
+const {
+  createDatabaseBackup,
+  pruneBackups,
+  getBackupConfig,
+  replicateBackupToExternal,
+  runCloudBackupCommand
+} = require("../utils/backup");
 const { createCronActionRunner } = require("./cronActionRunner");
 const cron = require('node-cron');
 const config = require('../src/config');
@@ -60,14 +66,86 @@ function startBackupCron({ run }) {
       execute: async ({ backupConfig }) => {
         const result = await createDatabaseBackup({ run, ...backupConfig, logger });
         await pruneBackups({ ...backupConfig, logger });
-        return result;
+
+        const external = {
+          enabled: Boolean(backupConfig.externalBackupEnabled && backupConfig.externalBackupDir),
+          backupFile: null,
+          error: null
+        };
+
+        if (external.enabled) {
+          try {
+            const externalResult = await replicateBackupToExternal({
+              backupFile: result.backupFile,
+              externalBackupDir: backupConfig.externalBackupDir
+            });
+
+            external.backupFile = externalResult.backupFile;
+
+            await pruneBackups({
+              backupDir: backupConfig.externalBackupDir,
+              retentionDays: backupConfig.externalRetentionDays,
+              filenamePrefix: backupConfig.filenamePrefix,
+              logger
+            });
+          } catch (error) {
+            external.error = error.message;
+            logger.warn("External backup replication failed", {
+              error: error.message,
+              externalBackupDir: backupConfig.externalBackupDir
+            });
+          }
+        }
+
+        const cloud = {
+          enabled: Boolean(backupConfig.cloudBackupEnabled),
+          executed: false,
+          success: false,
+          exitCode: null,
+          error: null
+        };
+
+        if (cloud.enabled) {
+          const cloudResult = await runCloudBackupCommand({
+            backupFile: result.backupFile,
+            commandTemplate: backupConfig.cloudCommandTemplate,
+            timeoutMs: backupConfig.cloudTimeoutMs
+          });
+
+          cloud.executed = Boolean(cloudResult.executed);
+          cloud.success = Boolean(cloudResult.success);
+          cloud.exitCode = cloudResult.exitCode ?? null;
+
+          if (!cloudResult.success) {
+            cloud.error = cloudResult.timedOut
+              ? "cloud_backup_timeout"
+              : cloudResult.error || cloudResult.stderr || "cloud_backup_failed";
+
+            logger.warn("Cloud backup command failed", {
+              exitCode: cloudResult.exitCode,
+              timedOut: cloudResult.timedOut,
+              error: cloud.error
+            });
+          }
+        }
+
+        return {
+          ...result,
+          external,
+          cloud
+        };
       },
       confirm: async ({ executionResult }) => ({
         ok: Boolean(executionResult?.backupFile),
         reason: executionResult?.backupFile ? null : "missing_backup_file",
         details: {
           backupFile: executionResult?.backupFile || null,
-          method: executionResult?.method || null
+          method: executionResult?.method || null,
+          externalBackupFile: executionResult?.external?.backupFile || null,
+          externalError: executionResult?.external?.error || null,
+          cloudExecuted: Boolean(executionResult?.cloud?.executed),
+          cloudSuccess: Boolean(executionResult?.cloud?.success),
+          cloudError: executionResult?.cloud?.error || null
         }
       })
     });

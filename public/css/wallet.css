@@ -155,6 +155,41 @@
   background: rgba(19, 26, 42, 0.85);
 }
 
+.withdraw-card h2 {
+  font-size: 1.55rem;
+}
+
+.withdraw-card > p {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #b8c8e2;
+}
+
+.withdraw-card .form-group label {
+  font-size: 1.05rem;
+}
+
+.withdraw-card .form-group input {
+  font-size: 1.08rem;
+}
+
+.withdraw-card .form-hint {
+  font-size: 0.92rem;
+  color: #b8c8e2;
+}
+
+.withdraw-card .summary-row {
+  font-size: 1.03rem;
+}
+
+.withdraw-card .summary-row.total {
+  font-size: 1.35rem;
+}
+
+.withdraw-card .btn {
+  font-size: 1.03rem;
+}
+
 .withdrawal-form {
   margin-top: 1.5rem;
   display: flex;
@@ -478,6 +513,20 @@
   .wallet-address {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .withdraw-card h2 {
+    font-size: 1.35rem;
+  }
+
+  .withdraw-card > p {
+    font-size: 0.95rem;
+  }
+
+  .withdraw-card .form-group label,
+  .withdraw-card .summary-row,
+  .withdraw-card .btn {
+    font-size: 0.98rem;
   }
 }
 
