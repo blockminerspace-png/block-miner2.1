@@ -31,7 +31,7 @@ function createMinersIdentifierMap(miners) {
   return byIdentifier;
 }
 
-function createInventoryController(io) {
+function createInventoryController({ io, syncUserBaseHashRate }) {
   async function listInventory(req, res) {
     try {
       const inventory = await inventoryModel.listInventory(req.user.id);
@@ -195,6 +195,11 @@ function createInventoryController(io) {
         "UPDATE users_temp_power SET base_hash_rate = ?, rigs = ?, updated_at = ? WHERE user_id = ?",
         [newTotalHashRate, newRigs, now, req.user.id]
       );
+
+      // Sync baseHashRate immediately so machine starts mining without delay
+      if (syncUserBaseHashRate) {
+        await syncUserBaseHashRate(req.user.id);
+      }
 
       const [inventory, machines] = await Promise.all([
         inventoryModel.listInventory(req.user.id),

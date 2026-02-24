@@ -398,8 +398,8 @@ app.get("/ptp-r-:userId", ptpController.viewPromotePage);
 
 const healthController = createHealthController();
 const shopController = createShopController(io);
-const inventoryController = createInventoryController(io);
-const machinesController = createMachinesController(io);
+const inventoryController = createInventoryController({ io, syncUserBaseHashRate: publicStateService.syncUserBaseHashRate });
+const machinesController = createMachinesController({ io, syncUserBaseHashRate: publicStateService.syncUserBaseHashRate });
 const machinesDeprecatedController = createMachinesDeprecatedController();
 const racksController = createRacksController();
 const adminController = createAdminController();

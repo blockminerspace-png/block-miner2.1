@@ -14,7 +14,7 @@ function normalizeMachineIdentifier(value) {
     .replace(/^-|-$/g, "");
 }
 
-function createMachinesController(io) {
+function createMachinesController({ io, syncUserBaseHashRate }) {
   const SLOTS_PER_RACK = 8;
 
   async function listMachines(req, res) {
@@ -78,6 +78,11 @@ function createMachinesController(io) {
         [newBalance, newTotalHashRate, now, req.user.id]
       );
 
+      // Sync baseHashRate immediately
+      if (syncUserBaseHashRate) {
+        await syncUserBaseHashRate(req.user.id);
+      }
+
       res.json({
         ok: true,
         message: `Machine upgraded to level ${newLevel}.`,
@@ -123,6 +128,11 @@ function createMachinesController(io) {
         "UPDATE users_temp_power SET base_hash_rate = ?, updated_at = ? WHERE user_id = ?",
         [newTotalHashRate, now, req.user.id]
       );
+
+      // Sync baseHashRate immediately
+      if (syncUserBaseHashRate) {
+        await syncUserBaseHashRate(req.user.id);
+      }
 
       res.json({
         ok: true,
@@ -172,6 +182,11 @@ function createMachinesController(io) {
         "UPDATE users_temp_power SET base_hash_rate = ?, rigs = ?, updated_at = ? WHERE user_id = ?",
         [newTotalHashRate, newRigs, now, req.user.id]
       );
+
+      // Sync baseHashRate immediately
+      if (syncUserBaseHashRate) {
+        await syncUserBaseHashRate(req.user.id);
+      }
 
       const [inventory, machines] = await Promise.all([
         inventoryModel.listInventory(req.user.id),
@@ -244,6 +259,11 @@ function createMachinesController(io) {
       } catch (error) {
         await run("ROLLBACK");
         throw error;
+      }
+
+      // Sync baseHashRate immediately
+      if (syncUserBaseHashRate) {
+        await syncUserBaseHashRate(req.user.id);
       }
 
       const [inventory, updatedMachines] = await Promise.all([
