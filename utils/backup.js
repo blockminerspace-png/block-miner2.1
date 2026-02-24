@@ -247,6 +247,57 @@ async function runCloudBackupCommand({ backupFile, commandTemplate, timeoutMs })
   });
 }
 
+async function createFullSiteBackup({ backupDir, filenamePrefix, logger }) {
+  const startedAt = Date.now();
+  await ensureDir(backupDir);
+
+  const stamp = formatTimestamp(new Date());
+  const backupFile = path.join(backupDir, `${filenamePrefix}${stamp}.tar.gz`);
+
+  const appRoot = process.cwd();
+  const excludeDirs = [
+    "node_modules",
+    "backups",
+    "logs",
+    ".git",
+    "data/blockminer.db-wal",
+    "data/blockminer.db-shm"
+  ];
+
+  const excludeArgs = excludeDirs.map(dir => `--exclude='${dir}'`).join(" ");
+  const tarCommand = `cd "${appRoot}" && tar -czf "${backupFile}" ${excludeArgs} .`;
+
+  return await new Promise((resolve, reject) => {
+    const child = spawn(tarCommand, {
+      shell: true,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stderr = "";
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk || "");
+    });
+
+    child.on("error", (error) => {
+      reject(new Error(`Tar command failed: ${error.message}`));
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve({
+          backupFile,
+          method: "tar-gz",
+          durationMs: Date.now() - startedAt
+        });
+      } else {
+        reject(new Error(`Tar exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+  });
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -254,6 +305,7 @@ function escapeRegExp(value) {
 module.exports = {
   getBackupConfig,
   createDatabaseBackup,
+  createFullSiteBackup,
   pruneBackups,
   replicateBackupToExternal,
   runCloudBackupCommand

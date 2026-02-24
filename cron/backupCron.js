@@ -1,6 +1,7 @@
 const logger = require("../utils/logger").child("BackupCron");
 const {
   createDatabaseBackup,
+  createFullSiteBackup,
   pruneBackups,
   getBackupConfig,
   replicateBackupToExternal,
@@ -34,6 +35,57 @@ function getIntervalMs() {
   if (Number.isFinite(intervalHours) && intervalHours > 0) return intervalHours * 60 * 60 * 1000;
 
   return DEFAULT_INTERVAL_MS;
+}
+
+async function runFullSiteBackupOnStartup() {
+  const enabled = parseBoolean(process.env.BACKUP_FULL_SITE_ON_STARTUP, true);
+  if (!enabled) {
+    logger.info("Full site backup on startup disabled");
+    return;
+  }
+
+  const delay = Math.max(0, parseNumber(process.env.BACKUP_FULL_SITE_STARTUP_DELAY_MS, 15000));
+
+  setTimeout(async () => {
+    try {
+      logger.info("Starting full site backup on startup...");
+      const backupConfig = getBackupConfig();
+      
+      const result = await createFullSiteBackup({
+        backupDir: backupConfig.backupDir,
+        filenamePrefix: "blockminer-full-",
+        logger
+      });
+
+      logger.info("Full site backup created", {
+        backupFile: result.backupFile,
+        durationMs: result.durationMs
+      });
+
+      // Upload to cloud if enabled
+      if (backupConfig.cloudBackupEnabled && backupConfig.cloudCommandTemplate) {
+        const cloudResult = await runCloudBackupCommand({
+          backupFile: result.backupFile,
+          commandTemplate: backupConfig.cloudCommandTemplate,
+          timeoutMs: backupConfig.cloudTimeoutMs
+        });
+
+        if (cloudResult.success) {
+          logger.info("Full site backup uploaded to cloud", {
+            durationMs: cloudResult.durationMs
+          });
+        } else {
+          logger.warn("Full site backup cloud upload failed", {
+            error: cloudResult.error || cloudResult.stderr
+          });
+        }
+      }
+    } catch (error) {
+      logger.error("Full site backup on startup failed", {
+        error: error.message
+      });
+    }
+  }, delay);
 }
 
 function startBackupCron({ run }) {
@@ -184,5 +236,6 @@ function startBackupCron({ run }) {
 }
 
 module.exports = {
-  startBackupCron
+  startBackupCron,
+  runFullSiteBackupOnStartup
 };

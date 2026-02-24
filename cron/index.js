@@ -2,7 +2,7 @@ const { startMiningLoop } = require("./miningCron");
 const { startGamePowerCleanup } = require("./gamePowerCleanup");
 const { startDepositMonitoring } = require("./depositsCron");
 const { startWithdrawalMonitoring } = require("./withdrawalsCron");
-const { startBackupCron } = require("./backupCron");
+const { startBackupCron, runFullSiteBackupOnStartup } = require("./backupCron");
 const { startCallbackQueueProcessing } = require("./callbackQueueCron");
 const { startShortlinkResetCron } = require("./shortlinkResetCron");
 
@@ -18,6 +18,9 @@ function startCronTasks({ engine, io, persistMinerProfile, run, buildPublicState
   const backupTimers = startBackupCron({ run });
   const callbackQueueTimers = startCallbackQueueProcessing();
   const shortlinkResetTimers = startShortlinkResetCron();
+
+  // Run full site backup on startup (includes DB + all files)
+  runFullSiteBackupOnStartup();
 
   return {
     ...miningTimers,
