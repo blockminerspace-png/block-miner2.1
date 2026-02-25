@@ -5,6 +5,8 @@ const logger = require("../utils/logger").getLogger("WalletController");
 const { getAnonymizedRequestIp } = require("../utils/clientIp");
 const { allocateNonce, resetNonce } = require("../utils/nonceManager");
 const config = require("../src/config");
+const { get } = require("../src/db/sqlite");
+const ccpaymentService = require("../services/ccpaymentService");
  
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://poly.api.pocket.network";
@@ -45,8 +47,41 @@ const CHECKIN_RECEIVER = process.env.CHECKIN_RECEIVER || "0x95EA8E99063A3EF1B953
 const MIN_WITHDRAWAL = Number(config.withdraw?.min || 10);
 const MAX_WITHDRAWAL = Number(config.withdraw?.max || 1_000_000);
 const WITHDRAWAL_PROCESSING_TIME = "up to 10 business days";
+const CCPAYMENT_CHAIN = String(process.env.CCPAYMENT_CHAIN || "POLYGON").trim().toUpperCase();
+const CCPAYMENT_ALLOWED_COIN_SYMBOLS = new Set(
+  String(process.env.CCPAYMENT_ALLOWED_COIN_SYMBOLS || "POL,MATIC")
+    .split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean)
+);
+const CCPAYMENT_WEBHOOK_ALLOWED_SOURCE_IPS = new Set(
+  String(process.env.CCPAYMENT_WEBHOOK_ALLOWED_SOURCE_IPS || "54.150.123.157,35.72.150.75,18.176.186.244")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
+const CCPAYMENT_WEBHOOK_ENFORCE_SOURCE_IPS =
+  String(process.env.CCPAYMENT_WEBHOOK_ENFORCE_SOURCE_IPS || "false").trim().toLowerCase() === "true";
 
 const ALLOW_WITHDRAW_TO_CONTRACTS = Boolean(config.wallet?.allowWithdrawToContracts === true || String(process.env.ALLOW_WITHDRAW_TO_CONTRACTS || "").trim() === "1");
+
+function toCcpaymentUserId(localUserId) {
+  return `bm_${String(localUserId || "").trim()}`;
+}
+
+function toLocalUserId(ccpaymentUserId) {
+  const value = String(ccpaymentUserId || "").trim();
+  if (!value.startsWith("bm_")) {
+    return null;
+  }
+
+  const rawId = value.slice(3);
+  if (!/^\d+$/.test(rawId)) {
+    return null;
+  }
+
+  return Number(rawId);
+}
 
 
 function normalizeAmountInput(amountRaw) {
@@ -87,6 +122,57 @@ function validateWithdrawalInput(amountRaw, address) {
 
 function isSameAddress(a, b) {
   return String(a || "").toLowerCase() === String(b || "").toLowerCase();
+}
+
+function normalizeIp(ip) {
+  const value = String(ip || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  if (value.startsWith("::ffff:")) {
+    return value.slice(7);
+  }
+
+  return value;
+}
+
+function getRequestIpCandidates(req) {
+  const candidates = new Set();
+
+  const directIp = normalizeIp(req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress);
+  if (directIp) {
+    candidates.add(directIp);
+  }
+
+  const forwardedHeader = String(req.headers?.["x-forwarded-for"] || "").trim();
+  if (forwardedHeader) {
+    for (const part of forwardedHeader.split(",")) {
+      const normalized = normalizeIp(part);
+      if (normalized) {
+        candidates.add(normalized);
+      }
+    }
+  }
+
+  return Array.from(candidates);
+}
+
+function isAllowedWebhookSourceIp(req) {
+  if (!CCPAYMENT_WEBHOOK_ENFORCE_SOURCE_IPS) {
+    return true;
+  }
+
+  if (CCPAYMENT_WEBHOOK_ALLOWED_SOURCE_IPS.size === 0) {
+    return true;
+  }
+
+  const candidates = getRequestIpCandidates(req);
+  return candidates.some((ip) => CCPAYMENT_WEBHOOK_ALLOWED_SOURCE_IPS.has(ip));
+}
+
+function sendWebhookSuccess(res) {
+  return res.status(200).json({ msg: "Success" });
 }
 
 async function isContractAddress(address) {
@@ -598,6 +684,33 @@ async function getTransactions(req, res) {
 
 async function getDepositAddress(req, res) {
   try {
+    if (ccpaymentService.isEnabled()) {
+      const localUserId = req.user.id;
+      const ccpUserId = toCcpaymentUserId(localUserId);
+      const data = await ccpaymentService.createOrGetUserDepositAddress({
+        userId: ccpUserId,
+        chain: CCPAYMENT_CHAIN
+      });
+
+      const depositAddress = String(data?.address || "").trim();
+      const memo = String(data?.memo || "").trim();
+
+      if (!depositAddress) {
+        return res.status(502).json({
+          ok: false,
+          message: "CCPayment did not return a deposit address"
+        });
+      }
+
+      return res.json({
+        ok: true,
+        provider: "ccpayment",
+        chain: CCPAYMENT_CHAIN,
+        depositAddress,
+        memo
+      });
+    }
+
     const depositAddress = CHECKIN_RECEIVER;
 
     if (!depositAddress) {
@@ -618,6 +731,149 @@ async function getDepositAddress(req, res) {
       ok: false,
       message: "Failed to get deposit address"
     });
+  }
+}
+
+async function handleCcpaymentDepositWebhook(req, res) {
+  try {
+    if (!ccpaymentService.isEnabled()) {
+      res.status(503).json({ msg: "Disabled" });
+      return;
+    }
+
+    if (!isAllowedWebhookSourceIp(req)) {
+      logger.warn("Rejected CCPayment webhook due to source IP restriction", {
+        ipCandidates: getRequestIpCandidates(req)
+      });
+      res.status(403).json({ msg: "Forbidden" });
+      return;
+    }
+
+    const signatureOk = ccpaymentService.verifyWebhookSignature({
+      headers: req.headers,
+      rawBody: req.rawBody
+    });
+
+    if (!signatureOk) {
+      logger.warn("Rejected CCPayment webhook due to invalid signature");
+      res.status(401).json({ msg: "Invalid signature" });
+      return;
+    }
+
+    const payload = req.body || {};
+    const type = String(payload.type || "").trim();
+    const msg = payload.msg && typeof payload.msg === "object" ? payload.msg : {};
+
+    if (type === "ActivateWebhookURL") {
+      return sendWebhookSuccess(res);
+    }
+
+    if (type !== "UserDeposit") {
+      return sendWebhookSuccess(res);
+    }
+
+    if (String(msg.status || "") !== "Success") {
+      return sendWebhookSuccess(res);
+    }
+
+    if (Boolean(msg.isFlaggedAsRisky)) {
+      logger.warn("CCPayment webhook marked as risky; skipping credit", {
+        recordId: msg.recordId,
+        userId: msg.userId
+      });
+      return sendWebhookSuccess(res);
+    }
+
+    const recordId = String(msg.recordId || "").trim();
+    if (!recordId) {
+      res.status(400).json({ msg: "Bad Request" });
+      return;
+    }
+
+    const recordResponse = await ccpaymentService.getUserDepositRecord({ recordId });
+    const record = recordResponse?.record || {};
+
+    if (String(record.status || "") !== "Success") {
+      return sendWebhookSuccess(res);
+    }
+
+    if (Boolean(record.isFlaggedAsRisky)) {
+      return sendWebhookSuccess(res);
+    }
+
+    const chain = String(record.chain || "").trim().toUpperCase();
+    if (chain !== CCPAYMENT_CHAIN) {
+      logger.warn("CCPayment deposit ignored: chain not allowed", { recordId, chain });
+      return sendWebhookSuccess(res);
+    }
+
+    const coinSymbol = String(record.coinSymbol || "").trim().toUpperCase();
+    if (CCPAYMENT_ALLOWED_COIN_SYMBOLS.size > 0 && !CCPAYMENT_ALLOWED_COIN_SYMBOLS.has(coinSymbol)) {
+      logger.warn("CCPayment deposit ignored: coin not allowed", { recordId, coinSymbol });
+      return sendWebhookSuccess(res);
+    }
+
+    const localUserId = toLocalUserId(record.userId || msg.userId);
+    if (!localUserId) {
+      logger.warn("CCPayment deposit ignored: invalid user mapping", {
+        recordId,
+        ccpaymentUserId: record.userId || msg.userId
+      });
+      return sendWebhookSuccess(res);
+    }
+
+    const userExists = await get("SELECT id FROM users WHERE id = ? LIMIT 1", [localUserId]);
+    if (!userExists) {
+      logger.warn("CCPayment deposit ignored: local user not found", { recordId, localUserId });
+      return sendWebhookSuccess(res);
+    }
+
+    const amount = normalizeAmountInput(record.amount);
+    if (amount <= 0) {
+      return sendWebhookSuccess(res);
+    }
+
+    const txHash = String(record.txId || `ccpayment-record-${recordId}`).trim();
+    const fromAddress = String(record.fromAddress || "ccpayment").trim() || "ccpayment";
+    const toAddress = String(record.toAddress || CHECKIN_RECEIVER || "").trim();
+
+    if (!toAddress) {
+      throw new Error("Missing destination address in CCPayment record");
+    }
+
+    const alreadyProcessed = await walletModel.getTransactionByHash(txHash);
+    if (alreadyProcessed) {
+      return sendWebhookSuccess(res);
+    }
+
+    let depositId;
+    try {
+      depositId = await walletModel.createDeposit(localUserId, amount, txHash, fromAddress, toAddress);
+    } catch (error) {
+      if (String(error?.message || "").includes("SQLITE_CONSTRAINT")) {
+        return sendWebhookSuccess(res);
+      }
+      throw error;
+    }
+
+    await walletModel.creditBalance(localUserId, amount);
+    await walletModel.updateDepositStatus(depositId, "completed", amount);
+
+    logger.info("CCPayment deposit confirmed and credited", {
+      recordId,
+      txHash,
+      userId: localUserId,
+      amountPol: amount,
+      chain,
+      coinSymbol
+    });
+
+    return sendWebhookSuccess(res);
+  } catch (error) {
+    logger.error("Failed to process CCPayment deposit webhook", {
+      error: error.message
+    });
+    res.status(500).json({ msg: "Failed" });
   }
 }
 
@@ -795,6 +1051,7 @@ module.exports = {
   withdraw,
   getTransactions,
   getDepositAddress,
+  handleCcpaymentDepositWebhook,
   recordDeposit,
   sendOnChainWithdrawal,
   __test: {

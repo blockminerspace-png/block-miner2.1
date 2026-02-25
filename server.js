@@ -299,7 +299,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "200kb" }));
+app.use(
+  express.json({
+    limit: "200kb",
+    verify: (req, _res, buf) => {
+      req.rawBody = Buffer.from(buf).toString("utf8");
+    }
+  })
+);
 
 // CSP per-route (public vs authenticated pages)
 app.use(createCspMiddleware());

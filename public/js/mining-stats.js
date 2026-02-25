@@ -72,12 +72,10 @@ async function updateEstimatedReward() {
 }
 
 async function loadNetworkStats() {
-  const statusEl = document.getElementById("statsStatus");
   try {
     const response = await fetch("/api/network-stats");
     const payload = await response.json();
     if (!payload?.ok) {
-      if (statusEl) statusEl.textContent = "Unable to load stats.";
       return;
     }
 
@@ -107,11 +105,7 @@ async function loadNetworkStats() {
     await updateEstimatedReward();
     await loadMiningRewards();
     await loadPowerRanking();
-
-    if (statusEl) statusEl.textContent = "Updated just now.";
-  } catch {
-    if (statusEl) statusEl.textContent = "Failed to load stats.";
-  }
+  } catch {}
 }
 
 async function loadPowerRanking() {
@@ -233,11 +227,6 @@ function getTimeAgo(timestamp) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const refreshBtn = document.getElementById("refreshStatsBtn");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", loadNetworkStats);
-  }
-
   updateEstimatedReward();
   loadNetworkStats();
   loadMiningRewards();

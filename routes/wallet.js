@@ -32,6 +32,9 @@ const depositSchema = z
 	})
 	.strict();
 
+// CCPayment ITN webhook (public endpoint)
+router.post("/ccpayment/deposit-webhook", walletController.handleCcpaymentDepositWebhook);
+
 
 // Get balance and wallet info
 router.get("/balance", requireAuth, walletGetLimiter, walletController.getBalance);
