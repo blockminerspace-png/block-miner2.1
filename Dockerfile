@@ -2,7 +2,6 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Instala rclone + certificados SSL
 RUN apt-get update && \
     apt-get install -y rclone ca-certificates && \
     update-ca-certificates && \

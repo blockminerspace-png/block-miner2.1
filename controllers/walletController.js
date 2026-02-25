@@ -685,30 +685,62 @@ async function getTransactions(req, res) {
 async function getDepositAddress(req, res) {
   try {
     if (ccpaymentService.isEnabled()) {
-      const localUserId = req.user.id;
-      const ccpUserId = toCcpaymentUserId(localUserId);
-      const data = await ccpaymentService.createOrGetUserDepositAddress({
-        userId: ccpUserId,
-        chain: CCPAYMENT_CHAIN
-      });
+      try {
+        const localUserId = req.user.id;
+        const ccpUserId = toCcpaymentUserId(localUserId);
+        const data = await ccpaymentService.createOrGetUserDepositAddress({
+          userId: ccpUserId,
+          chain: CCPAYMENT_CHAIN
+        });
 
-      const depositAddress = String(data?.address || "").trim();
-      const memo = String(data?.memo || "").trim();
+        const depositAddress = String(data?.address || "").trim();
+        const memo = String(data?.memo || "").trim();
 
-      if (!depositAddress) {
+        if (!depositAddress) {
+          logger.warn("CCPayment did not return a deposit address for user", { userId: localUserId });
+          // Fallback to CHECKIN_RECEIVER if CCPayment fails
+          const fallbackAddress = CHECKIN_RECEIVER;
+          if (fallbackAddress) {
+            return res.json({
+              ok: true,
+              provider: "fallback",
+              depositAddress: fallbackAddress
+            });
+          }
+          return res.status(502).json({
+            ok: false,
+            message: "CCPayment did not return a deposit address"
+          });
+        }
+
+        return res.json({
+          ok: true,
+          provider: "ccpayment",
+          chain: CCPAYMENT_CHAIN,
+          depositAddress,
+          memo
+        });
+      } catch (ccpaymentError) {
+        logger.warn("CCPayment service failed, falling back to CHECKIN_RECEIVER", {
+          error: ccpaymentError.message,
+          userId: req.user.id
+        });
+
+        // Fallback to CHECKIN_RECEIVER
+        const fallbackAddress = CHECKIN_RECEIVER;
+        if (fallbackAddress) {
+          return res.json({
+            ok: true,
+            provider: "fallback",
+            depositAddress: fallbackAddress
+          });
+        }
+
         return res.status(502).json({
           ok: false,
-          message: "CCPayment did not return a deposit address"
+          message: "CCPayment service unavailable and no fallback address configured"
         });
       }
-
-      return res.json({
-        ok: true,
-        provider: "ccpayment",
-        chain: CCPAYMENT_CHAIN,
-        depositAddress,
-        memo
-      });
     }
 
     const depositAddress = CHECKIN_RECEIVER;
@@ -726,7 +758,7 @@ async function getDepositAddress(req, res) {
     });
 
   } catch (error) {
-    console.error("Error getting deposit address:", error);
+    logger.error("Unexpected error getting deposit address:", error);
     res.status(500).json({
       ok: false,
       message: "Failed to get deposit address"
