@@ -697,16 +697,7 @@ async function getDepositAddress(req, res) {
         const memo = String(data?.memo || "").trim();
 
         if (!depositAddress) {
-          logger.warn("CCPayment did not return a deposit address for user", { userId: localUserId });
-          // Fallback to CHECKIN_RECEIVER if CCPayment fails
-          const fallbackAddress = CHECKIN_RECEIVER;
-          if (fallbackAddress) {
-            return res.json({
-              ok: true,
-              provider: "fallback",
-              depositAddress: fallbackAddress
-            });
-          }
+          logger.error("❌ CCPayment did not return deposit address - NO FALLBACK", { userId: localUserId });
           return res.status(502).json({
             ok: false,
             message: "CCPayment did not return a deposit address"
@@ -721,40 +712,22 @@ async function getDepositAddress(req, res) {
           memo
         });
       } catch (ccpaymentError) {
-        logger.warn("CCPayment service failed, falling back to CHECKIN_RECEIVER", {
+        logger.error("❌ CCPayment service failed - NO FALLBACK", {
           error: ccpaymentError.message,
           userId: req.user.id
         });
-
-        // Fallback to CHECKIN_RECEIVER
-        const fallbackAddress = CHECKIN_RECEIVER;
-        if (fallbackAddress) {
-          return res.json({
-            ok: true,
-            provider: "fallback",
-            depositAddress: fallbackAddress
-          });
-        }
-
         return res.status(502).json({
           ok: false,
-          message: "CCPayment service unavailable and no fallback address configured"
+          message: "CCPayment service unavailable"
         });
       }
     }
 
-    const depositAddress = CHECKIN_RECEIVER;
-
-    if (!depositAddress) {
-      return res.status(500).json({
-        ok: false,
-        message: "Deposit address not configured"
-      });
-    }
-
-    res.json({
-      ok: true,
-      depositAddress
+    // If CCPayment is not enabled, reject the request
+    logger.warn("❌ CCPayment is disabled - rejecting deposit address request");
+    return res.status(503).json({
+      ok: false,
+      message: "Deposit via CCPayment is not available"
     });
 
   } catch (error) {
@@ -867,9 +840,10 @@ async function handleCcpaymentDepositWebhook(req, res) {
 
     const txHash = String(record.txId || `ccpayment-record-${recordId}`).trim();
     const fromAddress = String(record.fromAddress || "ccpayment").trim() || "ccpayment";
-    const toAddress = String(record.toAddress || CHECKIN_RECEIVER || "").trim();
+    const toAddress = String(record.toAddress || "").trim();
 
     if (!toAddress) {
+      logger.error("❌ [CCPayment Webhook] Missing destination address - rejecting", { recordId });
       throw new Error("Missing destination address in CCPayment record");
     }
 
@@ -911,116 +885,17 @@ async function handleCcpaymentDepositWebhook(req, res) {
 
 async function recordDeposit(req, res) {
   try {
-    const userId = req.user.id;
-    const { txHash, amount, fromAddress } = req.body;
-
-    // Validate input
-    if (!txHash || !amount || !fromAddress) {
-      return res.status(400).json({
-        ok: false,
-        message: "Missing required fields"
-      });
-    }
-
-    const parsedAmount = normalizeAmountInput(amount);
-    
-    if (parsedAmount < 0.01) {
-      return res.status(400).json({
-        ok: false,
-        message: "Minimum deposit is 0.01 POL"
-      });
-    }
-
-    const existingTx = await walletModel.getTransactionByHash(txHash);
-    if (existingTx) {
-      return res.status(400).json({
-        ok: false,
-        message: "Deposit already recorded"
-      });
-    }
-
-    const depositAddress = CHECKIN_RECEIVER;
-    if (!depositAddress) {
-      return res.status(500).json({
-        ok: false,
-        message: "Deposit address not configured"
-      });
-    }
-
-    const depositId = await walletModel.createDeposit(userId, parsedAmount, txHash, fromAddress, depositAddress);
-
-    monitorDeposit(userId, txHash, depositAddress, depositId);
-
-    res.json({
-      ok: true,
-      message: "Deposit recorded. Balance will update after confirmation.",
-      depositId
+    logger.error("❌ recordDeposit endpoint is disabled - only CCPayment deposits are accepted");
+    return res.status(403).json({
+      ok: false,
+      message: "Manual deposits are disabled. Only CCPayment deposits are accepted."
     });
-
   } catch (error) {
     console.error("Error recording deposit:", error);
     res.status(500).json({
       ok: false,
       message: error.message || "Failed to record deposit"
     });
-  }
-}
-
-async function monitorDeposit(userId, txHash, depositAddress, depositId) {
-  try {
-    let confirmed = false;
-    let attempts = 0;
-    const maxAttempts = 30; // 5 minutes with 10-second intervals
-    
-    while (!confirmed && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
-      
-      try {
-        const { provider, tx, receipt } = await fetchTransactionWithReceipt(txHash);
-        if (!receipt || receipt.status !== 1 || !tx) {
-          attempts++;
-          continue;
-        }
-
-        const confirmations = await getConfirmations(provider, receipt);
-        if (confirmations < 1) {
-          attempts++;
-          continue;
-        }
-
-        if (!isSameAddress(tx.to, depositAddress)) {
-          await walletModel.updateDepositStatus(depositId, "invalid");
-          console.warn(`Deposit ${txHash} rejected: destination mismatch`);
-          confirmed = true;
-          continue;
-        }
-
-        const actualAmount = Number(Number(ethers.formatEther(tx.value || 0)).toFixed(6));
-        if (!actualAmount || actualAmount <= 0) {
-          await walletModel.updateDepositStatus(depositId, "invalid");
-          console.warn(`Deposit ${txHash} rejected: invalid amount`);
-          confirmed = true;
-          continue;
-        }
-
-        await walletModel.creditBalance(userId, actualAmount);
-        await walletModel.updateDepositStatus(depositId, "completed", actualAmount);
-
-        logger.info("Deposit confirmed and credited", { txHash, userId, amountPol: actualAmount });
-        confirmed = true;
-      } catch (error) {
-        logger.error("Error checking transaction", { txHash, error: error.message });
-      }
-      
-      attempts++;
-    }
-    
-    if (!confirmed) {
-      logger.warn("Deposit monitoring timed out; will be checked by cron", { txHash, userId });
-    }
-    
-  } catch (error) {
-    logger.error("Error monitoring deposit", { error: error.message });
   }
 }
 
