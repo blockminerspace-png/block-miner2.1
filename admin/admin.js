@@ -194,7 +194,13 @@ async function uploadMinerImage(file) {
     credentials: "include"
   });
 
-  const data = await response.json().catch(() => ({}));
+  const rawText = await response.text();
+  let data = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = {};
+  }
 
   if (response.status === 401 || response.status === 403) {
     localStorage.removeItem("adminToken");
@@ -204,7 +210,8 @@ async function uploadMinerImage(file) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || "Image upload failed");
+    const fallbackMessage = rawText && !rawText.trim().startsWith("<") ? rawText.trim() : "Image upload failed";
+    throw new Error(data?.message || fallbackMessage);
   }
 
   return data?.imageUrl || null;

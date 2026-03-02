@@ -816,10 +816,35 @@ const serverDatabaseController = createServerDatabaseController({
 
 const MINER_IMAGE_ALLOWED_TYPES = new Map([
   ["image/png", ".png"],
+  ["image/x-png", ".png"],
   ["image/jpeg", ".jpg"],
+  ["image/jpg", ".jpg"],
+  ["image/pjpeg", ".jpg"],
   ["image/webp", ".webp"],
-  ["image/gif", ".gif"]
+  ["image/gif", ".gif"],
+  ["application/octet-stream", null],
+  ["", null]
 ]);
+
+function getMinerImageExtFromName(fileName) {
+  const normalizedName = String(fileName || "").trim().toLowerCase();
+  if (!normalizedName) return null;
+  if (normalizedName.endsWith(".png")) return ".png";
+  if (normalizedName.endsWith(".jpg") || normalizedName.endsWith(".jpeg")) return ".jpg";
+  if (normalizedName.endsWith(".webp")) return ".webp";
+  if (normalizedName.endsWith(".gif")) return ".gif";
+  return null;
+}
+
+function resolveMinerImageExtension(contentType, originalName) {
+  const normalizedType = String(contentType || "").split(";")[0].trim().toLowerCase();
+  const direct = MINER_IMAGE_ALLOWED_TYPES.get(normalizedType);
+  if (typeof direct === "string" && direct) {
+    return direct;
+  }
+  const inferred = getMinerImageExtFromName(originalName);
+  return inferred || null;
+}
 
 function sanitizeMinerImageBaseName(fileName) {
   return path
@@ -1203,13 +1228,27 @@ app.post(
   requireAdminAuth,
   adminLimiter,
   express.raw({
-    type: (req) => MINER_IMAGE_ALLOWED_TYPES.has(String(req.headers["content-type"] || "").split(";")[0].trim()),
-    limit: "8mb"
+    type: () => true,
+    limit: "12mb"
   }),
+  (error, req, res, next) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error.type === "entity.too.large") {
+      res.status(413).json({ ok: false, message: "Image too large. Max 12MB." });
+      return;
+    }
+
+    res.status(400).json({ ok: false, message: "Invalid image payload." });
+  },
   async (req, res) => {
     try {
       const contentType = String(req.headers["content-type"] || "").split(";")[0].trim();
-      const ext = MINER_IMAGE_ALLOWED_TYPES.get(contentType);
+      const originalName = String(req.headers["x-file-name"] || "").trim();
+      const ext = resolveMinerImageExtension(contentType, originalName);
 
       if (!ext) {
         res.status(415).json({ ok: false, message: "Unsupported image type. Use PNG, JPG, WEBP, or GIF." });
@@ -1221,13 +1260,12 @@ app.post(
         return;
       }
 
-      const maxSizeBytes = 8 * 1024 * 1024;
+      const maxSizeBytes = 12 * 1024 * 1024;
       if (req.body.length > maxSizeBytes) {
-        res.status(400).json({ ok: false, message: "Image too large. Max 8MB." });
+        res.status(400).json({ ok: false, message: "Image too large. Max 12MB." });
         return;
       }
 
-      const originalName = String(req.headers["x-file-name"] || "").trim();
       const baseName = sanitizeMinerImageBaseName(originalName);
       const uploadsDir = path.join(__dirname, "public", "assets", "machines", "uploaded");
       await fs.mkdir(uploadsDir, { recursive: true });
