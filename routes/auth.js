@@ -231,7 +231,7 @@ async function ensureWelcomeMiner() {
     Number(existing.base_hash_rate || 0) !== WELCOME_MINER_HASH_RATE ||
     Number(existing.slot_size || 0) !== WELCOME_MINER_SLOT_SIZE ||
     Number(existing.is_active || 0) !== 1 ||
-    Number(existing.show_in_shop || 1) !== 0;
+    Number(existing.show_in_shop || 0) !== 0;
 
   if (needsUpdate) {
     await run(

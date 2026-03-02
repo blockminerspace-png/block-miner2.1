@@ -224,7 +224,8 @@ async function claim(req, res) {
       Number(miner.slot_size || 1),
       now,
       now,
-      miner.id
+      miner.id,
+      miner.image_url || DEFAULT_MINER_IMAGE_URL
     );
 
     if (normalized.record) {

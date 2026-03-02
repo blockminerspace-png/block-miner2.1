@@ -63,9 +63,11 @@ function isValidUsername(username) {
 }
 
 function isStrongPassword(password) {
-  const hasLetter = /[a-zA-Z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  return password.length >= 6 && hasLetter && hasNumber;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};:'",.<>?\\/\|`~]/.test(password);
+  return password.length >= 8 && hasUppercase && hasLowercase && hasNumber && hasSpecial;
 }
 
 function setLoading(isLoading) {
@@ -103,7 +105,7 @@ form?.addEventListener("submit", async (event) => {
     return;
   }
   if (!isStrongPassword(password)) {
-    setFeedback("Password must be at least 6 characters and include letters and numbers.", true);
+    setFeedback("Password must be at least 8 characters and include uppercase, lowercase, number and special character.", true);
     return;
   }
   if (password !== confirmPassword) {

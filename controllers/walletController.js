@@ -7,7 +7,7 @@ const { allocateNonce, resetNonce } = require("../utils/nonceManager");
 const config = require("../src/config");
 const { get, all } = require("../src/db/sqlite");
 const ccpaymentService = require("../services/ccpaymentService");
- 
+
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://poly.api.pocket.network";
 const POLYGON_RPC_TIMEOUT_MS = Number(process.env.POLYGON_RPC_TIMEOUT_MS || 4500);
@@ -169,7 +169,7 @@ async function verifyPolygonTransaction(txHash) {
             txHash: transaction.hash
           };
         }
-        
+
         return {
           isValid: true,
           pending: false,
@@ -181,24 +181,24 @@ async function verifyPolygonTransaction(txHash) {
           gasUsed: parseInt(receipt.gasUsed, 16),
           txHash: transaction.hash
         };
-        
+
       } catch (error) {
         logger.debug(`RPC ${rpcUrl} failed`, { error: error.message });
         continue;
       }
     }
-    
+
     return {
       isValid: false,
       error: "Transaction not found on Polygon network"
     };
-    
+
   } catch (error) {
     logger.error("Failed to verify Polygon transaction", {
       txHash,
       error: error.message
     });
-    
+
     return {
       isValid: false,
       error: "Unable to verify transaction"
@@ -206,25 +206,12 @@ async function verifyPolygonTransaction(txHash) {
   }
 }
 
-async function fetchWithTimeout(url, options, timeoutMs) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    return response;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+
 
 async function getPendingDeposits(req, res) {
   try {
     const userId = req.user.id;
-    
+
     const pendingDeposits = await all(
       `SELECT id, amount, tx_hash, from_address, status, created_at 
        FROM deposits 
@@ -244,7 +231,7 @@ async function getPendingDeposits(req, res) {
         createdAt: Number(deposit.created_at)
       }))
     });
-    
+
   } catch (error) {
     logger.error("Failed to get pending deposits", {
       userId: req.user?.id,
@@ -628,7 +615,7 @@ async function getBalance(req, res) {
   try {
     const userId = req.user.id;
     const balance = await walletModel.getUserBalance(userId);
-    
+
     res.json({
       ok: true,
       balance: balance.balance,
@@ -650,7 +637,7 @@ async function updateWalletAddress(req, res) {
   try {
     const userId = req.user.id;
     const { walletAddress } = req.body;
-    
+
     // Validate wallet address format (basic check for Ethereum-like addresses)
     if (walletAddress && !ethers.isAddress(walletAddress)) {
       return res.status(400).json({
@@ -658,9 +645,9 @@ async function updateWalletAddress(req, res) {
         message: "Invalid wallet address format"
       });
     }
-    
+
     await walletModel.saveWalletAddress(userId, walletAddress);
-    
+
     res.json({
       ok: true,
       message: walletAddress ? "Wallet address saved successfully" : "Wallet address removed"
@@ -736,7 +723,7 @@ async function withdraw(req, res) {
         console.error("Failed to mark withdrawal as failed:", statusError);
       }
     }
-    
+
     if (error.message === "Insufficient balance") {
       return res.status(400).json({
         ok: false,
@@ -806,7 +793,7 @@ async function withdraw(req, res) {
         message: "Unable to verify withdrawal wallet balance. Try again."
       });
     }
-    
+
     res.status(500).json({
       ok: false,
       message: error.message === "Missing withdrawal wallet configuration"
@@ -821,9 +808,9 @@ async function getTransactions(req, res) {
   try {
     const userId = req.user.id;
     const limit = parseInt(req.query.limit) || 50;
-    
+
     const transactions = await walletModel.getTransactions(userId, limit);
-    
+
     res.json({
       ok: true,
       transactions
@@ -841,7 +828,7 @@ async function getDepositAddress(req, res) {
   try {
     // Use the main checkin receiver address as deposit address
     const depositAddress = CHECKIN_RECEIVER;
-    
+
     res.json({
       ok: true,
       depositAddress,
@@ -875,7 +862,7 @@ async function verifyAndCreditDeposit(req, res) {
   try {
     const userId = req.user.id;
     const { txHash, fromAddress } = req.body;
-    
+
     if (!txHash || typeof txHash !== "string" || txHash.length < 20) {
       return res.status(400).json({
         ok: false,
@@ -909,7 +896,7 @@ async function verifyAndCreditDeposit(req, res) {
 
     // Verify transaction on Polygon network
     const transactionData = await verifyPolygonTransaction(txHash);
-    
+
     if (!transactionData.isValid) {
       return res.status(400).json({
         ok: false,
@@ -963,18 +950,19 @@ async function verifyAndCreditDeposit(req, res) {
     await walletModel.creditBalance(userId, actualAmount);
 
     // Log the deposit
-    await createAuditLog(
+    await createAuditLog({
       userId,
-      "deposit_credited",
-      { 
+      action: "deposit_credited",
+      ip: getAnonymizedRequestIp(req),
+      userAgent: req.get("user-agent"),
+      details: {
         depositId,
         amount: actualAmount,
         txHash: txHash.toLowerCase(),
         fromAddress: transactionData.from,
         blockNumber: transactionData.blockNumber
-      },
-      getAnonymizedRequestIp(req)
-    );
+      }
+    });
 
     logger.info("POL deposit verified and credited", {
       userId,

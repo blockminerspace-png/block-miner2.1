@@ -77,7 +77,7 @@ function createShopController(io) {
           return;
         }
 
-        await inventoryModel.addInventoryItem(req.user.id, miner.name, 1, baseHashRate, slotSize, now, now, miner.id);
+        await inventoryModel.addInventoryItem(req.user.id, miner.name, 1, baseHashRate, slotSize, now, now, miner.id, miner.image_url || DEFAULT_MINER_IMAGE_URL);
         await run("COMMIT");
       } catch (error) {
         await run("ROLLBACK");
