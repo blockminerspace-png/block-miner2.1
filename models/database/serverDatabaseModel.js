@@ -250,15 +250,37 @@ async function listRecentPayments(limit = 10) {
   return all(
     `
       SELECT
-        p.id,
-        p.amount_pol,
-        p.source,
-        p.tx_hash,
-        p.created_at,
-        COALESCE(NULLIF(TRIM(u.username), ''), u.name, 'Miner') AS username
-      FROM payouts p
-      INNER JOIN users u ON u.id = p.user_id
-      ORDER BY p.created_at DESC
+        entries.id,
+        entries.amount_pol,
+        entries.source,
+        entries.tx_hash,
+        entries.created_at,
+        entries.username
+      FROM (
+        SELECT
+          p.id AS id,
+          p.amount_pol AS amount_pol,
+          COALESCE(NULLIF(TRIM(p.source), ''), 'mining') AS source,
+          p.tx_hash AS tx_hash,
+          p.created_at AS created_at,
+          COALESCE(NULLIF(TRIM(u.username), ''), u.name, 'Miner') AS username
+        FROM payouts p
+        INNER JOIN users u ON u.id = p.user_id
+
+        UNION ALL
+
+        SELECT
+          t.id AS id,
+          t.amount AS amount_pol,
+          'withdrawal' AS source,
+          t.tx_hash AS tx_hash,
+          COALESCE(t.completed_at, t.updated_at, t.created_at) AS created_at,
+          COALESCE(NULLIF(TRIM(u.username), ''), u.name, 'Miner') AS username
+        FROM transactions t
+        INNER JOIN users u ON u.id = t.user_id
+        WHERE t.type = 'withdrawal' AND t.status = 'completed'
+      ) entries
+      ORDER BY entries.created_at DESC
       LIMIT ?
     `,
     [limit]

@@ -98,6 +98,7 @@ function registerAppRoutes({
   const checkinLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
   const adminLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
   const zeradsCallbackLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
+  const zeradsTestLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
   const chatSendLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
   const youtubeWatchClaimLimiter = createRateLimiter({ windowMs: 60_000, max: 20 });
 
@@ -557,6 +558,7 @@ function registerAppRoutes({
 
   app.get("/zeradsptc.php", zeradsCallbackLimiter, zeradsController.handlePtcCallback);
   app.post("/zeradsptc.php", zeradsCallbackLimiter, zeradsController.handlePtcCallback);
+  app.get("/zerads", zeradsTestLimiter, zeradsController.redirectToTestPtcLink);
 
   app.use("/api/ptp", ptpRouter);
   app.use("/api/shortlink", shortlinkRouter);

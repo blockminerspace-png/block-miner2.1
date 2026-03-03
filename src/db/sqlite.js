@@ -331,7 +331,7 @@ async function initializeDatabase() {
 
   const faucetMinerSlug = config.faucet?.rewardMinerSlug || "faucet-1ghs";
   const faucetMinerName = "Faucet Miner";
-    const faucetMinerImage = "/assets/machines/reward1.png";
+  const faucetMinerImage = "/assets/machines/reward1.png";
   const faucetMinerRow = await get("SELECT id, image_url FROM miners WHERE slug = ?", [faucetMinerSlug]);
   let faucetMinerId = null;
   if (!faucetMinerRow) {
@@ -344,7 +344,7 @@ async function initializeDatabase() {
   } else {
     faucetMinerId = faucetMinerRow.id;
     const currentImage = String(faucetMinerRow.image_url || "").trim();
-      if (!currentImage || currentImage === "/assets/machines/auto_mining_gpu1.png") {
+    if (!currentImage || currentImage === "/assets/machines/auto_mining_gpu1.png") {
       await run("UPDATE miners SET image_url = ? WHERE id = ?", [faucetMinerImage, faucetMinerId]);
     }
     await run("UPDATE miners SET show_in_shop = 0 WHERE id = ?", [faucetMinerId]);
@@ -682,6 +682,7 @@ async function initializeDatabase() {
   await run("CREATE INDEX IF NOT EXISTS idx_ptp_ads_hash ON ptp_ads(hash)");
   await run("CREATE INDEX IF NOT EXISTS idx_ptp_views_ad_id ON ptp_views(ad_id)");
   await run("CREATE INDEX IF NOT EXISTS idx_ptp_earnings_user_id ON ptp_earnings(user_id)");
+  await run("CREATE UNIQUE INDEX IF NOT EXISTS idx_ptp_views_ad_viewer ON ptp_views(ad_id, viewer_hash)");
 
   await run(`
     CREATE TABLE IF NOT EXISTS zerads_ptc_callbacks (

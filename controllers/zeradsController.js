@@ -244,6 +244,32 @@ async function getPtcLink(req, res) {
   }
 }
 
+async function redirectToTestPtcLink(req, res) {
+  try {
+    const rawUserId = Number(req.query?.userId);
+    const safeUsername = normalizeUsername(getRequestValue(req, ["user", "username"]));
+    const randomTestUser = `test_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+
+    let externalUser = randomTestUser;
+    if (Number.isFinite(rawUserId) && rawUserId > 0) {
+      externalUser = buildExternalUserToken(rawUserId);
+    } else if (safeUsername) {
+      externalUser = safeUsername;
+    }
+
+    const ptcUrl = getPtcUrlForUsername(externalUser);
+    if (String(req.query?.json || "") === "1") {
+      res.json({ ok: true, siteId: ZERADS_SITE_ID, externalUser, ptcUrl, mode: "test" });
+      return;
+    }
+
+    res.redirect(302, ptcUrl);
+  } catch (error) {
+    logger.error("Failed to get public ZerAds test PTC link", { error: error.message });
+    res.status(500).json({ ok: false, message: "Unable to generate ZerAds test link." });
+  }
+}
+
 async function getStats(req, res) {
   try {
     const userId = req.user?.id;
@@ -535,6 +561,7 @@ async function processQueuedCallback(userId, callbackHash) {
 
 module.exports = {
   getPtcLink,
+  redirectToTestPtcLink,
   getOfferwallLink,
   getStats,
   handlePtcCallback,

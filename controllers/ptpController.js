@@ -16,6 +16,20 @@ function generateUserHash(userId) {
   return crypto.createHash('sha256').update(`${userId}-${Date.now()}`).digest('hex').substring(0, 16);
 }
 
+function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function isValidUrl(url) {
+  return typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'));
+}
+
 async function pickPromoteAd(userId, allowSelf) {
   const baseWhere = "status = 'active' AND (target_views = 0 OR views < target_views)";
   const params = [];
@@ -64,6 +78,10 @@ async function createAd(req, res) {
 
     if (!title || !url) {
       return res.status(400).json({ ok: false, message: 'Title and URL required' });
+    }
+
+    if (!isValidUrl(url)) {
+      return res.status(400).json({ ok: false, message: 'Invalid URL. Must start with http:// or https://' });
     }
 
     const targetViews = Number(views || 0);
@@ -190,38 +208,69 @@ async function trackView(req, res) {
       return res.status(400).json({ ok: false, message: 'Ad ID and viewer hash required' });
     }
 
+    if (typeof viewerHash !== 'string' || viewerHash.length < 8) {
+      return res.status(400).json({ ok: false, message: 'Invalid viewer hash' });
+    }
+
     // Verificar se o anúncio existe
-    const ad = await get('SELECT id, user_id, target_views, views FROM ptp_ads WHERE id = ?', [adId]);
+    const ad = await get('SELECT id, user_id, target_views, views, status FROM ptp_ads WHERE id = ?', [adId]);
     if (!ad) {
       return res.status(404).json({ ok: false, message: 'Ad not found' });
+    }
+
+    if (ad.status !== 'active') {
+      return res.json({ ok: true, message: 'Ad is not active' });
     }
 
     if (ad.target_views && ad.views >= ad.target_views) {
       return res.json({ ok: true, message: 'View limit reached' });
     }
 
-    // Registrar exibição
-    await run(
-      `
-      INSERT INTO ptp_views (ad_id, viewer_hash)
-      VALUES (?, ?)
-    `,
-      [adId, viewerHash]
-    );
-
-    // Atualizar contador de views
-    await run('UPDATE ptp_ads SET views = views + 1 WHERE id = ?', [adId]);
-
+    // Usar promoterId se fornecido e válido, caso contrário creditar o dono do anúncio
     const payUserId = Number.isFinite(Number(promoterId)) ? Number(promoterId) : ad.user_id;
-    await run(
-      "INSERT INTO ptp_earnings (user_id, ad_id, amount_usd) VALUES (?, ?, ?)",
-      [payUserId, adId, PTP_EARNING_PER_VIEW_USD]
-    );
-    await run("UPDATE users SET usdc_balance = usdc_balance + ? WHERE id = ?", [PTP_EARNING_PER_VIEW_USD, payUserId]);
 
-    const updatedAd = await get("SELECT views, target_views FROM ptp_ads WHERE id = ?", [adId]);
-    if (updatedAd?.target_views && updatedAd.views >= updatedAd.target_views) {
-      await run("UPDATE ptp_ads SET status = 'completed' WHERE id = ?", [adId]);
+    // Verificar se este viewer já viu este anúncio para evitar fraude
+    const existingView = await get('SELECT id FROM ptp_views WHERE ad_id = ? AND viewer_hash = ?', [adId, viewerHash]);
+    if (existingView) {
+      return res.json({ ok: true, message: 'View already counted' });
+    }
+
+    await run('BEGIN TRANSACTION');
+    try {
+      // Registrar exibição
+      await run(
+        `
+        INSERT INTO ptp_views (ad_id, viewer_hash)
+        VALUES (?, ?)
+      `,
+        [adId, viewerHash]
+      );
+
+      // Atualizar contador de views
+      await run('UPDATE ptp_ads SET views = views + 1 WHERE id = ?', [adId]);
+
+      // Registrar ganhos
+      await run(
+        "INSERT INTO ptp_earnings (user_id, ad_id, amount_usd) VALUES (?, ?, ?)",
+        [payUserId, adId, PTP_EARNING_PER_VIEW_USD]
+      );
+
+      // Atualizar saldo do usuário
+      await run("UPDATE users SET usdc_balance = usdc_balance + ? WHERE id = ?", [PTP_EARNING_PER_VIEW_USD, payUserId]);
+
+      // Verificar se completou as visualizações pretendidas
+      const updatedAd = await get("SELECT views, target_views FROM ptp_ads WHERE id = ?", [adId]);
+      if (updatedAd?.target_views && updatedAd.views >= updatedAd.target_views) {
+        await run("UPDATE ptp_ads SET status = 'completed' WHERE id = ?", [adId]);
+      }
+
+      await run('COMMIT');
+    } catch (dbError) {
+      await run('ROLLBACK');
+      if (dbError.message.includes('UNIQUE constraint failed')) {
+        return res.json({ ok: true, message: 'View already counted' });
+      }
+      throw dbError;
     }
 
     res.json({ ok: true, message: 'View tracked' });
@@ -312,8 +361,8 @@ async function viewPromoPage(req, res) {
       return res.status(404).send("Ad not found");
     }
 
-    const safeTitle = String(ad.title || "Ad").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const safeUrl = String(ad.url || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const safeTitle = escapeHtml(ad.title || "Ad");
+    const safeUrl = escapeHtml(ad.url || "");
 
     res.send(`
       <!DOCTYPE html>
@@ -360,7 +409,7 @@ async function viewPromoPage(req, res) {
                 fetch("/api/ptp/track-view", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ adId: ${ad.id}, viewerHash })
+                  body: JSON.stringify({ adId: ${Number(ad.id)}, viewerHash })
                 }).finally(() => {
                   const timerText = document.getElementById("timerText");
                   if (timerText) timerText.style.display = "none";
@@ -426,8 +475,8 @@ async function viewPromotePage(req, res) {
       `);
     }
 
-    const safeTitle = String(ad.title || "Ad").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const safeUrl = String(ad.url || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const safeTitle = escapeHtml(ad.title || "Ad");
+    const safeUrl = escapeHtml(ad.url || "");
 
     res.send(`
       <!DOCTYPE html>
@@ -474,7 +523,7 @@ async function viewPromotePage(req, res) {
                 fetch("/api/ptp/track-view", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ adId: ${ad.id}, viewerHash, promoterId: ${userId} })
+                  body: JSON.stringify({ adId: ${Number(ad.id)}, viewerHash, promoterId: ${Number(userId)} })
                 }).finally(() => {
                   const timerText = document.getElementById("timerText");
                   if (timerText) timerText.style.display = "none";

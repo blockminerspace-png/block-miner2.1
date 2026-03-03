@@ -54,9 +54,26 @@ async function measureCpuUsagePercent(sampleMs = 300) {
 }
 
 async function getDiskUsageFromPowerShell(targetPath) {
-  const escapedPath = String(targetPath || "").replace(/'/g, "''");
-  const command = `$item = Get-Item -LiteralPath '${escapedPath}' -ErrorAction Stop; $drive = $item.PSDrive; if ($drive) { [pscustomobject]@{ total = [double]($drive.Used + $drive.Free); used = [double]$drive.Used; free = [double]$drive.Free } | ConvertTo-Json -Compress }`;
-  const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-Command", command], { timeout: 5000 });
+  // Use parameter to avoid string interpolation/injection
+  const script = `
+    param([string]$path)
+    $item = Get-Item -LiteralPath $path -ErrorAction Stop
+    $drive = $item.PSDrive
+    if ($drive) {
+      [pscustomobject]@{
+        total = [double]($drive.Used + $drive.Free)
+        used = [double]$drive.Used
+        free = [double]$drive.Free
+      } | ConvertTo-Json -Compress
+    }
+  `;
+
+  const { stdout } = await execFileAsync(
+    "powershell",
+    ["-NoProfile", "-NonInteractive", "-Command", script, "-path", targetPath],
+    { timeout: 5000 }
+  );
+
   const parsed = JSON.parse(String(stdout || "{}").trim() || "{}");
   const totalBytes = Number(parsed?.total || 0);
   const usedBytes = Number(parsed?.used || 0);
@@ -819,7 +836,7 @@ function createAdminController() {
   async function approveWithdrawal(req, res) {
     try {
       const { withdrawalId } = req.params;
-      
+
       if (!withdrawalId) {
         return res.status(400).json({ ok: false, message: "Missing withdrawal ID" });
       }
@@ -845,8 +862,8 @@ function createAdminController() {
         [Date.now(), withdrawalId]
       );
 
-      res.json({ 
-        ok: true, 
+      res.json({
+        ok: true,
         message: "Withdrawal approved. Ready to pay manually. Click '✓ Confirm Paid' after you send the funds.",
         withdrawal: {
           id: withdrawalId,
@@ -865,7 +882,7 @@ function createAdminController() {
     try {
       const walletModel = require("../models/walletModel");
       const { withdrawalId } = req.params;
-      
+
       if (!withdrawalId) {
         return res.status(400).json({ ok: false, message: "Missing withdrawal ID" });
       }
@@ -887,8 +904,8 @@ function createAdminController() {
       // Mark as failed (this will refund the balance)
       await walletModel.updateTransactionStatus(withdrawalId, "failed");
 
-      res.json({ 
-        ok: true, 
+      res.json({
+        ok: true,
         message: "Withdrawal rejected and balance refunded",
         withdrawal: {
           id: withdrawalId,
@@ -906,7 +923,7 @@ function createAdminController() {
       const walletModel = require("../models/walletModel");
       const { withdrawalId } = req.params;
       const { txHash } = req.body || {};
-      
+
       if (!withdrawalId) {
         return res.status(400).json({ ok: false, message: "Missing withdrawal ID" });
       }
@@ -932,8 +949,8 @@ function createAdminController() {
       // Mark as completed (with optional tx_hash)
       await walletModel.updateTransactionStatus(withdrawalId, "completed", txHash || null);
 
-      res.json({ 
-        ok: true, 
+      res.json({
+        ok: true,
         message: "Withdrawal marked as completed",
         withdrawal: {
           id: withdrawalId,
