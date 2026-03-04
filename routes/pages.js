@@ -23,7 +23,6 @@ const pageMap = {
   "/shop": "shop.html",
   "/earnings/faucet": "earnings-faucet.html",
   "/earnings/ptc": "earnings-ptc.html",
-  "/ganhos/ptc": "ganhos-ptc.html",
   "/auto-mining-gpu": "auto-mining-gpu.html",
   "/checkin": "checkin.html",
   "/wallet": "wallet.html",
@@ -38,6 +37,7 @@ const pageMap = {
   "/roadmap": "roadmap.html",
   "/tutorial": "tutorial.html",
   "/settings": "settings.html",
+  // Coming soon / public pages (no auth required)
   "/season-pass-coming-soon": "season-pass-coming-soon.html"
 };
 
@@ -56,7 +56,6 @@ const protectedRoutes = new Set([
   "/shop",
   "/earnings/faucet",
   "/earnings/ptc",
-  "/ganhos/ptc",
   "/auto-mining-gpu",
   "/checkin",
   "/wallet",
@@ -79,6 +78,11 @@ for (const [routePath, fileName] of Object.entries(pageMap)) {
     res.sendFile(path.join(publicDir, fileName));
   });
 }
+
+// Permanent redirect for legacy PT-BR PTC URL -> canonical EN URL
+router.get("/ganhos/ptc", requirePageAuth, (_req, res) => {
+  res.redirect(301, "/earnings/ptc");
+});
 
 router.get(/^\/r-([A-Za-z0-9_-]+)$/, (req, res) => {
   const refCode = req.params?.[0];
