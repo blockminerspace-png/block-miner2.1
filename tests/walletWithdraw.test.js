@@ -4,13 +4,14 @@ const assert = require("node:assert/strict");
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
 process.env.DB_PATH = process.env.DB_PATH || "./data/blockminer.db";
 process.env.ALLOW_WITHDRAW_TO_CONTRACTS = "1";
+process.env.CHECKIN_RECEIVER = "0x0000000000000000000000000000000000000000";
 
 const auditLogModelPath = require.resolve("../models/auditLogModel");
 const originalAuditLogModel = require(auditLogModelPath);
 
 require.cache[auditLogModelPath].exports = {
   ...originalAuditLogModel,
-  createAuditLog: async () => {}
+  createAuditLog: async () => { }
 };
 
 const walletModel = require("../models/walletModel");

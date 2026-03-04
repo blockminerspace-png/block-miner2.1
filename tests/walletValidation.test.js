@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
 process.env.DB_PATH = process.env.DB_PATH || "./data/blockminer.db";
+process.env.CHECKIN_RECEIVER = "0x0000000000000000000000000000000000000000";
 
 const { __test } = require("../controllers/walletController");
 
