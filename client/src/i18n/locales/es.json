@@ -54,7 +54,17 @@
     "wallet": "Billetera",
     "faucet": "Grifo",
     "shortlinks": "Shortlinks",
-    "menu_title": "Menú Principal"
+    "checkin": "Check-in",
+    "auto_mining": "Auto Minería",
+    "youtube": "YouTube",
+    "games": "Juegos",
+    "ranking": "Ranking",
+    "menu_title": "Menú Principal",
+    "categories": {
+      "main": "Principal",
+      "earn": "Ganar",
+      "social": "Social & Fun"
+    }
   },
   "dashboard": {
     "welcome": "Bienvenido, {{name}}",
@@ -148,18 +158,18 @@
     "title": "Grifo de Equipos",
     "subtitle": "Gana mineros gratis cada 60 minutos. Completa el paso del socio para desbloquear tu premio.",
     "avail_prize": "Premio Disponible",
-    "ghs": "GH/s",
+    "ghs": "H/s",
     "slots": "Espacios",
     "wait_cooldown": "Espera el Cooldown",
     "cooldown_msg": "Ya has recogido tu premio recientemente. Vuelve cuando el temporizador llegue a cero para ganar de nuevo.",
-    "step_partner": "Paso 1: Socio",
-    "partner_msg": "Haz clic en el botón de abajo para visitar a un socio y desbloquear el reclamo.",
+    "step_partner": "Paso 1: Patrocinador",
+    "partner_msg": "Haz clic en el banner de abajo para visitar a nuestro patrocinador y desbloquear tu premio.",
     "unlocked": "¡Desbloqueado!",
-    "visit_partner": "Visitar Socio",
-    "wait_seconds": "Espera {{seconds}}s...",
+    "visit_partner": "Clic en el Banner",
+    "wait_seconds": "Mantener abierto por {{seconds}}s...",
     "claim_miner": "Reclamar Minero",
     "claiming": "Reclamando...",
-    "how_it_works_msg": "Después de hacer clic en \"Visitar Socio\", se abrirá una nueva pestaña. Debes esperar 5 segundos en la página de BlockMiner para que se libere el botón de reclamo. Todas las máquinas ganadas van a tu inventario."
+    "how_it_works_msg": "Para mantener el pool gratuito, te pedimos que visites a nuestros patrocinadores. Haz clic en el banner, mantén el sitio abierto por unos segundos y el botón de reclamo se activará automáticamente."
   },
   "shortlinks": {
     "title": "Shortlinks",
@@ -206,6 +216,20 @@
     "claim": "Reclamar Premio",
     "min_time": "Tiempo necesario",
     "no_videos": "No hay videos disponibles en este momento."
-  }
-  }
-
+    },
+    "pages": {
+    "dashboard": "Panel de Control",
+    "shop": "Tienda de Equipos",
+    "inventory": "Mis Máquinas",
+    "wallet": "Billetera Digital",
+    "checkin": "Check-in Diario",
+    "faucet": "Grifo de Recompensas",
+    "shortlinks": "Shortlinks",
+    "youtube": "YouTube Rewards",
+    "auto_mining": "Auto Minería GPU",
+    "games": "Arena de Juegos",
+    "ranking": "Salón de la Fama",
+    "settings": "Ajustes de Cuenta",
+    "overview": "Visión General"
+    }
+    }

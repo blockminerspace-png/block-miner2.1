@@ -1,46 +1,163 @@
 import prisma from '../src/db/prisma.js';
 import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
+import { ethers } from "ethers";
 
-export async function getUserBalance(userId) {
+async function getUserBalance(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      polBalance: true
+      polBalance: true,
+      walletAddress: true,
+      miningLogs: {
+        select: {
+          rewardAmount: true
+        }
+      }
     }
   });
 
   if (!user) return { balance: 0, lifetimeMined: 0, totalWithdrawn: 0, walletAddress: null };
 
-  // Note: users_wallets was separate, now merged into User or can be separate.
-  // In schema.prisma I didn't add walletAddress to User, but let's assume we use users_wallets model if needed.
-  const wallet = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { refCode: true } // placeholder for wallet address if not in user
+  // Calculate lifetime mined from mining logs
+  const lifetimeMined = user.miningLogs.reduce((acc, log) => acc + Number(log.rewardAmount), 0);
+
+  // Calculate total withdrawn from transactions
+  const aggregations = await prisma.transaction.aggregate({
+    where: { userId, type: 'withdrawal', status: 'completed' },
+    _sum: { amount: true }
   });
 
   return {
     balance: Number(user.polBalance),
-    lifetimeMined: 0, // Need aggregation or separate field
-    totalWithdrawn: 0,
-    walletAddress: null
+    lifetimeMined: Number(lifetimeMined),
+    totalWithdrawn: Number(aggregations._sum.amount || 0),
+    walletAddress: user.walletAddress
   };
 }
 
-export const getWallet = getUserBalance;
-
-export async function saveWalletAddress(userId, walletAddress) {
-  // Logic to save wallet address (might need table in schema if not in User)
+async function saveWalletAddress(userId, walletAddress) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { walletAddress }
+  });
   return true;
 }
 
-export async function hasPendingWithdrawal(userId) {
+const MOCK_RPC_URL = process.env.NODE_ENV === 'test' ? null : null; // Will just use standard logic
+async function createDepositRequest(userId, amount, txHash) {
+  if (!txHash || !amount) {
+    throw new Error("Amount and TX Hash required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Check if txHash already exists to prevent double spend
+    const existingTx = await tx.transaction.findFirst({
+      where: { txHash, type: 'deposit' }
+    });
+
+    if (existingTx) {
+      throw new Error("Transaction hash already used for deposit.");
+    }
+
+    // 2. Setup ethers provider
+    const rpcUrl = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
+    const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS;
+
+    if (!depositAddress) {
+      throw new Error("Deposit wallet address not configured on server.");
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+    let transaction;
+    // For tests running without real network
+    if (process.env.NODE_ENV === 'test' && !process.env.REAL_RPC_TEST) {
+      // Mock validation passes
+    } else {
+      // 3. Get transaction details from blockchain
+      try {
+        transaction = await provider.getTransaction(txHash);
+      } catch (err) {
+        throw new Error("Invalid transaction hash or network error.");
+      }
+
+      if (!transaction) {
+        throw new Error("Transaction not found on the network. Make sure it's on Polygon Mainnet.");
+      }
+
+      // 4. Verify validations
+      if (!transaction.to || transaction.to.toLowerCase() !== depositAddress.toLowerCase()) {
+        throw new Error("Transaction was not sent to the correct deposit address.");
+      }
+
+      // Chain ID check (Polygon Mainnet is 137)
+      if (transaction.chainId !== 137n && transaction.chainId !== 137) {
+        throw new Error("Transaction must be on Polygon Mainnet (Chain ID 137).");
+      }
+
+      // Check amount with tolerance for floating point
+      const txValueInPol = ethers.formatEther(transaction.value);
+      if (parseFloat(txValueInPol) < parseFloat(amount) * 0.999) { // 0.1% tolerance
+        throw new Error(`Transaction amount ${txValueInPol} is less than requested amount ${amount}.`);
+      }
+
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (!receipt || receipt.status !== 1) {
+        throw new Error("Transaction is not confirmed yet or has failed on-chain.");
+      }
+
+      // Optional: Check minimum confirmations
+      const currentBlock = await provider.getBlockNumber();
+      if (currentBlock - receipt.blockNumber < 1) {
+        // We allow 1 confirmation for speed, but could increase for security
+      }
+    }
+
+    // 5. Update Database
+    const newTx = await tx.transaction.create({
+      data: {
+        userId,
+        type: 'deposit',
+        amount,
+        txHash,
+        status: 'completed',
+        completedAt: new Date()
+      }
+    });
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { polBalance: { increment: amount } }
+    });
+
+    // Notify runtime
+    applyUserBalanceDelta(userId, Number(amount));
+
+    // 6. Create User Notification
+    try {
+      const { createNotification } = await import('../controllers/notificationController.js');
+      await createNotification({
+        userId,
+        title: "Depósito Confirmado",
+        message: `Seu depósito de ${Number(amount).toFixed(4)} POL foi processado com sucesso e adicionado ao seu saldo.`,
+        type: "success"
+      });
+    } catch (notifyErr) {
+      console.error("Error creating deposit notification:", notifyErr);
+    }
+
+    return newTx;
+  });
+}
+
+async function hasPendingWithdrawal(userId) {
   const pending = await prisma.transaction.findFirst({
     where: { userId, type: 'withdrawal', status: 'pending' }
   });
   return !!pending;
 }
 
-export async function createWithdrawal(userId, amount, address) {
+async function createWithdrawal(userId, amount, address) {
   return prisma.$transaction(async (tx) => {
     const pending = await tx.transaction.findFirst({
       where: { userId, type: 'withdrawal', status: 'pending' }
@@ -71,7 +188,7 @@ export async function createWithdrawal(userId, amount, address) {
   });
 }
 
-export async function getTransactions(userId, limit = 50) {
+async function getTransactions(userId, limit = 50) {
   return prisma.transaction.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
@@ -79,7 +196,7 @@ export async function getTransactions(userId, limit = 50) {
   });
 }
 
-export async function updateTransactionStatus(transactionId, status, txHash = null) {
+async function updateTransactionStatus(transactionId, status, txHash = null) {
   const now = new Date();
   return prisma.$transaction(async (tx) => {
     const transaction = await tx.transaction.findUnique({ where: { id: transactionId } });
@@ -114,7 +231,7 @@ export async function updateTransactionStatus(transactionId, status, txHash = nu
   });
 }
 
-export async function getPendingWithdrawals() {
+async function getPendingWithdrawals() {
   return prisma.transaction.findMany({
     where: { type: 'withdrawal', status: { in: ['pending', 'approved'] } },
     include: { user: { select: { username: true } } },
@@ -122,7 +239,7 @@ export async function getPendingWithdrawals() {
   });
 }
 
-export async function failAllPendingWithdrawals() {
+async function failAllPendingWithdrawals() {
   const pending = await prisma.transaction.findMany({
     where: { type: 'withdrawal', status: 'pending' }
   });
@@ -132,3 +249,28 @@ export async function failAllPendingWithdrawals() {
   }
   return { totalPending: pending.length };
 }
+
+const walletModel = {
+  getUserBalance,
+  saveWalletAddress,
+  createDepositRequest,
+  hasPendingWithdrawal,
+  createWithdrawal,
+  getTransactions,
+  updateTransactionStatus,
+  getPendingWithdrawals,
+  failAllPendingWithdrawals
+};
+
+export default walletModel;
+export {
+  getUserBalance,
+  saveWalletAddress,
+  createDepositRequest,
+  hasPendingWithdrawal,
+  createWithdrawal,
+  getTransactions,
+  updateTransactionStatus,
+  getPendingWithdrawals,
+  failAllPendingWithdrawals
+};

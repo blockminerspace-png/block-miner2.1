@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { 
-    Cpu, 
-    Plus, 
-    Save, 
-    Trash2, 
-    Image as ImageIcon, 
-    ShoppingCart, 
+import {
+    Cpu,
+    Plus,
+    Save,
+    Trash2,
+    Image as ImageIcon,
+    ShoppingCart,
     Power,
     RefreshCw,
     X,
@@ -30,7 +31,7 @@ export default function AdminMiners() {
         isActive: true,
         showInShop: true
     });
-    
+
     const fileInputRef = useRef(null);
 
     const fetchMiners = useCallback(async () => {
@@ -123,7 +124,7 @@ export default function AdminMiners() {
                     <h2 className="text-2xl font-black text-white">Catálogo de Mineradoras</h2>
                     <p className="text-slate-500 text-sm font-medium">Configure as máquinas disponíveis na loja global.</p>
                 </div>
-                <button 
+                <button
                     onClick={() => setShowCreateForm(true)}
                     className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20"
                 >
@@ -132,7 +133,7 @@ export default function AdminMiners() {
             </div>
 
             {/* Create Form Modal */}
-            {showCreateForm && (
+            {showCreateForm && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-8 border-b border-slate-800 flex items-center justify-between">
@@ -142,23 +143,23 @@ export default function AdminMiners() {
                         <form onSubmit={handleCreateMiner} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nome</label>
-                                <input required value={newMiner.name} onChange={e => setNewMiner(p => ({...p, name: e.target.value}))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" placeholder="Elite Miner v1" />
+                                <input required value={newMiner.name} onChange={e => setNewMiner(p => ({ ...p, name: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" placeholder="Elite Miner v1" />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Slug (URL)</label>
-                                <input required value={newMiner.slug} onChange={e => setNewMiner(p => ({...p, slug: e.target.value}))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" placeholder="elite-miner-v1" />
+                                <input required value={newMiner.slug} onChange={e => setNewMiner(p => ({ ...p, slug: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" placeholder="elite-miner-v1" />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poder (GH/s)</label>
-                                <input required type="number" value={newMiner.baseHashRate} onChange={e => setNewMiner(p => ({...p, baseHashRate: e.target.value}))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
+                                <input required type="number" value={newMiner.baseHashRate} onChange={e => setNewMiner(p => ({ ...p, baseHashRate: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Preço (POL)</label>
-                                <input required type="number" value={newMiner.price} onChange={e => setNewMiner(p => ({...p, price: e.target.value}))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
+                                <input required type="number" value={newMiner.price} onChange={e => setNewMiner(p => ({ ...p, price: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tamanho (Slots)</label>
-                                <select value={newMiner.slotSize} onChange={e => setNewMiner(p => ({...p, slotSize: e.target.value}))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white">
+                                <select value={newMiner.slotSize} onChange={e => setNewMiner(p => ({ ...p, slotSize: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white">
                                     <option value="1">1 Slot</option>
                                     <option value="2">2 Slots</option>
                                 </select>
@@ -166,21 +167,21 @@ export default function AdminMiners() {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">URL da Imagem</label>
                                 <div className="flex gap-2">
-                                    <input value={newMiner.imageUrl} onChange={e => setNewMiner(p => ({...p, imageUrl: e.target.value}))} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
+                                    <input value={newMiner.imageUrl} onChange={e => setNewMiner(p => ({ ...p, imageUrl: e.target.value }))} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
                                     <button type="button" onClick={() => fileInputRef.current.click()} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white"><Upload className="w-5 h-5" /></button>
                                     <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                                 </div>
                             </div>
                             <div className="md:col-span-2 flex items-center gap-6 py-4">
                                 <label className="flex items-center gap-2 cursor-pointer group">
-                                    <input type="checkbox" checked={newMiner.isActive} onChange={e => setNewMiner(p => ({...p, isActive: e.target.checked}))} className="hidden" />
+                                    <input type="checkbox" checked={newMiner.isActive} onChange={e => setNewMiner(p => ({ ...p, isActive: e.target.checked }))} className="hidden" />
                                     <div className={`w-10 h-6 rounded-full p-1 transition-all ${newMiner.isActive ? 'bg-emerald-500' : 'bg-slate-700'}`}>
                                         <div className={`w-4 h-4 bg-white rounded-full transition-transform ${newMiner.isActive ? 'translate-x-4' : ''}`} />
                                     </div>
                                     <span className="text-xs font-bold text-slate-400 group-hover:text-white uppercase">Ativa</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer group">
-                                    <input type="checkbox" checked={newMiner.showInShop} onChange={e => setNewMiner(p => ({...p, showInShop: e.target.checked}))} className="hidden" />
+                                    <input type="checkbox" checked={newMiner.showInShop} onChange={e => setNewMiner(p => ({ ...p, showInShop: e.target.checked }))} className="hidden" />
                                     <div className={`w-10 h-6 rounded-full p-1 transition-all ${newMiner.showInShop ? 'bg-blue-500' : 'bg-slate-700'}`}>
                                         <div className={`w-4 h-4 bg-white rounded-full transition-transform ${newMiner.showInShop ? 'translate-x-4' : ''}`} />
                                     </div>
@@ -194,7 +195,8 @@ export default function AdminMiners() {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
@@ -221,34 +223,34 @@ export default function AdminMiners() {
                                     </td>
                                     <td className="px-8 py-5">
                                         <div className="flex flex-col">
-                                            <input 
-                                                value={m.name} 
-                                                onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? {...item, name: e.target.value} : item))}
-                                                className="bg-transparent border-none text-white font-bold text-xs p-0 focus:ring-0 w-full" 
+                                            <input
+                                                value={m.name}
+                                                onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, name: e.target.value } : item))}
+                                                className="bg-transparent border-none text-white font-bold text-xs p-0 focus:ring-0 w-full"
                                             />
                                             <span className="text-[10px] text-slate-500">{m.slug}</span>
                                         </div>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <input 
+                                        <input
                                             type="number"
-                                            value={m.base_hash_rate} 
-                                            onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? {...item, base_hash_rate: e.target.value} : item))}
-                                            className="bg-transparent border-none text-slate-300 font-bold text-xs p-0 focus:ring-0 w-16" 
+                                            value={m.base_hash_rate}
+                                            onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, base_hash_rate: e.target.value } : item))}
+                                            className="bg-transparent border-none text-slate-300 font-bold text-xs p-0 focus:ring-0 w-16"
                                         />
                                     </td>
                                     <td className="px-8 py-5">
-                                        <input 
+                                        <input
                                             type="number"
-                                            value={m.price} 
-                                            onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? {...item, price: e.target.value} : item))}
-                                            className="bg-transparent border-none text-amber-500 font-black text-xs p-0 focus:ring-0 w-20" 
+                                            value={m.price}
+                                            onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, price: e.target.value } : item))}
+                                            className="bg-transparent border-none text-amber-500 font-black text-xs p-0 focus:ring-0 w-20"
                                         />
                                     </td>
                                     <td className="px-8 py-5">
-                                        <select 
+                                        <select
                                             value={m.slot_size}
-                                            onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? {...item, slot_size: e.target.value} : item))}
+                                            onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, slot_size: e.target.value } : item))}
                                             className="bg-transparent border-none text-slate-500 text-xs p-0 focus:ring-0"
                                         >
                                             <option value="1">1</option>
@@ -257,14 +259,14 @@ export default function AdminMiners() {
                                     </td>
                                     <td className="px-8 py-5">
                                         <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => setMiners(prev => prev.map(item => item.id === m.id ? {...item, is_active: !item.is_active} : item))}
+                                            <button
+                                                onClick={() => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, is_active: !item.is_active } : item))}
                                                 className={`px-2 py-1 rounded text-[9px] font-black uppercase ${m.is_active ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-800 text-slate-500'}`}
                                             >
                                                 {m.is_active ? 'Ativa' : 'Off'}
                                             </button>
-                                            <button 
-                                                onClick={() => setMiners(prev => prev.map(item => item.id === m.id ? {...item, show_in_shop: !item.show_in_shop} : item))}
+                                            <button
+                                                onClick={() => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, show_in_shop: !item.show_in_shop } : item))}
                                                 className={`px-2 py-1 rounded text-[9px] font-black uppercase ${m.show_in_shop ? 'bg-blue-500/10 text-blue-500' : 'bg-slate-800 text-slate-500'}`}
                                             >
                                                 {m.show_in_shop ? 'Shop' : 'Hidden'}
@@ -272,7 +274,7 @@ export default function AdminMiners() {
                                         </div>
                                     </td>
                                     <td className="px-8 py-5 text-right">
-                                        <button 
+                                        <button
                                             onClick={() => handleUpdateMiner(m)}
                                             className="p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded-lg transition-all"
                                         >

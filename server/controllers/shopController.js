@@ -2,6 +2,8 @@ import * as inventoryModel from "../models/inventoryModel.js";
 import * as minersModel from "../models/minersModel.js";
 import prisma from "../src/db/prisma.js";
 import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
+import { createNotification } from "./notificationController.js";
+import { getMiningEngine } from "../src/miningEngineInstance.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 
@@ -93,7 +95,18 @@ export async function purchaseMiner(req, res) {
 
         return newUser;
       });
+      
       applyUserBalanceDelta(req.user.id, -price);
+
+      // Create Notification
+      await createNotification({
+        userId: req.user.id,
+        title: "Compra Realizada",
+        message: `Você adquiriu ${miner.name} por ${price} POL. O equipamento já está no seu inventário!`,
+        type: "success",
+        io: getMiningEngine()?.io
+      });
+
     } catch (error) {
       if (error.message === "Insufficient balance.") {
         return res.status(400).json({ ok: false, message: "Insufficient balance." });
@@ -101,11 +114,6 @@ export async function purchaseMiner(req, res) {
       throw error;
     }
 
-    const inventory = await inventoryModel.listInventory(req.user.id);
-    // Note: Emit via REST response instead of socket here, frontend will refetch or update state
-    // We can also let the socket connection handle it if we have access to io
-    // but returning newBalance is enough for React
-    
     res.json({
       ok: true,
       message: `${miner.name} added to inventory!`,

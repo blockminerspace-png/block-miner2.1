@@ -1,10 +1,29 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import { generateSecurityPayload } from '../utils/security';
 
 // Configure default axios behavior for our API
 export const api = axios.create({
     baseURL: '/api',
     withCredentials: true, // Need this to send cookies
+});
+
+// Interceptor to attach Anti-Bot payload to every API request
+api.interceptors.request.use((config) => {
+    // We only attach this for state-changing or critical requests, 
+    // but attaching it everywhere is safer and simpler.
+    try {
+        const security = generateSecurityPayload();
+        config.headers['X-Anti-Bot-Payload'] = security.fingerprint;
+        config.headers['X-Anti-Bot-Key'] = security.sk;
+        config.headers['X-Anti-Bot'] = security.isBot ? '1' : '0';
+    } catch (e) {
+        // Fallback if security module fails
+        config.headers['X-Anti-Bot'] = '0';
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
 });
 
 export const useAuthStore = create((set) => ({

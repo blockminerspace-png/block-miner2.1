@@ -5,7 +5,7 @@ import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 const DEFAULT_FAUCET_COOLDOWN_MS = 60 * 60 * 1000;
-const FAUCET_PARTNER_WAIT_MS = 5_000;
+const FAUCET_PARTNER_WAIT_MS = 10_000;
 const FAUCET_PARTNER_URL = String(process.env.FAUCET_PARTNER_URL || "https://faucetpay.io/").trim();
 
 async function getActiveReward() {
@@ -134,9 +134,27 @@ export async function claim(req, res) {
       return res.status(429).json({ ok: false, message: "Cooldown active.", remainingMs: status.remainingMs });
     }
 
+    // ANTI-CHEAT: Validar se o usuário abriu o site parceiro e esperou o tempo necessário
+    const visit = await prisma.faucetPartnerVisit.findUnique({
+      where: { userId_dayKey: { userId, dayKey: normalized.todayKey } }
+    });
+
+    const lastClaimAt = normalized.record?.claimedAt?.getTime() || 0;
+    const visitOpenedAt = visit?.openedAt?.getTime() || 0;
+    const visitEligibleAt = visit?.eligibleAt?.getTime() || 0;
+    const hasFreshVisit = visitOpenedAt > 0 && visitOpenedAt > lastClaimAt;
+    const waitRemainingMs = hasFreshVisit ? Math.max(0, visitEligibleAt - now.getTime()) : 0;
+    const partnerReady = hasFreshVisit && waitRemainingMs === 0;
+
+    if (!partnerReady) {
+      return res.status(403).json({ ok: false, message: "Visita ao parceiro incompleta ou tempo mínimo não atingido." });
+    }
+
     const miner = reward.miner;
     
     await prisma.$transaction(async (tx) => {
+      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 Hours
+
       await tx.userInventory.create({
         data: {
           userId,
@@ -146,7 +164,8 @@ export async function claim(req, res) {
           hashRate: miner.baseHashRate,
           slotSize: miner.slotSize,
           imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
-          acquiredAt: now
+          acquiredAt: now,
+          expiresAt: expiresAt
         }
       });
 

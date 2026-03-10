@@ -1,0 +1,203 @@
+# ============================================================================
+# BLOCKMINER - Environment Configuration
+# ============================================================================
+# USE ESSAS INFORMAÇÕES PRO ENV REMOVA OQUE FOR DESNECESSARIO E ADICIONE OQUE FALTAR
+# ============================================================================
+
+# ============================================================================
+# SECURITY (REQUIRED)
+# ============================================================================
+
+# JWT Secret for authentication tokens
+# REQUIRED: Must be at least 32 characters (use: openssl rand -hex 64)
+# If not set, the server will refuse to start
+JWT_SECRET=7144bf87de94ba444b5f781fc09b14f7691ac7d3f9aaf62068cd27c97ad9e827
+
+# JWT Token TTL (Time To Live)
+ACCESS_TOKEN_TTL=12h
+REFRESH_TOKEN_TTL_DAYS=30
+JWT_ISSUER=blockminer
+JWT_AUDIENCE=blockminer.app
+
+# ============================================================================
+# CORS & DEPLOYMENT
+# ============================================================================
+
+# Allowed origins for CORS (comma-separated)
+# Example: https://seu-dominio.com,https://www.seu-dominio.com
+# Leave empty to allow localhost-only (development)
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+# Node environment
+# Use "development" for local testing (all logged-in users get admin access)
+# Use "production" for live deployment (only emails in ADMIN_EMAILS get admin access)
+NODE_ENV=development
+PORT=3000
+
+# App URL (for OAuth callbacks, etc)
+APP_URL=http://localhost:3000
+
+# Logging level (case-insensitive): ERROR, WARN, INFO, DEBUG
+LOG_LEVEL=INFO
+
+# ============================================================================
+# ADMIN USERS (REQUIRED for production)
+# ============================================================================
+
+# Comma-separated list of admin email addresses
+# Add the email(s) that should have admin access to manage withdrawals, users, etc
+# Example: admin@example.com,super-admin@example.com
+# IN DEVELOPMENT MODE: Leave this empty to allow all logged-in users as admin
+# IN PRODUCTION MODE: Add specific admin emails here
+ADMIN_EMAILS=admin@blockminer.com
+
+# ============================================================================
+# ADMIN LOGIN (for dedicated admin page)
+# ============================================================================
+
+# Email for admin login panel (independent from user authentication)
+# This is the email that will be used to login to the admin panel
+ADMIN_EMAIL=admin@blockminer.com
+
+# Security code for admin login (minimum 4 characters)
+# IMPORTANT: Keep this secure and do not commit to version control
+# Change this to a strong, unique code
+ADMIN_SECURITY_CODE=SecureCode123!
+
+# JWT expiration time for admin sessions
+ADMIN_JWT_EXPIRES_IN=24h
+
+# ============================================================================
+# DATABASE
+# ============================================================================
+
+# PostgreSQL Database (Prisma)
+# Use "localhost" for local dev, "db" for Docker
+DATABASE_URL="postgresql://blockminer:blockminer_password@localhost:5432/blockminer_db?schema=public"
+
+# SQLite database path (legacy or secondary use)
+DB_PATH=./data/blockminer.db
+
+# ============================================================================
+# BLOCKCHAIN (Polygon Mainnet)
+# ============================================================================
+
+# RPC URL for Polygon (mainnet)
+POLYGON_RPC_URL=https://polygon-bor-rpc.publicnode.com
+
+# RPC timeout (ms) for on-chain reads (failover will try next endpoint)
+POLYGON_RPC_TIMEOUT_MS=4500
+
+# Chain ID for Polygon mainnet
+POLYGON_CHAIN_ID=137
+
+# Check-in receiver wallet address (where daily check-in tokens and user deposits go)
+# This is your main wallet address where all POL tokens are collected
+# Daily check-in: users receive 0.01 POL per check-in → sent to this wallet
+# User deposits: when users deposit POL → collected to this wallet
+CHECKIN_RECEIVER=0x1CA03755C5132e238aE4E0f50d4929EA0D58b897
+DEPOSIT_WALLET_ADDRESS=0x1CA03755C5132e238aE4E0f50d4929EA0D58b897
+
+# Amount (in Wei) to send per check-in
+# Default: 10000000000000000 = 0.01 tokens
+CHECKIN_AMOUNT_WEI=10000000000000000
+
+# ============================================================================
+# HOT WALLET (for withdrawals & transactions)
+# ============================================================================
+
+# Private key of the hot wallet (64 hex chars, no 0x prefix required)
+# WARNING: This key will be used to sign transactions! Keep it secure.
+WITHDRAWAL_PRIVATE_KEY=0aac4f7074ef868cfc50638a2d963a7535516a74e74d9e683846fa04cd974257
+
+# OR use mnemonic phrase (12-24 words, space-separated)
+# If both are set, PRIVATE_KEY takes precedence
+WITHDRAWAL_MNEMONIC=zone dish prefer seek note ginger toy wet private habit town amount
+
+# Allow withdrawals to contract addresses (0/1)
+# WARNING: many contracts will revert on native POL transfers; if it reverts the withdrawal will fail and be refunded.
+ALLOW_WITHDRAW_TO_CONTRACTS=1
+
+# ============================================================================
+# APP CONFIG
+# ============================================================================
+
+# Date when the app came online (YYYY-MM-DD format)
+ONLINE_START_DATE=2026-02-13
+
+# Reward (in GH/s) given for completing memory game
+MEMORY_GAME_REWARD_GH=5
+
+# ============================================================================
+# BACKUP (LOCAL DEVELOPMENT)
+# ============================================================================
+# Keep backup jobs disabled locally to avoid filling disk with large archives.
+BACKUP_ENABLED=false
+BACKUP_RUN_ON_STARTUP=false
+BACKUP_FULL_SITE_ON_STARTUP=false
+BACKUP_RETENTION_DAYS=2
+BACKUP_DIR=./backups
+
+# ============================================================================
+# CCPAYMENT (DEPÓSITOS CRIPTO - POLYGON)
+# ============================================================================
+
+# Habilita integração CCPayment
+# NOTA: Desabilitar localmente enquanto as credenciais são validadas
+# Ativar apenas quando credenciais válidas forem confirmadas
+CCPAYMENT_ENABLED=false
+
+# Credenciais da API CCPayment
+CCPAYMENT_APP_ID=4s9zz6KiQOyqPbli
+CCPAYMENT_APP_SECRET=f07419161286fa2b89fb549fc0c177b2
+
+# Base e endpoints (v2)
+CCPAYMENT_API_BASE_URL=https://admin.ccpayment.com/api/v2
+CCPAYMENT_CREATE_USER_DEPOSIT_PATH=/payment/address/get
+CCPAYMENT_GET_USER_DEPOSIT_RECORD_PATH=/payment/get_record
+CCPAYMENT_TIMEOUT_MS=15000
+
+# Segurança de webhook ITN
+CCPAYMENT_WEBHOOK_VERIFY_SIGN=true
+CCPAYMENT_WEBHOOK_MAX_SKEW_SECONDS=300
+
+# Whitelist de IPs para webhooks (por segurança, CCPayment envia apenas desses IPs)
+# IPs da CCPayment: 54.150.123.157, 35.72.150.75, 18.176.186.244
+CCPAYMENT_WEBHOOK_ALLOWED_SOURCE_IPS=54.150.123.157,35.72.150.75,18.176.186.244
+# Ativar para rejeitar webhooks de IPs não listados (recomendado em produção)
+CCPAYMENT_WEBHOOK_ENFORCE_SOURCE_IPS=false
+
+# Restrição de rede/moeda aceitas para crédito
+CCPAYMENT_CHAIN=POLYGON
+CCPAYMENT_ALLOWED_COIN_SYMBOLS=POL,MATIC
+
+# Webhook CCPayment (configurar no painel Developer)
+# https://blockminer.space/api/wallet/ccpayment/deposit-webhook
+
+
+# ============================================================================
+# ANTI-DDoS / RATE LIMIT
+# ============================================================================
+
+# Global HTTP limiter (per IP)
+HTTP_GLOBAL_RATE_WINDOW_MS=60000
+HTTP_GLOBAL_RATE_MAX=240
+
+# API limiter (per IP)
+HTTP_API_RATE_WINDOW_MS=60000
+HTTP_API_RATE_MAX=120
+
+# Block direct browser navigation to backend API URLs (/api/*)
+# Keeps frontend fetch/XHR working, but prevents opening API endpoints as pages in the browser
+BLOCK_DIRECT_API_NAVIGATION=true
+
+# Socket.IO hardening
+SOCKET_MAX_HTTP_BUFFER_SIZE=65536
+SOCKET_PING_INTERVAL_MS=25000
+SOCKET_PING_TIMEOUT_MS=20000
+SOCKET_CONNECT_TIMEOUT_MS=10000
+
+# Node HTTP server timeouts
+SERVER_REQUEST_TIMEOUT_MS=30000
+SERVER_HEADERS_TIMEOUT_MS=35000
+SERVER_KEEPALIVE_TIMEOUT_MS=5000

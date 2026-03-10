@@ -54,7 +54,17 @@
     "wallet": "Wallet",
     "faucet": "Faucet",
     "shortlinks": "Shortlinks",
-    "menu_title": "Main Menu"
+    "checkin": "Check-in",
+    "auto_mining": "Auto Mining",
+    "youtube": "YouTube",
+    "games": "Games",
+    "ranking": "Ranking",
+    "menu_title": "Main Menu",
+    "categories": {
+      "main": "Main",
+      "earn": "Earn",
+      "social": "Social & Fun"
+    }
   },
   "dashboard": {
     "welcome": "Welcome, {{name}}",
@@ -148,18 +158,18 @@
     "title": "Equipment Faucet",
     "subtitle": "Earn free miners every 60 minutes. Complete the partner step to unlock your prize.",
     "avail_prize": "Available Prize",
-    "ghs": "GH/s",
+    "ghs": "H/s",
     "slots": "Slots",
     "wait_cooldown": "Wait for Cooldown",
     "cooldown_msg": "You have already collected your prize recently. Come back when the timer reaches zero to win again.",
-    "step_partner": "Step 1: Partner",
-    "partner_msg": "Click the button below to visit a partner and unlock the claim.",
+    "step_partner": "Step 1: Sponsor",
+    "partner_msg": "Click the banner below to visit our sponsor and unlock your reward.",
     "unlocked": "Unlocked!",
-    "visit_partner": "Visit Partner",
-    "wait_seconds": "Wait {{seconds}}s...",
+    "visit_partner": "Click Banner",
+    "wait_seconds": "Keep open for {{seconds}}s...",
     "claim_miner": "Claim Miner",
     "claiming": "Claiming...",
-    "how_it_works_msg": "After clicking \"Visit Partner\", a new tab will open. You must wait 5 seconds on the BlockMiner page for the claim button to be released. All won machines go to your inventory."
+    "how_it_works_msg": "To keep the pool free, we ask you to visit our sponsors. Click the banner, keep the site open for a few seconds, and the claim button will activate automatically."
   },
   "shortlinks": {
     "title": "Shortlinks",
@@ -206,5 +216,20 @@
     "claim": "Claim Reward",
     "min_time": "Required time",
     "no_videos": "No videos available at the moment."
-  }
-}
+    },
+    "pages": {
+    "dashboard": "Main Dashboard",
+    "shop": "Equipment Shop",
+    "inventory": "My Machines",
+    "wallet": "Digital Wallet",
+    "checkin": "Daily Check-in",
+    "faucet": "Reward Faucet",
+    "shortlinks": "Shortlinks",
+    "youtube": "YouTube Rewards",
+    "auto_mining": "Auto Mining GPU",
+    "games": "Game Arena",
+    "ranking": "Hall of Fame",
+    "settings": "Account Settings",
+    "overview": "Overview"
+    }
+    }

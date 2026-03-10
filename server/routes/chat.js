@@ -8,4 +8,10 @@ export const chatRouter = express.Router();
 const chatLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
 
 chatRouter.get("/messages", requireAuth, chatController.getMessages);
+chatRouter.get("/users", requireAuth, chatController.getActiveUsers);
 chatRouter.post("/send", requireAuth, chatLimiter, chatController.sendMessage);
+
+// Private Messaging Routes
+chatRouter.get("/private/:targetUserId", requireAuth, chatController.getPrivateMessages);
+chatRouter.post("/send-private", requireAuth, chatLimiter, chatController.sendPrivateMessage);
+chatRouter.get("/conversations", requireAuth, chatController.getConversations);

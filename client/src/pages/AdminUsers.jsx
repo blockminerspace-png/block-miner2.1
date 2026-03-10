@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { 
-    Users, 
-    Search, 
-    RefreshCw, 
-    ChevronLeft, 
-    ChevronRight, 
-    Eye, 
-    Ban, 
-    ShieldCheck, 
-    Clock, 
-    Wallet, 
-    Activity, 
+import {
+    Users,
+    Search,
+    RefreshCw,
+    ChevronLeft,
+    ChevronRight,
+    Eye,
+    Ban,
+    ShieldCheck,
+    Clock,
+    Wallet,
+    Activity,
     Cpu,
     X
 } from 'lucide-react';
@@ -100,11 +101,11 @@ export default function AdminUsers() {
                 </div>
                 <form onSubmit={handleSearch} className="relative group w-full md:w-96">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-amber-500 transition-colors" />
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Buscar por ID, E-mail ou Username..." 
+                        placeholder="Buscar por ID, E-mail ou Username..."
                         className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-sm text-slate-200 focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/50 transition-all"
                     />
                 </form>
@@ -148,26 +149,24 @@ export default function AdminUsers() {
                                         {Number(u.baseHashRate || 0).toFixed(2)} <span className="text-[10px] text-slate-600 uppercase">GH/s</span>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                                            u.isBanned ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'
-                                        }`}>
+                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${u.isBanned ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'
+                                            }`}>
                                             {u.isBanned ? 'Banido' : 'Ativo'}
                                         </span>
                                     </td>
                                     <td className="px-8 py-5 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <button 
+                                            <button
                                                 onClick={() => loadUserDetails(u.id)}
                                                 className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
                                                 title="Ver Detalhes"
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => handleBanToggle(u)}
-                                                className={`p-2 rounded-lg transition-all ${
-                                                    u.isBanned ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
-                                                }`}
+                                                className={`p-2 rounded-lg transition-all ${u.isBanned ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
+                                                    }`}
                                                 title={u.isBanned ? 'Desbanir' : 'Banir'}
                                             >
                                                 <Ban className="w-4 h-4" />
@@ -186,7 +185,7 @@ export default function AdminUsers() {
                         Total: <span className="text-white">{total}</span> usuários
                     </p>
                     <div className="flex items-center gap-4">
-                        <button 
+                        <button
                             disabled={page === 1}
                             onClick={() => setPage(prev => prev - 1)}
                             className="p-2 bg-slate-800 text-slate-400 rounded-lg disabled:opacity-30 transition-all hover:bg-slate-700"
@@ -194,7 +193,7 @@ export default function AdminUsers() {
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                         <span className="text-xs font-black text-white uppercase tracking-widest">Página {page} de {pageCount}</span>
-                        <button 
+                        <button
                             disabled={page >= pageCount}
                             onClick={() => setPage(prev => prev + 1)}
                             className="p-2 bg-slate-800 text-slate-400 rounded-lg disabled:opacity-30 transition-all hover:bg-slate-700"
@@ -206,7 +205,7 @@ export default function AdminUsers() {
             </div>
 
             {/* Details Sidebar/Modal */}
-            {selectedUser && (
+            {selectedUser && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="w-full max-w-2xl h-full bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-500">
                         <div className="sticky top-0 z-10 p-8 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between">
@@ -214,7 +213,7 @@ export default function AdminUsers() {
                                 <h3 className="text-xl font-black text-white">Perfil do Usuário</h3>
                                 <p className="text-[10px] text-amber-500 font-black uppercase tracking-[0.2em] mt-1">ID #{selectedUser.user.id}</p>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setSelectedUser(null)}
                                 className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl transition-all"
                             >
@@ -276,19 +275,19 @@ export default function AdminUsers() {
                                 </div>
                             </div>
 
-                            <button 
+                            <button
                                 onClick={() => handleBanToggle(selectedUser.user)}
-                                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${
-                                    selectedUser.user.isBanned 
-                                        ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500' 
+                                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${selectedUser.user.isBanned
+                                        ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500'
                                         : 'bg-red-500/10 hover:bg-red-500/20 text-red-500'
-                                }`}
+                                    }`}
                             >
                                 {selectedUser.user.isBanned ? 'Revogar Banimento' : 'Banir permanentemente'}
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

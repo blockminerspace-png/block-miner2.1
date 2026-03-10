@@ -44,6 +44,13 @@ export async function getShortlinkStatus(req, res) {
 export async function startShortlink(req, res) {
   try {
     const userId = req.user.id;
+    
+    // ANTI-CHEAT: Checa se o usuário já atingiu o limite diário antes de permitir que ele inicie
+    const status = await prisma.shortlinkCompletion.findUnique({ where: { userId } });
+    if (status && status.dailyRuns >= MAX_DAILY_RUNS) {
+      return res.status(403).json({ ok: false, message: "Limite diário alcançado. Volte amanhã." });
+    }
+
     const sessionToken = generateStepToken(userId, 1);
     await prisma.shortlinkCompletion.upsert({
       where: { userId },
@@ -65,6 +72,11 @@ export async function completeShortlinkStep(req, res) {
     
     const status = await prisma.shortlinkCompletion.findUnique({ where: { userId } });
     if (!status || !status.sessionToken) return res.status(400).json({ ok: false, message: "No session" });
+
+    // ANTI-CHEAT: Proteção extra para garantir que não passe da barreira diária
+    if (status.dailyRuns >= MAX_DAILY_RUNS) {
+       return res.status(403).json({ ok: false, message: "Limite diário alcançado." });
+    }
 
     // --- SEGURANÇA RELAXADA PARA TESTES ---
     const incidents = [];
@@ -90,19 +102,21 @@ export async function completeShortlinkStep(req, res) {
 
     let reward = null;
     const isLastStep = normalizedStep === TOTAL_STEPS;
-    const nextSessionToken = isLastStep ? null : generateStepToken(userId, normalizedStep + 1);
+    const nextStep = isLastStep ? 0 : normalizedStep + 1;
+    const nextSessionToken = isLastStep ? null : generateStepToken(userId, nextStep);
 
     await prisma.$transaction(async (tx) => {
       await tx.shortlinkCompletion.update({
         where: { userId },
         data: { 
-          currentStep: isLastStep ? 0 : normalizedStep,
+          currentStep: nextStep,
           dailyRuns: isLastStep ? { increment: 1 } : undefined,
           completedAt: isLastStep ? now : undefined,
           sessionToken: nextSessionToken,
           stepStartedAt: now
         }
       });
+      // ... rest of transaction (reward)
 
       if (isLastStep) {
         let miner = await tx.miner.findFirst({ where: { baseHashRate: 5, isActive: true } });

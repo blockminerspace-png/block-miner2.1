@@ -54,7 +54,17 @@
     "wallet": "Carteira",
     "faucet": "Faucet",
     "shortlinks": "Shortlinks",
-    "menu_title": "Menu Principal"
+    "checkin": "Check-in",
+    "auto_mining": "Auto Mining",
+    "youtube": "YouTube",
+    "games": "Jogos",
+    "ranking": "Ranking",
+    "menu_title": "Menu Principal",
+    "categories": {
+      "main": "Principal",
+      "earn": "Ganhar",
+      "social": "Social & Fun"
+    }
   },
   "dashboard": {
     "welcome": "Bem-vindo, {{name}}",
@@ -148,18 +158,18 @@
     "title": "Faucet de Equipamentos",
     "subtitle": "Ganhe mineradoras gratuitas a cada 60 minutos. Complete o passo do parceiro para desbloquear seu prêmio.",
     "avail_prize": "Prêmio Disponível",
-    "ghs": "GH/s",
+    "ghs": "H/s",
     "slots": "Slots",
     "wait_cooldown": "Aguarde o Cooldown",
     "cooldown_msg": "Você já coletou seu prêmio recentemente. Volte quando o timer zerar para ganhar novamente.",
-    "step_partner": "Passo 1: Parceiro",
-    "partner_msg": "Clique no botão abaixo para visitar um parceiro e desbloquear o resgate.",
-    "unlocked": "Desbloqueado!",
-    "visit_partner": "Visitar Parceiro",
-    "wait_seconds": "Aguarde {{seconds}}s...",
+    "step_partner": "Passo 1: Patrocinador",
+    "partner_msg": "Clique no banner abaixo para abrir o site do patrocinador e liberar o seu prêmio.",
+    "unlocked": "Liberado!",
+    "visit_partner": "Clicar no Banner",
+    "wait_seconds": "Mantenha aberto por {{seconds}}s...",
     "claim_miner": "Resgatar Mineradora",
     "claiming": "Resgatando...",
-    "how_it_works_msg": "Após clicar em \"Visitar Parceiro\", uma nova aba abrirá. Você deve aguardar 5 segundos na página do BlockMiner para que o botão de resgate seja liberado. Todas as máquinas ganhas vão para o seu inventário."
+    "how_it_works_msg": "Para manter o pool gratuito, pedimos que visite nossos patrocinadores. Clique no banner, mantenha o site aberto por alguns segundos e o botão de resgate será ativado automaticamente."
   },
   "shortlinks": {
     "title": "Shortlinks",
@@ -206,5 +216,20 @@
     "claim": "Resgatar Prêmio",
     "min_time": "Tempo necessário",
     "no_videos": "Nenhum vídeo disponível no momento."
-  }
-}
+    },
+    "pages": {
+    "dashboard": "Dashboard Central",
+    "shop": "Loja de Equipamentos",
+    "inventory": "Minhas Máquinas",
+    "wallet": "Carteira Digital",
+    "checkin": "Check-in Diário",
+    "faucet": "Torneira de Recompensas",
+    "shortlinks": "Links Curtos",
+    "youtube": "YouTube Rewards",
+    "auto_mining": "Auto Mining GPU",
+    "games": "Arena de Jogos",
+    "ranking": "Hall da Fama",
+    "settings": "Configurações de Conta",
+    "overview": "Visão Geral"
+    }
+    }

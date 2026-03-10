@@ -7,6 +7,42 @@ const logger = loggerNamespace.child("AuthMiddleware");
 
 export async function requireAuth(req, res, next) {
   try {
+    // IRON DOME V3: Advanced Payload Validation
+    const antiBotFlag = req.headers['x-anti-bot'];
+    const antiBotPayload = req.headers['x-anti-bot-payload'];
+    const antiBotKey = req.headers['x-anti-bot-key'];
+
+    if (antiBotFlag === '1') {
+      logger.warn(`Iron Dome: Bot flag direct rejection for IP: ${req.ip}`);
+      return res.status(403).json({ ok: false, message: "Acesso negado. Automação detectada (Flag)." });
+    }
+
+    if (antiBotPayload && antiBotKey) {
+      try {
+        const decodedBase64 = Buffer.from(antiBotPayload, 'base64').toString('latin1');
+        const decrypted = decodedBase64.split('').map(c => 
+          String.fromCharCode(c.charCodeAt(0) ^ antiBotKey.charCodeAt(0))
+        ).join('');
+        
+        const data = JSON.parse(decrypted);
+        const isBot = data.b === true;
+        const isAction = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method.toUpperCase());
+
+        // We only BLOCK if it's a confirmed bot doing an ACTION (POST/PUT/etc)
+        // GET requests are allowed to proceed even if bot-flagged to ensure site loads
+        if (isAction && isBot) {
+          logger.warn(`Iron Dome: Action REJECTED from ${req.ip} (Bot detected during ${req.method})`);
+          return res.status(403).json({ ok: false, message: "Acesso negado. Automação detectada." });
+        }
+      } catch (err) {
+        // If decryption fails, we only block if it's a critical POST action
+        if (['POST', 'PUT', 'DELETE'].includes(req.method.toUpperCase())) {
+           logger.error("Iron Dome: Action decryption failed", { error: err.message });
+           return res.status(403).json({ ok: false, message: "Sessão de segurança inválida." });
+        }
+      }
+    }
+
     const token = getTokenFromRequest(req);
 
     if (!token) {

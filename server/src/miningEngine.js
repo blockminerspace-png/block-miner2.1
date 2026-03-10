@@ -73,6 +73,8 @@ export class MiningEngine {
       if (profile) {
         existing.rigs = Number(profile.rigs || 1);
         existing.baseHashRate = Number(profile.base_hash_rate || profile.baseHashRate || 0);
+        existing.refCode = profile.refCode;
+        existing.referralCount = profile.referralCount;
       }
       return existing;
     }
@@ -90,7 +92,9 @@ export class MiningEngine {
       boostEndsAt: 0,
       balance: Number(profile?.balance || 0),
       lifetimeMined: Number(profile?.lifetimeMined || 0),
-      connected: true
+      connected: true,
+      refCode: profile?.refCode || null,
+      referralCount: profile?.referralCount || 0
     };
 
     this.miners.set(id, miner);
@@ -167,7 +171,8 @@ export class MiningEngine {
         blockNumber: minedBlockNumber,
         reward: 0,
         minerCount: this.activeMiners,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        userRewards: {}
       });
       if (this.blockHistory.length > 12) this.blockHistory.length = 12;
       this.finalizeBlockDistribution(minedBlockNumber, 0);
@@ -176,6 +181,7 @@ export class MiningEngine {
 
     const blockReward = this.rewardBase;
     const minerRewards = [];
+    const userRewardsMap = {};
     const balanceSnapshot = new Map();
 
     for (const [minerId, work] of this.roundWork.entries()) {
@@ -193,6 +199,8 @@ export class MiningEngine {
       miner.lifetimeMined += reward;
       this.totalMinted += reward;
       this.roundWork.set(minerId, 0);
+
+      userRewardsMap[miner.userId] = reward;
 
       minerRewards.push({
         minerId: miner.id,
@@ -239,7 +247,8 @@ export class MiningEngine {
       blockNumber: minedBlockNumber,
       reward: blockReward,
       minerCount: this.activeMiners,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      userRewards: userRewardsMap
     });
     if (this.blockHistory.length > 12) this.blockHistory.length = 12;
 
@@ -298,7 +307,18 @@ export class MiningEngine {
 
   getPublicState(minerId) {
     const miner = minerId ? this.miners.get(minerId) : null;
+    const userId = miner?.userId;
     const remainingMs = Math.max(0, this.nextBlockAt - Date.now());
+    
+    // Customize block history for this user
+    const customizedHistory = this.blockHistory.map(b => ({
+      blockNumber: b.blockNumber,
+      totalReward: b.reward,
+      userReward: userId ? (b.userRewards?.[userId] || 0) : 0,
+      minerCount: b.minerCount,
+      timestamp: b.timestamp
+    }));
+
     return {
       serverTime: Date.now(),
       tokenSymbol: this.tokenSymbol,
@@ -312,7 +332,7 @@ export class MiningEngine {
       networkHashRate: this.currentNetworkHashRate,
       totalMinted: this.totalMinted,
       lastReward: this.lastReward,
-      blockHistory: this.blockHistory,
+      blockHistory: customizedHistory,
       leaderboard: this.getLeaderboard(),
       miner: miner ? {
         id: miner.id,
@@ -323,7 +343,9 @@ export class MiningEngine {
         balance: miner.balance,
         lifetimeMined: miner.lifetimeMined,
         connected: miner.connected,
-        estimatedHashRate: this.getMinerHashRate(miner)
+        estimatedHashRate: this.getMinerHashRate(miner),
+        refCode: miner.refCode || null,
+        referralCount: miner.referralCount || 0
       } : null
     };
   }

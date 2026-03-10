@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { 
-    Link as LinkIcon, 
-    Zap, 
-    CheckCircle2, 
-    AlertCircle, 
-    ShieldCheck, 
+import {
+    Link as LinkIcon,
+    Zap,
+    CheckCircle2,
+    AlertCircle,
+    ShieldCheck,
     Clock,
     ArrowRight
 } from 'lucide-react';
@@ -44,13 +44,14 @@ export default function Shortlinks() {
             setIsStarting(true);
             const res = await api.post('/shortlink/start');
             if (res.data.ok) {
-                // Pass the session token via state, NOT the URL
-                navigate("/shortlink/internal-shortlink/verify", { 
-                    state: { 
-                        token: res.data.sessionToken,
-                        currentStep: 1 
-                    } 
-                });
+                // Initialize multi-URL session
+                const initialSession = {
+                    token: res.data.sessionToken,
+                    currentStep: 1
+                };
+                sessionStorage.setItem('sl_session', JSON.stringify(initialSession));
+                // Navigate to the FIRST STEP URL
+                navigate("/shortlink/internal-shortlink/step/1");
             }
         } catch (err) {
             toast.error(err.response?.data?.message || t('common.error'));
@@ -83,9 +84,8 @@ export default function Shortlinks() {
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-                <div className={`bg-surface border rounded-[2.5rem] p-10 shadow-xl transition-all duration-500 ${
-                    isLimitReached ? 'border-gray-800 opacity-80' : 'border-primary/20 hover:border-primary/40'
-                }`}>
+                <div className={`bg-surface border rounded-[2.5rem] p-10 shadow-xl transition-all duration-500 ${isLimitReached ? 'border-gray-800 opacity-80' : 'border-primary/20 hover:border-primary/40'
+                    }`}>
                     <div className="flex flex-col md:flex-row justify-between gap-8">
                         <div className="space-y-6 flex-1">
                             <div className="flex items-center gap-4">
@@ -94,7 +94,7 @@ export default function Shortlinks() {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-black text-white">{status?.shortlinkName || 'Internal Shortlink'}</h3>
-                                    <p className="text-sm font-bold text-primary mt-1">{t('shortlinks.reward')}: {status?.rewardName || '5 GH/s Miner'}</p>
+                                    <p className="text-sm font-bold text-primary mt-1">{t('shortlinks.reward')}: {status?.rewardName || '5 H/s Miner'}</p>
                                 </div>
                             </div>
 

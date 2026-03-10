@@ -4,6 +4,7 @@ import * as minersModel from "../models/minersModel.js";
 import { getOrCreateMinerProfile, syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { getSlotSizeForMiner } from "../utils/minerUtils.js";
+import { createNotification } from "./notificationController.js";
 import prisma from "../src/db/prisma.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
@@ -49,12 +50,10 @@ export async function installInventoryItem(req, res) {
 
     const slotSize = Number(inventoryItem.slotSize || 1);
 
-    // --- FIX: Logic for 2-slot machines (must start on even slots 0, 2, 4...) ---
     if (slotSize === 2 && slotIndex % 2 !== 0) {
       return res.status(400).json({ ok: false, message: "Large machines must start on an even slot (1, 3, 5, 7 on UI)." });
     }
 
-    // Check if slot is occupied
     const targetSlots = Array.from({ length: slotSize }, (_, i) => slotIndex + i);
     const existingMachines = await prisma.userMiner.findMany({
       where: {
@@ -67,7 +66,6 @@ export async function installInventoryItem(req, res) {
     const now = new Date();
 
     await prisma.$transaction(async (tx) => {
-      // 1. If occupied, remove existing machines back to inventory
       if (existingMachines.length > 0) {
         for (const m of existingMachines) {
           await tx.userInventory.create({
@@ -86,7 +84,6 @@ export async function installInventoryItem(req, res) {
         }
       }
 
-      // Check for 2-slot overlaps from previous slot
       if (slotIndex % 2 === 1) {
         const prevMachine = await tx.userMiner.findFirst({
           where: { userId: req.user.id, slotIndex: slotIndex - 1 },
@@ -109,7 +106,6 @@ export async function installInventoryItem(req, res) {
         }
       }
 
-      // 2. Create the new machine in the slot
       await tx.userMiner.create({
         data: {
           userId: req.user.id,
@@ -123,15 +119,22 @@ export async function installInventoryItem(req, res) {
         }
       });
 
-      // 3. Remove the inserted machine from inventory
       await tx.userInventory.delete({ where: { id: inventoryId, userId: req.user.id } });
     });
 
-    // Sync database hash rate and notify the in-memory engine
     await syncUserBaseHashRate(req.user.id);
     const engine = getMiningEngine();
     if (engine) {
       await engine.reloadMinerProfile(req.user.id);
+      
+      // Create Notification
+      await createNotification({
+        userId: req.user.id,
+        title: "Máquina Instalada",
+        message: `${inventoryItem.minerName} foi instalada com sucesso no seu rack. Seu HashRate foi atualizado!`,
+        type: "success",
+        io: engine.io
+      });
     }
 
     res.json({ ok: true, message: "Machine installed successfully!" });

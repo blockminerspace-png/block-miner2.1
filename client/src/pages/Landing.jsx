@@ -46,7 +46,7 @@ export default function Landing() {
                         Minere <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-primary">Polygon (POL)</span> na Nuvem
                     </h1>
                     <p className="text-xl text-gray-400 mb-12 max-w-2xl leading-relaxed">
-                        Plataforma de cloud mining premium. Sem equipamentos, sem configurações complexas e sem consumo de energia. Comece hoje com uma máquina gratuita de 10 GH/s.
+                        Plataforma de cloud mining premium. Sem equipamentos, sem configurações complexas e sem consumo de energia. Comece hoje com uma máquina gratuita de 10 H/s.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 items-center">
                         <Link

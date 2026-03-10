@@ -30,7 +30,10 @@ import { chatRouter } from "./routes/chat.js";
 import { rankingRouter } from "./routes/ranking.js";
 import { shortlinkRouter } from "./routes/shortlink.js";
 import { zeradsRouter } from "./routes/zerads.js";
+import { youtubeRouter } from "./routes/youtube.js";
 import { autoMiningGpuRouter } from "./routes/auto-mining-gpu.js";
+import { sessionRouter } from "./routes/session.js";
+import { notificationRouter } from "./routes/notification.js";
 import { swapRouter } from "./routes/swap.js";
 import { ptpRouter } from "./routes/ptp.js";
 import { adminAuthRouter } from "./routes/admin-auth.js";
@@ -40,6 +43,7 @@ import * as healthController from "./controllers/healthController.js";
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
 import { registerMinerSocketHandlers } from "./src/socket/registerMinerSocketHandlers.js";
+import { registerGamesSocketHandlers } from "./src/socket/registerGamesSocketHandlers.js";
 import serverDatabaseModel from "./models/database/serverDatabaseModel.js";
 import { getUserById } from "./models/userModel.js";
 import { verifyAccessToken } from "./utils/authTokens.js";
@@ -71,7 +75,8 @@ serverDatabaseModel.loadRecentBlocks(12).then(blocks => {
       blockNumber: b.blockNumber,
       reward: b.reward,
       minerCount: b.minerCount,
-      timestamp: b.createdAt.getTime()
+      timestamp: b.timestamp,
+      userRewards: b.userRewards
     }));
     logger.info(`Preloaded ${blocks.length} recent blocks into engine memory.`);
   }
@@ -102,6 +107,11 @@ registerMinerSocketHandlers({
   syncUserBaseHashRate,
   persistMinerProfile,
   buildPublicState: async (minerId) => engine.getPublicState(minerId)
+});
+
+registerGamesSocketHandlers({
+  io,
+  engine
 });
 
 // 4. Global Security Stack
@@ -140,48 +150,45 @@ app.use("/api/chat", chatRouter);
 app.use("/api/ranking", rankingRouter);
 app.use("/api/shortlink", shortlinkRouter);
 app.use("/api/zerads", zeradsRouter);
+app.use("/api/youtube", youtubeRouter);
 app.use("/api/auto-mining-gpu", autoMiningGpuRouter);
+app.use("/api/session", sessionRouter);
+app.use("/api/notifications", notificationRouter);
 app.use("/api/swap", swapRouter);
 app.use("/api/ptp", ptpRouter);
-app.use("/api/admin", adminAuthRouter);
+
+// 6. Admin Routes
+import { adminRouter } from "./routes/admin.js";
+app.use("/api/admin", adminRouter);
+app.use("/api/admin/auth", adminAuthRouter);
 app.use("/api/admin/auto-mining-rewards", adminAutoMiningRewardsRouter);
-app.get("/api/health", healthController.health);
 
-// 6. Static Files & SPA Catch-all
-const distPath = path.join(__dirname, "..", "client/dist");
-app.use(express.static(distPath));
+// Health check
+app.get("/health", healthController.health);
 
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    logger.warn(`API 404 Not Found: ${req.method} ${req.originalUrl}`);
-    return res.status(404).json({ ok: false, message: "API route not found" });
-  }
-  res.sendFile(path.join(distPath, "index.html"));
+// 7. Static Assets & Frontend Production Build
+const publicPath = path.join(__dirname, "..", "client", "dist");
+app.use(express.static(publicPath));
+
+// Express 5 / path-to-regexp 8+ catch-all syntax
+app.get("/{*all}", (req, res) => {
+  res.sendFile(path.join(publicPath, "index.html"));
 });
 
-// 7. Engine Tick
-setInterval(() => engine.tick(), 1000);
-
-// 8. Start Server
-const PORT = process.env.PORT || 3000;
-
+// 8. Bootstrap
 async function bootstrap() {
   try {
-    await prisma.$connect();
-    logger.info("Database connected (PostgreSQL/Prisma)");
-
-    const state = await serverDatabaseModel.getMiningEngineStateRows();
-    engine.blockNumber = (state.maxBlockRow?.max_block || 0) + 1;
-    logger.info("Mining Engine state restored", { block: engine.blockNumber });
-
-    server.listen(PORT, () => {
-      logger.info(`BlockMiner Server running on port ${PORT}`);
+    const port = process.env.PORT || 5000;
+    server.listen(port, () => {
+      logger.info(`Server running on port ${port}`);
+      
+      // Start background tasks
       startCronTasks({
         engine,
         io,
         persistMinerProfile,
         syncUserBaseHashRate,
-        buildPublicState: async () => engine.getPublicState()
+        buildPublicState: async (minerId) => engine.getPublicState(minerId)
       });
     });
   } catch (error) {

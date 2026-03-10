@@ -15,25 +15,27 @@ import Faucet from './pages/Faucet';
 import Shortlinks from './pages/Shortlinks';
 import Checkin from './pages/Checkin';
 import YouTubeWatch from './pages/YouTubeWatch';
-import Offerwalls from './pages/Offerwalls';
 import Ranking from './pages/Ranking';
+import PublicRoom from './pages/PublicRoom';
+import Settings from './pages/Settings';
+import AutoMining from './pages/AutoMining';
+import Games from './pages/Games';
 import ShortlinkStep from './pages/ShortlinkStep';
 
 import ChatSidebar from './components/ChatSidebar';
+import AdBlockDetector from './components/AdBlockDetector';
 
-// Admin Pages
 import AdminLogin from './pages/AdminLogin';
 import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/AdminDashboard';
-import AdminUsers from './pages/AdminUsers';
 import AdminMiners from './pages/AdminMiners';
+import AdminUsers from './pages/AdminUsers';
+import AdminFinance from './pages/AdminFinance';
+import AdminBackups from './pages/AdminBackups';
+import AdminLogs from './pages/AdminLogs';
+import AdminMetrics from './pages/AdminMetrics';
 
-// Temporary place-holders for missing admin pages
-const AdminFinance = () => <div className="p-8 text-slate-400 font-bold uppercase tracking-widest text-center py-20 bg-slate-900 border border-slate-800 rounded-[2.5rem]">Gestão Financeira em desenvolvimento...</div>;
-const AdminBackups = () => <div className="p-8 text-slate-400 font-bold uppercase tracking-widest text-center py-20 bg-slate-900 border border-slate-800 rounded-[2.5rem]">Sistema de Backups em desenvolvimento...</div>;
-const AdminLogs = () => <div className="p-8 text-slate-400 font-bold uppercase tracking-widest text-center py-20 bg-slate-900 border border-slate-800 rounded-[2.5rem]">Logs de Sistema em desenvolvimento...</div>;
-const AdminMetrics = () => <div className="p-8 text-slate-400 font-bold uppercase tracking-widest text-center py-20 bg-slate-900 border border-slate-800 rounded-[2.5rem]">Métricas do Servidor em desenvolvimento...</div>;
-
+// Main App Component
 const Landing = () => {
   const { isAuthenticated } = useAuthStore();
 
@@ -125,7 +127,27 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Toaster position="top-right" richColors expand={true} />
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        richColors={false}
+        expand={true}
+        toastOptions={{
+          className: 'bg-slate-950/80 backdrop-blur-md border border-white/5 rounded-xl text-white font-mono text-[10px] uppercase tracking-widest p-4 shadow-2xl',
+          style: {
+            background: 'rgba(2, 6, 23, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            color: '#fff',
+          },
+          classNames: {
+            error: 'border-red-500/30 !text-red-400',
+            success: 'border-emerald-500/30 !text-emerald-400',
+            warning: 'border-orange-500/30 !text-orange-400',
+            info: 'border-blue-500/30 !text-blue-400',
+          },
+        }}
+      />
+      <AdBlockDetector />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -140,9 +162,12 @@ function App() {
           <Route path="/shortlinks" element={<Shortlinks />} />
           <Route path="/checkin" element={<Checkin />} />
           <Route path="/youtube" element={<YouTubeWatch />} />
-          <Route path="/offerwalls" element={<Offerwalls />} />
+          <Route path="/auto-mining" element={<AutoMining />} />
           <Route path="/ranking" element={<Ranking />} />
-          <Route path="/shortlink/internal-shortlink/verify" element={<ShortlinkStep />} />
+          <Route path="/room/:username" element={<PublicRoom />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/games" element={<Games />} />
+          <Route path="/shortlink/internal-shortlink/step/:step" element={<ShortlinkStep />} />
         </Route>
 
         {/* Admin Routes */}

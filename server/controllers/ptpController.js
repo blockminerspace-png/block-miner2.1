@@ -58,17 +58,37 @@ export async function trackView(req, res) {
   try {
     const { adId, viewerHash } = req.body;
     
+    // Fallback de viewerHash caso venha vazio e adição do IP
+    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    const finalHash = viewerHash ? `${viewerHash}-${clientIp}` : crypto.createHash('md5').update(clientIp).digest('hex');
+
     await prisma.$transaction(async (tx) => {
       const ad = await tx.ptpAd.findUnique({ where: { id: Number(adId) } });
-      if (!ad || ad.status !== 'active') return;
+      
+      // ANTI-CHEAT: Bloqueia anúncios inativos ou que já bateram a meta de views
+      if (!ad || ad.status !== 'active' || ad.views >= ad.targetViews) {
+        if (ad && ad.status === 'active' && ad.views >= ad.targetViews) {
+          await tx.ptpAd.update({ where: { id: Number(adId) }, data: { status: 'completed' } });
+        }
+        return;
+      }
 
       const existingView = await tx.ptpView.findFirst({
-        where: { adId: Number(adId), viewerHash }
+        where: { adId: Number(adId), viewerHash: finalHash }
       });
       if (existingView) return;
 
-      await tx.ptpView.create({ data: { adId: Number(adId), viewerHash } });
-      await tx.ptpAd.update({ where: { id: Number(adId) }, data: { views: { increment: 1 } } });
+      const newViewsCount = ad.views + 1;
+      const isNowCompleted = newViewsCount >= ad.targetViews;
+
+      await tx.ptpView.create({ data: { adId: Number(adId), viewerHash: finalHash } });
+      await tx.ptpAd.update({ 
+        where: { id: Number(adId) }, 
+        data: { 
+          views: newViewsCount,
+          status: isNowCompleted ? 'completed' : 'active'
+        } 
+      });
       
       await tx.ptpEarning.create({
         data: { userId: ad.userId, adId: Number(adId), amountUsd: PTP_EARNING_PER_VIEW_USD }

@@ -22,6 +22,7 @@ model User {
   isBanned      Boolean  @default(false) @map("is_banned")
   refCode       String?  @unique @map("ref_code")
   referredBy    Int?     @map("referred_by")
+  walletAddress String?  @map("wallet_address")
 
   // Balances
   polBalance    Decimal  @default(0) @map("pol_balance") @db.Decimal(20, 8)
@@ -30,6 +31,11 @@ model User {
   usdtBalance   Decimal  @default(0) @map("usdt_balance") @db.Decimal(20, 8)
   usdcBalance   Decimal  @default(0) @map("usdc_balance") @db.Decimal(20, 8)
   zerBalance    Decimal  @default(0) @map("zer_balance") @db.Decimal(20, 8)
+
+  // Session Tracking
+  ytSecondsBalance Int     @default(0) @map("yt_seconds_balance")
+  autoMiningSecondsBalance Int @default(0) @map("auto_mining_seconds_balance")
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
 
   // Relationships
   miners        UserMiner[]
@@ -49,6 +55,8 @@ model User {
   ptpAds        PtpAd[]
   ptpEarnings   PtpEarning[]
   chatMessages  ChatMessage[]
+  sentPrivateMessages     PrivateMessage[] @relation("SentPrivateMessages")
+  receivedPrivateMessages PrivateMessage[] @relation("ReceivedPrivateMessages")
   gpuAccess     AutoMiningGpu[]
   gpuLogs       AutoMiningGpuLog[]
   referrals     Referral[] @relation("UserToReferrer")
@@ -57,8 +65,34 @@ model User {
   referredEarnings ReferralEarning[] @relation("UserToReferredEarnings")
   miningLogs    MiningRewardsLog[]
   shortlinkComp ShortlinkCompletion?
+  hasAdblock    Boolean  @default(false) @map("has_adblock")
+  // Migration Meta & Historical Data
+  oldId             Int?     @unique @map("old_id")
+  oldLifetimeMined  Decimal? @default(0) @map("old_lifetime_mined") @db.Decimal(20, 8)
+  totalWithdrawn    Decimal? @default(0) @map("total_withdrawn") @db.Decimal(20, 8)
+  rigsCount         Int?     @default(0) @map("rigs_count")
+  baseHashRate      Float?   @default(0) @map("old_base_hash_rate")
+  
+  blockMinerRewards BlockMinerReward[]
+  notifications     Notification[]
 
   @@map("users")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  title     String
+  message   String
+  type      String   @default("info") // info, success, warning, reward
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
 }
 
 model Session {
@@ -551,12 +585,31 @@ model ChatMessage {
   userId    Int      @map("user_id")
   username  String
   message   String
+  replyToId Int?     @map("reply_to_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  replyTo   ChatMessage? @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies   ChatMessage[] @relation("MessageReplies")
 
   @@index([createdAt])
   @@map("chat_messages")
+}
+
+model PrivateMessage {
+  id          Int      @id @default(autoincrement())
+  senderId    Int      @map("sender_id")
+  receiverId  Int      @map("receiver_id")
+  message     String
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  sender      User     @relation("SentPrivateMessages", fields: [senderId], references: [id])
+  receiver    User     @relation("ReceivedPrivateMessages", fields: [receiverId], references: [id])
+
+  @@index([senderId, receiverId])
+  @@index([createdAt])
+  @@map("private_messages")
 }
 
 model Referral {

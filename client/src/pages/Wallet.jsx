@@ -13,25 +13,53 @@ import {
     AlertCircle,
     CheckCircle2,
     XCircle,
-    Info
+    Info,
+    Smartphone,
+    TrendingUp,
+    ChevronRight,
+    QrCode
 } from 'lucide-react';
 import { api } from '../store/auth';
+import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
+import { useWallet } from '../hooks/useWallet';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function Wallet() {
     const { t } = useTranslation();
+    const { account, isConnected, isConnecting, isCorrectNetwork, connect, switchNetwork } = useWallet();
+
     const [balance, setBalance] = useState({
         amount: 0,
         lifetimeMined: 0,
         totalWithdrawn: 0
     });
-    const [walletAddress, setWalletAddress] = useState(null);
     const [transactions, setTransactions] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isWithdrawing, setIsWithdrawing] = useState(false);
+    const [isActionLoading, setIsActionLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('withdraw');
+    const [systemDepositAddress, setSystemDepositAddress] = useState(null);
+
     const [withdrawForm, setWithdrawForm] = useState({
         address: '',
         amount: ''
     });
+    const [depositForm, setDepositForm] = useState({
+        amount: '',
+        txHash: ''
+    });
+    const [polPrice, setPolPrice] = useState(0);
+
+    const fetchPrice = async () => {
+        try {
+            const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd');
+            const data = await res.json();
+            if (data['matic-network']) {
+                setPolPrice(data['matic-network'].usd);
+            }
+        } catch (err) {
+            console.error("Error fetching price", err);
+        }
+    };
 
     const fetchWalletData = useCallback(async () => {
         try {
@@ -46,42 +74,108 @@ export default function Wallet() {
                     lifetimeMined: Number(balanceRes.data.lifetimeMined || 0),
                     totalWithdrawn: Number(balanceRes.data.totalWithdrawn || 0)
                 });
-                setWalletAddress(balanceRes.data.walletAddress || null);
+                setSystemDepositAddress(balanceRes.data.depositAddress || null);
+
+                // If user has a saved address but not connected, pre-fill it for convenience
+                if (!withdrawForm.address && balanceRes.data.walletAddress) {
+                    setWithdrawForm(prev => ({ ...prev, address: balanceRes.data.walletAddress }));
+                }
             }
 
             if (historyRes.data.ok) {
                 setTransactions(historyRes.data.transactions || []);
             }
         } catch (err) {
-            console.error("Erro ao carregar dados da carteira", err);
+            console.error("Error fetching wallet data", err);
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [withdrawForm.address]);
 
     useEffect(() => {
         fetchWalletData();
-        const interval = setInterval(fetchWalletData, 30000);
-        return () => clearInterval(interval);
+        fetchPrice();
+        const dataInterval = setInterval(fetchWalletData, 30000);
+        const priceInterval = setInterval(fetchPrice, 60000);
+        return () => {
+            clearInterval(dataInterval);
+            clearInterval(priceInterval);
+        };
     }, [fetchWalletData]);
 
-    const handleConnectWallet = async () => {
-        if (typeof window.ethereum === 'undefined') {
-            toast.error('Please install MetaMask or Trust Wallet.');
-            return;
+    // Auto-fill withdrawal address when wallet connects
+    useEffect(() => {
+        if (isConnected && account && !withdrawForm.address) {
+            setWithdrawForm(prev => ({ ...prev, address: account }));
         }
+    }, [isConnected, account]);
 
+    const handleAutoDeposit = async () => {
+        setIsActionLoading(true);
         try {
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-            const address = accounts[0];
-            if (address) {
-                const res = await api.post('/wallet/address', { walletAddress: address });
-                if (res.data.ok) {
-                    setWalletAddress(address);
-                }
+            if (!isConnected) {
+                await connect();
+                // If it fails to connect, stop
+                return;
             }
-        } catch (err) {
-            console.error("Erro ao conectar carteira", err);
+
+            if (!isCorrectNetwork) {
+                await switchNetwork();
+                return;
+            }
+
+            const amount = parseFloat(depositForm.amount);
+            if (isNaN(amount) || amount <= 0) {
+                toast.error(t('wallet.invalid_amount', 'Please enter a valid amount'));
+                return;
+            }
+
+            if (!systemDepositAddress) {
+                toast.error('System deposit address not loaded');
+                return;
+            }
+
+            if (!isAddress(systemDepositAddress)) {
+                toast.error('Invalid deposit address configuration');
+                return;
+            }
+
+            const provider = new BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+
+            toast.info('Requesting transaction authorized...');
+
+            const tx = await signer.sendTransaction({
+                to: systemDepositAddress,
+                value: parseEther(amount.toString())
+            });
+
+            toast.info('Transaction sent! Verifying on-chain...');
+
+            const res = await api.post('/wallet/deposit', {
+                amount: amount,
+                txHash: tx.hash
+            });
+
+            if (res.data.ok) {
+                toast.success('Deposit confirmed! Balance updated.');
+                setDepositForm({ amount: '', txHash: '' });
+                fetchWalletData();
+            } else {
+                toast.error(res.data.message || 'Deposit verification failed');
+            }
+        } catch (error) {
+            console.error("Deposit error", error);
+            // Handle common MetaMask errors
+            if (error.code === 4001) {
+                toast.error('Transaction rejected by user');
+            } else if (error.code === 'INSUFFICIENT_FUNDS' || (error.message && error.message.includes('insufficient funds'))) {
+                toast.error('Insufficient funds: You need more POL to cover the amount + network gas fees.');
+            } else {
+                toast.error(error.reason || error.message || 'Transaction failed');
+            }
+        } finally {
+            setIsActionLoading(false);
         }
     };
 
@@ -93,8 +187,8 @@ export default function Wallet() {
             toast.error(t('wallet.dest_address'));
             return;
         }
-        if (isNaN(amount) || amount < 10) {
-            toast.error(t('wallet.amount_label'));
+        if (isNaN(amount) || amount < 0.1) {
+            toast.error(t('wallet.min_withdrawal', 'Minimum withdrawal is 0.1 POL'));
             return;
         }
         if (amount > balance.amount) {
@@ -103,7 +197,7 @@ export default function Wallet() {
         }
 
         try {
-            setIsWithdrawing(true);
+            setIsActionLoading(true);
             const res = await api.post('/wallet/withdraw', {
                 amount,
                 address: withdrawForm.address
@@ -111,7 +205,7 @@ export default function Wallet() {
 
             if (res.data.ok) {
                 toast.success(res.data.message || t('common.success'));
-                setWithdrawForm({ address: '', amount: '' });
+                setWithdrawForm(prev => ({ ...prev, amount: '' }));
                 fetchWalletData();
             } else {
                 toast.error(res.data.message || t('common.error'));
@@ -119,7 +213,7 @@ export default function Wallet() {
         } catch (err) {
             toast.error(err.response?.data?.message || t('common.error'));
         } finally {
-            setIsWithdrawing(false);
+            setIsActionLoading(false);
         }
     };
 
@@ -128,230 +222,383 @@ export default function Wallet() {
         toast.success(t('common.copied'));
     };
 
+    const StatusBadge = ({ status }) => {
+        const config = {
+            completed: { color: 'text-emerald-400 bg-emerald-400/10', label: 'Success' },
+            pending: { color: 'text-amber-400 bg-amber-400/10', label: 'Pending' },
+            failed: { color: 'text-red-400 bg-red-400/10', label: 'Failed' }
+        };
+        const s = config[status] || config.pending;
+        return (
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${s.color}`}>
+                {s.label}
+            </span>
+        );
+    };
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-700 pb-20">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-white tracking-tight">{t('wallet.title')}</h1>
-                    <p className="text-gray-500 font-medium">{t('wallet.subtitle')}</p>
+        <div className="max-w-6xl mx-auto space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-2">
+                    <h1 className="text-4xl font-black text-white tracking-tighter italic flex items-center gap-3">
+                        <div className="p-2 bg-primary/20 rounded-2xl">
+                            <WalletIcon className="w-8 h-8 text-primary" />
+                        </div>
+                        WALLET <span className="text-primary">TERMINAL</span>
+                    </h1>
+                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px] pl-1">
+                        Secure Web3 Financial Operations
+                    </p>
                 </div>
-                <button
-                    onClick={fetchWalletData}
-                    className="p-3 bg-gray-800/50 hover:bg-gray-800 text-gray-400 hover:text-white rounded-xl transition-all border border-gray-700/50"
-                >
-                    <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
+
+                <div className="flex items-center gap-3">
+                    {isConnected ? (
+                        <div className="flex items-center gap-3 p-1.5 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-xl">
+                            <div className="flex items-center gap-2 pl-3 pr-4">
+                                <div className={`w-2 h-2 rounded-full animate-pulse ${isCorrectNetwork ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                <span className="text-[10px] font-black text-slate-300 uppercase truncate max-w-[100px] font-mono">
+                                    {account.slice(0, 6)}...{account.slice(-4)}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => copyToClipboard(account)}
+                                className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-500 hover:text-white"
+                            >
+                                <Copy className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={connect}
+                            disabled={isConnecting}
+                            className="px-6 py-3 bg-white text-slate-900 font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/5 flex items-center gap-2"
+                        >
+                            <Smartphone className="w-4 h-4" />
+                            {isConnecting ? 'Authenticating...' : 'Connect Wallet'}
+                        </button>
+                    )}
+
+                    <button
+                        onClick={fetchWalletData}
+                        className="p-3 bg-slate-900/50 hover:bg-slate-800 text-slate-500 hover:text-white rounded-2xl transition-all border border-slate-800/50 backdrop-blur-xl"
+                    >
+                        <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-8">
-                    <div className="bg-gradient-to-br from-primary to-blue-700 rounded-[2.5rem] p-10 text-white shadow-2xl shadow-primary/20 relative overflow-hidden group">
-                        <div className="relative z-10 space-y-8">
-                            <div>
-                                <p className="text-blue-100/60 font-bold uppercase tracking-[0.2em] text-[10px] mb-2">{t('wallet.available_balance')}</p>
-                                <div className="flex items-baseline gap-3">
-                                    <h2 className="text-5xl font-black tracking-tighter">{balance.amount.toFixed(6)}</h2>
-                                    <span className="text-xl font-bold text-blue-100/80 uppercase">POL</span>
+            {/* Main Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+                {/* Left Column: Balance & Stats */}
+                <div className="lg:col-span-8 space-y-8">
+
+                    {/* Premium Balance Card */}
+                    <div className="relative group overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary via-blue-600 to-indigo-900 opacity-90 transition-opacity" />
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay" />
+
+                        <div className="relative p-10 text-white space-y-12">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-blue-100/60 font-black uppercase tracking-[0.3em] text-[9px] mb-3">Total Liquid Assets</p>
+                                    <div className="flex items-baseline gap-4">
+                                        <h2 className="text-6xl font-black tracking-tighter tabular-nums drop-shadow-2xl">
+                                            {balance.amount.toLocaleString(undefined, { minimumFractionDigits: 6 })}
+                                        </h2>
+                                        <div className="flex flex-col">
+                                            <span className="text-2xl font-black text-blue-200/80 italic">POL</span>
+                                            {polPrice > 0 && (
+                                                <span className="text-xs font-bold text-white/50">
+                                                    ≈ ${(balance.amount * polPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-white/10 backdrop-blur-2xl rounded-[1.5rem] border border-white/20 hover:scale-110 transition-transform cursor-pointer">
+                                    <TrendingUp className="w-8 h-8 text-blue-200" />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-8 pt-8 border-t border-white/10">
-                                <div>
-                                    <p className="text-blue-100/60 font-bold uppercase tracking-widest text-[9px] mb-1">{t('wallet.lifetime_mined')}</p>
-                                    <p className="text-xl font-bold tracking-tight">{balance.lifetimeMined.toFixed(4)} <span className="text-xs font-medium text-blue-100/50 uppercase">POL</span></p>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-8 pt-10 border-t border-white/10">
+                                <div className="space-y-1">
+                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">Life Mined</p>
+                                    <p className="text-lg font-black tracking-tight">{balance.lifetimeMined.toFixed(4)} <span className="text-[10px] opacity-40">POL</span></p>
                                 </div>
-                                <div>
-                                    <p className="text-blue-100/60 font-bold uppercase tracking-widest text-[9px] mb-1">{t('wallet.total_withdrawn')}</p>
-                                    <p className="text-xl font-bold tracking-tight">{balance.totalWithdrawn.toFixed(4)} <span className="text-xs font-medium text-blue-100/50 uppercase">POL</span></p>
+                                <div className="space-y-1">
+                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">Total Outflow</p>
+                                    <p className="text-lg font-black tracking-tight">{balance.totalWithdrawn.toFixed(4)} <span className="text-[10px] opacity-40">POL</span></p>
+                                </div>
+                                <div className="hidden md:block space-y-1">
+                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">Network Status</p>
+                                    <p className="text-lg font-black tracking-tight flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                                        Polygon
+                                    </p>
                                 </div>
                             </div>
                         </div>
-                        <WalletIcon className="absolute right-[-40px] top-[-40px] w-80 h-80 text-white/10 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
+
+                        {/* Decorative Icons */}
+                        <div className="absolute right-[-20px] bottom-[-20px] opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-1000 pointer-events-none">
+                            <WalletIcon className="w-64 h-64" />
+                        </div>
                     </div>
 
-                    <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-8 shadow-xl">
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="p-3 bg-primary/10 rounded-2xl">
-                                <ArrowUpCircle className="w-6 h-6 text-primary" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold text-white">{t('wallet.withdraw_title')}</h3>
-                                <p className="text-xs font-medium text-gray-500">{t('wallet.withdraw_subtitle')}</p>
-                            </div>
+                    {/* Operations Card */}
+                    <div className="bg-slate-950/80 border border-slate-800/50 rounded-[2.5rem] p-1 shadow-2xl backdrop-blur-2xl">
+                        <div className="flex bg-slate-900/50 p-2 rounded-[2.2rem] gap-2">
+                            <button
+                                onClick={() => setActiveTab('withdraw')}
+                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                Send Funds
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('deposit')}
+                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                Add Funds
+                            </button>
                         </div>
 
-                        <form onSubmit={handleWithdraw} className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="address">
-                                    {t('wallet.dest_address')}
-                                </label>
-                                <div className="relative group">
-                                    <input
-                                        id="address"
-                                        type="text"
-                                        value={withdrawForm.address}
-                                        onChange={(e) => setWithdrawForm(prev => ({ ...prev, address: e.target.value }))}
-                                        placeholder="0x..."
-                                        className="w-full bg-gray-900/50 border border-gray-800 group-hover:border-gray-700 focus:border-primary/50 rounded-2xl py-4 pl-4 pr-12 text-gray-200 text-sm font-medium transition-all focus:outline-none focus:ring-4 focus:ring-primary/5"
-                                    />
-                                    {walletAddress && (
+                        <div className="p-8">
+                            {activeTab === 'withdraw' ? (
+                                <form onSubmit={handleWithdraw} className="space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Recipient Address</label>
+                                            <div className="relative group">
+                                                <input
+                                                    type="text"
+                                                    value={withdrawForm.address}
+                                                    onChange={(e) => setWithdrawForm(prev => ({ ...prev, address: e.target.value }))}
+                                                    placeholder="0x..."
+                                                    className="w-full bg-slate-900 border border-slate-800 group-hover:border-slate-700 focus:border-primary rounded-2xl py-5 pl-5 pr-12 text-slate-200 text-xs font-mono transition-all outline-none"
+                                                />
+                                                {isConnected && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setWithdrawForm(prev => ({ ...prev, address: account }))}
+                                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-primary hover:text-white transition-colors"
+                                                        title="Use connected wallet"
+                                                    >
+                                                        <Smartphone className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Amount (POL)</label>
+                                            <div className="relative group">
+                                                <input
+                                                    type="number"
+                                                    step="0.000001"
+                                                    value={withdrawForm.amount}
+                                                    onChange={(e) => setWithdrawForm(prev => ({ ...prev, amount: e.target.value }))}
+                                                    placeholder="0.00"
+                                                    className="w-full bg-slate-900 border border-slate-800 group-hover:border-slate-700 focus:border-primary rounded-2xl py-5 px-5 text-slate-200 text-sm font-black transition-all outline-none"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setWithdrawForm(prev => ({ ...prev, amount: balance.amount.toString() }))}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-primary hover:text-white uppercase tracking-widest transition-all"
+                                                >
+                                                    Max
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50 flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Network protocol fee</p>
+                                            <p className="text-emerald-400 text-xs font-black uppercase">Gas Covered by Pool</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Total Transfer</p>
+                                            <p className="text-xl font-black text-white italic">
+                                                {(parseFloat(withdrawForm.amount) || 0).toFixed(4)} POL
+                                                {polPrice > 0 && (
+                                                    <span className="block text-[10px] text-slate-500 not-italic font-bold">
+                                                        ≈ ${((parseFloat(withdrawForm.amount) || 0) * polPrice).toFixed(2)} USD
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={isActionLoading}
+                                        className="w-full py-5 bg-gradient-to-r from-primary to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.3em] transition-all shadow-2xl shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-3"
+                                    >
+                                        {isActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ArrowUpCircle className="w-5 h-5" />}
+                                        {isActionLoading ? 'Processing...' : 'Authorize Transaction'}
+                                    </button>
+                                </form>
+                            ) : (
+                                <form onSubmit={(e) => e.preventDefault()} className="space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Deposit Address</label>
+                                            <div className="relative group">
+                                                <input
+                                                    type="text"
+                                                    readOnly
+                                                    value={systemDepositAddress || 'Loading...'}
+                                                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-5 pl-5 pr-12 text-slate-400 text-xs font-mono transition-all outline-none"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => copyToClipboard(systemDepositAddress)}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-indigo-400 hover:text-white transition-colors"
+                                                >
+                                                    <Copy className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Amount to Add</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={depositForm.amount}
+                                                onChange={(e) => setDepositForm(prev => ({ ...prev, amount: e.target.value }))}
+                                                placeholder="0.00"
+                                                className="w-full bg-slate-900 border border-slate-800 group-hover:border-slate-700 focus:border-indigo-500 rounded-2xl py-5 px-5 text-slate-200 text-sm font-black transition-all outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col md:flex-row gap-4">
                                         <button
                                             type="button"
-                                            onClick={() => setWithdrawForm(prev => ({ ...prev, address: walletAddress }))}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary hover:text-white transition-colors"
+                                            onClick={handleAutoDeposit}
+                                            disabled={isActionLoading || !systemDepositAddress}
+                                            className="flex-[2] py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
                                         >
-                                            {t('wallet.use_saved')}
+                                            <Smartphone className="w-5 h-5" />
+                                            Express Deposit via Web3 Wallet
                                         </button>
-                                    )}
-                                </div>
-                            </div>
+                                        <button
+                                            type="button"
+                                            className="flex-1 py-5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-3xl font-bold text-xs uppercase tracking-widest transition-all border border-slate-700/50 flex items-center justify-center gap-2"
+                                            onClick={() => toast.info('Submit TxHash for manual verification')}
+                                        >
+                                            Manual Transfer
+                                        </button>
+                                    </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="amount">
-                                    {t('wallet.amount_label')}
-                                </label>
-                                <div className="relative group">
-                                    <input
-                                        id="amount"
-                                        type="number"
-                                        step="0.000001"
-                                        value={withdrawForm.amount}
-                                        onChange={(e) => setWithdrawForm(prev => ({ ...prev, amount: e.target.value }))}
-                                        placeholder="0.00"
-                                        className="w-full bg-gray-900/50 border border-gray-800 group-hover:border-gray-700 focus:border-primary/50 rounded-2xl py-4 px-4 text-gray-200 text-sm font-medium transition-all focus:outline-none focus:ring-4 focus:ring-primary/5"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setWithdrawForm(prev => ({ ...prev, amount: balance.amount.toString() }))}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary hover:text-white transition-colors"
-                                    >
-                                        {t('wallet.max')}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-800/30 rounded-2xl p-4 border border-gray-800/50 space-y-3">
-                                <div className="flex justify-between text-xs font-medium">
-                                    <span className="text-gray-500">{t('wallet.network_fee')}:</span>
-                                    <span className="text-emerald-400 font-bold">{t('wallet.paid_by_pool')}</span>
-                                </div>
-                                <div className="flex justify-between text-sm font-bold">
-                                    <span className="text-gray-400">{t('wallet.receive_amount')}:</span>
-                                    <span className="text-white">{(parseFloat(withdrawForm.amount) || 0).toFixed(6)} POL</span>
-                                </div>
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={isWithdrawing}
-                                className="w-full py-5 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-primary/20 active:scale-[0.98] disabled:opacity-50"
-                            >
-                                {isWithdrawing ? t('wallet.processing') : t('wallet.confirm_withdraw')}
-                            </button>
-
-                            <p className="text-[10px] text-center text-gray-500 font-medium">
-                                <Clock className="w-3 h-3 inline mr-1 mb-0.5" /> {t('wallet.processing_time')}
-                            </p>
-                        </form>
+                                    <div className="flex flex-col lg:flex-row gap-8 items-center bg-indigo-500/5 border border-indigo-500/10 rounded-3xl p-6">
+                                        <div className="bg-white p-4 rounded-2xl shadow-2xl shadow-indigo-500/20">
+                                            {systemDepositAddress ? (
+                                                <QRCodeSVG
+                                                    value={systemDepositAddress}
+                                                    size={120}
+                                                    includeMargin={false}
+                                                    level="H"
+                                                />
+                                            ) : (
+                                                <div className="w-[120px] h-[120px] bg-slate-100 animate-pulse rounded-lg" />
+                                            )}
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="flex gap-4">
+                                                <AlertCircle className="w-6 h-6 text-indigo-400 shrink-0" />
+                                                <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
+                                                    EXPRESS MODE: Connect your wallet to automatically sign and verify transactions on the Polygon Network. Funds will be available after 1 block confirmation.
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
+                                                <p className="text-[10px] text-slate-500 leading-relaxed font-bold uppercase tracking-tight">
+                                                    Your funds are safe. Scan the QR code or manually send POL to the address above. Do not send other assets.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                <div className="space-y-8">
-                    <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-6 shadow-xl">
-                        <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-widest text-gray-400">{t('wallet.web3_title')}</h3>
+                {/* Right Column: Sidebar Stats */}
+                <div className="lg:col-span-4 space-y-8">
 
-                        {walletAddress ? (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                                    <div className="min-w-0">
-                                        <p className="text-[10px] font-bold text-emerald-500 uppercase">{t('wallet.linked_wallet')}</p>
-                                        <p className="text-xs font-mono text-gray-300 truncate">{walletAddress}</p>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => copyToClipboard(walletAddress)}
-                                        className="flex items-center justify-center gap-2 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-all"
-                                    >
-                                        <Copy className="w-3.5 h-3.5" /> {t('common.copy')}
-                                    </button>
-                                    <button
-                                        onClick={handleConnectWallet}
-                                        className="flex items-center justify-center gap-2 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-all"
-                                    >
-                                        <RefreshCw className="w-3.5 h-3.5" /> {t('inventory.modal.settings')}
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3 p-4 bg-red-500/5 border border-red-500/10 rounded-2xl">
-                                    <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-                                    <div>
-                                        <p className="text-[10px] font-bold text-red-500 uppercase">{t('wallet.not_connected')}</p>
-                                        <p className="text-xs text-gray-500">{t('wallet.link_to_withdraw')}</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleConnectWallet}
-                                    className="w-full py-4 bg-white text-gray-900 rounded-xl font-bold text-sm transition-all hover:bg-gray-200"
-                                >
-                                    {t('wallet.connect_wallet')}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-6 shadow-xl flex flex-col max-h-[500px]">
-                        <div className="flex items-center justify-between mb-6 shrink-0">
-                            <h2 className="text-sm font-bold text-white uppercase tracking-widest text-gray-400">{t('wallet.recent_activity')}</h2>
+                    {/* Activity Feed */}
+                    <div className="bg-slate-950/80 border border-slate-800/50 rounded-[2.5rem] p-8 shadow-2xl flex flex-col h-full max-h-[700px]">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-primary" />
+                                Ledger Analytics
+                            </h3>
+                            <ChevronRight className="w-4 h-4 text-slate-700" />
                         </div>
 
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide">
+                        <div className="flex-1 overflow-y-auto space-y-6 pr-2 scrollbar-hide">
                             {transactions.length === 0 ? (
-                                <div className="py-12 flex flex-col items-center justify-center text-center opacity-40">
-                                    <Clock className="w-10 h-10 mb-3" />
-                                    <p className="text-xs font-medium">{t('wallet.no_transactions')}</p>
+                                <div className="py-20 flex flex-col items-center justify-center text-center space-y-4 opacity-20">
+                                    <QrCode className="w-12 h-12" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">No activity found</p>
                                 </div>
                             ) : (
                                 transactions.map((tx, i) => {
                                     const isWithdrawal = tx.type === 'withdrawal';
                                     return (
-                                        <div key={i} className="flex items-center gap-4 group">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isWithdrawal ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'
-                                                }`}>
-                                                {isWithdrawal ? <ArrowUpCircle className="w-5 h-5" /> : <ArrowDownCircle className="w-5 h-5" />}
+                                        <div key={i} className="group relative flex items-center gap-4 p-4 hover:bg-slate-900/50 rounded-2xl transition-all border border-transparent hover:border-slate-800/50">
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${isWithdrawal ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                                                {isWithdrawal ? <ArrowUpCircle className="w-6 h-6" /> : <ArrowDownCircle className="w-6 h-6" />}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-start mb-0.5">
-                                                    <span className="text-sm font-bold text-white truncate">
-                                                        {isWithdrawal ? t('wallet.withdrawal') : t('wallet.deposit')}
+
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs font-black text-white italic uppercase tracking-tighter">
+                                                        {isWithdrawal ? 'Outflow' : 'Inflow'}
                                                     </span>
-                                                    <span className={`text-sm font-black ${isWithdrawal ? 'text-red-400' : 'text-emerald-400'
-                                                        }`}>
-                                                        {isWithdrawal ? '-' : '+'}{Number(tx.amount || 0).toFixed(4)}
-                                                    </span>
+                                                    <StatusBadge status={tx.status} />
                                                 </div>
-                                                <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 uppercase tracking-tighter">
-                                                    <span>{new Date(tx.created_at || tx.createdAt || Date.now()).toLocaleDateString()}</span>
-                                                    <span className={`px-1.5 py-0.5 rounded bg-gray-800/50 ${tx.status === 'confirmed' || tx.status === 'completed' ? 'text-emerald-500' : 'text-amber-500'
-                                                        }`}>
-                                                        {t(`wallet.status.${tx.status}`)}
-                                                    </span>
+                                                <div className="flex justify-between items-end">
+                                                    <p className="text-[10px] font-bold text-slate-500 font-mono">
+                                                        {new Date(tx.createdAt || tx.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                    <p className={`text-sm font-black italic tracking-tighter ${isWithdrawal ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                        {isWithdrawal ? '-' : '+'}{Number(tx.amount).toFixed(4)}
+                                                        {polPrice > 0 && (
+                                                            <span className="block text-[8px] opacity-50 not-italic text-right">
+                                                                ${(Number(tx.amount) * polPrice).toFixed(2)}
+                                                            </span>
+                                                        )}
+                                                    </p>
                                                 </div>
                                             </div>
+
+                                            {tx.txHash && (
+                                                <a
+                                                    href={`https://polygonscan.com/tx/${tx.txHash}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="absolute right-0 top-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity text-slate-600 hover:text-primary"
+                                                >
+                                                    <ExternalLink className="w-3 h-3" />
+                                                </a>
+                                            )}
                                         </div>
                                     );
                                 })
                             )}
                         </div>
 
-                        <div className="mt-6 pt-6 border-t border-gray-800/50 shrink-0">
-                            <div className="bg-blue-500/5 rounded-2xl p-4 border border-blue-500/10 flex gap-3">
-                                <Info className="w-5 h-5 text-blue-400 shrink-0" />
-                                <p className="text-[10px] text-gray-500 leading-relaxed font-medium">
-                                    {t('wallet.tip_deposit')}
+                        <div className="mt-8 pt-8 border-t border-slate-900">
+                            <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10 flex items-center gap-3">
+                                <ShieldCheck className="w-5 h-5 text-primary" />
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight leading-relaxed">
+                                    All transactions are secured by Polygon Smart Contracts and verified on-chain.
                                 </p>
                             </div>
                         </div>

@@ -1,27 +1,10 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
+import test from "node:test";
+import assert from "node:assert/strict";
+import walletModel from "../server/models/walletModel.js";
+import * as walletController from "../server/controllers/walletController.js";
 
-process.env.NODE_ENV = process.env.NODE_ENV || "development";
-process.env.DB_PATH = process.env.DB_PATH || "./data/blockminer.db";
-process.env.ALLOW_WITHDRAW_TO_CONTRACTS = "1";
-process.env.CHECKIN_RECEIVER = "0x0000000000000000000000000000000000000000";
-
-const auditLogModelPath = require.resolve("../models/auditLogModel");
-const originalAuditLogModel = require(auditLogModelPath);
-
-require.cache[auditLogModelPath].exports = {
-  ...originalAuditLogModel,
-  createAuditLog: async () => { }
-};
-
-const walletModel = require("../models/walletModel");
-const depositsCron = require("../cron/depositsCron");
-const walletController = require("../controllers/walletController");
-const { close } = require("../src/db/sqlite");
-
-test.after(async () => {
-  await close();
-});
+// Mocking the environment
+process.env.NODE_ENV = "test";
 
 function createRes() {
   return {
@@ -38,17 +21,11 @@ function createRes() {
   };
 }
 
-test.after(() => {
-  require.cache[auditLogModelPath].exports = originalAuditLogModel;
-});
-
 test("withdraw returns 409 when there is pending withdrawal", async () => {
-  const originalHasPendingWithdrawal = walletModel.hasPendingWithdrawal;
-  const originalCreateWithdrawal = walletModel.createWithdrawal;
+  const oldCreate = walletModel.createWithdrawal;
 
-  walletModel.hasPendingWithdrawal = async () => true;
   walletModel.createWithdrawal = async () => {
-    throw new Error("should not be called");
+    throw new Error("Pending withdrawal exists");
   };
 
   const req = {
@@ -60,27 +37,27 @@ test("withdraw returns 409 when there is pending withdrawal", async () => {
   const res = createRes();
 
   try {
-    await walletController.withdraw(req, res);
+    await walletController.requestWithdrawal(req, res);
     assert.equal(res.statusCode, 409);
     assert.equal(res.body?.ok, false);
+    assert.equal(res.body?.message, "Pending withdrawal exists");
   } finally {
-    walletModel.hasPendingWithdrawal = originalHasPendingWithdrawal;
-    walletModel.createWithdrawal = originalCreateWithdrawal;
+    walletModel.createWithdrawal = oldCreate;
   }
 });
 
 test("withdraw creates pending transaction when request is valid", async () => {
-  const originalHasPendingWithdrawal = walletModel.hasPendingWithdrawal;
-  const originalCreateWithdrawal = walletModel.createWithdrawal;
+  const oldCreate = walletModel.createWithdrawal;
 
-  walletModel.hasPendingWithdrawal = async () => false;
-  walletModel.createWithdrawal = async (userId, amount, address) => ({
+  const mockTransaction = {
     id: 999,
-    user_id: userId,
-    amount,
-    address,
+    userId: 5,
+    amount: "12.5",
+    address: "0x000000000000000000000000000000000000dEaD",
     status: "pending"
-  });
+  };
+
+  walletModel.createWithdrawal = async () => mockTransaction;
 
   const req = {
     user: { id: 5 },
@@ -91,13 +68,11 @@ test("withdraw creates pending transaction when request is valid", async () => {
   const res = createRes();
 
   try {
-    await walletController.withdraw(req, res);
+    await walletController.requestWithdrawal(req, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body?.ok, true);
-    assert.equal(res.body?.transaction?.id, 999);
-    assert.equal(res.body?.transaction?.status, "pending");
+    assert.deepEqual(res.body?.transaction, mockTransaction);
   } finally {
-    walletModel.hasPendingWithdrawal = originalHasPendingWithdrawal;
-    walletModel.createWithdrawal = originalCreateWithdrawal;
+    walletModel.createWithdrawal = oldCreate;
   }
 });

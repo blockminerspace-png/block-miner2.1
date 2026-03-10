@@ -199,3 +199,41 @@ authRouter.post("/logout", (req, res) => {
   res.setHeader("Set-Cookie", clearAuthCookies());
   res.json({ ok: true });
 });
+
+authRouter.post("/mark-adblock", requireAuth, async (req, res) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { hasAdblock: true }
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false });
+  }
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string(),
+  newPassword: z.string().min(8)
+});
+
+authRouter.post("/change-password", requireAuth, validateBody(changePasswordSchema), async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      return res.status(401).json({ ok: false, message: "Senha atual incorreta." });
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newPasswordHash }
+    });
+
+    res.json({ ok: true, message: "Senha alterada com sucesso." });
+  } catch (error) {
+    res.status(500).json({ ok: false, message: "Erro ao alterar senha." });
+  }
+});

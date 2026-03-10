@@ -32,8 +32,6 @@ export function createCsrfMiddleware() {
   return (req, res, next) => {
     const cookies = parseCookie(req.headers.cookie || "");
     
-    // Always ensure a CSRF cookie exists for the frontend,
-    // but WE WILL NOT block any requests for now to ensure compatibility.
     let csrfToken = cookies[CSRF_COOKIE_NAME];
     if (!csrfToken || csrfToken.length < 16) {
       csrfToken = crypto.randomBytes(24).toString("base64url");
@@ -41,8 +39,27 @@ export function createCsrfMiddleware() {
     }
 
     res.locals.csrfToken = csrfToken;
+
+    // VALIDATION: Check CSRF token for state-changing methods
+    const method = req.method.toUpperCase();
+    const url = req.originalUrl || req.url;
+
+    // EXEMPTIONS: Do not check CSRF for socket.io or external callbacks
+    if (url.includes('/socket.io/') || url.includes('/api/zerads/callback')) {
+      return next();
+    }
+
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
+      const headerToken = req.headers["x-csrf-token"];
+      
+      if (!headerToken || headerToken !== csrfToken) {
+        return res.status(403).json({ 
+          ok: false, 
+          message: "Ação bloqueada por segurança (CSRF). Por favor, recarregue a página." 
+        });
+      }
+    }
     
-    // TEMPORARY: Allow all requests to pass CSRF check during testing phase
     next();
   };
 }

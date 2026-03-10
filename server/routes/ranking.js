@@ -6,18 +6,139 @@ export const rankingRouter = express.Router();
 
 rankingRouter.get("/", requireAuth, async (req, res) => {
   try {
-    const topUsers = await prisma.user.findMany({
-      take: 50,
-      orderBy: { polBalance: 'desc' },
+    const now = new Date();
+
+    // Fetch users with their active power sources
+    const users = await prisma.user.findMany({
       select: {
         id: true,
         username: true,
         name: true,
-        polBalance: true
+        miners: {
+          where: { isActive: true },
+          select: { hashRate: true }
+        },
+        gamePowers: {
+          where: { expiresAt: { gt: now } },
+          select: { hashRate: true }
+        },
+        ytPowers: {
+          where: { expiresAt: { gt: now } },
+          select: { hashRate: true }
+        }
       }
     });
-    res.json({ ok: true, ranking: topUsers });
+
+    // Calculate aggregated hashrates for each user
+    const ranking = users.map(user => {
+      const baseHashRate = user.miners.reduce((sum, m) => sum + (m.hashRate || 0), 0);
+      const gameHashRate = user.gamePowers.reduce((sum, g) => sum + (g.hashRate || 0), 0) +
+        user.ytPowers.reduce((sum, y) => sum + (y.hashRate || 0), 0);
+      const totalHashRate = baseHashRate + gameHashRate;
+
+      return {
+        id: user.id,
+        username: user.username || "Miner",
+        name: user.name,
+        totalHashRate,
+        baseHashRate,
+        gameHashRate
+      };
+    });
+
+    // Sort by total hashrate descending and assign rank
+    const sortedRanking = ranking
+      .sort((a, b) => b.totalHashRate - a.totalHashRate)
+      .slice(0, 50)
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1
+      }));
+
+    res.json({ ok: true, ranking: sortedRanking });
   } catch (error) {
+    console.error("Ranking aggregation error:", error);
     res.status(500).json({ ok: false, message: "Unable to load ranking." });
+  }
+});
+
+rankingRouter.get("/room/:username", requireAuth, async (req, res) => {
+  try {
+    const { username } = req.params;
+    const now = new Date();
+    
+    const targetUser = await prisma.user.findFirst({
+      where: { username },
+      select: {
+        id: true,
+        username: true,
+        miners: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            hashRate: true,
+            slotIndex: true,
+            imageUrl: true,
+            level: true,
+            slotSize: true,
+            miner: {
+              select: {
+                name: true
+              }
+            }
+          }
+        },
+        gamePowers: {
+          where: { expiresAt: { gt: now } },
+          select: { hashRate: true }
+        },
+        ytPowers: {
+          where: { expiresAt: { gt: now } },
+          select: { hashRate: true }
+        },
+        rackConfigs: {
+          select: {
+            rackIndex: true,
+            customName: true
+          }
+        }
+      }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ ok: false, message: "User not found" });
+    }
+
+    // Map miners to include the name from the relationship and keep camelCase for frontend utils
+    const mappedMiners = targetUser.miners.map(m => ({
+      id: m.id,
+      hashRate: m.hashRate,
+      slotIndex: m.slotIndex,
+      imageUrl: m.imageUrl,
+      level: m.level,
+      slotSize: m.slotSize,
+      minerName: m.miner?.name || "Miner"
+    }));
+
+    const gamePower = targetUser.gamePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0) +
+                      targetUser.ytPowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
+
+    const racks = {};
+    targetUser.rackConfigs.forEach(config => {
+      racks[config.rackIndex] = config.customName;
+    });
+
+    res.json({ 
+      ok: true, 
+      user: { 
+        ...targetUser, 
+        miners: mappedMiners, 
+        racks,
+        gamePower
+      } 
+    });
+  } catch (error) {
+    console.error("Error fetching room data:", error);
+    res.status(500).json({ ok: false, message: "Server error" });
   }
 });

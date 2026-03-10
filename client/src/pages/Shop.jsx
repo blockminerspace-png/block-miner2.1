@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { ShoppingCart, Zap, TrendingUp, Info } from 'lucide-react';
+import { ShoppingCart, Zap, TrendingUp, Info, X, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
 
@@ -10,6 +11,8 @@ export default function Shop() {
     const [miners, setMiners] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isPurchasing, setIsPurchasing] = useState(false);
+    const [selectedMiner, setSelectedMiner] = useState(null);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const { fetchAll } = useGameStore();
 
     useEffect(() => {
@@ -29,16 +32,21 @@ export default function Shop() {
         fetchMiners();
     }, []);
 
-    const handlePurchase = async (minerId) => {
-        if (isPurchasing) return;
-        if (!confirm(t('shop.confirm_purchase'))) return;
+    const openConfirmModal = (miner) => {
+        setSelectedMiner(miner);
+        setShowConfirmModal(true);
+    };
+
+    const handlePurchase = async () => {
+        if (isPurchasing || !selectedMiner) return;
 
         try {
             setIsPurchasing(true);
-            const res = await api.post('/shop/purchase', { minerId });
+            const res = await api.post('/shop/purchase', { minerId: selectedMiner.id });
             if (res.data.ok) {
                 toast.success(res.data.message || t('shop.purchase_success'));
                 fetchAll(); // Refresh balance and inventory
+                setShowConfirmModal(false);
             }
         } catch (err) {
             toast.error(err.response?.data?.message || t('common.error'));
@@ -47,7 +55,12 @@ export default function Shop() {
         }
     };
 
-    if (isLoading) return <div className="p-8 text-gray-400">{t('common.loading')}</div>;
+    if (isLoading) return (
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Carregando Inventário...</p>
+        </div>
+    );
 
     return (
         <div className="space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -93,9 +106,8 @@ export default function Shop() {
                                     <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">{t('shop.price')}</span>
                                     <span className="text-lg font-black text-white italic">{miner.price} <span className="text-xs font-bold text-gray-500 not-italic uppercase">POL</span></span>
                                 </div>
-                                <button 
-                                    onClick={() => handlePurchase(miner.id)}
-                                    disabled={isPurchasing}
+                                <button
+                                    onClick={() => openConfirmModal(miner)}
                                     className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50"
                                 >
                                     {t('shop.buy')}
@@ -118,6 +130,80 @@ export default function Shop() {
                     </p>
                 </div>
             </div>
+
+            {/* Premium Confirmation Modal */}
+            {showConfirmModal && selectedMiner && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-surface border border-gray-800 rounded-[3rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 relative">
+                        <div className="absolute top-0 right-0 p-6">
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="p-2 text-gray-500 hover:text-white transition-colors"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-10 text-center space-y-8">
+                            <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto border border-primary/20 shadow-glow">
+                                <ShoppingCart className="w-10 h-10 text-primary" />
+                            </div>
+
+                            <div className="space-y-2">
+                                <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Confirmar Compra</h3>
+                                <p className="text-gray-500 font-medium">Você está prestes a adquirir um novo equipamento de mineração.</p>
+                            </div>
+
+                            <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-6 space-y-4">
+                                <div className="flex items-center gap-4 text-left">
+                                    <div className="w-16 h-16 bg-gray-800 rounded-2xl p-2 border border-gray-700">
+                                        <img src={selectedMiner.imageUrl} className="w-full h-full object-contain" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-white leading-none">{selectedMiner.name}</h4>
+                                        <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-2 block">{selectedMiner.baseHashRate} GH/S</span>
+                                    </div>
+                                </div>
+                                <div className="h-[1px] bg-gray-800 w-full" />
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total a Pagar</span>
+                                    <span className="text-xl font-black text-white italic">{selectedMiner.price} <span className="text-xs font-bold text-gray-500 not-italic uppercase">POL</span></span>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={handlePurchase}
+                                    disabled={isPurchasing}
+                                    className="w-full py-5 bg-primary hover:bg-primary-hover text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50"
+                                >
+                                    {isPurchasing ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-5 h-5" />
+                                            Confirmar Pagamento
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setShowConfirmModal(false)}
+                                    disabled={isPurchasing}
+                                    className="w-full py-4 text-gray-500 hover:text-white font-bold text-xs uppercase tracking-widest transition-colors disabled:opacity-50"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-center gap-2 text-amber-500/50">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                <span className="text-[9px] font-black uppercase tracking-widest">Esta ação é irreversível</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 }

@@ -11,7 +11,9 @@ import {
     Lock,
     Unlock,
     MousePointer2,
-    Info
+    Info,
+    ExternalLink,
+    Loader2
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -24,6 +26,7 @@ export default function Faucet() {
     const [canClaim, setCanClaim] = useState(false);
     const [isClaiming, setIsClaiming] = useState(false);
     const [isPartnerUnlocked, setIsPartnerUnlocked] = useState(false);
+    const [isAdClicked, setIsAdClicked] = useState(false);
     
     const timerRef = useRef(null);
     const partnerTimerRef = useRef(null);
@@ -37,6 +40,7 @@ export default function Faucet() {
                 if (res.data.remainingMs > 0) {
                     setIsPartnerUnlocked(false);
                     setCanClaim(false);
+                    setIsAdClicked(false);
                 }
             }
         } catch (err) {
@@ -79,17 +83,31 @@ export default function Faucet() {
         return () => clearInterval(partnerTimerRef.current);
     }, [partnerWaitMs, remainingMs]);
 
-    const handleAdClick = async () => {
-        if (remainingMs > 0 || partnerWaitMs > 0 || isPartnerUnlocked) return;
+    // Detection of Ad Click via Window Blur
+    useEffect(() => {
+        const handleBlur = () => {
+            // Check if the click happened on an iframe
+            if (document.activeElement instanceof HTMLIFrameElement || document.activeElement?.tagName === 'IFRAME') {
+                if (!isAdClicked && remainingMs <= 0 && !isPartnerUnlocked) {
+                    startPartnerTimer();
+                }
+            }
+        };
 
+        window.addEventListener('blur', handleBlur);
+        return () => window.removeEventListener('blur', handleBlur);
+    }, [isAdClicked, remainingMs, isPartnerUnlocked]);
+
+    const startPartnerTimer = async () => {
         try {
+            setIsAdClicked(true);
             const res = await api.post('/faucet/partner/start');
             if (res.data.ok) {
-                setPartnerWaitMs(res.data.waitMs || 5000);
-                window.open(res.data.partnerUrl || 'https://google.com', '_blank');
+                setPartnerWaitMs(res.data.waitMs || 10000); // 10s wait
+                toast.info("Patrocinador visitado! Mantenha a aba aberta.");
             }
         } catch (err) {
-            toast.error(t('common.error'));
+            setIsAdClicked(false);
         }
     };
 
@@ -104,6 +122,7 @@ export default function Faucet() {
                 fetchStatus();
                 setIsPartnerUnlocked(false);
                 setCanClaim(false);
+                setIsAdClicked(false);
             }
         } catch (err) {
             toast.error(err.response?.data?.message || t('common.error'));
@@ -119,17 +138,22 @@ export default function Faucet() {
         return `${min}:${sec.toString().padStart(2, '0')}`;
     };
 
-    if (isLoading) return <div className="p-8 text-gray-400">{t('common.loading')}</div>;
+    if (isLoading) return (
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Carregando Faucet...</p>
+        </div>
+    );
 
     const reward = status?.reward;
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             <div className="text-center space-y-4">
                 <div className="inline-flex p-3 bg-primary/10 rounded-2xl mb-2">
                     <Gift className="w-8 h-8 text-primary" />
                 </div>
-                <h1 className="text-4xl font-black text-white tracking-tight">{t('faucet.title')}</h1>
+                <h1 className="text-4xl font-black text-white tracking-tight uppercase italic italic">Hardware Faucet</h1>
                 <p className="text-gray-500 font-medium max-w-lg mx-auto">
                     {t('faucet.subtitle')}
                 </p>
@@ -138,19 +162,24 @@ export default function Faucet() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group">
                     <div className="relative z-10">
-                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mb-6">{t('faucet.avail_prize')}</h3>
+                        <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-8">{t('faucet.avail_prize')}</h3>
                         
-                        <div className="flex flex-col items-center text-center space-y-6">
-                            <div className="w-40 h-40 bg-gray-900/50 rounded-3xl p-6 border border-gray-800 group-hover:border-primary/30 transition-all duration-500 group-hover:scale-105">
+                        <div className="flex flex-col items-center text-center space-y-8">
+                            <div className="w-48 h-48 bg-gray-900/50 rounded-3xl p-8 border border-gray-800 group-hover:border-primary/30 transition-all duration-500 group-hover:scale-105 shadow-inner">
                                 <img src={reward?.imageUrl || '/assets/machines/reward1.png'} alt={reward?.name} className="w-full h-full object-contain" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-black text-white mb-1">{reward?.name || 'Mineradora Grátis'}</h2>
-                                <div className="flex items-center justify-center gap-3 text-primary font-bold">
-                                    <Zap className="w-4 h-4" />
-                                    <span>{reward?.hashRate || 0} {t('faucet.ghs')}</span>
-                                    <span className="text-gray-600">•</span>
-                                    <span>{reward?.slotSize || 1} {t('faucet.slots')}</span>
+                                <h2 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">{reward?.name || 'Pulse Mini v1'}</h2>
+                                <div className="flex items-center justify-center gap-4 text-primary font-black">
+                                    <div className="flex items-center gap-2">
+                                        <Zap className="w-4 h-4" />
+                                        <span className="text-lg">{reward?.hashRate || 1} {t('faucet.ghs')}</span>
+                                    </div>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-800" />
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        <span className="text-lg">1440m</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -159,63 +188,84 @@ export default function Faucet() {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="bg-surface border border-gray-800/50 rounded-3xl p-8 shadow-xl">
+                    <div className="bg-surface border border-gray-800/50 rounded-[3rem] p-10 shadow-xl relative overflow-hidden">
                         {remainingMs > 0 ? (
-                            <div className="text-center space-y-4">
+                            <div className="text-center space-y-6">
                                 <div className="flex justify-center">
-                                    <div className="w-20 h-20 rounded-full border-4 border-gray-800 border-t-primary animate-spin flex items-center justify-center">
-                                        <Clock className="w-8 h-8 text-primary -rotate-45" />
+                                    <div className="w-24 h-24 rounded-full border-4 border-gray-800 border-t-primary animate-spin flex items-center justify-center shadow-glow-sm">
+                                        <Clock className="w-10 h-10 text-primary -rotate-45" />
                                     </div>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{t('faucet.wait_cooldown')}</p>
-                                    <h3 className="text-3xl font-black text-white">{formatTime(remainingMs)}</h3>
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('faucet.wait_cooldown')}</p>
+                                    <h3 className="text-4xl font-black text-white italic">{formatTime(remainingMs)}</h3>
                                 </div>
-                                <div className="p-4 bg-gray-800/30 rounded-2xl border border-gray-800 flex items-center gap-3 text-left">
-                                    <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
-                                    <p className="text-[11px] text-gray-500 font-medium">
+                                <div className="p-5 bg-gray-900/50 rounded-2xl border border-gray-800 flex items-start gap-4 text-left shadow-inner">
+                                    <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-gray-500 font-medium leading-relaxed">
                                         {t('faucet.cooldown_msg')}
                                     </p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-6">
-                                <div className={`p-6 rounded-[2rem] border transition-all duration-500 ${
-                                    isPartnerUnlocked ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-primary/5 border-primary/20'
+                            <div className="space-y-8">
+                                <div className={`p-8 rounded-[2.5rem] border transition-all duration-500 relative overflow-hidden ${
+                                    isPartnerUnlocked ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-primary/5 border-primary/20 shadow-inner'
                                 }`}>
-                                    <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center justify-between mb-6">
                                         <div className="flex items-center gap-3">
                                             {isPartnerUnlocked ? <Unlock className="w-5 h-5 text-emerald-500" /> : <Lock className="w-5 h-5 text-primary" />}
-                                            <span className="text-xs font-bold text-white uppercase tracking-widest">{t('faucet.step_partner')}</span>
+                                            <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{t('faucet.step_partner')}</span>
                                         </div>
-                                        {isPartnerUnlocked && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                                        {isPartnerUnlocked && <CheckCircle2 className="w-5 h-5 text-emerald-500 animate-in zoom-in duration-300" />}
                                     </div>
-                                    <p className="text-xs text-gray-500 font-medium mb-6">{t('faucet.partner_msg')}</p>
+                                    
+                                    <p className="text-xs text-gray-500 font-medium mb-8 leading-relaxed">{t('faucet.partner_msg')}</p>
 
                                     {partnerWaitMs > 0 ? (
-                                        <div className="flex items-center gap-3 px-6 py-4 bg-gray-900/50 rounded-2xl border border-gray-800">
-                                            <Timer className="w-5 h-5 text-primary animate-pulse" />
-                                            <span className="text-sm font-bold text-white">{t('faucet.wait_seconds', { seconds: Math.ceil(partnerWaitMs / 1000) })}</span>
+                                        <div className="flex items-center justify-center gap-4 py-6 bg-gray-900 rounded-2xl border border-gray-800 shadow-xl">
+                                            <Timer className="w-6 h-6 text-primary animate-pulse" />
+                                            <span className="text-lg font-black text-white italic uppercase tracking-tighter">
+                                                {t('faucet.wait_seconds', { seconds: Math.ceil(partnerWaitMs / 1000) })}
+                                            </span>
                                         </div>
                                     ) : isPartnerUnlocked ? (
-                                        <div className="flex items-center gap-3 px-6 py-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
-                                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                                            <span className="text-sm font-bold text-emerald-500">{t('faucet.unlocked')}</span>
+                                        <div className="flex items-center justify-center gap-4 py-6 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                                            <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                                            <span className="text-lg font-black text-emerald-500 uppercase italic tracking-tighter">{t('faucet.unlocked')}</span>
                                         </div>
                                     ) : (
-                                        <button onClick={handleAdClick} className="w-full py-4 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 group">
-                                            <MousePointer2 className="w-4 h-4 group-hover:scale-125 transition-transform" />
-                                            {t('faucet.visit_partner')}
-                                        </button>
+                                        <div className="space-y-4">
+                                            <div className="w-full h-[100px] bg-gray-900/80 border border-gray-800 rounded-2xl flex items-center justify-center relative group/ad overflow-hidden">
+                                                <div className="text-center space-y-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                                                    <MousePointer2 className="w-6 h-6 mx-auto text-primary mb-1 group-hover:animate-bounce" />
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Espaço Publicitário</p>
+                                                    <p className="text-[8px] font-bold text-gray-600 uppercase">Clique para desbloquear</p>
+                                                </div>
+                                                
+                                                <iframe 
+                                                    src="about:blank" 
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                                                    title="Ad Click Area"
+                                                />
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-center gap-2 text-primary/50">
+                                                <ExternalLink className="w-3 h-3" />
+                                                <span className="text-[9px] font-black uppercase tracking-widest">O link abrirá em uma nova aba</span>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
 
-                                <button onClick={handleClaim} disabled={!canClaim || isClaiming} className={`w-full py-6 rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 ${
-                                        canClaim ? 'bg-primary text-white shadow-primary/20 hover:bg-primary-hover' : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700/50'
+                                <button onClick={handleClaim} disabled={!canClaim || isClaiming} className={`w-full py-6 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-4 italic ${
+                                        canClaim ? 'bg-primary text-white shadow-primary/20 hover:scale-[1.02] hover:shadow-primary/40' : 'bg-gray-800 text-gray-600 cursor-not-allowed border border-gray-700/50'
                                     }`}>
-                                    {isClaiming ? t('faucet.claiming') : (
+                                    {isClaiming ? (
+                                        <Loader2 className="w-6 h-6 animate-spin" />
+                                    ) : (
                                         <>
-                                            <Gift className={`w-5 h-5 ${canClaim ? 'animate-bounce' : ''}`} />
+                                            <Gift className={`w-6 h-6 ${canClaim ? 'animate-bounce' : ''}`} />
                                             {t('faucet.claim_miner')}
                                         </>
                                     )}
@@ -224,10 +274,12 @@ export default function Faucet() {
                         )}
                     </div>
 
-                    <div className="bg-blue-500/5 border border-blue-500/10 rounded-3xl p-6 flex gap-4">
-                        <Info className="w-6 h-6 text-blue-400 shrink-0" />
-                        <div className="space-y-1">
-                            <h4 className="text-white text-xs font-bold uppercase">{t('shop.how_it_works_title')}</h4>
+                    <div className="bg-blue-500/5 border border-blue-500/10 rounded-[2rem] p-8 flex gap-5 shadow-xl">
+                        <div className="p-3 bg-blue-500/10 rounded-xl h-fit">
+                            <Info className="w-6 h-6 text-blue-400 shrink-0" />
+                        </div>
+                        <div className="space-y-2">
+                            <h4 className="text-white text-xs font-black uppercase tracking-widest italic">{t('shop.how_it_works_title')}</h4>
                             <p className="text-[11px] text-gray-500 font-medium leading-relaxed">{t('faucet.how_it_works_msg')}</p>
                         </div>
                     </div>

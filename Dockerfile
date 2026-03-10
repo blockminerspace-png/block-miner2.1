@@ -13,7 +13,7 @@ LABEL maintainer="blockminer"
 
 # OpenSSL is required by Prisma.
 RUN apt-get update && \
-    apt-get install -y openssl rclone ca-certificates && \
+    apt-get install -y openssl rclone ca-certificates netcat-openbsd && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 

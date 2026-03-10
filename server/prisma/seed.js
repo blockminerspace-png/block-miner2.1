@@ -59,7 +59,7 @@ async function main() {
       showInShop: true
     },
     {
-      name: "Faucet Micro Miner",
+      name: "Pulse Mini v1",
       slug: "faucet-micro-miner",
       baseHashRate: 1,
       price: 0,
@@ -89,6 +89,27 @@ async function main() {
     });
     console.log('Seed: Faucet reward configured!');
   }
+
+  // 3. Seed Auto Mining Reward
+  console.log('Seed: Configuring Auto Mining Reward...');
+  await prisma.autoMiningReward.upsert({
+    where: { slug: 'pulse-gpu-v1' },
+    update: {
+      name: "Pulse GPU v1",
+      gpuHashRate: 1,
+      isActive: true,
+      imageUrl: "/assets/machines/reward3.png",
+      description: "Hardware de mineração automática de baixo consumo."
+    },
+    create: {
+      name: "Pulse GPU v1",
+      slug: "pulse-gpu-v1",
+      gpuHashRate: 1,
+      isActive: true,
+      imageUrl: "/assets/machines/reward3.png",
+      description: "Hardware de mineração automática de baixo consumo."
+    }
+  });
 
   console.log('Seed: All data seeded successfully!');
 }
