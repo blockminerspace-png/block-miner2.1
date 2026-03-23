@@ -402,6 +402,71 @@ authRouter.post("/reset-password-manual", async (req, res) => {
   }
 });
 
+// 🔐 Esqueci a Senha - Redefinição Forçada da Conta
+authRouter.post("/forgot-password", authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || email.trim().length === 0) {
+      return res.status(400).json({ ok: false, message: "Email é obrigatório." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } }
+    });
+
+    if (!user) {
+      // Não revela se email existe ou não (segurança)
+      return res.json({ ok: true, message: "Se o email existe, você receberá instruções de redefinição." });
+    }
+
+    // Marca conta para redefinição obrigatória de senha
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { needsPasswordReset: true }
+    });
+
+    logger.info(`[SECURITY] Password reset requested for email: ${normalizedEmail}`);
+    res.json({ ok: true, message: "Email encontrado. Você pode fazer login com uma nova senha." });
+  } catch (error) {
+    logger.error("Forgot password error", { error: error.message });
+    res.status(500).json({ ok: false, message: "Erro ao processar redefinição de senha." });
+  }
+});
+
+// 🔐 Redefinição Forçada com Admin (requer chave de admin)
+authRouter.post("/admin/force-password-reset", async (req, res) => {
+  try {
+    const { email, adminKey } = req.body;
+    
+    // Validação de chave de admin
+    if (!adminKey || adminKey !== process.env.ADMIN_SECURITY_CODE) {
+      return res.status(403).json({ ok: false, message: "Chave de admin inválida." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } }
+    });
+
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "Usuário não encontrado." });
+    }
+
+    // Marca para reset obrigatório
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { needsPasswordReset: true }
+    });
+
+    logger.info(`[ADMIN] Force password reset for email: ${normalizedEmail}`);
+    res.json({ ok: true, message: "Redefinição de senha forçada com sucesso." });
+  } catch (error) {
+    logger.error("Admin force reset error", { error: error.message });
+    res.status(500).json({ ok: false, message: "Erro ao forçar redefinição de senha." });
+  }
+});
+
 const changePasswordSchema = z.object({
   currentPassword: z.string(),
   newPassword: z.string().min(8)
