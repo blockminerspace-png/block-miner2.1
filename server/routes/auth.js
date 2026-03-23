@@ -17,6 +17,7 @@ import { getMinerBySlug } from "../models/minersModel.js";
 import { addInventoryItem } from "../models/inventoryModel.js";
 import { getAnonymizedRequestIp } from "../utils/clientIp.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
+import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
 import loggerLib from "../utils/logger.js";
 
 const logger = loggerLib.child("AuthRoutes");
@@ -30,6 +31,7 @@ const WELCOME_MINER_IMAGE_URL = "/machines/reward1.png";
 const PASSWORD_RESET_TOKEN_TTL = process.env.PASSWORD_RESET_TOKEN_TTL || "20m";
 const JWT_ISSUER = process.env.JWT_ISSUER || "blockminer";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "blockminer.app";
+const APP_URL = process.env.APP_URL || "https://blockminer.space";
 
 // Helper functions using Prisma
 async function generateUniqueRefCode() {
@@ -449,9 +451,23 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
     }
 
     const resetToken = signPasswordResetToken(user.id);
+    const resetUrl = `${APP_URL.replace(/\/$/, "")}/forgot-password?token=${encodeURIComponent(resetToken)}`;
+
+    if (isSmtpConfigured()) {
+      await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+        ttlMinutes: Number(String(PASSWORD_RESET_TOKEN_TTL).replace(/[^0-9]/g, "")) || 20
+      });
+    }
 
     logger.info(`[SECURITY] Password reset requested for email: ${normalizedEmail}`);
-    res.json({ ok: true, message: "Solicitação registrada. Continue para definir sua nova senha.", resetToken });
+    if (isSmtpConfigured()) {
+      return res.json({ ok: true, message: "Enviamos um link de redefinição para o seu e-mail." });
+    }
+
+    return res.json({ ok: true, message: "Solicitação registrada. Continue para definir sua nova senha.", resetToken });
   } catch (error) {
     logger.error("Forgot password error", { error: error.message });
     res.status(500).json({ ok: false, message: "Erro ao processar redefinição de senha." });

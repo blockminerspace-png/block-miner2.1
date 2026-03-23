@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tokenFromUrl = searchParams.get('token') || '';
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const [resetToken, setResetToken] = useState('');
+  const [resetToken, setResetToken] = useState(tokenFromUrl);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -29,7 +31,7 @@ export default function ForgotPassword() {
         toast.success('Conta localizada. Defina sua nova senha agora.');
       } else {
         setDone(true);
-        toast.success('Solicitacao registrada.');
+        toast.success('Se o e-mail existir, enviamos um link de redefinicao.');
       }
     } catch (err) {
       const message = err.response?.data?.message || 'Nao foi possivel processar agora.';
