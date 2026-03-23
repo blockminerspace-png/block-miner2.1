@@ -22,19 +22,19 @@ export function startCronTasks({
 
   const cleanupTimers = startGamePowerCleanup({ engine, io, run });
   const withdrawalTimers = startWithdrawalMonitoring();
-  const backupTimers = startBackupCron({ run });
+  // const backupTimers = startBackupCron({ run });
   const callbackQueueTimers = startCallbackQueueProcessing();
   const shortlinkResetTimers = startShortlinkResetCron();
   const depositTimers = startDepositMonitoring();
 
   // Run full site backup on startup (includes DB + all files)
-  runFullSiteBackupOnStartup();
+  // runFullSiteBackupOnStartup();
 
   return {
     ...miningTimers,
     ...cleanupTimers,
     ...withdrawalTimers,
-    ...backupTimers,
+    // ...backupTimers,
     ...callbackQueueTimers,
     ...shortlinkResetTimers,
     ...depositTimers
