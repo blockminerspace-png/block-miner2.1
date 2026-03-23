@@ -44,10 +44,10 @@ export const useAuthStore = create((set) => ({
         }
     },
 
-    login: async (email, password) => {
+    login: async (identifier, password) => {
         try {
             set({ isLoading: true, error: null });
-            const response = await api.post('/auth/login', { email, password });
+            const response = await api.post('/auth/login', { identifier, password });
             set({ user: response.data.user, isAuthenticated: true, isLoading: false });
             return { success: true };
         } catch (error) {
@@ -66,11 +66,13 @@ export const useAuthStore = create((set) => ({
             set({ user: response.data.user, isAuthenticated: true, isLoading: false });
             return { success: true };
         } catch (error) {
+            const fieldError = error.response?.data?.errors?.[0]?.message;
+            const code = error.response?.data?.code;
             set({
-                error: error.response?.data?.message || 'Erro ao registrar',
+                error: fieldError || error.response?.data?.message || 'Erro ao registrar',
                 isLoading: false
             });
-            return { success: false, message: error.response?.data?.message };
+            return { success: false, message: fieldError || error.response?.data?.message, code };
         }
     },
 

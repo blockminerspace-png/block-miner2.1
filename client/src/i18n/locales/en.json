@@ -18,18 +18,30 @@
     "info": "Information",
     "details": "Details",
     "remove": "Remove",
-    "install": "Install"
+    "install": "Install",
+    "maintenance": {
+      "title": "Platform in BETA",
+      "message": "We are performing system maintenance and improvements. Temporary instabilities may occur. Thank you for your patience."
+    }
   },
   "auth": {
     "login": {
       "title": "Welcome back!",
       "subtitle": "Sign in to continue building your mining empire.",
       "email_label": "Email Address",
+      "identifier_label": "Email or Username",
+      "identifier_placeholder": "example@email.com or your_username",
       "password_label": "Your Password",
       "forgot_password": "Forgot?",
       "submit": "Sign In",
       "no_account": "Don't have an account yet?",
-      "register_now": "Register Now"
+      "register_now": "Register Now",
+      "errors": {
+        "identifier_not_found": "Email or username does not exist.",
+        "invalid_credentials": "Incorrect password.",
+        "invalid_2fa": "Invalid 2FA code.",
+        "login_failed": "Login failed."
+      }
     },
     "register": {
       "title": "Create your free account",
@@ -44,7 +56,14 @@
       "already_have_account": "Already have an account?",
       "login_now": "Sign In",
       "referral_msg": "You are being referred by code: {{code}}",
-      "terms_msg": "By registering, you agree to our terms of service and privacy policy."
+      "terms_msg": "By registering, you agree to our terms of service and privacy policy.",
+      "errors": {
+        "password_mismatch": "Passwords do not match.",
+        "password_min": "Password must be at least 8 characters.",
+        "user_already_exists": "User already exists.",
+        "registration_limit_reached": "Registration limit reached for this connection.",
+        "registration_failed": "Registration failed."
+      }
     }
   },
   "sidebar": {
@@ -185,6 +204,7 @@
     "in_progress": "In Progress",
     "available": "Available",
     "wait_reset": "Come back tomorrow after daily reset.",
+    "reset_in": "Next link will be available in:",
     "continue_link": "Continue Link",
     "start_link": "Start Link",
     "starting": "Starting...",
@@ -196,6 +216,7 @@
     "subtitle": "Return every day to claim your free reward and maintain your streak.",
     "claim_button": "Claim Daily Reward",
     "claimed": "Already Claimed",
+    "reset_in": "Your next bonus will be available in:",
     "streak": "Current Streak",
     "days": "days",
     "reward_msg": "You received {{amount}} POL for your check-in!"

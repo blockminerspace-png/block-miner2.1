@@ -18,18 +18,30 @@
     "info": "Informação",
     "details": "Detalhes",
     "remove": "Remover",
-    "install": "Instalar"
+    "install": "Instalar",
+    "maintenance": {
+      "title": "Plataforma em BETA",
+      "message": "Estamos realizando manutenção e melhorias no sistema. Podem ocorrer instabilidades temporárias. Agradecemos a sua paciência."
+    }
   },
   "auth": {
     "login": {
       "title": "Bem-vindo de volta!",
       "subtitle": "Acesse sua conta para gerenciar sua mineração.",
       "email_label": "Endereço de E-mail",
+      "identifier_label": "Email ou Username",
+      "identifier_placeholder": "exemplo@email.com ou seu_usuario",
       "password_label": "Sua Senha",
       "forgot_password": "Esqueceu?",
       "submit": "Acessar Conta",
       "no_account": "Ainda não tem uma conta?",
-      "register_now": "Criar Conta Agora"
+      "register_now": "Criar Conta Agora",
+      "errors": {
+        "identifier_not_found": "Email ou username não existe.",
+        "invalid_credentials": "Senha incorreta.",
+        "invalid_2fa": "Código 2FA inválido.",
+        "login_failed": "Login falhou."
+      }
     },
     "register": {
       "title": "Crie sua conta gratuita",
@@ -44,7 +56,14 @@
       "already_have_account": "Já possui uma conta?",
       "login_now": "Fazer Login",
       "referral_msg": "Você está sendo indicado pelo código: {{code}}",
-      "terms_msg": "Ao se registrar, você concorda com nossos termos de serviço e política de privacidade."
+      "terms_msg": "Ao se registrar, você concorda com nossos termos de serviço e política de privacidade.",
+      "errors": {
+        "password_mismatch": "As senhas não coincidem.",
+        "password_min": "A senha deve ter no mínimo 8 caracteres.",
+        "user_already_exists": "Usuário já existe.",
+        "registration_limit_reached": "Limite de cadastro atingido para esta conexão.",
+        "registration_failed": "Falha no cadastro."
+      }
     }
   },
   "sidebar": {
@@ -59,6 +78,7 @@
     "youtube": "YouTube",
     "games": "Jogos",
     "ranking": "Ranking",
+    "logout": "Sair da Conta",
     "menu_title": "Menu Principal",
     "categories": {
       "main": "Principal",
@@ -187,6 +207,7 @@
     "in_progress": "Em Progresso",
     "available": "Disponível",
     "wait_reset": "Volte amanhã após o reset diário.",
+    "reset_in": "O seu próximo link estará disponível em:",
     "continue_link": "Continuar Link",
     "start_link": "Iniciar Link",
     "starting": "Iniciando...",
@@ -198,6 +219,7 @@
     "subtitle": "Retorne todos os dias para resgatar sua recompensa gratuita e manter sua sequência.",
     "claim_button": "Resgatar Recompensa Diária",
     "claimed": "Já Resgatado",
+    "reset_in": "O seu próximo bônus estará disponível em:",
     "streak": "Sequência Atual",
     "days": "dias",
     "reward_msg": "Você recebeu {{amount}} POL pelo seu check-in!",

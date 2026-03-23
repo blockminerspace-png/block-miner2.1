@@ -18,18 +18,30 @@
     "info": "Información",
     "details": "Detalles",
     "remove": "Eliminar",
-    "install": "Instalar"
+    "install": "Instalar",
+    "maintenance": {
+      "title": "Plataforma en BETA",
+      "message": "Estamos realizando mantenimiento y mejoras en el sistema. Pueden ocurrir inestabilidades temporales. Gracias por su paciencia."
+    }
   },
   "auth": {
     "login": {
       "title": "¡Bienvenido de nuevo!",
       "subtitle": "Inicia sesión para seguir construyendo tu imperio minero.",
       "email_label": "Correo Electrónico",
+      "identifier_label": "Correo o Usuario",
+      "identifier_placeholder": "ejemplo@email.com o tu_usuario",
       "password_label": "Tu Contraseña",
       "forgot_password": "¿Olvidaste?",
       "submit": "Iniciar Sesión",
       "no_account": "¿Aún no tienes cuenta?",
-      "register_now": "Regístrate Ahora"
+      "register_now": "Regístrate Ahora",
+      "errors": {
+        "identifier_not_found": "El correo o usuario no existe.",
+        "invalid_credentials": "Contraseña incorrecta.",
+        "invalid_2fa": "Código 2FA inválido.",
+        "login_failed": "El inicio de sesión falló."
+      }
     },
     "register": {
       "title": "Crea tu cuenta gratuita",
@@ -44,7 +56,14 @@
       "already_have_account": "¿Ya tienes una cuenta?",
       "login_now": "Iniciar Sesión",
       "referral_msg": "Estás siendo recomendado por el código: {{code}}",
-      "terms_msg": "Al registrarte, aceptas nuestros términos de servicio y política de privacidad."
+      "terms_msg": "Al registrarte, aceptas nuestros términos de servicio y política de privacidad.",
+      "errors": {
+        "password_mismatch": "Las contraseñas no coinciden.",
+        "password_min": "La contraseña debe tener al menos 8 caracteres.",
+        "user_already_exists": "El usuario ya existe.",
+        "registration_limit_reached": "Límite de registros alcanzado para esta conexión.",
+        "registration_failed": "El registro falló."
+      }
     }
   },
   "sidebar": {
@@ -183,6 +202,7 @@
     "in_progress": "En Progreso",
     "available": "Disponible",
     "wait_reset": "Vuelve mañana después del reinicio diario.",
+    "reset_in": "El próximo enlace estará disponible en:",
     "continue_link": "Continuar Enlace",
     "start_link": "Iniciar Enlace",
     "starting": "Iniciando...",
@@ -194,6 +214,7 @@
     "subtitle": "Regresa todos los días para reclamar tu recompensa gratuita y mantener tu racha.",
     "claim_button": "Reclamar Recompensa Diaria",
     "claimed": "Ya Reclamado",
+    "reset_in": "Tu próximo bono estará disponible en:",
     "streak": "Racha Actual",
     "days": "días",
     "reward_msg": "¡Has recibido {{amount}} POL por tu check-in!"

@@ -33,7 +33,12 @@ export default function Register() {
         e.preventDefault();
 
         if (formData.password !== formData.confirmPassword) {
-            toast.error('Passwords do not match!');
+            toast.error(t('auth.register.errors.password_mismatch'));
+            return;
+        }
+
+        if (formData.password.length < 8) {
+            toast.error(t('auth.register.errors.password_min'));
             return;
         }
 
@@ -43,6 +48,13 @@ export default function Register() {
             password: formData.password,
             refCode: formData.refCode
         });
+
+        if (!result.success) {
+            const translated = result.code ? t(`auth.register.errors.${result.code.toLowerCase()}`) : null;
+            if (translated) {
+                toast.error(translated);
+            }
+        }
 
         if (result.success) {
             navigate('/dashboard');
@@ -135,7 +147,7 @@ export default function Register() {
                                         id="password"
                                         type={showPassword ? 'text' : 'password'}
                                         required
-                                        minLength={6}
+                                        minLength={8}
                                         value={formData.password}
                                         onChange={handleChange}
                                         className="block w-full px-4 py-3.5 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
@@ -152,7 +164,7 @@ export default function Register() {
                                         id="confirmPassword"
                                         type={showPassword ? 'text' : 'password'}
                                         required
-                                        minLength={6}
+                                        minLength={8}
                                         value={formData.confirmPassword}
                                         onChange={handleChange}
                                         className="block w-full px-4 py-3.5 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
