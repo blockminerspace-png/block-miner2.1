@@ -71,12 +71,12 @@ export async function installInventoryItem(req, res) {
           await tx.userInventory.create({
             data: {
               userId: req.user.id,
-              minerName: m.miner?.name,
+              minerName: m.miner?.name || m.minerName || 'Miner',
               level: m.level,
               hashRate: m.hashRate,
               slotSize: m.slotSize,
-              minerId: m.minerId,
-              imageUrl: m.imageUrl || m.miner?.imageUrl,
+              minerId: m.minerId || null,
+              imageUrl: m.imageUrl || m.miner?.imageUrl || null,
               acquiredAt: now
             }
           });
@@ -93,12 +93,12 @@ export async function installInventoryItem(req, res) {
           await tx.userInventory.create({
             data: {
               userId: req.user.id,
-              minerName: prevMachine.miner?.name,
+              minerName: prevMachine.miner?.name || prevMachine.minerName || 'Miner',
               level: prevMachine.level,
               hashRate: prevMachine.hashRate,
               slotSize: prevMachine.slotSize,
-              minerId: prevMachine.minerId,
-              imageUrl: prevMachine.imageUrl || prevMachine.miner?.imageUrl,
+              minerId: prevMachine.minerId || null,
+              imageUrl: prevMachine.imageUrl || prevMachine.miner?.imageUrl || null,
               acquiredAt: now
             }
           });

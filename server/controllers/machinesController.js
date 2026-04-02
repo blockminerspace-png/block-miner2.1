@@ -47,12 +47,12 @@ export async function removeMachine(req, res) {
       await tx.userInventory.create({
         data: {
           userId: req.user.id,
-          minerName: machine.miner_name,
+          minerName: machine.miner_name || machine.minerName || 'Miner',
           level: machine.level,
           hashRate: machine.hashRate,
           slotSize: machine.slotSize,
-          minerId: machine.minerId,
-          imageUrl: machine.image_url,
+          minerId: machine.minerId || null,
+          imageUrl: machine.image_url || machine.imageUrl || null,
           acquiredAt: now
         }
       });
