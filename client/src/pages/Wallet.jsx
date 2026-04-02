@@ -119,7 +119,7 @@ export default function Wallet() {
                 await connect();
                 // We add a small delay or check isConnected again to allow state to sync if possible,
                 // but usually the user will need to click again. Let's at least explain it.
-                toast.info('Wallet connected. Please click "Express Deposit" again to authorize the transaction.');
+                toast.info(t('wallet.connect_then_express_deposit'));
                 return;
             }
 
@@ -130,31 +130,29 @@ export default function Wallet() {
 
             const amount = parseFloat(depositForm.amount);
             if (isNaN(amount) || amount <= 0) {
-                toast.error(t('wallet.invalid_amount', 'Please enter a valid amount'));
+                toast.error(t('wallet.invalid_amount'));
                 return;
             }
 
             if (!systemDepositAddress) {
-                toast.error('System deposit address not loaded');
+                toast.error(t('wallet.deposit_address_not_loaded'));
                 return;
             }
 
             if (!isAddress(systemDepositAddress)) {
-                toast.error('Invalid deposit address configuration');
+                toast.error(t('wallet.deposit_address_invalid'));
                 return;
             }
 
             const eip1193 = getBrowserEthereumProvider();
             if (!eip1193) {
-                toast.error(
-                    'Web3 wallet not detected. Open Trust Wallet (or your browser wallet) for this site, or disable extensions that block injection.'
-                );
+                toast.error(t('wallet.web3_not_detected_deposit'));
                 return;
             }
             const provider = new BrowserProvider(eip1193);
             const signer = await provider.getSigner();
 
-            toast.info('Requesting transaction authorized...');
+            toast.info(t('wallet.deposit_requesting_tx'));
 
             // We use a manual gasLimit to force MetaMask to open even if 
             // the user has 0 funds. This allows the user to see the 
@@ -165,7 +163,7 @@ export default function Wallet() {
                 gasLimit: 21000 // Standard transfer gas
             });
 
-            toast.info('Transaction sent! Verifying on-chain...');
+            toast.info(t('wallet.deposit_tx_sent'));
 
             const res = await api.post('/wallet/deposit', {
                 amount: amount,
@@ -173,21 +171,21 @@ export default function Wallet() {
             });
 
             if (res.data.ok) {
-                toast.success('Deposit confirmed! Balance updated.');
+                toast.success(t('wallet.deposit_confirmed_balance'));
                 setDepositForm({ amount: '', txHash: '' });
                 fetchWalletData();
             } else {
-                toast.error(res.data.message || 'Deposit verification failed');
+                toast.error(res.data.message || t('wallet.deposit_verify_failed'));
             }
         } catch (error) {
             console.error("Deposit error", error);
             // Handle common MetaMask errors
             if (error.code === 4001) {
-                toast.error('Transaction rejected by user');
+                toast.error(t('wallet.tx_rejected_user'));
             } else if (error.code === 'INSUFFICIENT_FUNDS' || (error.message && error.message.includes('insufficient funds'))) {
-                toast.error('Insufficient funds: You need more POL to cover the amount + network gas fees.');
+                toast.error(t('wallet.insufficient_funds_gas'));
             } else {
-                toast.error(error.reason || error.message || 'Transaction failed');
+                toast.error(error.reason || error.message || t('wallet.tx_failed'));
             }
         } finally {
             setIsActionLoading(false);
@@ -201,16 +199,16 @@ export default function Wallet() {
             const txHash = depositForm.txHash.trim();
 
             if (isNaN(amount) || amount <= 0) {
-                toast.error(t('wallet.invalid_amount', 'Please enter a valid amount'));
+                toast.error(t('wallet.invalid_amount'));
                 return;
             }
 
             if (!txHash) {
-                toast.error('Please enter the transaction hash');
+                toast.error(t('wallet.manual_tx_hash_required'));
                 return;
             }
 
-            toast.info('Verifying transaction on-chain...');
+            toast.info(t('wallet.manual_verifying_onchain'));
 
             const res = await api.post('/wallet/deposit', {
                 amount: amount,
@@ -218,16 +216,16 @@ export default function Wallet() {
             });
 
             if (res.data.ok) {
-                toast.success('Deposit confirmed! Balance updated.');
+                toast.success(t('wallet.deposit_confirmed_balance'));
                 setDepositForm({ amount: '', txHash: '' });
                 setShowManualForm(false);
                 fetchWalletData();
             } else {
-                toast.error(res.data.message || 'Deposit verification failed');
+                toast.error(res.data.message || t('wallet.deposit_verify_failed'));
             }
         } catch (error) {
             console.error("Manual deposit error", error);
-            toast.error(error.response?.data?.message || error.message || 'Verification failed');
+            toast.error(error.response?.data?.message || error.message || t('wallet.onchain_verification_failed'));
         } finally {
             setIsActionLoading(false);
         }
@@ -242,11 +240,11 @@ export default function Wallet() {
             return;
         }
         if (isNaN(amount) || amount < 0.1) {
-            toast.error(t('wallet.min_withdrawal', 'Minimum withdrawal is 0.1 POL'));
+            toast.error(t('wallet.min_withdrawal'));
             return;
         }
         if (amount > balance.amount) {
-            toast.error('Insufficient balance.');
+            toast.error(t('wallet.insufficient_balance'));
             return;
         }
 
@@ -278,9 +276,10 @@ export default function Wallet() {
 
     const StatusBadge = ({ status }) => {
         const config = {
-            completed: { color: 'text-emerald-400 bg-emerald-400/10', label: 'Success' },
-            pending: { color: 'text-amber-400 bg-amber-400/10', label: 'Pending' },
-            failed: { color: 'text-red-400 bg-red-400/10', label: 'Failed' }
+            completed: { color: 'text-emerald-400 bg-emerald-400/10', label: t('wallet.status.completed') },
+            confirmed: { color: 'text-emerald-400 bg-emerald-400/10', label: t('wallet.status.confirmed') },
+            pending: { color: 'text-amber-400 bg-amber-400/10', label: t('wallet.status.pending') },
+            failed: { color: 'text-red-400 bg-red-400/10', label: t('wallet.status.failed') }
         };
         const s = config[status] || config.pending;
         return (
@@ -299,10 +298,11 @@ export default function Wallet() {
                         <div className="p-2 bg-primary/20 rounded-2xl">
                             <WalletIcon className="w-8 h-8 text-primary" />
                         </div>
-                        WALLET <span className="text-primary">TERMINAL</span>
+                        {t('wallet.header_title_prefix')}{' '}
+                        <span className="text-primary">{t('wallet.header_title_accent')}</span>
                     </h1>
                     <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px] pl-1">
-                        Secure Web3 Financial Operations
+                        {t('wallet.subtitle_secure_ops')}
                     </p>
                 </div>
 
@@ -329,7 +329,7 @@ export default function Wallet() {
                             className="px-6 py-3 bg-white text-slate-900 font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/5 flex items-center gap-2"
                         >
                             <Smartphone className="w-4 h-4" />
-                            {isConnecting ? 'Authenticating...' : 'Connect Wallet'}
+                            {isConnecting ? t('wallet.authenticating') : t('wallet.connect_wallet')}
                         </button>
                     )}
 
@@ -356,7 +356,7 @@ export default function Wallet() {
                         <div className="relative p-10 text-white space-y-12">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-blue-100/60 font-black uppercase tracking-[0.3em] text-[9px] mb-3">Total Liquid Assets</p>
+                                    <p className="text-blue-100/60 font-black uppercase tracking-[0.3em] text-[9px] mb-3">{t('wallet.total_liquid_assets')}</p>
                                     <div className="flex items-baseline gap-4">
                                         <h2 className="text-6xl font-black tracking-tighter tabular-nums drop-shadow-2xl">
                                             {balance.amount.toLocaleString(undefined, { minimumFractionDigits: 6 })}
@@ -378,15 +378,15 @@ export default function Wallet() {
 
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-8 pt-10 border-t border-white/10">
                                 <div className="space-y-1">
-                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">Life Mined</p>
+                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">{t('wallet.life_mined_label')}</p>
                                     <p className="text-lg font-black tracking-tight">{balance.lifetimeMined.toFixed(4)} <span className="text-[10px] opacity-40">POL</span></p>
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">Total Outflow</p>
+                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">{t('wallet.total_outflow_label')}</p>
                                     <p className="text-lg font-black tracking-tight">{balance.totalWithdrawn.toFixed(4)} <span className="text-[10px] opacity-40">POL</span></p>
                                 </div>
                                 <div className="hidden md:block space-y-1">
-                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">Network Status</p>
+                                    <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">{t('wallet.network_status_label')}</p>
                                     <p className="text-lg font-black tracking-tight flex items-center gap-2">
                                         <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
                                         Polygon
@@ -408,13 +408,13 @@ export default function Wallet() {
                                 onClick={() => setActiveTab('withdraw')}
                                 className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
-                                Send Funds
+                                {t('wallet.tab_send_funds')}
                             </button>
                             <button
                                 onClick={() => setActiveTab('deposit')}
                                 className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
-                                Add Funds
+                                {t('wallet.tab_add_funds')}
                             </button>
                         </div>
 
@@ -423,7 +423,7 @@ export default function Wallet() {
                                 <form onSubmit={handleWithdraw} className="space-y-8">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Recipient Address</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.recipient_address')}</label>
                                             <div className="relative group">
                                                 <input
                                                     type="text"
@@ -437,7 +437,7 @@ export default function Wallet() {
                                                         type="button"
                                                         onClick={() => setWithdrawForm(prev => ({ ...prev, address: account }))}
                                                         className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-primary hover:text-white transition-colors"
-                                                        title="Use connected wallet"
+                                                        title={t('wallet.use_connected_wallet')}
                                                     >
                                                         <Smartphone className="w-5 h-5" />
                                                     </button>
@@ -446,7 +446,7 @@ export default function Wallet() {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Amount (POL)</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.amount_pol')}</label>
                                             <div className="relative group">
                                                 <input
                                                     type="number"
@@ -461,7 +461,7 @@ export default function Wallet() {
                                                     onClick={() => setWithdrawForm(prev => ({ ...prev, amount: balance.amount.toString() }))}
                                                     className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-primary hover:text-white uppercase tracking-widest transition-all"
                                                 >
-                                                    Max
+                                                    {t('wallet.max')}
                                                 </button>
                                             </div>
                                         </div>
@@ -469,11 +469,11 @@ export default function Wallet() {
 
                                     <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50 flex items-center justify-between">
                                         <div className="space-y-1">
-                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Network protocol fee</p>
-                                            <p className="text-emerald-400 text-xs font-black uppercase">Gas Covered by Pool</p>
+                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">{t('wallet.network_protocol_fee')}</p>
+                                            <p className="text-emerald-400 text-xs font-black uppercase">{t('wallet.gas_covered_by_pool')}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Total Transfer</p>
+                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">{t('wallet.total_transfer')}</p>
                                             <p className="text-xl font-black text-white italic">
                                                 {(parseFloat(withdrawForm.amount) || 0).toFixed(4)} POL
                                                 {polPrice > 0 && (
@@ -491,19 +491,19 @@ export default function Wallet() {
                                         className="w-full py-5 bg-gradient-to-r from-primary to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.3em] transition-all shadow-2xl shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-3"
                                     >
                                         {isActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ArrowUpCircle className="w-5 h-5" />}
-                                        {isActionLoading ? 'Processing...' : 'Authorize Transaction'}
+                                        {isActionLoading ? t('wallet.processing') : t('wallet.authorize_transaction')}
                                     </button>
                                 </form>
                             ) : (
                                 <form onSubmit={(e) => e.preventDefault()} className="space-y-8">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Deposit Address</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.deposit_address_label')}</label>
                                             <div className="relative group">
                                                 <input
                                                     type="text"
                                                     readOnly
-                                                    value={systemDepositAddress || 'Loading...'}
+                                                    value={systemDepositAddress || t('wallet.loading_placeholder')}
                                                     className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-5 pl-5 pr-12 text-slate-400 text-xs font-mono transition-all outline-none"
                                                 />
                                                 <button
@@ -517,7 +517,7 @@ export default function Wallet() {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Amount to Add</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.amount_to_add')}</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -537,7 +537,7 @@ export default function Wallet() {
                                             className={`flex-[2] py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50 ${showManualForm ? 'opacity-50' : ''}`}
                                         >
                                             <Smartphone className="w-5 h-5" />
-                                            Express Deposit via Web3 Wallet
+                                            {t('wallet.express_deposit_web3')}
                                         </button>
                                         <button
                                             type="button"
@@ -545,14 +545,14 @@ export default function Wallet() {
                                             onClick={() => setShowManualForm(!showManualForm)}
                                         >
                                             {showManualForm ? <XCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                                            {showManualForm ? 'Cancel Manual' : 'Manual Transfer'}
+                                            {showManualForm ? t('wallet.cancel_manual') : t('wallet.manual_transfer')}
                                         </button>
                                     </div>
 
                                     {showManualForm && (
                                         <div className="p-6 bg-slate-900/80 border border-primary/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-500">
                                             <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">Paste Transaction Hash (TxHash)</label>
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">{t('wallet.paste_tx_hash')}</label>
                                                 <input
                                                     type="text"
                                                     value={depositForm.txHash}
@@ -567,10 +567,10 @@ export default function Wallet() {
                                                 disabled={isActionLoading}
                                                 className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
                                             >
-                                                {isActionLoading ? 'Verifying...' : 'Verify Transfer & Update Balance'}
+                                                {isActionLoading ? t('wallet.verifying') : t('wallet.verify_transfer_balance')}
                                             </button>
                                             <p className="text-[9px] text-slate-500 font-bold italic text-center">
-                                                Verification is automatic. If the hash is valid, your balance updates instantly.
+                                                {t('wallet.manual_verify_hint')}
                                             </p>
                                         </div>
                                     )}
@@ -592,13 +592,13 @@ export default function Wallet() {
                                             <div className="flex gap-4">
                                                 <AlertCircle className="w-6 h-6 text-indigo-400 shrink-0" />
                                                 <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
-                                                    EXPRESS MODE: Connect your wallet to automatically sign and verify transactions on the Polygon Network. Funds will be available after 1 block confirmation.
+                                                    {t('wallet.express_mode_info')}
                                                 </p>
                                             </div>
                                             <div className="flex gap-4">
                                                 <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
                                                 <p className="text-[10px] text-slate-500 leading-relaxed font-bold uppercase tracking-tight">
-                                                    Your funds are safe. Scan the QR code or manually send POL to the address above. Do not send other assets.
+                                                    {t('wallet.funds_safe_info')}
                                                 </p>
                                             </div>
                                         </div>
@@ -617,7 +617,7 @@ export default function Wallet() {
                         <div className="flex items-center justify-between mb-8">
                             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-primary" />
-                                Ledger Analytics
+                                {t('wallet.ledger_analytics')}
                             </h3>
                             <ChevronRight className="w-4 h-4 text-slate-700" />
                         </div>
@@ -626,7 +626,7 @@ export default function Wallet() {
                             {transactions.length === 0 ? (
                                 <div className="py-20 flex flex-col items-center justify-center text-center space-y-4 opacity-20">
                                     <QrCode className="w-12 h-12" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest">No activity found</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest">{t('wallet.no_activity_found')}</p>
                                 </div>
                             ) : (
                                 transactions.map((tx, i) => {
@@ -640,7 +640,7 @@ export default function Wallet() {
                                             <div className="flex-1 min-w-0 space-y-1">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-xs font-black text-white italic uppercase tracking-tighter">
-                                                        {isWithdrawal ? 'Outflow' : 'Inflow'}
+                                                        {isWithdrawal ? t('wallet.outflow') : t('wallet.inflow')}
                                                     </span>
                                                     <StatusBadge status={tx.status} />
                                                 </div>
@@ -679,7 +679,7 @@ export default function Wallet() {
                             <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10 flex items-center gap-3">
                                 <ShieldCheck className="w-5 h-5 text-primary" />
                                 <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight leading-relaxed">
-                                    All transactions are secured by Polygon Smart Contracts and verified on-chain.
+                                    {t('wallet.tx_secured_polygon')}
                                 </p>
                             </div>
                         </div>

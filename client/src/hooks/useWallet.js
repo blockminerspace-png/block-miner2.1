@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
 import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
@@ -10,6 +11,7 @@ function getEthereumProvider() {
 }
 
 export function useWallet() {
+    const { t } = useTranslation();
     const [account, setAccount] = useState(null);
     const [chainId, setChainId] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -57,7 +59,7 @@ export function useWallet() {
                         method: 'wallet_addEthereumChain',
                         params: [{
                             chainId: POLYGON_CHAIN_ID,
-                            chainName: 'Polygon Mainnet',
+                            chainName: t('wallet.polygon_chain_name'),
                             nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
                             rpcUrls: ['https://polygon-rpc.com'],
                             blockExplorerUrls: ['https://polygonscan.com/'],
@@ -69,12 +71,12 @@ export function useWallet() {
             }
             console.error("Error switching network:", switchError);
         }
-    }, []);
+    }, [t]);
 
     const connect = useCallback(async () => {
         const provider = getEthereumProvider();
         if (!provider) {
-            toast.error('Web3 Wallet not detected. Please install a compatible browser wallet.');
+            toast.error(t('wallet.web3_not_detected'));
             return;
         }
 
@@ -94,6 +96,7 @@ export function useWallet() {
             }
 
             // 3. Request Signature (Proof of ownership)
+            // Must match server walletController.updateAddress (signature verification).
             const message = `Verify wallet ownership for Block Miner: ${userAccount}`;
             let signature;
             try {
@@ -118,21 +121,22 @@ export function useWallet() {
             if (res.data.ok) {
                 setAccount(userAccount);
                 setIsConnected(true);
-                toast.success('Wallet verified and connected!');
+                toast.success(t('wallet.wallet_connected_success'));
             } else {
-                throw new Error(res.data.message || 'Verification failed');
+                throw new Error(res.data.message || t('wallet.verification_failed'));
             }
         } catch (error) {
             console.error("Connection error:", error);
             if (error.code === 4001) {
-                toast.error('Connection cancelled by user.');
+                toast.error(t('wallet.connection_cancelled'));
             } else {
-                toast.error(error.message || 'Failed to connect/verify wallet.');
+                const msg = error?.response?.data?.message || error?.message;
+                toast.error(msg || t('wallet.connect_verify_failed'));
             }
         } finally {
             setIsConnecting(false);
         }
-    }, [switchNetwork]);
+    }, [switchNetwork, t]);
 
     useEffect(() => {
         checkConnection();
