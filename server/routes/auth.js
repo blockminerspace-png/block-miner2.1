@@ -288,7 +288,7 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
     }
 
     res.setHeader("Set-Cookie", [buildAccessCookie(accessToken), buildRefreshCookie(refreshToken.token, refreshToken.expiresAt)]);
-    res.status(201).json({ ok: true, user: { id: result.id, username: normalizedUsername, email: normalizedEmail } });
+    res.status(201).json({ ok: true, user: { id: result.id, name: result.name, username: normalizedUsername, email: normalizedEmail } });
   } catch (error) {
     logger.error("Register error", { error: error.message });
     res.status(500).json({ ok: false, code: "REGISTRATION_FAILED", message: "Registration failed." });
@@ -349,7 +349,7 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
     await createRefreshTokenRecord({ userId: user.id, ...refreshToken, createdAt: Date.now() });
 
     res.setHeader("Set-Cookie", [buildAccessCookie(accessToken), buildRefreshCookie(refreshToken.token, refreshToken.expiresAt)]);
-    res.json({ ok: true, user: { id: user.id, name: user.name, email: user.email, unlockedRooms: user.unlockedRooms } });
+    res.json({ ok: true, user: { id: user.id, name: user.name, username: user.username, email: user.email } });
   } catch (error) {
     res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Login failed." });
   }
@@ -366,7 +366,7 @@ authRouter.get("/session", async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
     if (!user || user.isBanned) return res.status(401).json({ ok: false });
 
-    res.json({ ok: true, user: { id: user.id, name: user.name, email: user.email, unlockedRooms: user.unlockedRooms } });
+    res.json({ ok: true, user: { id: user.id, name: user.name, username: user.username, email: user.email } });
   } catch {
     res.status(500).json({ ok: false });
   }
