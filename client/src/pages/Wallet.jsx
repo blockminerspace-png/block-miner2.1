@@ -22,6 +22,7 @@ import {
 import { api } from '../store/auth';
 import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
+import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function Wallet() {
@@ -143,7 +144,14 @@ export default function Wallet() {
                 return;
             }
 
-            const provider = new BrowserProvider(window.ethereum);
+            const eip1193 = getBrowserEthereumProvider();
+            if (!eip1193) {
+                toast.error(
+                    'Web3 wallet not detected. Open Trust Wallet (or your browser wallet) for this site, or disable extensions that block injection.'
+                );
+                return;
+            }
+            const provider = new BrowserProvider(eip1193);
             const signer = await provider.getSigner();
 
             toast.info('Requesting transaction authorized...');

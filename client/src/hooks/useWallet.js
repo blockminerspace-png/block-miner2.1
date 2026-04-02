@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
+import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
 
 const POLYGON_CHAIN_ID = '0x89'; // 137
+
+function getEthereumProvider() {
+    return getBrowserEthereumProvider();
+}
 
 export function useWallet() {
     const [account, setAccount] = useState(null);
@@ -11,14 +16,15 @@ export function useWallet() {
     const [isConnecting, setIsConnecting] = useState(false);
 
     const checkConnection = useCallback(async () => {
-        if (!window.ethereum) return;
+        const provider = getEthereumProvider();
+        if (!provider) return;
 
         try {
             // Check if we have an account already but don't force login here
             // Just sync the local address if the user is already authenticated in the app
-            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            const accounts = await provider.request({ method: 'eth_accounts' });
             if (accounts.length > 0) {
-                const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+                const currentChainId = await provider.request({ method: 'eth_chainId' });
                 setChainId(currentChainId);
 
                 // We don't automatically set as connected/account here to follow the 
@@ -36,17 +42,18 @@ export function useWallet() {
     }, []);
 
     const switchNetwork = useCallback(async () => {
-        if (!window.ethereum) return;
+        const provider = getEthereumProvider();
+        if (!provider) return;
 
         try {
-            await window.ethereum.request({
+            await provider.request({
                 method: 'wallet_switchEthereumChain',
                 params: [{ chainId: POLYGON_CHAIN_ID }],
             });
         } catch (switchError) {
             if (switchError.code === 4902) {
                 try {
-                    await window.ethereum.request({
+                    await provider.request({
                         method: 'wallet_addEthereumChain',
                         params: [{
                             chainId: POLYGON_CHAIN_ID,
@@ -65,7 +72,8 @@ export function useWallet() {
     }, []);
 
     const connect = useCallback(async () => {
-        if (!window.ethereum) {
+        const provider = getEthereumProvider();
+        if (!provider) {
             toast.error('Web3 Wallet not detected. Please install a compatible browser wallet.');
             return;
         }
@@ -73,11 +81,11 @@ export function useWallet() {
         setIsConnecting(true);
         try {
             // 1. Request accounts (Permission to talk to wallet)
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const accounts = await provider.request({ method: 'eth_requestAccounts' });
             const userAccount = accounts[0];
 
             // 2. Ensure correct network
-            const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+            const currentChainId = await provider.request({ method: 'eth_chainId' });
             setChainId(currentChainId);
 
             if (currentChainId !== POLYGON_CHAIN_ID) {
@@ -87,10 +95,19 @@ export function useWallet() {
 
             // 3. Request Signature (Proof of ownership)
             const message = `Verify wallet ownership for Block Miner: ${userAccount}`;
-            const signature = await window.ethereum.request({
-                method: 'personal_sign',
-                params: [message, userAccount],
-            });
+            let signature;
+            try {
+                signature = await provider.request({
+                    method: 'personal_sign',
+                    params: [message, userAccount],
+                });
+            } catch (signError) {
+                signature = await provider.request({
+                    method: 'personal_sign',
+                    params: [userAccount, message],
+                });
+                if (!signature) throw signError;
+            }
 
             // 4. Verify on Backend
             const res = await api.post('/wallet/update-address', {
@@ -120,7 +137,8 @@ export function useWallet() {
     useEffect(() => {
         checkConnection();
 
-        if (window.ethereum) {
+        const provider = getEthereumProvider();
+        if (provider) {
             const handleAccountsChanged = (accounts) => {
                 if (accounts.length > 0) {
                     setAccount(accounts[0]);
@@ -137,12 +155,12 @@ export function useWallet() {
                 // window.location.reload(); 
             };
 
-            window.ethereum.on('accountsChanged', handleAccountsChanged);
-            window.ethereum.on('chainChanged', handleChainChanged);
+            provider.on('accountsChanged', handleAccountsChanged);
+            provider.on('chainChanged', handleChainChanged);
 
             return () => {
-                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-                window.ethereum.removeListener('chainChanged', handleChainChanged);
+                provider.removeListener('accountsChanged', handleAccountsChanged);
+                provider.removeListener('chainChanged', handleChainChanged);
             };
         }
     }, [checkConnection]);
