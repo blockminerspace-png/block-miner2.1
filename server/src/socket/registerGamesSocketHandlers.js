@@ -6,7 +6,7 @@ import { getTokenFromRequest } from '../../utils/token.js';
 
 const logger = loggerLib.child("GamesSocket");
 const GAME_SESSIONS = new Map();
-const LAST_GAME_FINISH = new Map();
+const LAST_GAME_FINISH = new Map(); // key: `${userId}-${gameSlug}`
 
 const SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano', 'polkadot', 'dogecoin', 'polygon'];
 const MATCH3_SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano'];
@@ -23,13 +23,14 @@ export function registerGamesSocketHandlers({ io, engine }) {
 
         if (!userId) return socket.emit("game:error", "Sessão inválida.");
 
-        // Cooldown check (1 minute)
-        const lastFinish = LAST_GAME_FINISH.get(userId);
+        // Cooldown check individual por jogo (3 minutos)
+        const cooldownKey = `${userId}-${gameSlug}`;
+        const lastFinish = LAST_GAME_FINISH.get(cooldownKey);
         if (lastFinish) {
           const elapsed = Date.now() - lastFinish;
-          if (elapsed < 60000) {
-            const remaining = Math.ceil((60000 - elapsed) / 1000);
-            return socket.emit("game:error", `Aguarde ${remaining} segundos para iniciar um novo jogo.`);
+          if (elapsed < 180000) {
+            const remaining = Math.ceil((180000 - elapsed) / 1000);
+            return socket.emit("game:error", `Aguarde ${remaining} segundos para iniciar este jogo novamente.`);
           }
         }
 
@@ -191,8 +192,8 @@ async function finishGame(socket, state, success, engine) {
   state.isFinished = true;
   GAME_SESSIONS.delete(socket.id);
   
-  // Record finish time for cooldown
-  LAST_GAME_FINISH.set(Number(state.userId), Date.now());
+  // Record finish time for cooldown (individual por jogo)
+  LAST_GAME_FINISH.set(`${Number(state.userId)}-${state.slug}`, Date.now());
 
   if (success) {
     // ANTI-CHEAT: Verifica o tempo mínimo humanamente viável para terminar (ex: 15 segundos)
@@ -205,17 +206,6 @@ async function finishGame(socket, state, success, engine) {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     try {
       // ANTI-CHEAT: Limita o máximo de poderes ativos acumulados pelo minigame a um valor seguro (ex: max 10 instâncias = 500 H/s)
-      const activePowersCount = await prisma.userPowerGame.count({
-        where: {
-          userId: Number(state.userId),
-          expiresAt: { gt: new Date() }
-        }
-      });
-
-      if (activePowersCount >= 10) {
-         return socket.emit("game:finished", { success: false, message: "LIMITE MÁXIMO DE BÔNUS ATINGIDO! Aguarde um bônus expirar." });
-      }
-
       await prisma.userPowerGame.create({ 
         data: { 
           userId: Number(state.userId), 

@@ -27,9 +27,11 @@ export default function Games() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [rewardMessage, setRewardMessage] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [cooldown, setCooldown] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dragInfo, setDragInfo] = useState(null);
+  const [memoryCooldown, setMemoryCooldown] = useState(0);
+  const [match3Cooldown, setMatch3Cooldown] = useState(0);
+  const activeGameRef = useRef(null);
 
   // High Precision Engine States
   const canvasRef = useRef(null);
@@ -90,7 +92,8 @@ export default function Games() {
     newSocket.on('game:score_update', (data) => { setGameState(prev => prev ? ({ ...prev, score: data.score }) : prev); });
     newSocket.on('game:finished', (data) => {
       setIsGameOver(true);
-      setCooldown(60);
+      if (activeGameRef.current === 'memory') setMemoryCooldown(180);
+      else if (activeGameRef.current === 'match-3') setMatch3Cooldown(180);
       if (data.success) {
         setRewardMessage(data.reward);
         toast.success(data.reward);
@@ -116,11 +119,18 @@ export default function Games() {
   }, [gameState, isGameOver, timeLeft, socket]);
 
   useEffect(() => {
-    if (cooldown > 0) {
-      const timer = setInterval(() => setCooldown(c => Math.max(0, c - 1)), 1000);
+    if (memoryCooldown > 0) {
+      const timer = setInterval(() => setMemoryCooldown(c => Math.max(0, c - 1)), 1000);
       return () => clearInterval(timer);
     }
-  }, [cooldown]);
+  }, [memoryCooldown]);
+
+  useEffect(() => {
+    if (match3Cooldown > 0) {
+      const timer = setInterval(() => setMatch3Cooldown(c => Math.max(0, c - 1)), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [match3Cooldown]);
 
   const createExplosion = (x, y) => {
     for (let i = 0; i < 25; i++) {
@@ -315,8 +325,8 @@ export default function Games() {
 
       {!activeGame ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldown > 0} cooldown={cooldown} />
-          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldown > 0} cooldown={cooldown} />
+          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { setActiveGame('memory'); activeGameRef.current = 'memory'; socket.emit('game:start', 'crypto-memory'); }} disabled={memoryCooldown > 0} cooldown={memoryCooldown} />
+          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { setActiveGame('match-3'); activeGameRef.current = 'match-3'; socket.emit('game:start', 'crypto-match-3'); }} disabled={match3Cooldown > 0} cooldown={match3Cooldown} />
         </div>
       ) : (
         <div className="relative">
@@ -327,11 +337,11 @@ export default function Games() {
                 <h2 className="text-7xl font-black text-white italic tracking-tighter uppercase leading-none">Relatório Final</h2>
                 {rewardMessage ? <div className="p-12 bg-emerald-500/10 border border-emerald-500/20 rounded-[3rem] shadow-2xl backdrop-blur-md"><p className="text-emerald-400 font-black text-4xl uppercase">Bônus Concedido!</p><p className="text-emerald-400/70 font-bold mt-2 text-xl uppercase">{rewardMessage}</p></div> : <div className="p-10 bg-red-500/10 border border-red-500/20 rounded-[2rem]"><p className="text-red-400 font-black text-2xl uppercase tracking-widest">Missão Falhou</p></div>}
                 <button 
-                  onClick={() => socket.emit('game:start', activeGame === 'memory' ? 'crypto-memory' : 'crypto-match-3')} 
-                  disabled={cooldown > 0}
-                  className={`px-20 py-7 bg-primary text-white font-black rounded-[2rem] hover:scale-105 transition-all uppercase italic tracking-widest shadow-glow text-xl ${cooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => { const slug = activeGame === 'memory' ? 'crypto-memory' : 'crypto-match-3'; setIsGameOver(false); setGameState(null); socket.emit('game:start', slug); }}
+                  disabled={(activeGame === 'memory' ? memoryCooldown : match3Cooldown) > 0}
+                  className={`px-20 py-7 bg-primary text-white font-black rounded-[2rem] hover:scale-105 transition-all uppercase italic tracking-widest shadow-glow text-xl ${(activeGame === 'memory' ? memoryCooldown : match3Cooldown) > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {cooldown > 0 ? `AGUARDE ${cooldown}s` : 'REINICIAR LINK'}
+                  {(activeGame === 'memory' ? memoryCooldown : match3Cooldown) > 0 ? `AGUARDE ${activeGame === 'memory' ? memoryCooldown : match3Cooldown}s` : 'REINICIAR LINK'}
                 </button>
                 <button onClick={() => { setActiveGame(null); setGameState(null); }} className="text-slate-500 font-bold uppercase text-xs tracking-[0.3em] hover:text-white transition-colors">Voltar ao Terminal</button>
               </div>
