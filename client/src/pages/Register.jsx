@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/auth';
-import { Cpu, Mail, Lock, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Cpu, Mail, Lock, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Gift } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 
 export default function Register() {
@@ -85,8 +85,8 @@ export default function Register() {
                     )}
 
                     {formData.refCode && (
-                        <div className="mb-8 p-4 bg-primary/10 border border-primary/20 rounded-2xl flex items-center gap-3">
-                            <UserPlus className="w-5 h-5 text-primary shrink-0" />
+                        <div className="mb-8 p-3 bg-primary/10 border border-primary/20 rounded-2xl flex items-center gap-3">
+                            <Gift className="w-4 h-4 text-primary shrink-0" />
                             <p className="text-primary text-[11px] font-bold uppercase tracking-wider">
                                 {t('auth.register.referral_msg', { code: formData.refCode })}
                             </p>
@@ -181,6 +181,26 @@ export default function Register() {
                                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 {showPassword ? t('auth.register.hide_password') : t('auth.register.show_password')}
                             </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="refCode">
+                                {t('auth.register.referral_label', 'Código de indicação (opcional)')}
+                            </label>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <Gift className="h-5 w-5 text-gray-600 group-focus-within:text-primary transition-colors" />
+                                </div>
+                                <input
+                                    id="refCode"
+                                    type="text"
+                                    value={formData.refCode}
+                                    onChange={handleChange}
+                                    readOnly={!!searchParams.get('ref')}
+                                    className={`block w-full pl-12 pr-4 py-3.5 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm ${searchParams.get('ref') ? 'opacity-70 cursor-default' : ''}`}
+                                    placeholder="Ex: a1b2c3d4e5"
+                                />
+                            </div>
                         </div>
 
                         <button

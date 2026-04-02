@@ -53,6 +53,11 @@ export class MiningEngine {
           miner.baseHashRate = Number(profile.base_hash_rate || 0);
           miner.refCode = profile.refCode;
           miner.referralCount = profile.referralCount;
+          // Emit updated miner state so referralCount updates in real-time for online referrers
+          if (this.io) {
+            const state = this.getPublicState(miner.id);
+            if (state) this.io.to(`user:${userId}`).emit("state:update", state);
+          }
         }
       }
     }
