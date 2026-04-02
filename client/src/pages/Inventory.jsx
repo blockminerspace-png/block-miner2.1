@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Cpu, Box, Trash2, Power, Plus, Settings2, Info, ChevronRight, AlertCircle, Zap } from 'lucide-react';
+import { Cpu, Box, Trash2, Power, Plus, Settings2, Info, ChevronRight, AlertCircle, Zap, Clock } from 'lucide-react';
 import { useGameStore } from '../store/game';
 import {
     getGlobalSlotIndex,
