@@ -231,8 +231,9 @@ export async function confirmCheckin(req, res) {
       });
     } catch (e) {
       console.error("Checkin RPC error:", e.message);
-      return res.status(502).json({
-        ok: false,
+      // 200 so the client does not treat this as a hard failure (row is already saved as pending).
+      return res.json({
+        ok: true,
         pending: true,
         message: "Blockchain temporarily unavailable. Your check-in is saved; refresh in a moment."
       });

@@ -85,12 +85,22 @@ export default function Checkin() {
     }, [status, fetchStatus, t]);
 
     const submitTxToServer = async (txHash) => {
-        const res = await api.post('/checkin/confirm', { txHash });
-        if (res.data.ok && res.data.pending) {
-            toast.message(t('checkin.waiting_blockchain'));
+        try {
+            const res = await api.post('/checkin/confirm', { txHash });
+            if (res.data.ok && res.data.pending) {
+                toast.message(res.data.message || t('checkin.waiting_blockchain'));
+            }
+            await fetchStatus();
+            return res.data;
+        } catch (err) {
+            const d = err.response?.data;
+            if (d?.pending) {
+                toast.message(d.message || t('checkin.waiting_blockchain'));
+                await fetchStatus();
+                return d;
+            }
+            throw err;
         }
-        await fetchStatus();
-        return res.data;
     };
 
     const handlePay = async () => {

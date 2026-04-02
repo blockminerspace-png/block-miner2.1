@@ -130,10 +130,46 @@ export async function createMiner(req, res) {
 export async function updateMiner(req, res) {
   try {
     const minerId = Number(req.params.id);
-    const miner = await minersModel.updateMiner(minerId, req.body);
+    if (!Number.isFinite(minerId) || minerId < 1) {
+      return res.status(400).json({ ok: false, message: "Invalid miner id." });
+    }
+    const b = req.body || {};
+    const baseHashRate = Number(b.baseHashRate);
+    const price = Number(b.price);
+    const slotSize = Number(b.slotSize);
+    if (!Number.isFinite(baseHashRate) || baseHashRate < 0) {
+      return res.status(400).json({ ok: false, message: "Invalid baseHashRate (must be a number ≥ 0)." });
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      return res.status(400).json({ ok: false, message: "Invalid price." });
+    }
+    if (![1, 2].includes(slotSize)) {
+      return res.status(400).json({ ok: false, message: "slotSize must be 1 or 2." });
+    }
+    const name = typeof b.name === "string" ? b.name.trim() : "";
+    const slug = typeof b.slug === "string" ? b.slug.trim() : "";
+    if (!name || !slug) {
+      return res.status(400).json({ ok: false, message: "Name and slug are required." });
+    }
+    const data = {
+      name,
+      slug,
+      baseHashRate,
+      price,
+      slotSize,
+      imageUrl: b.imageUrl != null && String(b.imageUrl).trim() !== "" ? String(b.imageUrl).trim() : null,
+      isActive: Boolean(b.isActive),
+      showInShop: Boolean(b.showInShop)
+    };
+    const miner = await minersModel.updateMiner(minerId, data);
     res.json({ ok: true, miner });
   } catch (error) {
-    res.status(500).json({ ok: false, message: "Update failed" });
+    logger.error("Admin updateMiner", { error: error.message, code: error.code });
+    const msg =
+      error.code === "P2002"
+        ? "Slug or transaction reference must be unique."
+        : error.message || "Update failed";
+    res.status(500).json({ ok: false, message: msg });
   }
 }
 
