@@ -286,6 +286,39 @@ async function bootstrap() {
     }
     // --- END ONE-TIME SCRIPT ---
 
+    // --- MIGRATION: Extend game/yt powers criados com 24h para GAME_POWER_DAYS ---
+    try {
+      const GAME_POWER_DAYS = Number(process.env.GAME_POWER_DAYS) || 7;
+      const YT_POWER_DAYS = Number(process.env.YT_POWER_DAYS) || 7;
+      const now = new Date();
+      // Pega apenas powers ativos criados nos últimos 3 dias que ainda expiram em < 2 dias (criados com expiry de 24h)
+      const cutoffCreated = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      const shortExpiryThreshold = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+
+      const oldGamePowers = await prisma.userPowerGame.findMany({
+        where: { playedAt: { gt: cutoffCreated }, expiresAt: { gt: now, lt: shortExpiryThreshold } },
+        select: { id: true, playedAt: true }
+      });
+      for (const p of oldGamePowers) {
+        const newExpiry = new Date(p.playedAt.getTime() + GAME_POWER_DAYS * 24 * 60 * 60 * 1000);
+        await prisma.userPowerGame.update({ where: { id: p.id }, data: { expiresAt: newExpiry } });
+      }
+      if (oldGamePowers.length > 0) logger.info(`Migrated ${oldGamePowers.length} game powers to ${GAME_POWER_DAYS}-day expiry.`);
+
+      const oldYtPowers = await prisma.youtubeWatchPower.findMany({
+        where: { claimedAt: { gt: cutoffCreated }, expiresAt: { gt: now, lt: shortExpiryThreshold } },
+        select: { id: true, claimedAt: true }
+      });
+      for (const p of oldYtPowers) {
+        const newExpiry = new Date(p.claimedAt.getTime() + YT_POWER_DAYS * 24 * 60 * 60 * 1000);
+        await prisma.youtubeWatchPower.update({ where: { id: p.id }, data: { expiresAt: newExpiry } });
+      }
+      if (oldYtPowers.length > 0) logger.info(`Migrated ${oldYtPowers.length} YT powers to ${YT_POWER_DAYS}-day expiry.`);
+    } catch (e) {
+      logger.error("Power expiry migration failed", { error: e.message });
+    }
+    // --- END MIGRATION ---
+
     server.listen(port, host, () => {
       logger.info(`Server running on ${host}:${port}`);
       
