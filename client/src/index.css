@@ -8,6 +8,17 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-miner {
+    animation: none !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    color: #3b82f6 !important;
+    -webkit-text-fill-color: #3b82f6 !important;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

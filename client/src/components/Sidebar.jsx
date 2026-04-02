@@ -17,6 +17,7 @@ import {
   Tag
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
+import BrandLogo from './BrandLogo';
 
 export default function Sidebar() {
   const { t } = useTranslation();
@@ -57,11 +58,8 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-surface border-r border-gray-800/50 shrink-0 flex flex-col h-full shadow-2xl relative z-20">
       {/* Brand Logo */}
-      <div className="flex items-center gap-3 p-8">
-        <div className="w-10 h-10 bg-gradient-to-tr from-primary to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
-          <img src="/icon.png" alt="Logo" className="w-6 h-6 object-contain" />
-        </div>
-        <span className="font-black text-2xl tracking-tighter text-white italic">BLOCK<span className="text-primary">MINER</span></span>
+      <div className="p-8">
+        <BrandLogo variant="sidebar" />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 space-y-8 scrollbar-hide pb-8">

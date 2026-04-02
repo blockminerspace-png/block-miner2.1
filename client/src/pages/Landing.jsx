@@ -14,6 +14,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
+import BrandLogo from '../components/BrandLogo';
 
 const STAGGER = ['[animation-delay:0ms]', '[animation-delay:90ms]', '[animation-delay:180ms]', '[animation-delay:270ms]'];
 
@@ -54,14 +55,12 @@ export default function Landing() {
 
       <header className="relative z-20 border-b border-white/[0.06] bg-background/70 backdrop-blur-xl sticky top-0">
         <div className="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative p-2 rounded-xl bg-gradient-to-br from-primary/25 to-accent/20 border border-white/10 shadow-lg shadow-primary/10 group-hover:border-primary/40 transition-colors">
-              <Pickaxe className="w-6 h-6 text-sky-300" aria-hidden />
-              <Sparkles className="absolute -top-1 -right-1 w-3 h-3 text-amber-300 opacity-80 animate-pulse" aria-hidden />
-            </div>
-            <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              Block Miner
-            </span>
+          <Link
+            to="/"
+            className="group flex items-center rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            aria-label="Block Miner — início"
+          >
+            <BrandLogo variant="header" interactive />
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link

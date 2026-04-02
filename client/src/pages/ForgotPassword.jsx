@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
+import BrandLogo from '../components/BrandLogo';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -84,11 +85,8 @@ export default function ForgotPassword() {
 
       <div className="w-full max-w-[440px] relative z-10">
         <div className="text-center mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
-          <div className="inline-flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-tr from-primary to-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 overflow-hidden">
-              <img src="/icon.png" alt="Logo" className="w-7 h-7 object-contain" />
-            </div>
-            <span className="font-black text-3xl tracking-tighter text-white">BLOCK<span className="text-primary">MINER</span></span>
+          <div className="flex justify-center mb-6">
+            <BrandLogo variant="auth" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Recuperar senha</h1>
           <p className="text-gray-500 font-medium mt-1">Digite seu e-mail para iniciar a redefinicao.</p>

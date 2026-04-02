@@ -23,6 +23,20 @@ import loggerLib from "../utils/logger.js";
 const logger = loggerLib.child("AuthRoutes");
 export const authRouter = express.Router();
 
+/** Referral link may use ?ref=<userId> (digits) or legacy ?ref=<refCode>. */
+async function resolveReferrerFromRefInput(refCodeInput) {
+  const raw = String(refCodeInput ?? "").trim();
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) {
+    const id = parseInt(raw, 10);
+    if (id > 0) {
+      const byId = await prisma.user.findUnique({ where: { id } });
+      if (byId) return byId;
+    }
+  }
+  return prisma.user.findUnique({ where: { refCode: raw } });
+}
+
 const WELCOME_MINER_SLUG = "welcome-10ghs";
 const WELCOME_MINER_NAME = "Welcome Miner";
 const WELCOME_MINER_HASH_RATE = 10;
@@ -200,7 +214,7 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
     let referrerId = null;
 
     if (refCodeInput) {
-      const referrer = await prisma.user.findUnique({ where: { refCode: refCodeInput } });
+      const referrer = await resolveReferrerFromRefInput(refCodeInput);
       if (referrer) {
         // 2. Anti-Self-Referral: Prevent referring if IP matches or last known IP matches
         if (referrer.ip === clientIp) {

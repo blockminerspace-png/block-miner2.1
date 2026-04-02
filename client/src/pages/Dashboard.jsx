@@ -22,6 +22,11 @@ export default function Dashboard() {
     const miner = stats?.miner;
     const blockHistory = stats?.blockHistory || [];
 
+    const referralLink =
+        user?.id != null
+            ? `${window.location.origin}/register?ref=${encodeURIComponent(String(user.id))}`
+            : '';
+
     const formattedSpeed = miner ? formatHashrate(miner.estimatedHashRate) : '0 H/s';
     const [speedVal, speedUnit] = formattedSpeed.split(' ');
 
@@ -29,8 +34,8 @@ export default function Dashboard() {
     const [netVal, netUnit] = formattedNetwork.split(' ');
 
     const handleCopyRef = () => {
-        const refLink = `${window.location.origin}/register?ref=${miner?.refCode}`;
-        navigator.clipboard.writeText(refLink);
+        if (!referralLink) return;
+        navigator.clipboard.writeText(referralLink);
         setCopied(true);
         toast.success("Link de indicação copiado!");
         setTimeout(() => setCopied(false), 2000);
@@ -174,12 +179,14 @@ export default function Dashboard() {
                                     <input 
                                         type="text" 
                                         readOnly 
-                                        value={`${window.location.origin}/register?ref=${miner?.refCode || '...'}`}
+                                        value={referralLink || '—'}
                                         className="bg-transparent border-none text-xs font-bold text-gray-400 px-4 w-full focus:outline-none"
                                     />
                                     <button 
+                                        type="button"
                                         onClick={handleCopyRef}
-                                        className="bg-gray-800 hover:bg-gray-700 text-white p-3 rounded-xl transition-all active:scale-95 group/btn"
+                                        disabled={!referralLink}
+                                        className="bg-gray-800 hover:bg-gray-700 text-white p-3 rounded-xl transition-all active:scale-95 group/btn disabled:opacity-40 disabled:pointer-events-none"
                                     >
                                         {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                                     </button>
