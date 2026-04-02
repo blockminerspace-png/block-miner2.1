@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 import { create } from 'zustand';
 import axios from 'axios';
 import { generateSecurityPayload } from '../utils/security';
@@ -13,94 +12,7 @@ export const api = axios.create({
 
 // Interceptor to attach Anti-Bot payload to every API request
 api.interceptors.request.use((config) => {
-    // We only attach this for state-changing or critical requests, 
-    // but attaching it everywhere is safer and simpler.
-    try {
-        const security = generateSecurityPayload();
-        config.headers['X-Anti-Bot-Payload'] = security.fingerprint;
-        config.headers['X-Anti-Bot-Key'] = security.sk;
-        config.headers['X-Anti-Bot'] = security.isBot ? '1' : '0';
-    } catch (e) {
-        // Fallback if security module fails
-        config.headers['X-Anti-Bot'] = '0';
-    }
-    return config;
-}, (error) => {
-    return Promise.reject(error);
-});
-
-export const useAuthStore = create((set) => ({
-    user: null,
-    isAuthenticated: false,
-    isLoading: true,
-    error: null,
-
-    checkSession: async () => {
-        try {
-            set({ isLoading: true, error: null });
-            const response = await api.get('/auth/session');
-            set({ user: response.data.user, isAuthenticated: true, isLoading: false });
-        } catch (error) {
-            set({ user: null, isAuthenticated: false, isLoading: false });
-        }
-    },
-
-    login: async (identifier, password) => {
-        try {
-            set({ isLoading: true, error: null });
-            const response = await api.post('/auth/login', { identifier, password });
-            set({ user: response.data.user, isAuthenticated: true, isLoading: false });
-            return { success: true };
-        } catch (error) {
-            set({
-                error: error.response?.data?.message || 'Erro ao realizar login',
-                isLoading: false
-            });
-            return { success: false, message: error.response?.data?.message };
-        }
-    },
-
-    register: async (data) => {
-        try {
-            set({ isLoading: true, error: null });
-            const response = await api.post('/auth/register', data);
-            set({ user: response.data.user, isAuthenticated: true, isLoading: false });
-            return { success: true };
-        } catch (error) {
-            const fieldError = error.response?.data?.errors?.[0]?.message;
-            const code = error.response?.data?.code;
-            set({
-                error: fieldError || error.response?.data?.message || 'Erro ao registrar',
-                isLoading: false
-            });
-            return { success: false, message: fieldError || error.response?.data?.message, code };
-        }
-    },
-
-    logout: async () => {
-        try {
-            await api.post('/auth/logout');
-        } finally {
-            set({ user: null, isAuthenticated: false });
-        }
-    }
-}));
-=======
-import { create } from 'zustand';
-import axios from 'axios';
-import { generateSecurityPayload } from '../utils/security';
-
-// Configure default axios behavior for our API
-export const api = axios.create({
-    baseURL: '/api',
-    withCredentials: true, // Need this to send cookies
-    xsrfCookieName: 'blockminer_csrf',
-    xsrfHeaderName: 'x-csrf-token',
-});
-
-// Interceptor to attach Anti-Bot payload to every API request
-api.interceptors.request.use((config) => {
-    // We only attach this for state-changing or critical requests, 
+    // We only attach this for state-changing or critical requests,
     // but attaching it everywhere is safer and simpler.
     try {
         const security = generateSecurityPayload();
@@ -172,4 +84,3 @@ export const useAuthStore = create((set) => ({
         }
     }
 }));
->>>>>>> Stashed changes
