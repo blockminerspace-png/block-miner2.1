@@ -16,6 +16,58 @@ const __dirname = path.dirname(__filename);
 const logger = loggerLib.child("AdminController");
 const execFileAsync = promisify(execFile);
 
+/** Avoid Boolean(\"false\") === true when clients send string booleans. */
+function parseBoolInput(v) {
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0) return false;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1") return true;
+    if (s === "false" || s === "0" || s === "") return false;
+  }
+  return Boolean(v);
+}
+
+function serializeMinerForAdmin(m) {
+  if (!m) return m;
+  return {
+    id: m.id,
+    name: m.name,
+    slug: m.slug,
+    baseHashRate: Number(m.baseHashRate ?? 0),
+    price: Number(m.price ?? 0),
+    slotSize: Number(m.slotSize ?? 1),
+    imageUrl: m.imageUrl && String(m.imageUrl).trim() !== "" ? String(m.imageUrl).trim() : null,
+    isActive: Boolean(m.isActive),
+    showInShop: Boolean(m.showInShop),
+    createdAt: m.createdAt
+  };
+}
+
+function parseMinerWriteBody(b) {
+  const body = b || {};
+  const baseHashRate = Number(body.baseHashRate);
+  const price = Number(body.price);
+  const slotSize = Number(body.slotSize);
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const slug = typeof body.slug === "string" ? body.slug.trim() : "";
+  const imageUrl =
+    body.imageUrl != null && String(body.imageUrl).trim() !== "" ? String(body.imageUrl).trim() : null;
+  const isActive = parseBoolInput(body.isActive);
+  const showInShop = parseBoolInput(body.showInShop);
+  const errors = [];
+  if (!Number.isFinite(baseHashRate) || baseHashRate < 0) errors.push("Invalid baseHashRate (must be a number ≥ 0).");
+  if (!Number.isFinite(price) || price < 0) errors.push("Invalid price.");
+  if (![1, 2].includes(slotSize)) errors.push("slotSize must be 1 or 2.");
+  if (!name) errors.push("Name is required.");
+  if (!slug) errors.push("Slug is required.");
+  return {
+    ok: errors.length === 0,
+    message: errors[0] || null,
+    data: { name, slug, baseHashRate, price, slotSize, imageUrl, isActive, showInShop }
+  };
+}
+
 // Utility: Server Metrics
 async function measureCpuUsagePercent(sampleMs = 300) {
   const before = os.cpus().reduce((acc, cpu) => {
@@ -111,7 +163,8 @@ export async function setUserBan(req, res) {
 
 export async function listMiners(_req, res) {
   try {
-    const miners = await minersModel.listAllMiners();
+    const rows = await minersModel.listAllMiners();
+    const miners = rows.map(serializeMinerForAdmin);
     res.json({ ok: true, miners });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Load failed" });
@@ -120,10 +173,19 @@ export async function listMiners(_req, res) {
 
 export async function createMiner(req, res) {
   try {
-    const miner = await minersModel.createMiner(req.body);
-    res.json({ ok: true, miner });
+    const parsed = parseMinerWriteBody(req.body);
+    if (!parsed.ok) {
+      return res.status(400).json({ ok: false, message: parsed.message });
+    }
+    const miner = await minersModel.createMiner(parsed.data);
+    res.json({ ok: true, miner: serializeMinerForAdmin(miner) });
   } catch (error) {
-    res.status(500).json({ ok: false, message: "Creation failed" });
+    logger.error("Admin createMiner", { error: error.message, code: error.code });
+    const msg =
+      error.code === "P2002"
+        ? "Slug must be unique."
+        : error.message || "Creation failed";
+    res.status(500).json({ ok: false, message: msg });
   }
 }
 
@@ -133,42 +195,20 @@ export async function updateMiner(req, res) {
     if (!Number.isFinite(minerId) || minerId < 1) {
       return res.status(400).json({ ok: false, message: "Invalid miner id." });
     }
-    const b = req.body || {};
-    const baseHashRate = Number(b.baseHashRate);
-    const price = Number(b.price);
-    const slotSize = Number(b.slotSize);
-    if (!Number.isFinite(baseHashRate) || baseHashRate < 0) {
-      return res.status(400).json({ ok: false, message: "Invalid baseHashRate (must be a number ≥ 0)." });
+    const parsed = parseMinerWriteBody(req.body);
+    if (!parsed.ok) {
+      return res.status(400).json({ ok: false, message: parsed.message });
     }
-    if (!Number.isFinite(price) || price < 0) {
-      return res.status(400).json({ ok: false, message: "Invalid price." });
-    }
-    if (![1, 2].includes(slotSize)) {
-      return res.status(400).json({ ok: false, message: "slotSize must be 1 or 2." });
-    }
-    const name = typeof b.name === "string" ? b.name.trim() : "";
-    const slug = typeof b.slug === "string" ? b.slug.trim() : "";
-    if (!name || !slug) {
-      return res.status(400).json({ ok: false, message: "Name and slug are required." });
-    }
-    const data = {
-      name,
-      slug,
-      baseHashRate,
-      price,
-      slotSize,
-      imageUrl: b.imageUrl != null && String(b.imageUrl).trim() !== "" ? String(b.imageUrl).trim() : null,
-      isActive: Boolean(b.isActive),
-      showInShop: Boolean(b.showInShop)
-    };
-    const miner = await minersModel.updateMiner(minerId, data);
-    res.json({ ok: true, miner });
+    const miner = await minersModel.updateMiner(minerId, parsed.data);
+    res.json({ ok: true, miner: serializeMinerForAdmin(miner) });
   } catch (error) {
     logger.error("Admin updateMiner", { error: error.message, code: error.code });
     const msg =
       error.code === "P2002"
-        ? "Slug or transaction reference must be unique."
-        : error.message || "Update failed";
+        ? "Slug must be unique."
+        : error.code === "P2025"
+          ? "Miner not found."
+          : error.message || "Update failed";
     res.status(500).json({ ok: false, message: msg });
   }
 }

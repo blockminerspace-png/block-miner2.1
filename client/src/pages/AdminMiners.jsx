@@ -17,6 +17,21 @@ import {
 import { api } from '../store/auth';
 import { formatHashrate } from '../utils/machine';
 
+const MINER_IMG_FALLBACK = '/icon.png';
+
+function normalizeMinerFromApi(m) {
+    if (!m) return m;
+    return {
+        ...m,
+        baseHashRate: m.baseHashRate != null && m.baseHashRate !== '' ? Number(m.baseHashRate) : 0,
+        price: m.price != null && m.price !== '' ? Number(m.price) : 0,
+        slotSize: Number(m.slotSize ?? 1),
+        isActive: m.isActive === true || m.isActive === 1,
+        showInShop: m.showInShop === true || m.showInShop === 1,
+        imageUrl: m.imageUrl || null
+    };
+}
+
 export default function AdminMiners() {
     const [miners, setMiners] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +55,7 @@ export default function AdminMiners() {
             setIsLoading(true);
             const res = await api.get('/admin/miners');
             if (res.data.ok) {
-                setMiners(res.data.miners);
+                setMiners((res.data.miners || []).map(normalizeMinerFromApi));
             }
         } catch (err) {
             console.error("Erro ao buscar mineradoras", err);
@@ -103,7 +118,7 @@ export default function AdminMiners() {
                 baseHashRate,
                 price,
                 slotSize,
-                imageUrl: miner.imageUrl ?? '',
+                imageUrl: miner.imageUrl != null && String(miner.imageUrl).trim() !== '' ? String(miner.imageUrl).trim() : null,
                 isActive: Boolean(miner.isActive),
                 showInShop: Boolean(miner.showInShop)
             });
@@ -236,11 +251,15 @@ export default function AdminMiners() {
                                     <td className="px-8 py-5">
                                         <div className="w-12 h-12 bg-slate-950 rounded-lg p-2 border border-slate-800">
                                             <img
-                                                src={m.imageUrl || '/icon.png'}
+                                                src={m.imageUrl || MINER_IMG_FALLBACK}
                                                 alt=""
                                                 className="w-full h-full object-contain"
+                                                data-fallback-applied="0"
                                                 onError={(e) => {
-                                                    e.target.src = '/icon.png';
+                                                    const el = e.currentTarget;
+                                                    if (el.dataset.fallbackApplied === '1') return;
+                                                    el.dataset.fallbackApplied = '1';
+                                                    el.src = MINER_IMG_FALLBACK;
                                                 }}
                                             />
                                         </div>
