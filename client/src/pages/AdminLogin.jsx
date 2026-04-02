@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ShieldAlert, Lock, Mail, Loader2, ChevronRight, AlertCircle } from 'lucide-react';
 import { api } from '../store/auth';
@@ -15,8 +15,25 @@ export default function AdminLogin() {
         setError(null);
         setIsLoading(true);
 
+        // Autofill do browser preenche o DOM mas muitas vezes não atualiza o state React —
+        // ler FormData no submit garante o valor real dos inputs.
+        const form = e.currentTarget;
+        const fd = new FormData(form);
+        const emailVal = String(fd.get('email') ?? '').trim() || email.trim();
+        const codeVal = String(fd.get('password') ?? '').trim() || password.trim();
+
         try {
-            const res = await api.post('/admin/auth/login', { email, password });
+            if (!emailVal || !codeVal) {
+                setError('Preenche o e-mail e o código de segurança.');
+                setIsLoading(false);
+                return;
+            }
+
+            const res = await api.post(
+                '/admin/auth/login',
+                { email: emailVal, securityCode: codeVal, password: codeVal },
+                { headers: { 'Content-Type': 'application/json' } }
+            );
             if (res.data.ok) {
                 // O token de admin geralmente é salvo em um cookie seguro pelo backend,
                 // mas se o sistema usar localStorage para o token de admin, salvamos aqui.
@@ -68,8 +85,10 @@ export default function AdminLogin() {
                                     <Mail className="h-5 w-5 text-slate-600 group-focus-within:text-amber-500 transition-colors" />
                                 </div>
                                 <input
+                                    name="email"
                                     type="email"
                                     required
+                                    autoComplete="username"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="block w-full pl-12 pr-4 py-4 border border-slate-800 rounded-2xl bg-slate-950 text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/50 transition-all font-medium text-sm"
@@ -85,8 +104,10 @@ export default function AdminLogin() {
                                     <Lock className="h-5 w-5 text-slate-600 group-focus-within:text-amber-500 transition-colors" />
                                 </div>
                                 <input
+                                    name="password"
                                     type="password"
                                     required
+                                    autoComplete="current-password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="block w-full pl-12 pr-4 py-4 border border-slate-800 rounded-2xl bg-slate-950 text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/50 transition-all font-medium text-sm"

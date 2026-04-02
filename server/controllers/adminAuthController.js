@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import loggerLib from "../utils/logger.js";
-import { ADMIN_SESSION_COOKIE } from "../utils/token.js";
+import { ADMIN_SESSION_COOKIE, getAdminTokenFromRequest } from "../utils/token.js";
 
 const logger = loggerLib.child("AdminAuthController");
 
@@ -17,10 +17,31 @@ const ADMIN_SECURITY_CODE = String(process.env.ADMIN_SECURITY_CODE || "").trim()
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.ADMIN_JWT_EXPIRES_IN || "24h";
 
-function buildAdminCookie(token) {
+/** Use Secure cookie only over HTTPS (or when forced), so admin login works on http://IP:port in production. */
+function adminCookieShouldBeSecure(req) {
+  const flag = String(process.env.ADMIN_SESSION_COOKIE_SECURE || "").trim().toLowerCase();
+  if (flag === "false") return false;
+  if (flag === "true") return true;
+  const proto = String(req.headers["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+  return Boolean(req.secure || proto === "https");
+}
+
+function buildAdminCookie(token, { secure } = {}) {
   const parts = [`${ADMIN_SESSION_COOKIE}=${encodeURIComponent(token)}`, "Path=/", "HttpOnly", "SameSite=Strict"];
-  if (process.env.NODE_ENV === "production") parts.push("Secure");
+  if (secure) parts.push("Secure");
   return parts.join("; ");
+}
+
+function pickFirstNonEmptyString(obj, keys) {
+  if (!obj || typeof obj !== "object") return "";
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
 }
 
 export async function login(req, res) {
@@ -29,13 +50,23 @@ export async function login(req, res) {
       return res.status(503).json({ ok: false, message: "Admin auth not configured" });
     }
 
-    const { email, securityCode } = req.body;
-    if (typeof email !== "string" || typeof securityCode !== "string") {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const userEmailRaw = pickFirstNonEmptyString(body, ["email", "Email", "adminEmail", "admin_email"]);
+    const rawCode = pickFirstNonEmptyString(body, [
+      "securityCode",
+      "password",
+      "code",
+      "adminCode",
+      "security_code",
+      "admin_password"
+    ]);
+
+    if (!userEmailRaw || !rawCode) {
       return res.status(400).json({ ok: false, message: "Email and code required" });
     }
 
-    const userEmail = email.trim().toLowerCase();
-    const userCode = securityCode.trim();
+    const userEmail = userEmailRaw.toLowerCase();
+    const userCode = rawCode;
 
     const emailMatch = timingSafeStringEqual(userEmail, ADMIN_EMAIL);
     const codeMatch = timingSafeStringEqual(userCode, ADMIN_SECURITY_CODE);
@@ -49,10 +80,33 @@ export async function login(req, res) {
       issuer: "blockminer-admin"
     });
 
-    res.setHeader("Set-Cookie", buildAdminCookie(token));
+    const cookieSecure = adminCookieShouldBeSecure(req);
+    res.setHeader("Set-Cookie", buildAdminCookie(token, { secure: cookieSecure }));
     return res.json({ ok: true, message: "Authenticated", token });
   } catch (error) {
     logger.error("Admin login error", { error: error.message });
     return res.status(500).json({ ok: false, message: "Internal server error" });
+  }
+}
+
+export async function check(req, res) {
+  try {
+    if (!JWT_SECRET) {
+      return res.status(503).json({ ok: false, message: "Admin auth not configured" });
+    }
+    const token = getAdminTokenFromRequest(req);
+    if (!token) {
+      return res.status(401).json({ ok: false, message: "Not authenticated" });
+    }
+    const payload = jwt.verify(token, JWT_SECRET, {
+      issuer: "blockminer-admin",
+      algorithms: ["HS256"]
+    });
+    if (payload.role !== "admin" || payload.type !== "admin_session") {
+      return res.status(403).json({ ok: false, message: "Forbidden" });
+    }
+    return res.json({ ok: true });
+  } catch {
+    return res.status(401).json({ ok: false, message: "Not authenticated" });
   }
 }

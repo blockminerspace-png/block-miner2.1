@@ -7,8 +7,9 @@ import { createCronActionRunner } from "./cronActionRunner.js";
 
 const logger = loggerLib.child("DepositsCron");
 
-// Configurações via Variáveis de Ambiente
-const getPolygonscanKey = () => process.env.POLYGONSCAN_API_KEY;
+// Configurações via Variáveis de Ambiente (chave unificada Etherscan v2: https://etherscan.io/apidashboard)
+const getPolygonscanKey = () =>
+  process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY;
 const getCheckinReceiver = () => process.env.CHECKIN_RECEIVER;
 const getWithdrawalPrivKey = () => process.env.WITHDRAWAL_PRIVATE_KEY;
 const getWithdrawalMnemonic = () => process.env.WITHDRAWAL_MNEMONIC;

@@ -25,6 +25,7 @@ param(
     [string] $PscpExe = 'C:\Program Files\PuTTY\pscp.exe',
     [string] $PlinkExe = 'C:\Program Files\PuTTY\plink.exe',
     [switch] $SkipTarball,
+    [switch] $SkipUpload,
     [string] $TarballPath = ''
 )
 
@@ -110,16 +111,22 @@ try {
     }
 
     $remoteTar = '/tmp/bm-deploy.tar.gz'
-    Write-Host '==> Upload (pscp)...'
-    & $PscpExe -batch -pwfile $pwFilePath $TarballPath "${SshUser}@${SshHost}:$remoteTar"
+    if (-not $SkipUpload) {
+        Write-Host '==> Upload (pscp)...'
+        & $PscpExe -batch -pwfile $pwFilePath $TarballPath "${SshUser}@${SshHost}:$remoteTar"
+    }
+    else {
+        Write-Host '==> Upload ignorado (-SkipUpload); a usar tarball já em' $remoteTar 'no servidor'
+    }
 
-    $remoteCmd = @"
+    # Bash remoto falha com CRLF (Windows); forçar só LF no script enviado ao plink.
+    $remoteCmd = (@"
 set -e
 cd $RemotePath
 tar -xzf $remoteTar
 docker compose up -d --build --no-deps app
 curl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true
-"@
+"@ -replace "`r`n", "`n" -replace "`r", "`n").TrimEnd() + "`n"
     Write-Host '==> Extrair + docker compose up -d --build --no-deps app...'
     & $PlinkExe -batch -ssh -pwfile $pwFilePath "${SshUser}@${SshHost}" $remoteCmd
     Write-Host '==> Feito.'

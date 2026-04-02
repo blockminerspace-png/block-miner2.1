@@ -23,6 +23,11 @@ api.interceptors.request.use((config) => {
         // Fallback if security module fails
         config.headers['X-Anti-Bot'] = '0';
     }
+    const url = String(config.url || '');
+    const adminToken = typeof localStorage !== 'undefined' ? localStorage.getItem('adminToken') : null;
+    if (adminToken && url.includes('/admin/') && !url.includes('/admin/auth/login')) {
+        config.headers.Authorization = `Bearer ${adminToken}`;
+    }
     return config;
 }, (error) => {
     return Promise.reject(error);
