@@ -49,6 +49,9 @@ export default function AdminMiners() {
     });
 
     const fileInputRef = useRef(null);
+    const rowFileInputRef = useRef(null);
+    const [uploadTargetId, setUploadTargetId] = useState(null); // null = newMiner form
+    const [isUploading, setIsUploading] = useState(false);
 
     const fetchMiners = useCallback(async () => {
         try {
@@ -132,20 +135,31 @@ export default function AdminMiners() {
         }
     };
 
-    const handleFileUpload = async (e) => {
+    const handleFileUpload = async (e, targetId = null) => {
         const file = e.target.files[0];
         if (!file) return;
+        // Reset input so same file can be re-selected
+        e.target.value = '';
 
+        setIsUploading(true);
         try {
             const res = await api.post('/admin/miners/upload-image', file, {
-                headers: { 'X-File-Name': file.name }
+                headers: { 'Content-Type': file.type, 'X-File-Name': file.name }
             });
             if (res.data.imageUrl) {
                 toast.success('Imagem carregada!');
-                setNewMiner(prev => ({ ...prev, imageUrl: res.data.imageUrl }));
+                if (targetId === null) {
+                    setNewMiner(prev => ({ ...prev, imageUrl: res.data.imageUrl }));
+                } else {
+                    setMiners(prev => prev.map(item =>
+                        item.id === targetId ? { ...item, imageUrl: res.data.imageUrl } : item
+                    ));
+                }
             }
         } catch (err) {
             toast.error('Erro no upload da imagem.');
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -201,7 +215,8 @@ export default function AdminMiners() {
                                 <div className="flex gap-2">
                                     <input value={newMiner.imageUrl} onChange={e => setNewMiner(p => ({ ...p, imageUrl: e.target.value }))} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
                                     <button type="button" onClick={() => fileInputRef.current.click()} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white"><Upload className="w-5 h-5" /></button>
-                                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, null)} />
+                                    <input type="file" ref={rowFileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, uploadTargetId)} />
                                 </div>
                             </div>
                             <div className="md:col-span-2 flex items-center gap-6 py-4">
@@ -249,19 +264,28 @@ export default function AdminMiners() {
                             {miners.map((m) => (
                                 <tr key={m.id} className="hover:bg-slate-800/30 transition-colors group">
                                     <td className="px-8 py-5">
-                                        <div className="w-12 h-12 bg-slate-950 rounded-lg p-2 border border-slate-800">
-                                            <img
-                                                src={m.imageUrl || MINER_IMG_FALLBACK}
-                                                alt=""
-                                                className="w-full h-full object-contain"
-                                                data-fallback-applied="0"
-                                                onError={(e) => {
-                                                    const el = e.currentTarget;
-                                                    if (el.dataset.fallbackApplied === '1') return;
-                                                    el.dataset.fallbackApplied = '1';
-                                                    el.src = MINER_IMG_FALLBACK;
-                                                }}
-                                            />
+                                        <div className="relative group cursor-pointer" onClick={() => { setUploadTargetId(m.id); setTimeout(() => rowFileInputRef.current?.click(), 0); }}>
+                                            <div className="w-12 h-12 bg-slate-950 rounded-lg p-2 border border-slate-800 group-hover:border-amber-500/50 transition-colors">
+                                                <img
+                                                    src={m.imageUrl || MINER_IMG_FALLBACK}
+                                                    alt=""
+                                                    className="w-full h-full object-contain"
+                                                    data-fallback-applied="0"
+                                                    onError={(e) => {
+                                                        const el = e.currentTarget;
+                                                        if (el.dataset.fallbackApplied === '1') return;
+                                                        el.dataset.fallbackApplied = '1';
+                                                        el.src = MINER_IMG_FALLBACK;
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="bg-slate-950/80 rounded-lg p-1">
+                                                    {isUploading && uploadTargetId === m.id
+                                                        ? <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                                                        : <Upload className="w-3 h-3 text-amber-500" />}
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-8 py-5">
