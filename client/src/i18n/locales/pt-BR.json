@@ -253,6 +253,13 @@
     "switch_polygon": "Mudar para Polygon",
     "connect_browser_wallet": "Ligar carteira do navegador",
     "milestone_bonus": "Bônus especial",
+    "subtitle_free": "A sequência e o histórico ficam na tua conta no servidor. Um check-in por dia (calendário America/São Paulo).",
+    "claim_today": "Registar check-in de hoje",
+    "claim_success": "Check-in de hoje registado!",
+    "total_days": "Total de dias com check-in",
+    "history_title": "Últimos check-ins confirmados",
+    "free_hint": "Sem pagamento em POL — um toque por dia mantém a sequência.",
+    "server_note_free": "Ao reabrir o site, o estado vem da base de dados (sequência + dias anteriores).",
     "server_note": "O servidor valida valor, destino e remetente na blockchain. Transações pendentes são verificadas automaticamente em segundo plano."
   },
   "ptc": {

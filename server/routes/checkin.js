@@ -9,4 +9,5 @@ const statusLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
 const confirmLimiter = createRateLimiter({ windowMs: 60_000, max: 25 });
 
 checkinRouter.get("/status", requireAuth, statusLimiter, checkinController.getStatus);
+checkinRouter.post("/claim", requireAuth, confirmLimiter, checkinController.claimCheckin);
 checkinRouter.post("/confirm", requireAuth, confirmLimiter, checkinController.confirmCheckin);

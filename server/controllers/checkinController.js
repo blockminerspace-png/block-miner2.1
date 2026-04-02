@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import prisma from "../src/db/prisma.js";
 import { getBrazilCheckinDateKey, addDaysToBrazilDateKey } from "../utils/checkinDate.js";
 import { assertValidTxHash, evaluateCheckinTx, normalizeAddr, parseCheckinAmountWei } from "../services/checkinChain.js";
@@ -5,17 +6,24 @@ import { assertValidTxHash, evaluateCheckinTx, normalizeAddr, parseCheckinAmount
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
 
+/** Deterministic placeholder tx hash for payment-free check-ins (unique per user + calendar day). */
+export function syntheticFreeTxHash(userId, checkinDate) {
+  const h = crypto.createHash("sha256").update(`bm-free-checkin|${userId}|${checkinDate}`).digest("hex");
+  return `0x${h}`;
+}
+
+function isFreeSyntheticTx(txHash, userId, checkinDate) {
+  if (!txHash || typeof txHash !== "string") return false;
+  return txHash === syntheticFreeTxHash(userId, checkinDate);
+}
+
 function getReceiver() {
   return (process.env.CHECKIN_RECEIVER || "").trim();
 }
 
-function checkinConfigured(res) {
+function paymentCheckinEnabled() {
   const r = getReceiver();
-  if (!r || r.toLowerCase() === ZERO) {
-    res.status(503).json({ ok: false, message: "Check-in is not configured on the server." });
-    return false;
-  }
-  return true;
+  return Boolean(r && r.toLowerCase() !== ZERO);
 }
 
 async function getTodayRow(userId) {
@@ -45,21 +53,25 @@ async function computeStreak(userId) {
   return streak;
 }
 
-function publicConfig() {
-  const minWei = parseCheckinAmountWei();
-  return {
-    checkinReceiver: getReceiver(),
-    checkinAmountWei: minWei.toString(),
-    chainId: POLYGON_CHAIN_ID,
-    rpcConfigured: Boolean(process.env.AETHER_RPC_URL?.trim() || process.env.POLYGON_RPC_URL?.trim())
-  };
+async function loadRecentHistory(userId, take = 21) {
+  const rows = await prisma.dailyCheckin.findMany({
+    where: { userId, status: "confirmed" },
+    orderBy: { checkinDate: "desc" },
+    take,
+    select: { checkinDate: true, confirmedAt: true }
+  });
+  return rows.map((r) => ({
+    date: r.checkinDate,
+    confirmedAt: r.confirmedAt ? r.confirmedAt.toISOString() : null
+  }));
 }
 
 /**
- * Confirms or fails a pending row using on-chain data (any check-in date).
+ * Confirms or fails a pending row using on-chain data (legacy payment check-ins only).
  */
 export async function tryFinalizeCheckinRow(row) {
   if (!row || row.status !== "pending") return row;
+  if (isFreeSyntheticTx(row.txHash, row.userId, row.checkinDate)) return row;
 
   const wallet =
     row.user?.walletAddress ||
@@ -120,36 +132,50 @@ export async function processStalePendingCheckins({ batchSize = 40 } = {}) {
   });
 
   for (const row of pending) {
+    if (isFreeSyntheticTx(row.txHash, row.userId, row.checkinDate)) continue;
     await tryFinalizeCheckinRow(row).catch(() => {});
   }
 }
 
 export async function getStatus(req, res) {
   try {
-    if (!checkinConfigured(res)) return;
-
+    const userId = req.user.id;
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: userId },
       select: { walletAddress: true }
     });
     const wallet = user?.walletAddress || null;
 
-    await tryFinalizeTodayCheckin(req.user.id, wallet);
+    if (paymentCheckinEnabled()) {
+      await tryFinalizeTodayCheckin(userId, wallet);
+    }
 
-    const row = await getTodayRow(req.user.id);
-    const streak = await computeStreak(req.user.id);
-    const cfg = publicConfig();
+    const row = await getTodayRow(userId);
+    const [streak, recentCheckins, totalConfirmed] = await Promise.all([
+      computeStreak(userId),
+      loadRecentHistory(userId, 21),
+      prisma.dailyCheckin.count({ where: { userId, status: "confirmed" } })
+    ]);
+
+    const pay = paymentCheckinEnabled();
+    const minWei = parseCheckinAmountWei();
 
     res.json({
       ok: true,
       checkedIn: row?.status === "confirmed",
-      pending: row?.status === "pending",
+      pending: row?.status === "pending" && !isFreeSyntheticTx(row?.txHash, userId, row?.checkinDate),
       failed: row?.status === "failed",
       status: row?.status || null,
       txHash: row?.txHash || null,
       streak,
+      totalConfirmed,
+      recentCheckins,
       walletLinked: Boolean(wallet),
-      ...cfg
+      paymentRequired: pay,
+      checkinReceiver: pay ? getReceiver() : null,
+      checkinAmountWei: pay ? minWei.toString() : "0",
+      chainId: POLYGON_CHAIN_ID,
+      rpcConfigured: pay && Boolean(process.env.AETHER_RPC_URL?.trim() || process.env.POLYGON_RPC_URL?.trim())
     });
   } catch (e) {
     console.error("Checkin getStatus:", e);
@@ -157,9 +183,76 @@ export async function getStatus(req, res) {
   }
 }
 
+/**
+ * Free daily check-in: one confirmed row per user per calendar day (America/Sao_Paulo).
+ * Persists in DB — streak and history survive new days and new sessions.
+ */
+export async function claimCheckin(req, res) {
+  try {
+    const userId = req.user.id;
+    const today = getBrazilCheckinDateKey();
+    const txHash = syntheticFreeTxHash(userId, today);
+
+    const existing = await prisma.dailyCheckin.findUnique({
+      where: { userId_checkinDate: { userId, checkinDate: today } }
+    });
+
+    if (existing?.status === "confirmed") {
+      const streak = await computeStreak(userId);
+      const recentCheckins = await loadRecentHistory(userId, 21);
+      return res.json({
+        ok: true,
+        alreadyCheckedIn: true,
+        status: "confirmed",
+        streak,
+        recentCheckins
+      });
+    }
+
+    await prisma.dailyCheckin.upsert({
+      where: { userId_checkinDate: { userId, checkinDate: today } },
+      create: {
+        userId,
+        checkinDate: today,
+        txHash,
+        status: "confirmed",
+        confirmedAt: new Date(),
+        amount: 0,
+        chainId: POLYGON_CHAIN_ID
+      },
+      update: {
+        txHash,
+        status: "confirmed",
+        confirmedAt: new Date(),
+        amount: 0,
+        chainId: POLYGON_CHAIN_ID
+      }
+    });
+
+    const streak = await computeStreak(userId);
+    const recentCheckins = await loadRecentHistory(userId, 21);
+
+    return res.json({
+      ok: true,
+      status: "confirmed",
+      streak,
+      recentCheckins
+    });
+  } catch (error) {
+    console.error("Checkin claim error:", error);
+    res.status(500).json({ ok: false, message: "Unable to register check-in." });
+  }
+}
+
+/** Legacy blockchain check-in (only if CHECKIN_RECEIVER is set). */
 export async function confirmCheckin(req, res) {
   try {
-    if (!checkinConfigured(res)) return;
+    if (!paymentCheckinEnabled()) {
+      return res.status(400).json({
+        ok: false,
+        message: "Pagamento on-chain desativado. Usa o botão de check-in diário (sem POL)."
+      });
+    }
 
     const receiver = getReceiver();
     const minWei = parseCheckinAmountWei();
@@ -231,7 +324,6 @@ export async function confirmCheckin(req, res) {
       });
     } catch (e) {
       console.error("Checkin RPC error:", e.message);
-      // 200 so the client does not treat this as a hard failure (row is already saved as pending).
       return res.json({
         ok: true,
         pending: true,

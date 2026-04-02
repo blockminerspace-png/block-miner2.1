@@ -246,6 +246,13 @@
     "switch_polygon": "Cambiar a Polygon",
     "connect_browser_wallet": "Conectar cartera del navegador",
     "milestone_bonus": "Bono especial",
+    "subtitle_free": "Tu racha e historial se guardan en el servidor. Un check-in por día (calendario America/São Paulo).",
+    "claim_today": "Registrar check-in de hoy",
+    "claim_success": "¡Check-in de hoy guardado!",
+    "total_days": "Total de días con check-in",
+    "history_title": "Últimos check-ins confirmados",
+    "free_hint": "Sin pago en POL — un toque al día mantiene la racha.",
+    "server_note_free": "Al volver al sitio, la racha y el historial se cargan desde la base de datos.",
     "server_note": "El servidor valida importe, destinatario y remitente en la blockchain. Las transacciones pendientes se revisan automáticamente."
   },
   "ptc": {

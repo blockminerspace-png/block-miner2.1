@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Calendar, CheckCircle2, Star, Trophy, Zap, Wallet, ExternalLink, Loader2 } from 'lucide-react';
+import { Calendar, CheckCircle2, Star, Trophy, Zap, Loader2, History } from 'lucide-react';
 import { api } from '../store/auth';
 import { useWallet } from '../hooks/useWallet';
 import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
@@ -33,6 +33,11 @@ function formatPolFromWei(weiStr) {
     }
 }
 
+function mergeStatus(prev, incoming) {
+    if (!incoming) return prev;
+    return { ...prev, ...incoming };
+}
+
 export default function Checkin() {
     const { t } = useTranslation();
     const { account, isConnected, isCorrectNetwork, connect, isConnecting, switchNetwork } = useWallet();
@@ -40,13 +45,14 @@ export default function Checkin() {
     const [isLoading, setIsLoading] = useState(true);
     const [isPaying, setIsPaying] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
+    const [isClaiming, setIsClaiming] = useState(false);
     const pollRef = useRef(null);
 
     const fetchStatus = useCallback(async () => {
         try {
             const res = await api.get('/checkin/status');
             if (res.data.ok) {
-                setStatus(res.data);
+                setStatus((s) => mergeStatus(s, res.data));
                 return res.data;
             }
             setStatus({ ok: false });
@@ -68,7 +74,11 @@ export default function Checkin() {
     }, [load]);
 
     useEffect(() => {
-        const needPoll = status && (status.pending || (status.txHash && !status.checkedIn && !status.failed));
+        const pay = status?.paymentRequired;
+        const needPoll =
+            pay &&
+            status &&
+            (status.pending || (status.txHash && !status.checkedIn && !status.failed));
         if (!needPoll) {
             if (pollRef.current) {
                 clearInterval(pollRef.current);
@@ -82,7 +92,37 @@ export default function Checkin() {
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
         };
-    }, [status, fetchStatus, t]);
+    }, [status, fetchStatus]);
+
+    const handleClaimFree = async () => {
+        if (isClaiming) return;
+        setIsClaiming(true);
+        try {
+            const res = await api.post('/checkin/claim');
+            if (res.data.ok) {
+                if (res.data.alreadyCheckedIn) {
+                    toast.success(t('checkin.claimed'));
+                } else {
+                    toast.success(t('checkin.claim_success'));
+                }
+                setStatus((s) =>
+                    mergeStatus(s, {
+                        checkedIn: true,
+                        pending: false,
+                        failed: false,
+                        status: 'confirmed',
+                        streak: res.data.streak,
+                        recentCheckins: res.data.recentCheckins
+                    })
+                );
+                await fetchStatus();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('common.error'));
+        } finally {
+            setIsClaiming(false);
+        }
+    };
 
     const submitTxToServer = async (txHash) => {
         try {
@@ -192,6 +232,9 @@ export default function Checkin() {
     }
 
     const streak = status.streak ?? 0;
+    const totalConfirmed = status.totalConfirmed ?? 0;
+    const recentCheckins = status.recentCheckins || [];
+    const paymentMode = Boolean(status.paymentRequired && status.checkinReceiver);
     const amountLabel = formatPolFromWei(status.checkinAmountWei || '0');
     const explorerTx = status.txHash ? `https://polygonscan.com/tx/${status.txHash}` : null;
 
@@ -202,7 +245,9 @@ export default function Checkin() {
                     <Calendar className="w-8 h-8 text-amber-500" />
                 </div>
                 <h1 className="text-4xl font-black text-white tracking-tight">{t('checkin.title')}</h1>
-                <p className="text-gray-500 font-medium max-w-lg mx-auto">{t('checkin.subtitle')}</p>
+                <p className="text-gray-500 font-medium max-w-lg mx-auto">
+                    {paymentMode ? t('checkin.subtitle') : t('checkin.subtitle_free')}
+                </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -221,6 +266,11 @@ export default function Checkin() {
                                 <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">
                                     {t('checkin.streak_sub')}
                                 </p>
+                                {totalConfirmed > 0 && (
+                                    <p className="text-[10px] text-slate-600 mt-2">
+                                        {t('checkin.total_days')}: <span className="text-slate-400 font-mono">{totalConfirmed}</span>
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -240,11 +290,10 @@ export default function Checkin() {
                                 <p className="text-sm text-gray-500 font-medium mt-2">{t('checkin.come_back')}</p>
                             </div>
                         </div>
-                    ) : (
+                    ) : paymentMode ? (
                         <>
                             {!status.walletLinked ? (
                                 <div className="text-center space-y-4">
-                                    <Wallet className="w-12 h-12 text-amber-500 mx-auto" />
                                     <p className="text-gray-400 text-sm">{t('checkin.link_wallet_hint')}</p>
                                     <Link
                                         to="/wallet"
@@ -290,27 +339,14 @@ export default function Checkin() {
                                     </button>
 
                                     {status.txHash ? (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={handleCompleteCheckin}
-                                                disabled={isConfirming || isPaying}
-                                                className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-2xl font-bold text-sm text-white"
-                                            >
-                                                {isConfirming ? t('common.loading') : t('checkin.complete_checkin')}
-                                            </button>
-                                            {explorerTx && (
-                                                <a
-                                                    href={explorerTx}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center justify-center gap-2 text-primary text-sm"
-                                                >
-                                                    <ExternalLink className="w-4 h-4" />
-                                                    Polygonscan
-                                                </a>
-                                            )}
-                                        </>
+                                        <button
+                                            type="button"
+                                            onClick={handleCompleteCheckin}
+                                            disabled={isConfirming || isPaying}
+                                            className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-2xl font-bold text-sm text-white"
+                                        >
+                                            {isConfirming ? t('common.loading') : t('checkin.complete_checkin')}
+                                        </button>
                                     ) : null}
 
                                     {!isConnected && (
@@ -335,11 +371,45 @@ export default function Checkin() {
                                 </>
                             )}
                         </>
+                    ) : (
+                        <div className="space-y-4">
+                            <p className="text-center text-sm text-gray-400">{t('checkin.free_hint')}</p>
+                            <button
+                                type="button"
+                                onClick={handleClaimFree}
+                                disabled={isClaiming}
+                                className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
+                            >
+                                {isClaiming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
+                                {t('checkin.claim_today')}
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
 
-            <p className="text-center text-xs text-slate-600 max-w-xl mx-auto">{t('checkin.server_note')}</p>
+            {recentCheckins.length > 0 && (
+                <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-8 shadow-xl">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                        <History className="w-4 h-4 text-amber-500" />
+                        {t('checkin.history_title')}
+                    </h3>
+                    <ul className="flex flex-wrap gap-2">
+                        {recentCheckins.map((row) => (
+                            <li
+                                key={row.date}
+                                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-emerald-400/90"
+                            >
+                                {row.date}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            <p className="text-center text-xs text-slate-600 max-w-xl mx-auto">
+                {paymentMode ? t('checkin.server_note') : t('checkin.server_note_free')}
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[7, 15, 30].map((milestone) => (

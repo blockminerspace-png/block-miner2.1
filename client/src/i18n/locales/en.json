@@ -248,6 +248,13 @@
     "switch_polygon": "Switch to Polygon",
     "connect_browser_wallet": "Connect browser wallet",
     "milestone_bonus": "Special bonus",
+    "subtitle_free": "Your streak and history are stored on the server. One check-in per calendar day (America/São Paulo).",
+    "claim_today": "Check in today",
+    "claim_success": "Today's check-in saved!",
+    "total_days": "Total check-in days",
+    "history_title": "Recent confirmed check-ins",
+    "free_hint": "No POL payment — one tap per day keeps your streak.",
+    "server_note_free": "When you reopen the site, streak and history load from the database.",
     "server_note": "The server validates amount, recipient, and sender on-chain. Pending transactions are rechecked automatically in the background."
   },
   "ptc": {
