@@ -79,7 +79,7 @@ Set-Location "c:\caminho\para\block-miner"
 .\scripts\deploy-vps-windows.ps1 -PwFile .\.deploy-pw.txt
 ```
 
-Parâmetros úteis (ver cabeçalho do `.ps1`): `-SshHost`, `-SshUser`, `-RemotePath` (default `/root/block-miner`).
+Parâmetros úteis (ver cabeçalho do `.ps1`): `-SshHost`, `-SshUser`, `-RemotePath` (default `/root/block-miner`). O host SSH por defeito no `.ps1` é **`37.27.38.21`**; noutra VPS usa `-SshHost IP`.
 
 O script cria um `.tar.gz`, envia com `pscp`, extrai na VPS e corre `docker compose up -d --build --no-deps app`.
 

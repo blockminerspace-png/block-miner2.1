@@ -18,7 +18,7 @@
   .\scripts\deploy-vps-windows.ps1 -PwFile .\.deploy-pw.txt
 #>
 param(
-    [string] $SshHost = '89.167.119.164',
+    [string] $SshHost = '37.27.38.21',
     [string] $SshUser = 'root',
     [string] $RemotePath = '/root/block-miner',
     [string] $PwFile = '',
