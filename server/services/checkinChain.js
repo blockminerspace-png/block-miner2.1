@@ -1,15 +1,21 @@
 /**
- * On-chain check-in verification (JSON-RPC).
- * Uses AETHER_RPC_URL when set, otherwise POLYGON_RPC_URL (same stack as Aether-style gateways).
+ * On-chain check-in verification.
+ * Primary: Polygonscan API (reliable, no rate-limit issues for low traffic).
+ * Fallback: JSON-RPC via AETHER_RPC_URL / POLYGON_RPC_URL.
  */
 
 const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+const POLYGONSCAN_BASE = "https://api.polygonscan.com/api";
 
 export function getCheckinRpcUrl() {
   const aether = process.env.AETHER_RPC_URL?.trim();
   if (aether) return aether;
-  return process.env.POLYGON_RPC_URL?.trim() || "https://polygon-rpc.com";
+  return process.env.POLYGON_RPC_URL?.trim() || "https://polygon-bor-rpc.publicnode.com";
+}
+
+function getPolygonscanApiKey() {
+  return process.env.POLYGONSCAN_API_KEY?.trim() || "";
 }
 
 export function assertValidTxHash(txHash) {
@@ -25,6 +31,37 @@ export function normalizeAddr(a) {
   if (!a || typeof a !== "string") return "";
   return a.trim().toLowerCase();
 }
+
+// ─── Polygonscan API ────────────────────────────────────────────────────────
+
+async function polygonscanFetch(params) {
+  const apiKey = getPolygonscanApiKey();
+  const url = new URL(POLYGONSCAN_BASE);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  if (apiKey) url.searchParams.set("apikey", apiKey);
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw Object.assign(new Error(`Polygonscan HTTP ${res.status}`), { code: "PSCAN_HTTP" });
+  const json = await res.json();
+  // Polygonscan wraps results: { status, message, result }
+  if (json.message === "NOTOK" && json.result !== "No transactions found") {
+    throw Object.assign(new Error(json.result || "Polygonscan error"), { code: "PSCAN_ERROR" });
+  }
+  return json;
+}
+
+async function polygonscanGetTx(txHash) {
+  // Uses proxy module which mirrors eth JSON-RPC response format
+  const json = await polygonscanFetch({ module: "proxy", action: "eth_getTransactionByHash", txhash: txHash });
+  return json.result || null;
+}
+
+async function polygonscanGetReceipt(txHash) {
+  const json = await polygonscanFetch({ module: "proxy", action: "eth_getTransactionReceipt", txhash: txHash });
+  return json.result || null;
+}
+
+// ─── JSON-RPC fallback ───────────────────────────────────────────────────────
 
 export async function rpcCall(method, params) {
   const url = getCheckinRpcUrl();
@@ -47,6 +84,32 @@ export async function rpcCall(method, params) {
   }
   return payload.result;
 }
+
+// ─── Unified TX fetch (Polygonscan first, then RPC) ─────────────────────────
+
+async function getTxWithFallback(txHash) {
+  if (getPolygonscanApiKey()) {
+    try {
+      return { tx: await polygonscanGetTx(txHash), source: "polygonscan" };
+    } catch (e) {
+      console.warn("[checkinChain] Polygonscan getTx failed, falling back to RPC:", e.message);
+    }
+  }
+  return { tx: await rpcCall("eth_getTransactionByHash", [txHash]), source: "rpc" };
+}
+
+async function getReceiptWithFallback(txHash, source) {
+  if (source === "polygonscan" && getPolygonscanApiKey()) {
+    try {
+      return await polygonscanGetReceipt(txHash);
+    } catch (e) {
+      console.warn("[checkinChain] Polygonscan getReceipt failed, falling back to RPC:", e.message);
+    }
+  }
+  return rpcCall("eth_getTransactionReceipt", [txHash]);
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function receiptSucceeded(receipt) {
   if (!receipt) return false;
@@ -71,7 +134,7 @@ export async function evaluateCheckinTx({
   receiverLower,
   minValueWei
 }) {
-  const tx = await rpcCall("eth_getTransactionByHash", [txHash]);
+  const { tx, source } = await getTxWithFallback(txHash);
   if (!tx) {
     return { ok: true, state: "pending" };
   }
@@ -99,7 +162,7 @@ export async function evaluateCheckinTx({
     return { ok: false, state: "failed", reason: "Amount sent is below the required check-in payment." };
   }
 
-  const receipt = await rpcCall("eth_getTransactionReceipt", [txHash]);
+  const receipt = await getReceiptWithFallback(txHash, source);
   if (!receipt) {
     return { ok: true, state: "pending" };
   }

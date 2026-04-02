@@ -55,7 +55,7 @@ export default function Header() {
   };
 
   return (
-    <header className="h-20 bg-background/80 backdrop-blur-md border-b border-gray-800/50 flex items-center px-8 sticky top-0 z-30">
+    <header className="hidden md:flex h-20 bg-background/80 backdrop-blur-md border-b border-gray-800/50 items-center px-8 sticky top-0 z-30">
       <div className="flex flex-col">
         <h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>
         <p className="text-[11px] text-gray-500 font-medium">Protocolo de mineração ativo.</p>

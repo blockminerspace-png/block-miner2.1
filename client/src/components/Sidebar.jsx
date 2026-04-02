@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,7 +15,9 @@ import {
   Gamepad2,
   ChevronRight,
   Zap,
-  Tag
+  Tag,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import BrandLogo from './BrandLogo';
@@ -24,6 +27,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuthStore();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const categories = [
     {
@@ -55,8 +59,13 @@ export default function Sidebar() {
     }
   ];
 
-  return (
-    <aside className="w-64 bg-surface border-r border-gray-800/50 shrink-0 flex flex-col h-full shadow-2xl relative z-20">
+  const handleNav = (path) => {
+    navigate(path);
+    setMobileOpen(false);
+  };
+
+  const navContent = (
+    <>
       {/* Brand Logo */}
       <div className="p-8">
         <BrandLogo variant="sidebar" />
@@ -72,7 +81,7 @@ export default function Sidebar() {
                 return (
                   <button
                     key={item.path}
-                    onClick={() => navigate(item.path)}
+                    onClick={() => handleNav(item.path)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 group ${isActive
                       ? 'bg-primary/10 text-primary border border-primary/10'
                       : 'text-gray-500 hover:text-white hover:bg-gray-800/40'
@@ -105,6 +114,42 @@ export default function Sidebar() {
           <span className="font-bold text-xs uppercase tracking-widest">{t('common.logout')}</span>
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 h-14 bg-surface border-b border-gray-800/50 shadow-lg">
+        <BrandLogo variant="header" />
+        <button
+          onClick={() => setMobileOpen((v) => !v)}
+          className="p-2 text-gray-400 hover:text-white transition-colors"
+          aria-label="Menu"
+        >
+          {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+
+      {/* Mobile drawer overlay */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <aside
+        className={`md:hidden fixed top-14 left-0 bottom-0 z-40 w-72 bg-surface border-r border-gray-800/50 flex flex-col shadow-2xl transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      >
+        {navContent}
+      </aside>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-64 bg-surface border-r border-gray-800/50 shrink-0 flex-col h-full shadow-2xl relative z-20">
+        {navContent}
+      </aside>
+    </>
   );
 }
