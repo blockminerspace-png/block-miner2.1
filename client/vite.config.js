@@ -7,14 +7,16 @@ export default defineConfig({
   define: {
     'process.env.APP_URL': JSON.stringify(process.env.NODE_ENV === 'production' ? 'https://blockminer.space' : 'http://localhost:5000')
   },
+  // Use content hashes (Vite default), NOT a new timestamp every build — otherwise stale
+  // cached index.html points at deleted JS after deploy → white screen for many users.
   build: {
     rollupOptions: {
       output: {
-        entryFileNames: `assets/index-${Date.now()}.js`,
-        chunkFileNames: `assets/chunk-${Date.now()}.js`,
-        assetFileNames: `assets/asset-${Date.now()}.[ext]`
-      }
-    }
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
+      },
+    },
   },
   server: {
     proxy: {

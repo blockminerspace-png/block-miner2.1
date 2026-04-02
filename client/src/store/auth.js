@@ -12,7 +12,7 @@ export const api = axios.create({
 
 // Interceptor to attach Anti-Bot payload to every API request
 api.interceptors.request.use((config) => {
-    // We only attach this for state-changing or critical requests, 
+    // We only attach this for state-changing or critical requests,
     // but attaching it everywhere is safer and simpler.
     try {
         const security = generateSecurityPayload();
@@ -37,7 +37,7 @@ export const useAuthStore = create((set) => ({
     checkSession: async () => {
         try {
             set({ isLoading: true, error: null });
-            const response = await api.get('/auth/session');
+            const response = await api.get('/auth/session', { timeout: 20000 });
             set({ user: response.data.user, isAuthenticated: true, isLoading: false });
         } catch (error) {
             set({ user: null, isAuthenticated: false, isLoading: false });

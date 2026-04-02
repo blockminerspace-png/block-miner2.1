@@ -6,3 +6,11 @@ export function getBrazilCheckinDateKey(date = new Date()) {
   const dd = String(brDate.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
+
+/** Calendar day in America/Sao_Paulo, offset by whole days (streak math). */
+export function addDaysToBrazilDateKey(dateKey, deltaDays) {
+  const [Y, M, D] = dateKey.split("-").map(Number);
+  const noonBrUtc = new Date(Date.UTC(Y, M - 1, D, 15, 0, 0));
+  const shifted = new Date(noonBrUtc.getTime() + Number(deltaDays) * 86400000);
+  return shifted.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
