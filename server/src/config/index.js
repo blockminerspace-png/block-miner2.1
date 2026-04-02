@@ -1,0 +1,109 @@
+const fs = require('fs');
+const path = require('path');
+
+function loadJson(filePath) {
+  try {
+    const txt = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(txt);
+  } catch (err) {
+    return {};
+  }
+}
+
+const root = path.resolve(__dirname, '..', '..');
+const cfgDir = path.join(root, 'config');
+
+const defaultCfg = loadJson(path.join(cfgDir, 'default.json'));
+const prodCfg = loadJson(path.join(cfgDir, 'production.json'));
+
+// Start with defaults
+let cfg = Object.assign({}, defaultCfg);
+
+// Apply environment-specific overrides if NODE_ENV=production
+if (process.env.NODE_ENV && String(process.env.NODE_ENV).toLowerCase() === 'production') {
+  cfg = Object.assign(cfg, prodCfg);
+}
+
+// Helper to pick from env if available
+function envOr(pathParts, envNames, currentValue) {
+  for (const n of envNames) {
+    if (process.env[n] !== undefined) return parseEnvValue(process.env[n]);
+  }
+  return currentValue;
+}
+
+function parseEnvValue(v) {
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  if (!isNaN(Number(v))) return Number(v);
+  return v;
+}
+
+// Map env overrides
+cfg.faucet = cfg.faucet || {};
+cfg.withdraw = cfg.withdraw || {};
+cfg.schedules = cfg.schedules || {};
+cfg.admin = cfg.admin || {};
+cfg.wallet = cfg.wallet || {};
+cfg.ui = cfg.ui || {};
+
+cfg.faucet.rewardMinerSlug = envOr(['faucet.rewardMinerSlug'], ['FAUCET_REWARD_MINER_SLUG'], cfg.faucet.rewardMinerSlug);
+cfg.faucet.cooldownMs = envOr(['faucet.cooldownMs'], ['FAUCET_COOLDOWN_MS'], cfg.faucet.cooldownMs);
+
+cfg.withdraw.min = envOr(['withdraw.min'], ['MIN_WITHDRAWAL'], cfg.withdraw.min);
+cfg.withdraw.max = envOr(['withdraw.max'], ['MAX_WITHDRAWAL'], cfg.withdraw.max);
+
+cfg.schedules.depositsCron = envOr(['schedules.depositsCron'], ['DEPOSITS_CRON'], cfg.schedules.depositsCron);
+cfg.schedules.withdrawsCron = envOr(['schedules.withdrawsCron'], ['WITHDRAWS_CRON', 'WITHDRAWALS_CRON'], cfg.schedules.withdrawsCron);
+cfg.schedules.backupCron = envOr(['schedules.backupCron'], ['BACKUP_CRON'], cfg.schedules.backupCron);
+
+cfg.admin.adminEmails = envOr(['admin.adminEmails'], ['ADMIN_EMAILS'], cfg.admin.adminEmails);
+cfg.admin.nodeEnv = envOr(['admin.nodeEnv'], ['NODE_ENV'], cfg.admin.nodeEnv);
+
+cfg.wallet.allowWithdrawToContracts = envOr(['wallet.allowWithdrawToContracts'], ['ALLOW_WITHDRAW_TO_CONTRACTS'], cfg.wallet.allowWithdrawToContracts);
+cfg.wallet.enableAutoPayouts = envOr(['wallet.enableAutoPayouts'], ['ENABLE_AUTO_PAYOUTS'], cfg.wallet.enableAutoPayouts);
+
+cfg.ui.showFaucetInShop = envOr(['ui.showFaucetInShop'], ['SHOW_FAUCET_IN_SHOP'], cfg.ui.showFaucetInShop);
+
+// Basic validation
+if (!cfg.faucet.rewardMinerSlug) cfg.faucet.rewardMinerSlug = 'faucet-1ghs';
+if (!cfg.withdraw.min) cfg.withdraw.min = 10;
+if (!cfg.withdraw.max) cfg.withdraw.max = 1000000;
+
+// Strict validation for sensitive values. In production we require certain secrets and paths.
+function failStartup(message) {
+  const help = [];
+  help.push('See README.md for configuration instructions: ./README.md');
+  help.push('Ensure your .env contains required secrets (do NOT commit .env).');
+  help.push('Examples:');
+  help.push('  PowerShell:  $env:DB_PATH = "./data/blockminer.db"');
+  help.push('  bash:        export DB_PATH=./data/blockminer.db');
+  help.push('To persist for your shell, add the above to your profile or use a .env file.');
+  console.error("Configuration validation failed:", message);
+  console.error(help.join('\n'));
+  throw new Error(message);
+}
+
+const isProduction = String(process.env.NODE_ENV || cfg.admin?.nodeEnv || '').toLowerCase() === 'production';
+
+// Required secrets (always require DB path)
+const dbPath = process.env.DB_PATH || cfg.dbPath || null;
+if (!dbPath) {
+  failStartup('DB_PATH is not configured. Set DB_PATH in your .env');
+}
+
+// For production require admin emails and a withdrawal key (private key or mnemonic)
+if (isProduction) {
+  const adminEmails = String(process.env.ADMIN_EMAILS || cfg.admin?.adminEmails || '').trim();
+  if (!adminEmails) {
+    failStartup('ADMIN_EMAILS must be set in production (comma-separated)');
+  }
+
+  const hasPrivateKey = Boolean(String(process.env.WITHDRAWAL_PRIVATE_KEY || '').trim());
+  const hasMnemonic = Boolean(String(process.env.WITHDRAWAL_MNEMONIC || '').trim());
+  if (!hasPrivateKey && !hasMnemonic) {
+    failStartup('Either WITHDRAWAL_PRIVATE_KEY or WITHDRAWAL_MNEMONIC must be set in production');
+  }
+}
+
+module.exports = cfg;

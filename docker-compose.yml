@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: blockminer
+      POSTGRES_PASSWORD: blockminer_password
+      POSTGRES_DB: blockminer_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - db
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Override the DATABASE_URL to point to the docker-compose 'db' service
+      DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+      BACKUP_DIR: /app/backups
+      BACKUP_RETENTION_DAYS: 7
+      BACKUP_INTERVAL_HOURS: 24
+      BACKUP_CLOUD_ENABLED: ${BACKUP_CLOUD_ENABLED:-false}
+      BACKUP_CLOUD_REMOTE: ${BACKUP_CLOUD_REMOTE:-}
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+      - /root/.config/rclone:/root/.config/rclone:ro
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
