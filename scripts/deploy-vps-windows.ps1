@@ -4,15 +4,16 @@
   Envia o projeto (tarball) para a VPS e executa docker compose up -d --build --no-deps app + healthcheck (não sobe/recria db/nginx).
 
 .DESCRIPTION
-  NUNCA commite senha. Use uma destas opções:
-  - Variável de ambiente: $env:BLOCKMINER_VPS_PW = 'sua-senha'
-  - Ficheiro local (uma linha, sem newline extra): .deploy-pw.txt na raiz do repo (está no .gitignore)
-  - Parâmetro -PwFile com caminho para ficheiro no formato PuTTY (-pwfile)
+  Credenciais (por ordem de prioridade para password):
+  1) deploy.secrets.local na raiz (SSH_HOST, SSH_USER, SSH_PASSWORD, REMOTE_PATH) — gitignored; copia de deploy.secrets.example
+  2) Parâmetros -SshHost, -SshUser, -RemotePath, -PwFile
+  3) $env:BLOCKMINER_VPS_PW
+  4) .deploy-pw.txt (uma linha, só password)
 
   Requer PuTTY (pscp.exe e plink.exe), normalmente em "C:\Program Files\PuTTY\".
 
 .EXAMPLE
-  $env:BLOCKMINER_VPS_PW = '***'; .\scripts\deploy-vps-windows.ps1
+  .\scripts\deploy-vps-windows.ps1
 
 .EXAMPLE
   .\scripts\deploy-vps-windows.ps1 -PwFile .\.deploy-pw.txt
@@ -35,7 +36,36 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $RepoRoot
 
+function Read-DeploySecretsFile {
+    param([string]$Path)
+    $out = @{}
+    if (-not (Test-Path -LiteralPath $Path)) { return $out }
+    Get-Content -LiteralPath $Path -Encoding UTF8 | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith('#')) { return }
+        $ix = $line.IndexOf('=')
+        if ($ix -lt 1) { return }
+        $k = $line.Substring(0, $ix).Trim()
+        $v = $line.Substring($ix + 1).Trim()
+        if ($k) { $out[$k] = $v }
+    }
+    return $out
+}
+
+$deploySecretsPath = Join-Path $RepoRoot 'deploy.secrets.local'
+$deploySecrets = Read-DeploySecretsFile -Path $deploySecretsPath
+if (-not $PSBoundParameters.ContainsKey('SshHost') -and $deploySecrets['SSH_HOST']) {
+    $SshHost = $deploySecrets['SSH_HOST']
+}
+if (-not $PSBoundParameters.ContainsKey('SshUser') -and $deploySecrets['SSH_USER']) {
+    $SshUser = $deploySecrets['SSH_USER']
+}
+if (-not $PSBoundParameters.ContainsKey('RemotePath') -and $deploySecrets['REMOTE_PATH']) {
+    $RemotePath = $deploySecrets['REMOTE_PATH']
+}
+
 function Resolve-PwFilePath {
+    param([hashtable]$Secrets = @{})
     if ($PwFile) {
         if (-not (Test-Path -LiteralPath $PwFile)) {
             throw "PwFile não encontrado: $PwFile"
@@ -45,7 +75,13 @@ function Resolve-PwFilePath {
     $envPw = $env:BLOCKMINER_VPS_PW
     if ($envPw) {
         $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("bm_deploy_pw_{0}.txt" -f [Guid]::NewGuid().ToString('N'))
-        [System.IO.File]::WriteAllText($tmp, $envPw, [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::WriteAllText($tmp, $envPw.Trim(), [System.Text.UTF8Encoding]::new($false))
+        return @{ Path = $tmp; Temp = $true }
+    }
+    $secPw = $Secrets['SSH_PASSWORD']
+    if ($secPw) {
+        $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("bm_deploy_pw_{0}.txt" -f [Guid]::NewGuid().ToString('N'))
+        [System.IO.File]::WriteAllText($tmp, $secPw.Trim(), [System.Text.UTF8Encoding]::new($false))
         return @{ Path = $tmp; Temp = $true }
     }
     $defaultLocal = Join-Path $RepoRoot '.deploy-pw.txt'
@@ -53,17 +89,18 @@ function Resolve-PwFilePath {
         return (Resolve-Path -LiteralPath $defaultLocal).Path
     }
     throw @"
-Defina credenciais SSH sem as pôr no Git:
-  `$env:BLOCKMINER_VPS_PW = '...'
-ou crie um ficheiro de uma linha na raiz do repo: .deploy-pw.txt
-ou passe -PwFile 'C:\caminho\para\ficheiro'
+Defina password SSH sem a pôr no Git:
+  - Cria deploy.secrets.local (copia deploy.secrets.example) com SSH_PASSWORD=...
+  - ou `$env:BLOCKMINER_VPS_PW = '...'
+  - ou .deploy-pw.txt (uma linha) na raiz
+  - ou -PwFile 'caminho'
 "@
 }
 
 if (-not (Test-Path -LiteralPath $PscpExe)) { throw "pscp não encontrado: $PscpExe (instale PuTTY)." }
 if (-not (Test-Path -LiteralPath $PlinkExe)) { throw "plink não encontrado: $PlinkExe (instale PuTTY)." }
 
-$pwResolved = Resolve-PwFilePath
+$pwResolved = Resolve-PwFilePath -Secrets $deploySecrets
 $pwFilePath = if ($pwResolved -is [hashtable]) { $pwResolved.Path } else { $pwResolved }
 $removePwTemp = ($pwResolved -is [hashtable]) -and $pwResolved.Temp
 

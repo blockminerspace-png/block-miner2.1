@@ -9,6 +9,19 @@
 - **`.env.production`** na raiz do projeto **no servidor** (não commits). Copia de `.env.example` / `.env.production.example` e preenche segredos aí.
 - `DATABASE_URL` no `docker-compose.yml` já aponta para `db:5432` dentro da rede Docker.
 
+### Credenciais só para deploy (nunca no Git)
+
+| Ficheiro | Commit? |
+|----------|--------|
+| **`deploy.secrets.example`** | Sim — modelo sem segredos |
+| **`deploy.secrets.local`** | **Não** — está no `.gitignore` |
+
+1. Copia `deploy.secrets.example` → **`deploy.secrets.local`** (na raiz do repo).
+2. Preenche `SSH_HOST`, `SSH_USER`, `SSH_PASSWORD`, `REMOTE_PATH`.
+3. No Windows, **`scripts/deploy-vps-windows.ps1`** lê `deploy.secrets.local` sozinho (host, user, path e password).
+
+Quem automatiza deploy (incl. assistente) pode ler **`deploy.secrets.local`** — desde que continues a **não** o adicionar ao Git.
+
 ---
 
 ## Escolhe o cenário
@@ -69,17 +82,15 @@ curl -sS http://127.0.0.1:3000/health
 Para enviar o projeto **a partir do Windows** com **password** (sem chave SSH no `deploy.py`):
 
 1. Instala **PuTTY** (`pscp.exe` e `plink.exe`, normalmente em `C:\Program Files\PuTTY\`).
-2. Na raiz do repo, define password **sem commitar**:
-   - `$env:BLOCKMINER_VPS_PW = '...'` **ou**
-   - ficheiro **`.deploy-pw.txt`** (uma linha, só a password) — está no `.gitignore`.
+2. Garante **`deploy.secrets.local`** na raiz (ver tabela acima). Alternativas: `$env:BLOCKMINER_VPS_PW`, **`.deploy-pw.txt`** (uma linha), ou **`-PwFile`**.
 3. No PowerShell, na raiz do repo:
 
 ```powershell
 Set-Location "c:\caminho\para\block-miner"
-.\scripts\deploy-vps-windows.ps1 -PwFile .\.deploy-pw.txt
+.\scripts\deploy-vps-windows.ps1
 ```
 
-Parâmetros úteis (ver cabeçalho do `.ps1`): `-SshHost`, `-SshUser`, `-RemotePath` (default `/root/block-miner`). O host SSH por defeito no `.ps1` é **`37.27.38.21`**; noutra VPS usa `-SshHost IP`.
+Parâmetros úteis (override ao ficheiro de secrets): `-SshHost`, `-SshUser`, `-RemotePath`, `-PwFile`. Valores por defeito no `.ps1` aplicam-se se não houver `deploy.secrets.local`.
 
 O script cria um `.tar.gz`, envia com `pscp`, extrai na VPS e corre `docker compose up -d --build --no-deps app`.
 

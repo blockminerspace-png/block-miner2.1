@@ -2,6 +2,8 @@
 node_modules/
 
 # Env / secrets
+# Ficheiro único de deploy (host/user/password) — ler deploy.secrets.example
+deploy.secrets.local
 scripts/vm_config_secret.py
 scripts/deploy_credentials.local.py
 .deploy-pw.txt
