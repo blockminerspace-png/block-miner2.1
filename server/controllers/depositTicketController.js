@@ -1,5 +1,6 @@
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
+import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 
 const logger = loggerLib.child("DepositTicketController");
 
@@ -191,6 +192,9 @@ export async function adminApproveTicket(req, res) {
         }
       });
     });
+
+    // Sincronizar saldo em memória do engine para evitar que o próximo bloco sobrescreva o crédito
+    applyUserBalanceDelta(ticket.userId, creditAmount);
 
     return res.json({ ok: true, message: "Depósito creditado com sucesso." });
   } catch (error) {
