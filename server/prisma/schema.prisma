@@ -193,22 +193,23 @@ model UserInventory {
 }
 
 model Transaction {
-  id            Int       @id @default(autoincrement())
-  userId        Int       @map("user_id")
-  type          String    // deposit, withdrawal, etc
-  amount        Decimal   @db.Decimal(20, 8)
-  address       String?
-  txHash        String?   @map("tx_hash")
-  rawTx         String?   @map("raw_tx")
-  txNonce       Int?      @map("tx_nonce")
-  txGasPrice    String?   @map("tx_gas_price")
-  txGasLimit    Int?      @map("tx_gas_limit")
-  fromAddress   String?   @map("from_address")
-  status        String    @default("pending")
-  fundsReserved Boolean   @default(false) @map("funds_reserved")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime? @updatedAt @map("updated_at")
-  completedAt   DateTime? @map("completed_at")
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id")
+  type            String    // deposit, withdrawal, etc
+  amount          Decimal   @db.Decimal(20, 8)
+  address         String?
+  txHash          String?   @map("tx_hash")
+  rawTx           String?   @map("raw_tx")
+  txNonce         Int?      @map("tx_nonce")
+  txGasPrice      String?   @map("tx_gas_price")
+  txGasLimit      Int?      @map("tx_gas_limit")
+  fromAddress     String?   @map("from_address")
+  status          String    @default("pending")
+  fundsReserved   Boolean   @default(false) @map("funds_reserved")
+  verifyAttempts  Int       @default(0)  @map("verify_attempts")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+  completedAt     DateTime? @map("completed_at")
 
   user User @relation(fields: [userId], references: [id])
 

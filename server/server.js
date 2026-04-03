@@ -49,6 +49,7 @@ import * as healthController from "./controllers/healthController.js";
 
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
+import { startDepositVerifier } from "./services/depositVerifier.js";
 import { registerMinerSocketHandlers } from "./src/socket/registerMinerSocketHandlers.js";
 import { registerGamesSocketHandlers } from "./src/socket/registerGamesSocketHandlers.js";
 import serverDatabaseModel from "./models/database/serverDatabaseModel.js";
@@ -334,6 +335,7 @@ async function bootstrap() {
         syncUserBaseHashRate,
         buildPublicState: async (minerId) => engine.getPublicState(minerId)
       });
+      startDepositVerifier();
     });
   } catch (error) {
     logger.error("Bootstrap failed", { error: error.message });

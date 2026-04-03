@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,13 +20,15 @@ import {
     QrCode,
     Ticket,
     Send,
-    HelpCircle
+    HelpCircle,
+    Loader2
 } from 'lucide-react';
 import { api } from '../store/auth';
 import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
 import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
 import { QRCodeSVG } from 'qrcode.react';
+import { useGameStore } from '../store/game';
 
 export default function Wallet() {
     const { t } = useTranslation();
@@ -53,6 +55,12 @@ export default function Wallet() {
     });
     const [showManualForm, setShowManualForm] = useState(false);
     const [polPrice, setPolPrice] = useState(0);
+
+    // Depósitos assíncronos pendentes
+    const [pendingDeposits, setPendingDeposits] = useState([]);
+    const pendingPollRef = useRef(null);
+
+    const socket = useGameStore(s => s.socket);
 
     // Deposit Ticket state
     const [myTickets, setMyTickets] = useState([]);
@@ -103,16 +111,62 @@ export default function Wallet() {
         }
     }, [withdrawForm.address]);
 
+    const fetchPendingDeposits = useCallback(async () => {
+        try {
+            const res = await api.get('/wallet/deposit/pending');
+            if (res.data.ok) {
+                setPendingDeposits(res.data.deposits || []);
+            }
+        } catch {}
+    }, []);
+
+    const startPendingPoll = useCallback(() => {
+        if (pendingPollRef.current) return;
+        fetchPendingDeposits();
+        pendingPollRef.current = setInterval(fetchPendingDeposits, 10_000);
+    }, [fetchPendingDeposits]);
+
+    const stopPendingPoll = useCallback(() => {
+        if (pendingPollRef.current) {
+            clearInterval(pendingPollRef.current);
+            pendingPollRef.current = null;
+        }
+    }, []);
+
     useEffect(() => {
         fetchWalletData();
         fetchPrice();
+        fetchPendingDeposits();
         const dataInterval = setInterval(fetchWalletData, 30000);
         const priceInterval = setInterval(fetchPrice, 60000);
         return () => {
             clearInterval(dataInterval);
             clearInterval(priceInterval);
+            stopPendingPoll();
         };
-    }, [fetchWalletData]);
+    }, [fetchWalletData, fetchPendingDeposits, stopPendingPoll]);
+
+    // Para de fazer poll quando não há mais pendentes
+    useEffect(() => {
+        const hasPending = pendingDeposits.some(d => d.status === 'pending_verification');
+        if (hasPending) {
+            startPendingPoll();
+        } else {
+            stopPendingPoll();
+        }
+    }, [pendingDeposits, startPendingPoll, stopPendingPoll]);
+
+    // Socket: ouve confirmação de depósito em tempo real
+    useEffect(() => {
+        if (!socket) return;
+        const handler = ({ amount, txHash }) => {
+            toast.success(`Depósito de ${Number(amount).toFixed(4)} POL confirmado!`);
+            fetchWalletData();
+            fetchPendingDeposits();
+        };
+        socket.on('wallet:deposit_confirmed', handler);
+        return () => socket.off('wallet:deposit_confirmed', handler);
+    }, [socket, fetchWalletData, fetchPendingDeposits]);
 
     // Auto-fill withdrawal address when wallet connects
     useEffect(() => {
@@ -174,19 +228,20 @@ export default function Wallet() {
                 gasLimit: 21000 // Standard transfer gas
             });
 
-            toast.info('Transaction sent! Verifying on-chain...');
+            toast.info('Transação enviada! Registrando para verificação...');
 
-            const res = await api.post('/wallet/deposit', {
-                amount: amount,
-                txHash: tx.hash
+            const res = await api.post('/wallet/deposit/submit', {
+                txHash: tx.hash,
+                claimedAmount: amount
             });
 
             if (res.data.ok) {
-                toast.success('Deposit confirmed! Balance updated.');
+                toast.success('Depósito registrado! O sistema verifica na blockchain em segundo plano — você pode fechar esta página com segurança.');
                 setDepositForm({ amount: '', txHash: '' });
-                fetchWalletData();
+                fetchPendingDeposits();
+                startPendingPoll();
             } else {
-                toast.error(res.data.message || 'Deposit verification failed');
+                toast.error(res.data.message || 'Erro ao registrar depósito');
             }
         } catch (error) {
             console.error("Deposit error", error);
@@ -206,37 +261,45 @@ export default function Wallet() {
     const handleManualDeposit = async () => {
         setIsActionLoading(true);
         try {
-            const amount = parseFloat(depositForm.amount);
             const txHash = depositForm.txHash.trim();
 
-            if (isNaN(amount) || amount <= 0) {
-                toast.error(t('wallet.invalid_amount', 'Please enter a valid amount'));
-                return;
-            }
-
             if (!txHash) {
-                toast.error('Please enter the transaction hash');
+                toast.error('Informe o hash da transação.');
                 return;
             }
 
-            toast.info('Verifying transaction on-chain...');
+            if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+                toast.error('Hash inválido. Formato: 0x seguido de 64 caracteres hexadecimais.');
+                return;
+            }
 
-            const res = await api.post('/wallet/deposit', {
-                amount: amount,
-                txHash: txHash
+            const claimedAmount = parseFloat(depositForm.amount) || 0;
+
+            const res = await api.post('/wallet/deposit/submit', {
+                txHash,
+                claimedAmount: claimedAmount > 0 ? claimedAmount : undefined
             });
 
             if (res.data.ok) {
-                toast.success('Deposit confirmed! Balance updated.');
+                toast.success('Depósito registrado! Verificando na blockchain em segundo plano. Pode fechar esta página com segurança.');
                 setDepositForm({ amount: '', txHash: '' });
                 setShowManualForm(false);
-                fetchWalletData();
+                fetchPendingDeposits();
+                startPendingPoll();
             } else {
-                toast.error(res.data.message || 'Deposit verification failed');
+                const code = res.data.code;
+                if (code === 'ALREADY_CREDITED') {
+                    toast.info('Esta transação já foi processada e creditada.');
+                    fetchWalletData();
+                } else if (code === 'ALREADY_PENDING') {
+                    toast.info('Este depósito já está em verificação.');
+                } else {
+                    toast.error(res.data.message || 'Erro ao registrar depósito');
+                }
             }
         } catch (error) {
             console.error("Manual deposit error", error);
-            toast.error(error.response?.data?.message || error.message || 'Verification failed');
+            toast.error(error.response?.data?.message || error.message || 'Erro ao registrar depósito');
         } finally {
             setIsActionLoading(false);
         }
@@ -600,7 +663,7 @@ export default function Wallet() {
                                     {showManualForm && (
                                         <div className="p-6 bg-slate-900/80 border border-primary/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-500">
                                             <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">Paste Transaction Hash (TxHash)</label>
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">Hash da Transação (TxHash)</label>
                                                 <input
                                                     type="text"
                                                     value={depositForm.txHash}
@@ -615,11 +678,73 @@ export default function Wallet() {
                                                 disabled={isActionLoading}
                                                 className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
                                             >
-                                                {isActionLoading ? 'Verifying...' : 'Verify Transfer & Update Balance'}
+                                                {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : null}
+                                                {isActionLoading ? 'Registrando...' : 'Registrar Depósito'}
                                             </button>
                                             <p className="text-[9px] text-slate-500 font-bold italic text-center">
-                                                Verification is automatic. If the hash is valid, your balance updates instantly.
+                                                O sistema verifica na blockchain em segundo plano. Você pode fechar esta página — o crédito é automático.
                                             </p>
+                                        </div>
+                                    )}
+
+                                    {/* Painel de depósitos em verificação */}
+                                    {pendingDeposits.length > 0 && (
+                                        <div className="space-y-3 animate-in fade-in duration-500">
+                                            <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                                <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                                                Depósitos em Verificação
+                                            </h4>
+                                            <div className="space-y-2 max-h-52 overflow-y-auto scrollbar-hide">
+                                                {pendingDeposits.map(dep => {
+                                                    const isPending = dep.status === 'pending_verification';
+                                                    const isOk = dep.status === 'completed';
+                                                    return (
+                                                        <div key={dep.id} className={`flex items-center justify-between p-3.5 rounded-2xl border ${
+                                                            isPending ? 'bg-indigo-500/5 border-indigo-500/20' :
+                                                            isOk ? 'bg-emerald-500/5 border-emerald-500/20' :
+                                                            'bg-red-500/5 border-red-500/20'
+                                                        }`}>
+                                                            <div className="flex items-center gap-3">
+                                                                {isPending
+                                                                    ? <Loader2 className="w-4 h-4 text-indigo-400 animate-spin shrink-0" />
+                                                                    : isOk
+                                                                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                                                        : <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+                                                                }
+                                                                <div>
+                                                                    <p className="text-[9px] font-mono text-slate-400">
+                                                                        {dep.txHash ? `${dep.txHash.slice(0,10)}...${dep.txHash.slice(-6)}` : 'N/A'}
+                                                                    </p>
+                                                                    <p className="text-[9px] text-slate-600">
+                                                                        {isPending ? `Tentativa ${dep.verifyAttempts}/20` :
+                                                                         isOk ? `+${Number(dep.amount).toFixed(4)} POL creditado` :
+                                                                         dep.failReason || 'Falhou'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                {dep.txHash && (
+                                                                    <a
+                                                                        href={`https://polygonscan.com/tx/${dep.txHash}`}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="text-slate-600 hover:text-primary transition-colors"
+                                                                    >
+                                                                        <ExternalLink className="w-3 h-3" />
+                                                                    </a>
+                                                                )}
+                                                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                                    isPending ? 'text-indigo-300 bg-indigo-400/10' :
+                                                                    isOk ? 'text-emerald-300 bg-emerald-400/10' :
+                                                                    'text-red-300 bg-red-400/10'
+                                                                }`}>
+                                                                    {isPending ? 'Verificando' : isOk ? 'Creditado' : 'Falhou'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     )}
 

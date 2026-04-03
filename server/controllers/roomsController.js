@@ -3,12 +3,15 @@ import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { createNotification } from "./notificationController.js";
+import loggerLib from "../utils/logger.js";
 
-const RACKS_PER_ROOM = parseInt(process.env.RACKS_PER_ROOM || "80", 10);
+const logger = loggerLib.child("Rooms");
+
+const RACKS_PER_ROOM = parseInt(process.env.RACKS_PER_ROOM || "192", 10);
 const ROOM_MAX = parseInt(process.env.ROOM_MAX || "4", 10);
 
 function getRoomPrices() {
-  const raw = process.env.ROOM_PRICES || "0,500,1200,2500";
+  const raw = process.env.ROOM_PRICES || "0,100,500,750";
   return raw.split(",").map((v) => parseFloat(v.trim()));
 }
 
@@ -21,6 +24,8 @@ export async function listRooms(req, res) {
   try {
     const userId = req.user.id;
     const prices = getRoomPrices();
+
+    logger.info("listRooms", { userId });
 
     const rooms = await prisma.userRoom.findMany({
       where: { userId },
@@ -86,6 +91,7 @@ export async function listRooms(req, res) {
       freeRacks: totalRacks - occupiedRacks,
     });
   } catch (err) {
+    logger.error("listRooms error", { err: err.message });
     return res.status(500).json({ ok: false, message: "Erro ao listar salas." });
   }
 }
@@ -95,7 +101,7 @@ export async function buyRoom(req, res) {
     const userId = req.user.id;
     const prices = getRoomPrices();
 
-    // Descobrir próxima sala a ser comprada
+    logger.info("buyRoom attempt", { userId });
     const existing = await prisma.userRoom.findMany({
       where: { userId },
       orderBy: { roomNumber: "asc" },
@@ -105,14 +111,24 @@ export async function buyRoom(req, res) {
     const nextRoom = unlockedNumbers.length + 1;
 
     if (nextRoom > ROOM_MAX) {
+      logger.warn("buyRoom: max rooms reached", { userId, nextRoom });
       return res.status(400).json({ ok: false, code: "MAX_ROOMS_REACHED", message: "Você já desbloqueou todas as salas disponíveis." });
     }
 
     const price = prices[nextRoom - 1] ?? 0;
+    if (typeof price !== "number" || isNaN(price) || price < 0) {
+      logger.error("buyRoom: invalid price config", { nextRoom, price });
+      return res.status(500).json({ ok: false, message: "Configuração de preço inválida." });
+    }
 
     // Verificar saldo
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { polBalance: true } });
-    if (!user || Number(user.polBalance) < price) {
+    if (!user) {
+      logger.warn("buyRoom: user not found", { userId });
+      return res.status(404).json({ ok: false, message: "Usuário não encontrado." });
+    }
+    if (Number(user.polBalance) < price) {
+      logger.warn("buyRoom: insufficient balance", { userId, balance: Number(user.polBalance), price });
       return res.status(400).json({ ok: false, code: "INSUFFICIENT_BALANCE", message: "Saldo insuficiente para desbloquear esta sala." });
     }
 
@@ -148,6 +164,7 @@ export async function buyRoom(req, res) {
       applyUserBalanceDelta(userId, -price);
     }
 
+    logger.info("buyRoom: room unlocked", { userId, roomNumber: nextRoom, price });
     const engine = getMiningEngine();
     if (engine) {
       await createNotification({
@@ -166,6 +183,7 @@ export async function buyRoom(req, res) {
       message: `Sala ${nextRoom} desbloqueada com sucesso!`,
     });
   } catch (err) {
+    logger.error("buyRoom error", { err: err.message });
     return res.status(500).json({ ok: false, message: "Erro ao comprar sala." });
   }
 }
@@ -177,11 +195,15 @@ export async function installMiner(req, res) {
     const inventoryId = Number(req.body?.inventoryId);
 
     if (!Number.isInteger(rackId) || rackId <= 0) {
+      logger.warn("installMiner: invalid rackId", { userId, rackId });
       return res.status(400).json({ ok: false, message: "rackId inválido." });
     }
     if (!Number.isInteger(inventoryId) || inventoryId <= 0) {
+      logger.warn("installMiner: invalid inventoryId", { userId, inventoryId });
       return res.status(400).json({ ok: false, message: "inventoryId inválido." });
     }
+
+    logger.info("installMiner attempt", { userId, rackId, inventoryId });
 
     // Buscar rack e validar que pertence ao usuário
     const rack = await prisma.userRack.findFirst({
@@ -189,9 +211,11 @@ export async function installMiner(req, res) {
       include: { room: true },
     });
     if (!rack) {
+      logger.warn("installMiner: rack not found", { userId, rackId });
       return res.status(404).json({ ok: false, message: "Rack não encontrado." });
     }
     if (rack.userMinerId !== null) {
+      logger.warn("installMiner: rack occupied", { userId, rackId });
       return res.status(400).json({ ok: false, code: "RACK_OCCUPIED", message: "Este rack já está ocupado." });
     }
 
@@ -200,23 +224,11 @@ export async function installMiner(req, res) {
       where: { id: inventoryId, userId },
     });
     if (!inventoryItem) {
+      logger.warn("installMiner: inventory item not found", { userId, inventoryId });
       return res.status(404).json({ ok: false, message: "Item não encontrado no inventário." });
     }
 
-    // Verificar se este item já está instalado em algum rack
-    const alreadyInRack = await prisma.userMiner.findFirst({
-      where: {
-        userId,
-        // Miners de rack têm slotIndex >= 1000
-        slotIndex: {
-          gte: 1000,
-        },
-        userRack: { isNot: null },
-      },
-    });
-    // Na verdade precisamos verificar por minerId + hashRate correspondente — mais simples: verificar via join
-    // A verificação mais confiável: se o item de inventário foi movido para userMiner, não está mais em inventory
-    // Então apenas chegar aqui já confirma que o item está disponível
+    // Item presente em userInventory já confirma disponibilidade — sem necessidade de consulta adicional.
 
     const slotIndex = rackSlotIndex(rack.room.roomNumber, rack.position);
 
@@ -258,9 +270,10 @@ export async function installMiner(req, res) {
       });
     }
 
+    logger.info("installMiner: success", { userId, rackId, minerId: inventoryItem.minerId });
     return res.json({ ok: true, message: "Máquina instalada com sucesso!" });
   } catch (err) {
-    console.error("installMiner error:", err);
+    logger.error("installMiner error", { err: err.message });
     return res.status(500).json({ ok: false, message: "Erro ao instalar máquina." });
   }
 }
@@ -271,17 +284,22 @@ export async function uninstallMiner(req, res) {
     const rackId = Number(req.body?.rackId);
 
     if (!Number.isInteger(rackId) || rackId <= 0) {
+      logger.warn("uninstallMiner: invalid rackId", { userId, rackId });
       return res.status(400).json({ ok: false, message: "rackId inválido." });
     }
+
+    logger.info("uninstallMiner attempt", { userId, rackId });
 
     const rack = await prisma.userRack.findFirst({
       where: { id: rackId, userId },
       include: { userMiner: true },
     });
     if (!rack) {
+      logger.warn("uninstallMiner: rack not found", { userId, rackId });
       return res.status(404).json({ ok: false, message: "Rack não encontrado." });
     }
     if (!rack.userMiner) {
+      logger.warn("uninstallMiner: rack empty", { userId, rackId });
       return res.status(400).json({ ok: false, code: "RACK_EMPTY", message: "Este rack não tem máquina instalada." });
     }
 
@@ -315,9 +333,10 @@ export async function uninstallMiner(req, res) {
       await engine.reloadMinerProfile(userId);
     }
 
+    logger.info("uninstallMiner: success", { userId, rackId, minerId: miner.minerId });
     return res.json({ ok: true, message: "Máquina removida do rack com sucesso!" });
   } catch (err) {
-    console.error("uninstallMiner error:", err);
+    logger.error("uninstallMiner error", { err: err.message });
     return res.status(500).json({ ok: false, message: "Erro ao remover máquina." });
   }
 }

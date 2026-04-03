@@ -40,9 +40,9 @@ services:
       BACKUP_CLOUD_ENABLED: "false"
       BACKUP_RUN_ON_STARTUP: "false"
       BACKUP_FULL_SITE_ON_STARTUP: "false"
-      ROOM_PRICES: "0,500,1200,2500"
+      ROOM_PRICES: "0,100,500,750"
       ROOM_MAX: "4"
-      RACKS_PER_ROOM: "80"
+      RACKS_PER_ROOM: "192"
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups

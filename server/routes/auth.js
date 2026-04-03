@@ -259,7 +259,7 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
       });
 
       // Seed sala 1 + racks automáticos no registro
-      const racksPerRoom = parseInt(process.env.RACKS_PER_ROOM || "24", 10);
+      const racksPerRoom = parseInt(process.env.RACKS_PER_ROOM || "192", 10);
       const sala1 = await tx.userRoom.create({
         data: {
           userId: user.id,

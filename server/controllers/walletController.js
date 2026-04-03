@@ -1,6 +1,9 @@
 import { verifyMessage } from "ethers";
 import walletModel from "../models/walletModel.js";
+import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
+import { runDepositVerifier } from "../services/depositVerifier.js";
+import { wakeUpScanner } from "../cron/depositsCron.js";
 
 const logger = loggerLib.child("WalletController");
 
@@ -81,5 +84,160 @@ export async function requestWithdrawal(req, res) {
       return res.status(409).json({ ok: false, message: error.message });
     }
     res.status(400).json({ ok: false, message: error.message || "Unable to request withdrawal." });
+  }
+}
+
+/**
+ * Registra um depósito para verificação assíncrona na blockchain.
+ * O usuário envia o txHash e pode fechar a página — o sistema verifica em background.
+ */
+export async function submitDeposit(req, res) {
+  try {
+    const userId = req.user.id;
+    const { txHash, claimedAmount } = req.body;
+
+    // Valida formato do txHash
+    if (!txHash || typeof txHash !== "string") {
+      return res.status(400).json({ ok: false, message: "Hash da transação obrigatório." });
+    }
+    const normalizedHash = txHash.trim().toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Hash inválido. Formato esperado: 0x seguido de 64 caracteres hexadecimais."
+      });
+    }
+
+    // Valor declarado é apenas referência — o crédito real vem da chain
+    let parsedClaimed = 0;
+    if (claimedAmount !== undefined && claimedAmount !== "") {
+      parsedClaimed = parseFloat(claimedAmount);
+      if (isNaN(parsedClaimed) || parsedClaimed < 0) {
+        return res.status(400).json({ ok: false, message: "Valor inválido." });
+      }
+    }
+
+    // Verifica se esse hash já existe para este usuário
+    const existing = await prisma.transaction.findFirst({
+      where: { txHash: normalizedHash, userId, type: "deposit" }
+    });
+    if (existing) {
+      if (existing.status === "completed") {
+        return res.status(409).json({
+          ok: false,
+          code: "ALREADY_CREDITED",
+          message: "Esta transação já foi processada e creditada."
+        });
+      }
+      if (existing.status === "pending_verification") {
+        return res.json({
+          ok: true,
+          deposit: { id: existing.id, status: "pending_verification" },
+          message: "Depósito já está em verificação."
+        });
+      }
+      if (existing.status === "failed") {
+        const failReason = (() => {
+          try { return JSON.parse(existing.rawTx || "{}").error; } catch { return null; }
+        })();
+        return res.status(409).json({
+          ok: false,
+          code: "VERIFICATION_FAILED",
+          failReason,
+          message: "A verificação deste depósito falhou. Abra um ticket de suporte se o valor não foi creditado."
+        });
+      }
+    }
+
+    // Anti-fraude: verifica se outro usuário já reivindicou este hash
+    const otherClaim = await prisma.transaction.findFirst({
+      where: {
+        txHash: normalizedHash,
+        type: "deposit",
+        status: { in: ["completed", "pending_verification"] },
+        userId: { not: userId }
+      }
+    });
+    if (otherClaim) {
+      logger.warn("Deposit hash claimed by another user", { userId, txHash: normalizedHash });
+      return res.status(409).json({
+        ok: false,
+        code: "HASH_CLAIMED",
+        message: "Esta transação já foi reivindicada por outra conta."
+      });
+    }
+
+    // Registra depósito como pending_verification
+    const deposit = await prisma.transaction.create({
+      data: {
+        userId,
+        type: "deposit",
+        amount: parsedClaimed > 0 ? parsedClaimed.toString() : "0",
+        txHash: normalizedHash,
+        status: "pending_verification",
+        verifyAttempts: 0
+      }
+    });
+
+    // Dispara verificação assíncrona imediatamente (não bloqueia resposta)
+    runDepositVerifier().catch(() => {});
+    wakeUpScanner();
+
+    logger.info("Deposit submitted for async verification", { userId, txHash: normalizedHash });
+    return res.json({
+      ok: true,
+      deposit: { id: deposit.id, txHash: normalizedHash, status: "pending_verification" },
+      message: "Depósito enviado! Verificando na blockchain em segundo plano. Você pode fechar esta página com segurança."
+    });
+  } catch (err) {
+    logger.error("submitDeposit error", { error: err.message });
+    return res.status(500).json({ ok: false, message: "Erro ao registrar depósito." });
+  }
+}
+
+/**
+ * Retorna os depósitos recentes do usuário (pending, completed, failed).
+ * Usado para poll do frontend enquanto o usuário aguarda confirmação.
+ */
+export async function getPendingDeposits(req, res) {
+  try {
+    const deposits = await prisma.transaction.findMany({
+      where: {
+        userId: req.user.id,
+        type: "deposit",
+        status: { in: ["pending_verification", "completed", "failed"] }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        txHash: true,
+        amount: true,
+        status: true,
+        verifyAttempts: true,
+        createdAt: true,
+        completedAt: true,
+        rawTx: true
+      }
+    });
+
+    return res.json({
+      ok: true,
+      deposits: deposits.map(d => ({
+        id: d.id,
+        txHash: d.txHash,
+        amount: Number(d.amount),
+        status: d.status,
+        verifyAttempts: d.verifyAttempts,
+        createdAt: d.createdAt,
+        completedAt: d.completedAt,
+        failReason: d.status === "failed" && d.rawTx
+          ? (() => { try { return JSON.parse(d.rawTx).error; } catch { return null; } })()
+          : null
+      }))
+    });
+  } catch (err) {
+    logger.error("getPendingDeposits error", { error: err.message });
+    return res.status(500).json({ ok: false, message: "Erro ao buscar depósitos." });
   }
 }
