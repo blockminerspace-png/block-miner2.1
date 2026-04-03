@@ -114,15 +114,14 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onClose }) {
   );
 }
 
-function RackCard({ rackNumber, slots, roomNumber, onSlotClick }) {
+function RackCard({ rackNumber, slots, onSlotClick }) {
   return (
     <div className="bg-surface border border-gray-800/50 rounded-3xl overflow-hidden shadow-xl">
-      <div className="px-6 py-4 bg-gray-800/20 border-b border-gray-800/50 flex justify-between items-center">
+      <div className="px-6 py-4 bg-gray-800/20 border-b border-gray-800/50">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-glow" />
           <h3 className="text-sm font-bold text-gray-300">Rack {rackNumber}</h3>
         </div>
-        <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Sala {roomNumber}</span>
       </div>
       <div className="p-4 grid grid-cols-4 gap-3">
         {slots.map((rack, slotInRack) => {
@@ -132,7 +131,7 @@ function RackCard({ rackNumber, slots, roomNumber, onSlotClick }) {
           return (
             <button
               key={rack ? rack.id : slotInRack}
-              onClick={() => onSlotClick({ rack, miner: machine, roomNumber, visualRackNumber: rackNumber, slotInRack })}
+              onClick={() => onSlotClick({ rack, miner: machine, visualRackNumber: rackNumber, slotInRack })}
               className={`relative aspect-square rounded-2xl border transition-all duration-300 group flex items-center justify-center ${
                 isOccupied
                   ? "bg-gray-800/40 border-gray-700/50 hover:border-primary/40 hover:bg-primary/5"
@@ -155,66 +154,6 @@ function RackCard({ rackNumber, slots, roomNumber, onSlotClick }) {
   );
 }
 
-function UnlockedRoom({ room, onSlotClick }) {
-  const visualRacks = groupIntoRacks(room.racks || []);
-  const rackOffset = (room.roomNumber - 1) * visualRacks.length;
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-gray-800/80" />
-        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Sala {room.roomNumber}</span>
-        <div className="h-px flex-1 bg-gray-800/80" />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {visualRacks.map((vr) => (
-          <RackCard
-            key={vr.rackNumber}
-            rackNumber={rackOffset + vr.rackNumber}
-            slots={vr.slots}
-            roomNumber={room.roomNumber}
-            onSlotClick={onSlotClick}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LockedRoom({ room, onBuy, loading }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-gray-800/80" />
-        <span className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em]">Sala {room.roomNumber}</span>
-        <div className="h-px flex-1 bg-gray-800/80" />
-      </div>
-      <div className="bg-surface border border-gray-800/30 rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
-          <div className="w-14 h-14 rounded-2xl bg-gray-800/40 border border-gray-800/50 flex items-center justify-center flex-shrink-0">
-            <Lock className="w-6 h-6 text-gray-600" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Sala {room.roomNumber} bloqueada</p>
-            <p className="text-xs text-gray-600 mt-1">
-              {Math.ceil(24 / SLOTS_PER_VISUAL_RACK)} racks · 24 slots disponíveis após desbloqueio
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => onBuy(room.roomNumber)}
-          disabled={loading}
-          className="flex-shrink-0 px-6 py-3 rounded-2xl bg-primary text-white text-xs font-black uppercase tracking-wider hover:bg-primary/80 transition-all disabled:opacity-50 flex items-center gap-2"
-        >
-          {loading
-            ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            : <><Zap className="w-3.5 h-3.5" />{room.price === 0 ? "Desbloquear grátis" : `Comprar por ${room.price} POL`}</>
-          }
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function Inventory() {
   const { t } = useTranslation();
   const [rooms, setRooms] = useState([]);
@@ -223,6 +162,7 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [buyingRoom, setBuyingRoom] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [activeRoom, setActiveRoom] = useState(1);
 
   const fetchData = useCallback(async () => {
     try {
@@ -245,10 +185,18 @@ export default function Inventory() {
     setBuyingRoom(true);
     try {
       const res = await api.post("/rooms/buy");
-      if (res.data.ok) { toast.success(res.data.message || `Sala ${roomNumber} desbloqueada!`); await fetchData(); }
-      else toast.error(res.data.message || t("common.error"));
-    } catch (err) { toast.error(err?.response?.data?.message || t("common.error")); }
-    finally { setBuyingRoom(false); }
+      if (res.data.ok) {
+        toast.success(res.data.message || `Sala ${roomNumber} desbloqueada!`);
+        setActiveRoom(roomNumber);
+        await fetchData();
+      } else {
+        toast.error(res.data.message || t("common.error"));
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || t("common.error"));
+    } finally {
+      setBuyingRoom(false);
+    }
   };
 
   const handleInstall = async (rackId, inventoryId) => {
@@ -282,6 +230,10 @@ export default function Inventory() {
     [rooms]
   );
 
+  const currentRoom = rooms.find(r => r.roomNumber === activeRoom) || null;
+  const visualRacksOfCurrent = currentRoom?.unlocked ? groupIntoRacks(currentRoom.racks || []) : [];
+  const rackOffset = currentRoom ? (currentRoom.roomNumber - 1) * (visualRacksOfCurrent.length || 10) : 0;
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-64">
       <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -289,7 +241,8 @@ export default function Inventory() {
   );
 
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-white tracking-tight">{t("inventory.title")}</h1>
@@ -309,17 +262,78 @@ export default function Inventory() {
         </div>
       </div>
 
+      {/* Tabs das salas */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {rooms.map((room) => {
+          const isActive = room.roomNumber === activeRoom;
+          const isUnlocked = room.unlocked;
+          return (
+            <button
+              key={room.roomNumber}
+              onClick={() => setActiveRoom(room.roomNumber)}
+              className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                isActive
+                  ? "bg-primary text-white shadow-lg shadow-primary/20"
+                  : isUnlocked
+                  ? "bg-gray-800/60 text-gray-300 hover:bg-gray-700/60 hover:text-white border border-gray-700/50"
+                  : "bg-gray-900/40 text-gray-600 border border-dashed border-gray-700/40 hover:border-gray-600/60 hover:text-gray-500"
+              }`}
+            >
+              {!isUnlocked && <Lock className="w-3 h-3" />}
+              Sala {room.roomNumber}
+              {isUnlocked && !isActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Conteúdo + sidebar */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-        <div className="xl:col-span-2 space-y-10">
-          {rooms.map((room) =>
-            room.unlocked ? (
-              <UnlockedRoom key={room.roomNumber} room={room} onSlotClick={setSelectedSlot} />
+        {/* Racks da sala ativa */}
+        <div className="xl:col-span-2">
+          {currentRoom ? (
+            currentRoom.unlocked ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {visualRacksOfCurrent.map((vr) => (
+                  <RackCard
+                    key={vr.rackNumber}
+                    rackNumber={rackOffset + vr.rackNumber}
+                    slots={vr.slots}
+                    onSlotClick={setSelectedSlot}
+                  />
+                ))}
+              </div>
             ) : (
-              <LockedRoom key={room.roomNumber} room={room} onBuy={handleBuyRoom} loading={buyingRoom} />
+              <div className="bg-surface border border-gray-800/30 rounded-3xl p-10 flex flex-col items-center justify-center gap-6 text-center min-h-64">
+                <div className="w-16 h-16 rounded-2xl bg-gray-800/40 border border-gray-800/50 flex items-center justify-center">
+                  <Lock className="w-7 h-7 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-gray-400">Sala {currentRoom.roomNumber} bloqueada</p>
+                  <p className="text-xs text-gray-600 mt-1">10 racks · 80 slots disponíveis após desbloqueio</p>
+                </div>
+                <button
+                  onClick={() => handleBuyRoom(currentRoom.roomNumber)}
+                  disabled={buyingRoom}
+                  className="px-8 py-3 rounded-2xl bg-primary text-white text-xs font-black uppercase tracking-wider hover:bg-primary/80 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {buyingRoom
+                    ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><Zap className="w-3.5 h-3.5" />{currentRoom.price === 0 ? "Desbloquear grátis" : `Comprar por ${currentRoom.price} POL`}</>
+                  }
+                </button>
+              </div>
             )
+          ) : (
+            <div className="flex items-center justify-center min-h-64">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
           )}
         </div>
 
+        {/* Sidebar: Minhas Máquinas */}
         <div className="space-y-6">
           <div className="bg-surface border border-gray-800/50 rounded-3xl p-6 shadow-xl sticky top-28">
             <div className="flex items-center justify-between mb-6">

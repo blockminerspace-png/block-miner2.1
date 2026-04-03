@@ -1,0 +1,53 @@
+# Docker Compose para testes locais - sem nginx, porta 3000 exposta diretamente
+# Uso: docker-compose -f docker-compose.local.yml up --build
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: blockminer
+      POSTGRES_PASSWORD: blockminer_password
+      POSTGRES_DB: blockminer_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockminer -d blockminer_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.production.vm-backup
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+      APP_URL: "http://localhost:3000"
+      COOKIE_SECURE: "false"
+      BACKUP_CLOUD_ENABLED: "false"
+      BACKUP_RUN_ON_STARTUP: "false"
+      BACKUP_FULL_SITE_ON_STARTUP: "false"
+      ROOM_PRICES: "0,500,1200,2500"
+      ROOM_MAX: "4"
+      RACKS_PER_ROOM: "80"
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  postgres_data_local:

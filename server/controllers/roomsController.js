@@ -4,11 +4,11 @@ import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { createNotification } from "./notificationController.js";
 
-const RACKS_PER_ROOM = parseInt(process.env.RACKS_PER_ROOM || "24", 10);
-const ROOM_MAX = parseInt(process.env.ROOM_MAX || "6", 10);
+const RACKS_PER_ROOM = parseInt(process.env.RACKS_PER_ROOM || "80", 10);
+const ROOM_MAX = parseInt(process.env.ROOM_MAX || "4", 10);
 
 function getRoomPrices() {
-  const raw = process.env.ROOM_PRICES || "0,500,1200,2500,4500,7500";
+  const raw = process.env.ROOM_PRICES || "0,500,1200,2500";
   return raw.split(",").map((v) => parseFloat(v.trim()));
 }
 
