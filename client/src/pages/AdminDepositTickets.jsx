@@ -204,7 +204,7 @@ export default function AdminDepositTickets() {
                                 <div className="bg-slate-900/60 border border-slate-800/50 rounded-2xl p-6 space-y-4">
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                         <Hash className="w-4 h-4 text-blue-400" />
-                                        Análise On-Chain (Polygonscan)
+                                        Análise On-Chain (Etherscan V2 / Polygon)
                                     </h3>
 
                                     {onchain.error && (
@@ -224,19 +224,26 @@ export default function AdminDepositTickets() {
                                         </div>
                                     )}
 
-                                    {onchain.recentTxsFromWallet?.length > 0 && (
-                                        <div className="space-y-2">
-                                            <p className="text-[9px] font-black text-slate-500 uppercase">Transações recentes desta carteira para nós:</p>
-                                            {onchain.recentTxsFromWallet.map(tx => (
-                                                <div key={tx.hash} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl text-[9px]">
-                                                    <a href={`https://polygonscan.com/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer"
-                                                        className="text-blue-400 font-mono hover:underline truncate max-w-[180px]">{tx.hash.slice(0, 16)}...</a>
-                                                    <span className="text-emerald-400 font-bold">{tx.value} POL</span>
-                                                    <span className="text-slate-500">{new Date(tx.timestamp * 1000).toLocaleDateString('pt-BR')}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    {/* Histórico de depósitos desta carteira (últimos 365 dias) */}
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-black text-slate-500 uppercase">
+                                            Depósitos desta carteira para nós (últimos 365 dias):
+                                        </p>
+                                        {onchain.walletScanError && (
+                                            <p className="text-[9px] text-amber-400">{onchain.walletScanError}</p>
+                                        )}
+                                        {!onchain.walletScanError && onchain.recentTxsFromWallet?.length === 0 && (
+                                            <p className="text-[9px] text-slate-600 italic">Nenhuma transação encontrada para nossa carteira.</p>
+                                        )}
+                                        {onchain.recentTxsFromWallet?.map(tx => (
+                                            <div key={tx.hash} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl text-[9px] gap-2">
+                                                <a href={`https://polygonscan.com/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer"
+                                                    className="text-blue-400 font-mono hover:underline truncate max-w-[160px]">{tx.hash.slice(0, 14)}...</a>
+                                                <span className="text-emerald-400 font-bold shrink-0">{tx.value} POL</span>
+                                                <span className="text-slate-500 shrink-0">{new Date(tx.timestamp * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 

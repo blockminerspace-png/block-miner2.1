@@ -242,7 +242,10 @@ export async function adminRejectTicket(req, res) {
   }
 }
 
-// ─── Análise on-chain via Polygonscan ────────────────────────────────────────
+// ─── Análise on-chain via Etherscan V2 (chainid=137 = Polygon) ───────────────
+
+const ETHERSCAN_V2 = (address, module, action, extra = "") =>
+  `https://api.etherscan.io/v2/api?chainid=137&module=${module}&action=${action}&apikey=${POLYGONSCAN_API_KEY}${extra ? "&" + extra : ""}`;
 
 async function analyzeOnChain(ticket) {
   const result = {
@@ -253,8 +256,6 @@ async function analyzeOnChain(ticket) {
     value: null,
     valueEther: null,
     blockNumber: null,
-    confirmations: null,
-    timestamp: null,
     isSuccess: null,
     toIsOurWallet: false,
     fromMatchesTicket: false,
@@ -270,12 +271,13 @@ async function analyzeOnChain(ticket) {
   try {
     // 1. Verificar tx específica se fornecida
     if (ticket.txHash) {
-      const txRes = await fetch(
-        `https://api.polygonscan.com/api?module=proxy&action=eth_getTransactionByHash&txhash=${ticket.txHash}&apikey=${POLYGONSCAN_API_KEY}`
-      );
-      const txData = await txRes.json();
-      const tx = txData?.result;
+      const [txRes, receiptRes] = await Promise.all([
+        fetch(ETHERSCAN_V2(null, "proxy", "eth_getTransactionByHash", `txhash=${ticket.txHash}`)),
+        fetch(ETHERSCAN_V2(null, "proxy", "eth_getTransactionReceipt", `txhash=${ticket.txHash}`))
+      ]);
+      const [txData, receiptData] = await Promise.all([txRes.json(), receiptRes.json()]);
 
+      const tx = txData?.result;
       if (tx && tx.hash) {
         result.found = true;
         result.from = tx.from?.toLowerCase();
@@ -286,52 +288,52 @@ async function analyzeOnChain(ticket) {
         result.toIsOurWallet = DEPOSIT_WALLET ? result.to === DEPOSIT_WALLET : false;
         result.fromMatchesTicket = result.from === ticket.walletAddress.toLowerCase();
 
-        // Verificar recibo (confirmado?)
-        const receiptRes = await fetch(
-          `https://api.polygonscan.com/api?module=proxy&action=eth_getTransactionReceipt&txhash=${ticket.txHash}&apikey=${POLYGONSCAN_API_KEY}`
-        );
-        const receiptData = await receiptRes.json();
         const receipt = receiptData?.result;
         if (receipt) {
           result.isSuccess = receipt.status === "0x1";
-          result.confirmations = receipt.blockNumber
-            ? "confirmado"
-            : "pendente";
         }
       }
+
+      // Verificar se txHash já foi creditado no sistema
+      const existing = await prisma.transaction.findFirst({
+        where: { txHash: ticket.txHash, type: "deposit", status: "completed" }
+      });
+      result.alreadyCredited = !!existing;
     }
 
-    // 2. Buscar transações recentes da carteira do usuário para nossa wallet
+    // 2. Buscar TODOS os depósitos enviados pela carteira do usuário para nossa wallet
+    //    nos últimos 365 dias (~2.3M blocos no Polygon ≈ 1 bloco/2s)
+    //    Usando address=CARTEIRA_USUARIO e filtrando to=DEPOSIT_WALLET no resultado
     if (ticket.walletAddress && DEPOSIT_WALLET) {
-      const listRes = await fetch(
-        `https://api.polygonscan.com/api?module=account&action=txlist&address=${DEPOSIT_WALLET}&sort=desc&page=1&offset=20&apikey=${POLYGONSCAN_API_KEY}`
+      const url = ETHERSCAN_V2(
+        null,
+        "account",
+        "txlist",
+        `address=${ticket.walletAddress}&startblock=0&endblock=99999999&sort=desc&page=1&offset=200`
       );
+      const listRes = await fetch(url);
       const listData = await listRes.json();
+
       if (listData?.result && Array.isArray(listData.result)) {
-        const fromUser = listData.result
+        const cutoff = Date.now() / 1000 - 365 * 24 * 3600; // 365 dias atrás em unix
+        const toUs = listData.result
           .filter(
             (tx) =>
-              tx.from?.toLowerCase() === ticket.walletAddress.toLowerCase() &&
               tx.to?.toLowerCase() === DEPOSIT_WALLET &&
-              tx.isError === "0"
+              tx.isError === "0" &&
+              Number(tx.timeStamp) >= cutoff
           )
-          .slice(0, 5)
+          .slice(0, 20)
           .map((tx) => ({
             hash: tx.hash,
             value: (parseInt(tx.value) / 1e18).toFixed(8),
             timestamp: Number(tx.timeStamp),
             blockNumber: Number(tx.blockNumber)
           }));
-        result.recentTxsFromWallet = fromUser;
+        result.recentTxsFromWallet = toUs;
+      } else if (listData?.message && listData.message !== "No transactions found") {
+        result.walletScanError = listData.message;
       }
-    }
-
-    // 3. Verificar se txHash já foi creditado no sistema
-    if (ticket.txHash) {
-      const existing = await prisma.transaction.findFirst({
-        where: { txHash: ticket.txHash, type: "deposit", status: "completed" }
-      });
-      result.alreadyCredited = !!existing;
     }
   } catch (err) {
     result.error = err.message;
