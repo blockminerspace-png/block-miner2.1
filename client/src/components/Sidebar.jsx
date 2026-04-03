@@ -20,6 +20,7 @@ import {
   X,
   Bell,
   MessageSquare,
+  Building2,
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { useGameStore } from '../store/game';
@@ -55,6 +56,7 @@ export default function Sidebar() {
         { icon: Cpu, label: t('sidebar.machines'), path: '/inventory' },
         { icon: ShoppingCart, label: t('sidebar.shop'), path: '/shop' },
         { icon: Tag, label: t('sidebar.offers', 'Ofertas'), path: '/offers' },
+        { icon: Building2, label: t('sidebar.farm', 'Minha Fazenda'), path: '/farm' },
         { icon: Wallet, label: t('sidebar.wallet'), path: '/wallet' },
       ]
     },

@@ -258,6 +258,23 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
         }
       });
 
+      // Seed sala 1 + racks automáticos no registro
+      const racksPerRoom = parseInt(process.env.RACKS_PER_ROOM || "24", 10);
+      const sala1 = await tx.userRoom.create({
+        data: {
+          userId: user.id,
+          roomNumber: 1,
+          pricePaid: 0,
+        },
+      });
+      await tx.userRack.createMany({
+        data: Array.from({ length: racksPerRoom }, (_, i) => ({
+          userId: user.id,
+          roomId: sala1.id,
+          position: i,
+        })),
+      });
+
       // Audit Log for registration
       await tx.auditLog.create({
         data: {

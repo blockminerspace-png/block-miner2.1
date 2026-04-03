@@ -23,6 +23,7 @@ import Settings from './pages/Settings';
 import AutoMining from './pages/AutoMining';
 import Games from './pages/Games';
 import ShortlinkStep from './pages/ShortlinkStep';
+import Farm from './pages/Farm';
 
 import ChatSidebar from './components/ChatSidebar';
 import AdBlockDetector from './components/AdBlockDetector';
@@ -128,6 +129,7 @@ function App() {
           <Route path="/checkin" element={<Checkin />} />
           <Route path="/youtube" element={<YouTubeWatch />} />
           <Route path="/auto-mining" element={<AutoMining />} />
+          <Route path="/farm" element={<Farm />} />
           <Route path="/ranking" element={<Ranking />} />
           <Route path="/room/:username" element={<PublicRoom />} />
           <Route path="/settings" element={<Settings />} />

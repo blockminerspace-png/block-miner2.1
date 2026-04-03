@@ -81,6 +81,8 @@ model User {
   supportMessages   SupportMessage[]
   supportReplies    SupportReply[]
   depositTickets    DepositTicket[]
+  userRooms         UserRoom[]
+  userRacks         UserRack[]
 
   @@map("users")
 }
@@ -161,8 +163,9 @@ model UserMiner {
   isActive    Boolean  @default(true) @map("is_active")
   purchasedAt DateTime @default(now()) @map("purchased_at")
 
-  user  User   @relation(fields: [userId], references: [id])
-  miner Miner? @relation(fields: [minerId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  miner    Miner?    @relation(fields: [minerId], references: [id])
+  userRack UserRack?
 
   @@unique([userId, slotIndex])
   @@index([userId])
@@ -798,4 +801,37 @@ model DepositTicket {
   @@index([status])
   @@index([txHash])
   @@map("deposit_tickets")
+}
+
+model UserRoom {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  roomNumber Int      @map("room_number")
+  pricePaid  Decimal  @default(0) @map("price_paid") @db.Decimal(20, 8)
+  unlockedAt DateTime @default(now()) @map("unlocked_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  racks UserRack[]
+
+  @@unique([userId, roomNumber])
+  @@index([userId])
+  @@map("user_rooms")
+}
+
+model UserRack {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  roomId      Int       @map("room_id")
+  position    Int
+  userMinerId Int?      @unique @map("user_miner_id")
+  installedAt DateTime? @map("installed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room      UserRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userMiner UserMiner? @relation(fields: [userMinerId], references: [id])
+
+  @@unique([roomId, position])
+  @@index([userId])
+  @@map("user_racks")
 }
