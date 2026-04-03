@@ -216,7 +216,8 @@ export async function updateMiner(req, res) {
 export async function listPendingWithdrawals(_req, res) {
   try {
     const withdrawals = await walletModel.getPendingWithdrawals();
-    res.json({ ok: true, withdrawals });
+    const normalized = withdrawals.map(w => ({ ...w, amount: Number(w.amount) }));
+    res.json({ ok: true, withdrawals: normalized });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Load failed" });
   }

@@ -160,7 +160,7 @@ export default function AdminDashboard() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5">
-                                            <span className="text-amber-500 font-black">{w.amount.toFixed(4)} <span className="text-[10px] font-normal opacity-60">POL</span></span>
+                                            <span className="text-amber-500 font-black">{Number(w.amount).toFixed(4)} <span className="text-[10px] font-normal opacity-60">POL</span></span>
                                         </td>
                                         <td className="px-8 py-5">
                                             <div className="flex gap-2">

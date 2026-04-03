@@ -18,7 +18,12 @@ export async function getBalance(req, res) {
 export async function getTransactions(req, res) {
   try {
     const transactions = await walletModel.getTransactions(req.user.id);
-    res.json({ ok: true, transactions });
+    // Converter Decimal do Prisma para número JS para evitar erros no frontend
+    const normalized = transactions.map(tx => ({
+      ...tx,
+      amount: Number(tx.amount)
+    }));
+    res.json({ ok: true, transactions: normalized });
   } catch (error) {
     logger.error("Error getting transactions", { error: error.message });
     res.status(500).json({ ok: false, message: "Unable to get transactions." });
