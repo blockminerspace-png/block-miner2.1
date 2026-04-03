@@ -80,6 +80,7 @@ model User {
   eventPurchases    EventPurchase[]
   supportMessages   SupportMessage[]
   supportReplies    SupportReply[]
+  depositTickets    DepositTicket[]
 
   @@map("users")
 }
@@ -769,4 +770,32 @@ model SupportReply {
 
   @@index([supportMessageId])
   @@map("support_replies")
+}
+
+model DepositTicket {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id")
+  walletAddress   String    @map("wallet_address")
+  txHash          String?   @map("tx_hash")
+  amountClaimed   Decimal?  @map("amount_claimed") @db.Decimal(20, 8)
+  description     String?   @db.Text
+  // Status: open | analyzing | approved | rejected | credited
+  status          String    @default("open")
+  // Resultado da análise on-chain (JSON)
+  onchainDataJson String?   @map("onchain_data_json") @db.Text
+  // Ação tomada: none | credit_applied | replenished
+  adminAction     String?   @map("admin_action")
+  adminNote       String?   @map("admin_note") @db.Text
+  resolvedById    Int?      @map("resolved_by_id")
+  creditedAmount  Decimal?  @map("credited_amount") @db.Decimal(20, 8)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([txHash])
+  @@map("deposit_tickets")
 }

@@ -10,7 +10,8 @@ import {
     LogOut,
     ShieldAlert,
     Tag,
-    MessageSquare
+    MessageSquare,
+    Ticket
 } from 'lucide-react';
 
 const adminMenuItems = [
@@ -20,6 +21,7 @@ const adminMenuItems = [
   { icon: Tag, label: 'Ofertas', path: '/admin/offer-events' },
   { icon: Wallet, label: 'Financeiro', path: '/admin/finance' },
   { icon: MessageSquare, label: 'Suporte', path: '/admin/support' },
+  { icon: Ticket, label: 'Dep. Tickets', path: '/admin/deposit-tickets' },
   { icon: Database, label: 'Backups', path: '/admin/backups' },
   { icon: FileText, label: 'Logs', path: '/admin/logs' },
   { icon: Activity, label: 'Métricas', path: '/admin/metrics' },

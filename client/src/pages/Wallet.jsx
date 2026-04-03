@@ -17,7 +17,10 @@ import {
     Smartphone,
     TrendingUp,
     ChevronRight,
-    QrCode
+    QrCode,
+    Ticket,
+    Send,
+    HelpCircle
 } from 'lucide-react';
 import { api } from '../store/auth';
 import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
@@ -50,6 +53,12 @@ export default function Wallet() {
     });
     const [showManualForm, setShowManualForm] = useState(false);
     const [polPrice, setPolPrice] = useState(0);
+
+    // Deposit Ticket state
+    const [myTickets, setMyTickets] = useState([]);
+    const [ticketForm, setTicketForm] = useState({ walletAddress: '', txHash: '', amountClaimed: '', description: '' });
+    const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+    const [ticketsLoaded, setTicketsLoaded] = useState(false);
 
     const fetchPrice = async () => {
         try {
@@ -276,6 +285,37 @@ export default function Wallet() {
         toast.success(t('common.copied'));
     };
 
+    const fetchMyTickets = async () => {
+        try {
+            const res = await api.get('/deposit-tickets');
+            if (res.data.ok) setMyTickets(res.data.tickets || []);
+        } catch {}
+        setTicketsLoaded(true);
+    };
+
+    const handleOpenTicket = async (e) => {
+        e.preventDefault();
+        if (!ticketForm.walletAddress || !/^0x[0-9a-fA-F]{40}$/.test(ticketForm.walletAddress)) {
+            toast.error('Informe um endereço de carteira válido (0x...).');
+            return;
+        }
+        try {
+            setIsSubmittingTicket(true);
+            const res = await api.post('/deposit-tickets', ticketForm);
+            if (res.data.ok) {
+                toast.success('Ticket aberto com sucesso! Vamos analisar sua transação.');
+                setTicketForm({ walletAddress: '', txHash: '', amountClaimed: '', description: '' });
+                fetchMyTickets();
+            } else {
+                toast.error(res.data.message || 'Erro ao abrir ticket.');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao abrir ticket.');
+        } finally {
+            setIsSubmittingTicket(false);
+        }
+    };
+
     const StatusBadge = ({ status }) => {
         const config = {
             completed: { color: 'text-emerald-400 bg-emerald-400/10', label: 'Success' },
@@ -415,6 +455,12 @@ export default function Wallet() {
                                 className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 Add Funds
+                            </button>
+                            <button
+                                onClick={() => { setActiveTab('ticket'); if (!ticketsLoaded) fetchMyTickets(); }}
+                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'ticket' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                Ticket
                             </button>
                         </div>
 
@@ -604,6 +650,103 @@ export default function Wallet() {
                                         </div>
                                     </div>
                                 </form>
+                            )}
+
+                            {activeTab === 'ticket' && (
+                                <div className="space-y-8">
+                                    <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+                                        <HelpCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                                        <p className="text-[10px] text-slate-400 leading-relaxed font-bold">
+                                            Depositou POL mas o saldo não caiu? Abra um ticket com o hash da transação. Nossa equipe vai verificar on-chain e creditar manualmente.
+                                        </p>
+                                    </div>
+
+                                    <form onSubmit={handleOpenTicket} className="space-y-6">
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Endereço da Carteira de Origem *</label>
+                                            <input
+                                                type="text"
+                                                value={ticketForm.walletAddress}
+                                                onChange={(e) => setTicketForm(p => ({ ...p, walletAddress: e.target.value.trim() }))}
+                                                placeholder="0x... carteira que fez o depósito"
+                                                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Hash da Transação (opcional mas recomendado)</label>
+                                            <input
+                                                type="text"
+                                                value={ticketForm.txHash}
+                                                onChange={(e) => setTicketForm(p => ({ ...p, txHash: e.target.value.trim() }))}
+                                                placeholder="0x..."
+                                                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-3">
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Valor Enviado (POL)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.0001"
+                                                    value={ticketForm.amountClaimed}
+                                                    onChange={(e) => setTicketForm(p => ({ ...p, amountClaimed: e.target.value }))}
+                                                    placeholder="Ex: 0.5"
+                                                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Observação (opcional)</label>
+                                                <input
+                                                    type="text"
+                                                    value={ticketForm.description}
+                                                    onChange={(e) => setTicketForm(p => ({ ...p, description: e.target.value }))}
+                                                    placeholder="Detalhes adicionais..."
+                                                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs transition-all outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmittingTicket}
+                                            className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {isSubmittingTicket ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
+                                            {isSubmittingTicket ? 'Enviando...' : 'Abrir Ticket de Depósito'}
+                                        </button>
+                                    </form>
+
+                                    {/* Meus tickets */}
+                                    {myTickets.length > 0 && (
+                                        <div className="space-y-4">
+                                            <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Meus Tickets</h4>
+                                            <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">
+                                                {myTickets.map(t => {
+                                                    const statusCfg = {
+                                                        open: { color: 'text-blue-400 bg-blue-400/10', label: 'Aberto' },
+                                                        analyzing: { color: 'text-amber-400 bg-amber-400/10', label: 'Em Análise' },
+                                                        credited: { color: 'text-emerald-400 bg-emerald-400/10', label: 'Creditado' },
+                                                        rejected: { color: 'text-red-400 bg-red-400/10', label: 'Rejeitado' },
+                                                        approved: { color: 'text-emerald-400 bg-emerald-400/10', label: 'Aprovado' }
+                                                    }[t.status] || { color: 'text-slate-400 bg-slate-400/10', label: t.status };
+                                                    return (
+                                                        <div key={t.id} className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800/50 rounded-2xl">
+                                                            <div className="space-y-1">
+                                                                <p className="text-[10px] font-black text-white">Ticket #{t.id}</p>
+                                                                <p className="text-[9px] text-slate-500 font-mono">{t.txHash ? `${t.txHash.slice(0,12)}...` : 'Sem hash'}</p>
+                                                                <p className="text-[9px] text-slate-600">{new Date(t.createdAt).toLocaleDateString()}</p>
+                                                            </div>
+                                                            <div className="text-right space-y-1">
+                                                                <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${statusCfg.color}`}>{statusCfg.label}</span>
+                                                                {t.creditedAmount && <p className="text-[9px] text-emerald-400 font-bold">+{Number(t.creditedAmount).toFixed(4)} POL</p>}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

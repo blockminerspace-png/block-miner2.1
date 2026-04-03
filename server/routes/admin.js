@@ -1,6 +1,7 @@
 import express from "express";
 import * as adminController from "../controllers/adminController.js";
 import * as adminSupportController from "../controllers/adminSupportController.js";
+import * as depositTicketController from "../controllers/depositTicketController.js";
 import { adminOfferEventsRouter } from "./admin-offer-events.js";
 import { requireAdminAuth } from "../middleware/adminAuth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
@@ -295,3 +296,9 @@ adminRouter.get("/users/:id/details", async (req, res) => {
 adminRouter.get("/support", adminSupportController.listMessages);
 adminRouter.get("/support/:id", adminSupportController.getMessage);
 adminRouter.post("/support/:id/reply", adminSupportController.replyToMessage);
+
+// Deposit Tickets
+adminRouter.get("/deposit-tickets", depositTicketController.adminListTickets);
+adminRouter.get("/deposit-tickets/:id", depositTicketController.adminGetTicket);
+adminRouter.post("/deposit-tickets/:id/approve", depositTicketController.adminApproveTicket);
+adminRouter.post("/deposit-tickets/:id/reject", depositTicketController.adminRejectTicket);
