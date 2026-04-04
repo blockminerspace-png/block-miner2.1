@@ -106,3 +106,33 @@ test("withdraw returns 400 when wallet address format is invalid", async () => {
   assert.equal(res.body?.ok, false);
   assert.match(res.body?.message, /Invalid wallet address format/);
 });
+
+test("withdraw returns 400 when amount is missing", async () => {
+  const req = {
+    user: { id: 1 },
+    body: { address: "0x000000000000000000000000000000000000dead" },
+    get: () => "",
+    headers: {}
+  };
+  const res = createRes();
+
+  await walletController.requestWithdrawal(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body?.ok, false);
+  assert.match(res.body?.message, /Amount and address are required/);
+});
+
+test("withdraw returns 400 when address is missing", async () => {
+  const req = {
+    user: { id: 1 },
+    body: { amount: "15" },
+    get: () => "",
+    headers: {}
+  };
+  const res = createRes();
+
+  await walletController.requestWithdrawal(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body?.ok, false);
+  assert.match(res.body?.message, /Amount and address are required/);
+});
