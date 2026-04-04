@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Calculator, Zap, TrendingUp, RefreshCw, Info, Cpu, Wifi } from 'lucide-react';
 import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
 import { formatHashrate } from '../utils/machine';
-
-// Constantes do engine (miningEngine.js)
-const BLOCK_REWARD_POL = 0.15;
-const BLOCK_INTERVAL_MIN = 10;
-const BLOCKS_PER_HOUR = 60 / BLOCK_INTERVAL_MIN; // 6
-const BLOCKS_PER_DAY = BLOCKS_PER_HOUR * 24;     // 144
-const BLOCKS_PER_WEEK = BLOCKS_PER_DAY * 7;       // 1008
-const BLOCKS_PER_MONTH = BLOCKS_PER_DAY * 30;     // 4320
+import {
+    BLOCK_REWARD_POL,
+    BLOCK_INTERVAL_MIN,
+    BLOCKS_PER_DAY,
+    calcRewards,
+    calcSelectedHashRate,
+} from '../utils/calculatorEngine';
 
 export default function CalculatorPage() {
+    const { t } = useTranslation();
     const { stats, initSocket } = useGameStore();
 
     const [miners, setMiners] = useState([]);
@@ -55,29 +56,22 @@ export default function CalculatorPage() {
         if (stats?.tokenPrice) setTokenPriceInput(String(stats.tokenPrice));
     }, [stats?.tokenPrice]);
 
-    // Calcula hash rate total das máquinas selecionadas
-    const hashFromMiners = Object.entries(selectedMiners).reduce((sum, [id, qty]) => {
-        const m = miners.find(m => m.id === Number(id));
-        return sum + (m ? m.baseHashRate * qty : 0);
-    }, 0);
-
     // Quando adiciona/remove máquinas, atualiza o campo de hash rate
     useEffect(() => {
-        if (hashFromMiners > 0) {
-            setMyHashRateInput(String(hashFromMiners));
+        const h = calcSelectedHashRate(miners, selectedMiners);
+        if (h > 0) {
+            setMyHashRateInput(String(h));
             setMyHashManual(true);
         }
-    }, [hashFromMiners]);
+    }, [selectedMiners, miners]);
 
     const myHash = parseFloat(myHashRateInput) || 0;
     const netHash = parseFloat(networkHashRateInput) || 0;
     const price = parseFloat(tokenPriceInput) || 0;
 
-    const share = netHash > 0 ? myHash / netHash : 0;
-    const perBlock = BLOCK_REWARD_POL * share;
-    const perHour = perBlock * BLOCKS_PER_HOUR;
-    const perDay = perBlock * BLOCKS_PER_DAY;
-    const perWeek = perBlock * BLOCKS_PER_WEEK;
+    const hashFromMiners = calcSelectedHashRate(miners, selectedMiners);
+    const { share, perBlock, perHour, perDay, perWeek, perMonth, toUSD } =
+        calcRewards(myHash, netHash, price);
     const perMonth = perBlock * BLOCKS_PER_MONTH;
 
     const toUSD = (pol) => (pol * price).toFixed(4);
@@ -113,11 +107,11 @@ export default function CalculatorPage() {
     };
 
     const resultRows = [
-        { label: 'Por Bloco', pol: perBlock, sub: `a cada ${BLOCK_INTERVAL_MIN} min` },
-        { label: 'Por Hora', pol: perHour, sub: '1 hora' },
-        { label: 'Por Dia', pol: perDay, sub: '24 horas' },
-        { label: 'Por Semana', pol: perWeek, sub: '7 dias' },
-        { label: 'Por Mês', pol: perMonth, sub: '30 dias' },
+        { key: 'per_block', pol: perBlock, sub: t('calculator.every_n_min', { n: BLOCK_INTERVAL_MIN }) },
+        { key: 'per_hour',  pol: perHour,  sub: '1h' },
+        { key: 'per_day',   pol: perDay,   sub: '24h' },
+        { key: 'per_week',  pol: perWeek,  sub: '7d' },
+        { key: 'per_month', pol: perMonth, sub: '30d' },
     ];
 
     return (
@@ -127,8 +121,8 @@ export default function CalculatorPage() {
                 <div className="inline-flex p-3 bg-primary/10 rounded-2xl">
                     <Calculator className="w-6 h-6 text-primary" />
                 </div>
-                <h1 className="text-3xl font-black text-white tracking-tight">Calculadora de Ganhos</h1>
-                <p className="text-gray-500 font-medium">Estime seus ganhos com base no hash rate e na rede atual</p>
+                <h1 className="text-3xl font-black text-white tracking-tight">{t('calculator.title')}</h1>
+                <p className="text-gray-500 font-medium">{t('calculator.subtitle')}</p>
             </div>
 
             {/* Banner dados automáticos */}
@@ -139,10 +133,12 @@ export default function CalculatorPage() {
                             <Wifi className="w-4 h-4 text-primary" />
                         </div>
                         <div>
-                            <p className="text-xs font-black text-white">Dados do seu inventário detectados</p>
+                            <p className="text-xs font-black text-white">{t('calculator.auto_banner_title')}</p>
                             <p className="text-[10px] text-gray-400 font-medium">
-                                Hash rate atual: <span className="text-primary font-bold">{formatHashrate(stats.miner.estimatedHashRate)}</span>
-                                {stats?.networkHashRate ? <> · Rede: <span className="text-primary font-bold">{formatHashrate(stats.networkHashRate)}</span></> : null}
+                                {t('calculator.auto_banner_desc', {
+                                    hashRate: formatHashrate(stats.miner.estimatedHashRate),
+                                    networkRate: stats?.networkHashRate ? formatHashrate(stats.networkHashRate) : '—',
+                                })}
                             </p>
                         </div>
                     </div>
@@ -151,7 +147,7 @@ export default function CalculatorPage() {
                         onClick={() => { setMyHashManual(false); setNetworkManual(false); setSelectedMiners({}); }}
                         className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-primary/20 whitespace-nowrap"
                     >
-                        Preencher automaticamente
+                        {t('calculator.auto_fill_btn')}
                     </button>
                 </div>
             )}
@@ -162,14 +158,14 @@ export default function CalculatorPage() {
 
                     {/* Parâmetros */}
                     <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl space-y-6">
-                        <h2 className="text-sm font-black text-white uppercase tracking-[0.2em]">Parâmetros</h2>
+                        <h2 className="text-sm font-black text-white uppercase tracking-[0.2em]">{t('calculator.section_params')}</h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Meu Hash Rate */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                        Meu Hash Rate (H/s)
+                                        {t('calculator.my_hashrate_label')}
                                     </label>
                                     {stats?.miner?.estimatedHashRate > 0 && (
                                         <button
@@ -177,7 +173,7 @@ export default function CalculatorPage() {
                                             onClick={handleResetMyHash}
                                             className="flex items-center gap-1 text-[9px] font-bold text-primary hover:text-primary-hover uppercase tracking-widest transition-colors"
                                         >
-                                            <Cpu className="w-3 h-3" /> Meu inventário
+                                            <Cpu className="w-3 h-3" /> {t('calculator.my_inventory_btn')}
                                         </button>
                                     )}
                                 </div>
@@ -192,17 +188,17 @@ export default function CalculatorPage() {
                                 {!myHashManual && stats?.miner?.estimatedHashRate > 0 ? (
                                     <p className="text-[10px] text-green-400 font-bold flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
-                                        Sincronizado do seu inventário: {formatHashrate(stats.miner.estimatedHashRate)}
+                                        {t('calculator.synced_inventory', { value: formatHashrate(stats.miner.estimatedHashRate) })}
                                     </p>
                                 ) : hashFromMiners > 0 ? (
                                     <p className="text-[10px] text-primary font-bold flex items-center gap-1">
                                         <Zap className="w-3 h-3" />
-                                        {formatHashrate(hashFromMiners)} — simulado das máquinas abaixo
+                                        {t('calculator.simulated_machines', { value: formatHashrate(hashFromMiners) })}
                                     </p>
                                 ) : myHashManual && stats?.miner?.estimatedHashRate > 0 ? (
                                     <p className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                                        Valor manual — clique em "Meu inventário" para sincronizar
+                                        {t('calculator.manual_my_hash')}
                                     </p>
                                 ) : null}
                             </div>
@@ -211,14 +207,14 @@ export default function CalculatorPage() {
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                        Hash Rate da Rede (H/s)
+                                        {t('calculator.network_hashrate_label')}
                                     </label>
                                     <button
                                         type="button"
                                         onClick={handleResetNetwork}
                                         className="flex items-center gap-1 text-[9px] font-bold text-primary hover:text-primary-hover uppercase tracking-widest transition-colors"
                                     >
-                                        <RefreshCw className="w-3 h-3" /> Ao vivo
+                                        <RefreshCw className="w-3 h-3" /> {t('calculator.live_btn')}
                                     </button>
                                 </div>
                                 <input
@@ -232,12 +228,12 @@ export default function CalculatorPage() {
                                 {stats?.networkHashRate && !networkManual ? (
                                     <p className="text-[10px] text-green-400 font-bold flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
-                                        Sincronizado: {formatHashrate(stats.networkHashRate)}
+                                        {t('calculator.synced_network', { value: formatHashrate(stats.networkHashRate) })}
                                     </p>
                                 ) : networkManual ? (
                                     <p className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                                        Valor manual — clique em "Ao vivo" para sincronizar
+                                        {t('calculator.manual_network')}
                                     </p>
                                 ) : null}
                             </div>
@@ -245,7 +241,7 @@ export default function CalculatorPage() {
                             {/* Preço do POL */}
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                    Preço do POL (USD)
+                                    {t('calculator.token_price_label')}
                                 </label>
                                 <input
                                     type="number"
@@ -261,12 +257,12 @@ export default function CalculatorPage() {
                             {/* Sua % da rede */}
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                    Sua % da Rede
+                                    {t('calculator.share_label')}
                                 </label>
                                 <div className="w-full bg-gray-900/50 border border-gray-800 rounded-2xl py-4 px-6 text-sm">
                                     {share > 0
                                         ? <span className="text-primary font-black">{(share * 100).toFixed(6)}%</span>
-                                        : <span className="text-gray-600">Preencha os campos acima</span>
+                                        : <span className="text-gray-600">{t('calculator.share_placeholder')}</span>
                                     }
                                 </div>
                             </div>
@@ -276,13 +272,13 @@ export default function CalculatorPage() {
                     {/* Simulador de máquinas */}
                     <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl space-y-6">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-black text-white uppercase tracking-[0.2em]">Simular com Máquinas da Loja</h2>
+                            <h2 className="text-sm font-black text-white uppercase tracking-[0.2em]">{t('calculator.section_simulate')}</h2>
                             {Object.keys(selectedMiners).length > 0 && (
                                 <button
                                     onClick={clearMiners}
                                     className="text-[10px] font-bold text-gray-500 hover:text-red-400 uppercase tracking-widest transition-colors"
                                 >
-                                    Limpar seleção
+                                    {t('calculator.clear_selection')}
                                 </button>
                             )}
                         </div>
@@ -292,7 +288,7 @@ export default function CalculatorPage() {
                                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                             </div>
                         ) : miners.length === 0 ? (
-                            <p className="text-gray-600 text-sm text-center py-8">Nenhuma máquina disponível na loja.</p>
+                            <p className="text-gray-600 text-sm text-center py-8">{t('calculator.no_miners')}</p>
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {miners.map(m => {
@@ -314,7 +310,7 @@ export default function CalculatorPage() {
                                                 <p className="text-[10px] text-primary font-bold">{formatHashrate(m.baseHashRate)}</p>
                                                 {qty > 0 && (
                                                     <p className="text-[9px] text-gray-500 font-bold">
-                                                        Total: {formatHashrate(m.baseHashRate * qty)}
+                                                        {t('calculator.miner_total', { value: formatHashrate(m.baseHashRate * qty) })}
                                                     </p>
                                                 )}
                                             </div>
@@ -345,15 +341,15 @@ export default function CalculatorPage() {
                     <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl space-y-6 sticky top-6">
                         <h2 className="text-sm font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
                             <TrendingUp className="w-4 h-4 text-primary" />
-                            Estimativa de Ganhos
+                            {t('calculator.section_results')}
                         </h2>
 
                         {share > 0 ? (
                             <div className="space-y-3">
-                                {resultRows.map(({ label, pol, sub }) => (
-                                    <div key={label} className="bg-gray-900/50 rounded-2xl p-4 border border-gray-800/50 space-y-0.5">
+                                {resultRows.map(({ key, pol, sub }) => (
+                                    <div key={key} className="bg-gray-900/50 rounded-2xl p-4 border border-gray-800/50 space-y-0.5">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</span>
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t(`calculator.${key}`)}</span>
                                             <span className="text-[9px] text-gray-600 font-mono">{sub}</span>
                                         </div>
                                         <p className="text-base font-black text-white italic">
@@ -370,9 +366,9 @@ export default function CalculatorPage() {
                                 <div className="flex gap-2 pt-2 border-t border-gray-800 text-[9px] text-gray-600">
                                     <Info className="w-3 h-3 mt-0.5 shrink-0" />
                                     <div className="space-y-0.5">
-                                        <p>{BLOCK_REWARD_POL} POL por bloco · a cada {BLOCK_INTERVAL_MIN} min</p>
-                                        <p>{BLOCKS_PER_DAY} blocos/dia · ganhos proporcionais ao hash</p>
-                                        <p>Estimativa não considera variações de rede</p>
+                                        <p>{t('calculator.notes_reward', { reward: BLOCK_REWARD_POL, interval: BLOCK_INTERVAL_MIN })}</p>
+                                        <p>{t('calculator.notes_blocks', { blocks: BLOCKS_PER_DAY })}</p>
+                                        <p>{t('calculator.notes_estimate')}</p>
                                     </div>
                                 </div>
                             </div>
@@ -380,7 +376,7 @@ export default function CalculatorPage() {
                             <div className="text-center text-gray-600 py-10 space-y-3">
                                 <Calculator className="w-14 h-14 opacity-10 mx-auto" />
                                 <p className="text-xs font-bold uppercase tracking-widest">
-                                    Preencha seu hash rate e o da rede para calcular
+                                    {t('calculator.results_placeholder')}
                                 </p>
                             </div>
                         )}

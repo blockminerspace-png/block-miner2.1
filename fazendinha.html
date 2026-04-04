@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌾 Fazendinha 3D</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
+canvas { display: block; }
+
+#ui {
+position: absolute; top: 0; left: 0; width: 100%; pointer-events: none;
+}
+
+#topBar {
+display: flex; justify-content: space-between; align-items: center;
+padding: 12px 20px; background: linear-gradient(180deg, rgba(0,0,0,0.7), rgba(0,0,0,0));
+}
+
+#money {
+color: #FFD700; font-size: 22px; font-weight: bold;
+text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+display: flex; align-items: center; gap: 6px;
+}
+
+#dayNight {
+color: white; font-size: 16px;
+text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+#toolbar {
+position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+display: flex; gap: 8px; padding: 12px 16px;
+background: rgba(0,0,0,0.75); border-radius: 16px;
+backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+pointer-events: all;
+}
+
+.tool-btn {
+width: 64px; height: 64px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.2);
+background: rgba(255,255,255,0.1); color: white; cursor: pointer;
+display: flex; flex-direction: column; align-items: center; justify-content: center;
+font-size: 11px; transition: all 0.2s; pointer-events: all;
+position: relative;
+}
+
+.tool-btn:hover { background: rgba(255,255,255,0.25); transform: translateY(-4px); }
+.tool-btn.active { border-color: #FFD700; background: rgba(255,215,0,0.2); box-shadow: 0 0 15px rgba(255,215,0,0.3); }
+.tool-btn .icon { font-size: 24px; margin-bottom: 2px; }
+.tool-btn .cost { font-size: 9px; color: #FFD700; margin-top: 1px; }
+
+#info {
+position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+color: white; font-size: 16px; text-align: center;
+background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 20px;
+backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.3s;
+pointer-events: none;
+}
+#info.show { opacity: 1; }
+
+#shop {
+position: absolute; top: 60px; right: 20px;
+background: rgba(0,0,0,0.8); border-radius: 12px; padding: 16px;
+color: white; pointer-events: all; display: none;
+backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+min-width: 200px;
+}
+
+#shop h3 { margin-bottom: 12px; color: #FFD700; }
+
+.shop-item {
+display: flex; justify-content: space-between; align-items: center;
+padding: 8px; margin: 4px 0; background: rgba(255,255,255,0.1);
+border-radius: 8px; cursor: pointer; transition: background 0.2s;
+}
+.shop-item:hover { background: rgba(255,255,255,0.2); }
+.shop-item .price { color: #FFD700; font-size: 14px; }
+
+#notifications {
+position: absolute; top: 100px; left: 20px;
+display: flex; flex-direction: column; gap: 8px;
+pointer-events: none;
+}
+
+.notification {
+background: rgba(0,0,0,0.7); color: white; padding: 8px 16px;
+border-radius: 8px; font-size: 14px; animation: fadeInOut 2s forwards;
+backdrop-filter: blur(5px);
+}
+
+@keyframes fadeInOut {
+0% { opacity: 0; transform: translateX(-20px); }
+10% { opacity: 1; transform: translateX(0); }
+80% { opacity: 1; }
+100% { opacity: 0; transform: translateY(-20px); }
+}
+
+#crosshair {
+position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+width: 20px; height: 20px; pointer-events: none; display: none;
+}
+
+#crosshair::before, #crosshair::after {
+content: ''; position: absolute; background: rgba(255,255,255,0.6);
+}
+#crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+#crosshair::after { height: 2px; width: 100%; top: 50%; transform: translateY(-50%); }
+
+#controls-hint {
+position: absolute; bottom: 100px; left: 20px;
+color: rgba(255,255,255,0.5); font-size: 12px;
+pointer-events: none;
+}
+
+#minimap {
+position: absolute; top: 60px; left: 20px;
+width: 120px; height: 120px; border-radius: 12px;
+background: rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.2);
+overflow: hidden;
+}
+
+#season-display {
+position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+color: white; font-size: 14px;
+background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 12px;
+pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div id="topBar">
+    <div id="money">💰 <span id="moneyVal">100</span></div>
+    <div id="season-display">🌸 Primavera - Dia <span id="dayVal">1</span></div>
+    <div id="dayNight">☀️ <span id="timeVal">06:00</span></div>
+  </div>
+
+  <div id="info"></div>
+
+  <div id="toolbar">
+    <button class="tool-btn active" data-tool="select" onclick="selectTool('select')">
+      <span class="icon">👆</span>Selecionar
+    </button>
+    <button class="tool-btn" data-tool="wheat" onclick="selectTool('wheat')">
+      <span class="icon">🌾</span><span class="cost">$5</span>Trigo
+    </button>
+    <button class="tool-btn" data-tool="corn" onclick="selectTool('corn')">
+      <span class="icon">🌽</span><span class="cost">$8</span>Milho
+    </button>
+    <button class="tool-btn" data-tool="tomato" onclick="selectTool('tomato')">
+      <span class="icon">🍅</span><span class="cost">$12</span>Tomate
+    </button>
+    <button class="tool-btn" data-tool="carrot" onclick="selectTool('carrot')">
+      <span class="icon">🥕</span><span class="cost">$6</span>Cenoura
+    </button>
+    <button class="tool-btn" data-tool="water" onclick="selectTool('water')">
+      <span class="icon">💧</span>Regar
+    </button>
+    <button class="tool-btn" data-tool="harvest" onclick="selectTool('harvest')">
+      <span class="icon">🧺</span>Colher
+    </button>
+    <button class="tool-btn" data-tool="remove" onclick="selectTool('remove')">
+      <span class="icon">🗑️</span>Remover
+    </button>
+  </div>
+
+  <div id="notifications"></div>
+  <div id="controls-hint">
+    WASD - Mover | Mouse - Olhar | Clique - Ação<br>
+    Scroll - Zoom | E - Modo câmera
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============== GAME STATE ==============
+const state = {
+  money: 100,
+  day: 1,
+  hour: 6,
+  minute: 0,
+  season: 0,
+  selectedTool: 'select',
+  cameraMode: 'third',
+  plots: {},
+  animals: [],
+  particles: [],
+  keys: {},
+  mouseDown: false,
+  raycaster: new THREE.Raycaster(),
+  mouse: new THREE.Vector2(),
+  playerPos: new THREE.Vector3(0, 0, 0),
+  timeSpeed: 0.5,
+};
+
+const seasons = ['🌸 Primavera', '☀️ Verão', '🍂 Outono', '❄️ Inverno'];
+const seasonColors = [0x4CAF50, 0x8BC34A, 0xFF9800, 0xE0E0E0];
+const skyColors = [0x87CEEB, 0x64B5F6, 0xFFCC80, 0xB0BEC5];
+
+const crops = {
+  wheat: { name: 'Trigo', cost: 5, sell: 15, growTime: 15, color: 0xFFD700, stages: 3 },
+  corn: { name: 'Milho', cost: 8, sell: 22, growTime: 20, color: 0xFFEB3B, stages: 3 },
+  tomato: { name: 'Tomate', cost: 12, sell: 35, growTime: 25, color: 0xF44336, stages: 4 },
+  carrot: { name: 'Cenoura', cost: 6, sell: 18, growTime: 18, color: 0xFF9800, stages: 3 },
+};
+
+// ============== THREE.JS SETUP ==============
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 80, 200);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0, 25, 30);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+// ============== LIGHTING ==============
+const ambientLight = new THREE.AmbientLight(0x6688CC, 0.4);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xFFEECC, 1.2);
+sunLight.position.set(30, 50, 30);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 150;
+sunLight.shadow.camera.left = -60;
+sunLight.shadow.camera.right = 60;
+sunLight.shadow.camera.top = 60;
+sunLight.shadow.camera.bottom = -60;
+scene.add(sunLight);
+
+const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x4CAF50, 0.3);
+scene.add(hemiLight);
+
+// ============== GROUND ==============
+function createGround() {
+  const groundGeo = new THREE.PlaneGeometry(200, 200, 50, 50);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x5D8C3E });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Path/dirt roads
+  const pathMat = new THREE.MeshLambertMaterial({ color: 0xC4A45A });
+
+  const path1 = new THREE.Mesh(new THREE.PlaneGeometry(3, 120), pathMat);
+  path1.rotation.x = -Math.PI / 2;
+  path1.position.set(0, 0.01, 0);
+  path1.receiveShadow = true;
+  scene.add(path1);
+
+  const path2 = new THREE.Mesh(new THREE.PlaneGeometry(120, 3), pathMat);
+  path2.rotation.x = -Math.PI / 2;
+  path2.position.set(0, 0.01, 0);
+  path2.receiveShadow = true;
+  scene.add(path2);
+
+  // Grass patches
+  const grassMat = new THREE.MeshLambertMaterial({ color: 0x6B8E3D });
+  for (let i = 0; i < 30; i++) {
+    const g = new THREE.Mesh(
+      new THREE.CircleGeometry(Math.random() * 5 + 2, 8),
+      new THREE.MeshLambertMaterial({ color: 0x4CAF50 + Math.floor(Math.random() * 0x202020) })
+    );
+    g.rotation.x = -Math.PI / 2;
+    g.position.set(
+      (Math.random() - 0.5) * 150,
+      0.02,
+      (Math.random() - 0.5) * 150
+    );
+    scene.add(g);
+  }
+}
+
+// ============== FARM PLOTS ==============
+const plotMeshes = [];
+const plotSize = 2.5;
+const plotSpacing = 3.2;
+
+function createPlots() {
+  const rows = 5, cols = 5;
+  const offsetX = -(cols - 1) * plotSpacing / 2;
+  const offsetZ = -(rows - 1) * plotSpacing / 2;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const key = `${r}_${c}`;
+      state.plots[key] = { row: r, col: c, crop: null, stage: 0, watered: false, growTimer: 0, x: 0, z: 0 };
+
+      // Plot base
+      const geo = new THREE.BoxGeometry(plotSize, 0.15, plotSize);
+      const mat = new THREE.MeshLambertMaterial({ color: 0x8B6914 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(c * plotSpacing + offsetX, 0.075, r * plotSpacing + offsetZ);
+      mesh.receiveShadow = true;
+      mesh.userData = { type: 'plot', key };
+      scene.add(mesh);
+      plotMeshes.push(mesh);
+      state.plots[key].mesh = mesh;
+
+      // Soil lines
+      for (let i = -1; i <= 1; i++) {
+        const line = new THREE.Mesh(
+          new THREE.BoxGeometry(plotSize * 0.8, 0.02, 0.05),
+          new THREE.MeshLambertMaterial({ color: 0x6B4F12 })
+        );
+        line.position.set(
+          c * plotSpacing + offsetX,
+          0.16,
+          r * plotSpacing + offsetZ + i * 0.5
+        );
+        scene.add(line);
+      }
+
+      // Highlight ring (hidden by default)
+      const ringGeo = new THREE.RingGeometry(plotSize * 0.6, plotSize * 0.7, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xFFFF00, transparent: true, opacity: 0, side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(c * plotSpacing + offsetX, 0.18, r * plotSpacing + offsetZ);
+      scene.add(ring);
+      state.plots[key].ring = ring;
+
+      state.plots[key].x = c * plotSpacing + offsetX;
+      state.plots[key].z = r * plotSpacing + offsetZ;
+    }
+  }
+}
+
+// ============== CROP 3D MODELS ==============
+function createCropMesh(type, stage) {
+  const group = new THREE.Group();
+  const cropData = crops[type];
+
+  if (type === 'wheat') {
+    // Stalk
+    const stalkH = 0.5 + stage * 0.5;
+    const stalk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.04, stalkH, 6),
+      new THREE.MeshLambertMaterial({ color: stage < 2 ? 0x4CAF50 : 0xDAA520 })
+    );
+    stalk.position.y = stalkH / 2;
+    stalk.castShadow = true;
+    group.add(stalk);
+
+    if (stage >= 2) {
+      // Wheat head
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 6, 4),
+        new THREE.MeshLambertMaterial({ color: 0xFFD700 })
+      );
+      head.position.y = stalkH;
+      head.scale.set(1, 1.5, 1);
+      head.castShadow = true;
+      group.add(head);
+
+      // Awns
+      for (let i = 0; i < 5; i++) {
+        const awn = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.005, 0.01, 0.3, 4),
+          new THREE.MeshLambertMaterial({ color: 0xFFD700 })
+        );
+        awn.position.y = stalkH + 0.1;
+        awn.rotation.z = (i - 2) * 0.3;
+        group.add(awn);
+      }
+    }
+
+    // Extra stalks for fullness
+    if (stage >= 1) {
+      for (let i = 0; i < 2; i++) {
+        const s = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.02, 0.03, stalkH * 0.7, 5),
+          new THREE.MeshLambertMaterial({ color: stage < 2 ? 0x4CAF50 : 0xDAA520 })
+        );
+        s.position.set((i === 0 ? -0.15 : 0.15), stalkH * 0.35, 0);
+        s.rotation.z = (i === 0 ? -0.15 : 0.15);
+        group.add(s);
+      }
+    }
+  }
+
+  else if (type === 'corn') {
+    const stalkH = 0.8 + stage * 0.8;
+    // Main stalk
+    const stalk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.07, stalkH, 6),
+      new THREE.MeshLambertMaterial({ color: 0x388E3C })
+    );
+    stalk.position.y = stalkH / 2;
+    stalk.castShadow = true;
+    group.add(stalk);
+
+    // Leaves
+    for (let i = 0; i < 3; i++) {
+      const leaf = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.02, 0.15),
+        new THREE.MeshLambertMaterial({ color: 0x4CAF50 })
+      );
+      leaf.position.y = stalkH * (0.3 + i * 0.25);
+      leaf.rotation.y = i * Math.PI / 2;
+      leaf.rotation.z = -0.3;
+      group.add(leaf);
+    }
+
+    if (stage >= 2) {
+      // Corn cob
+      const cob = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.06, 0.35, 8),
+        new THREE.MeshLambertMaterial({ color: 0xFFEB3B })
+      );
+      cob.position.y = stalkH * 0.6;
+      cob.rotation.z = 0.3;
+      cob.castShadow = true;
+      group.add(cob);
+
+      // Husk
+      const husk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.08, 0.38, 8),
+        new THREE.MeshLambertMaterial({ color: 0x66BB6A, transparent: true, opacity: 0.7 })
+      );
+      husk.position.y = stalkH * 0.6;
+      husk.rotation.z = 0.3;
+      group.add(husk);
+    }
+  }
+
+  else if (type === 'tomato') {
+    // Plant stem
+    const stemH = 0.3 + stage * 0.4;
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.03, stemH, 6),
+      new THREE.MeshLambertMaterial({ color: 0x4CAF50 })
+    );
+    stem.position.y = stemH / 2;
+    stem.castShadow = true;
+    group.add(stem);
+
+    // Leaves
+    for (let i = 0; i < 3 + stage; i++) {
+      const leaf = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12 + stage * 0.03, 6, 4),
+        new THREE.MeshLambertMaterial({ color: 0x388E3C })
+      );
+      leaf.position.set(
+        Math.cos(i * 2.1) * 0.2,
+        stemH * (0.3 + i * 0.2),
+        Math.sin(i * 2.1) * 0.2
+      );
+      leaf.scale.set(1, 0.5, 1);
+      group.add(leaf);
+    }
+
+    // Tomatoes
+    if (stage >= 2) {
+      const numTomatoes = stage >= 3 ? 4 : 2;
+      for (let i = 0; i < numTomatoes; i++) {
+        const tomato = new THREE.Mesh(
+          new THREE.SphereGeometry(0.1, 8, 6),
+          new THREE.MeshLambertMaterial({
+            color: stage >= 3 ? 0xF44336 : 0xFF9800,
+            emissive: stage >= 3 ? 0x330000 : 0x000000
+          })
+        );
+        tomato.position.set(
+          Math.cos(i * Math.PI * 2 / numTomatoes) * 0.25,
+          stemH * 0.7,
+          Math.sin(i * Math.PI * 2 / numTomatoes) * 0.25
+        );
+        tomato.castShadow = true;
+        group.add(tomato);
+      }
+    }
+  }
+
+  else if (type === 'carrot') {
+    // Green top
+    const topH = 0.2 + stage * 0.3;
+    for (let i = 0; i < 3; i++) {
+      const leaf = new THREE.Mesh(
+        new THREE.ConeGeometry(0.05, topH, 4),
+        new THREE.MeshLambertMaterial({ color: 0x4CAF50 })
+      );
+      leaf.position.set(
+        Math.cos(i * 2.1) * 0.1,
+        topH / 2,
+        Math.sin(i * 2.1) * 0.1
+      );
+      leaf.rotation.z = Math.cos(i * 2.1) * 0.2;
+      group.add(leaf);
+    }
+
+    if (stage >= 2) {
+      // Carrot (orange, partially visible)
+      const carrot = new THREE.Mesh(
+        new THREE.ConeGeometry(0.08, 0.3, 8),
+        new THREE.MeshLambertMaterial({ color: 0xFF9800 })
+      );
+      carrot.position.y = -0.1;
+      carrot.rotation.x = Math.PI;
+      carrot.castShadow = true;
+      group.add(carrot);
+    }
+  }
+
+  return group;
+}
+
+// ============== DECORATIONS ==============
+function createTree(x, z, type) {
+  const group = new THREE.Group();
+
+  if (type === 'oak') {
+    // Trunk
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.5, 3, 8),
+      new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+    );
+    trunk.position.y = 1.5;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    // Canopy
+    const canopy = new THREE.Mesh(
+      new THREE.SphereGeometry(2.5, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0x2E7D32 })
+    );
+    canopy.position.y = 4;
+    canopy.castShadow = true;
+    group.add(canopy);
+
+    // Extra canopy bumps
+    for (let i = 0; i < 3; i++) {
+      const bump = new THREE.Mesh(
+        new THREE.SphereGeometry(1.5, 6, 5),
+        new THREE.MeshLambertMaterial({ color: 0x388E3C })
+      );
+        new THREE.SphereGeometry(1.5, 6, 5),
+        new THREE.MeshLambertMaterial({ color: 0x388E3C })
+      );
+      bump.position.set(
+        Math.cos(i * 2.1) * 1.5,
+        4 + Math.random() * 0.5,
+        Math.sin(i * 2.1) * 1.5
+      );
+      bump.castShadow = true;
+      group.add(bump);
+    }
+  } else if (type === 'pine') {
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.4, 2.5, 8),
+      new THREE.MeshLambertMaterial({ color: 0x5D4037 })
+    );
+    trunk.position.y = 1.25;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    for (let i = 0; i < 3; i++) {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(2 - i * 0.4, 2, 8),
+        new THREE.MeshLambertMaterial({ color: 0x1B5E20 })
+      );
+      cone.position.y = 3 + i * 1.2;
+      cone.castShadow = true;
+      group.add(cone);
+    }
+  } else if (type === 'fruit') {
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.35, 2, 8),
+      new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+    );
+    trunk.position.y = 1;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    const canopy = new THREE.Mesh(
+      new THREE.SphereGeometry(1.8, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0x4CAF50 })
+    );
+    canopy.position.y = 3;
+    canopy.castShadow = true;
+    group.add(canopy);
+
+    // Fruits
+    for (let i = 0; i < 5; i++) {
+      const fruit = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 6, 4),
+        new THREE.MeshLambertMaterial({ color: 0xFF5722 })
+      );
+      fruit.position.set(
+        Math.cos(i * 1.2) * 1.2,
+        2.5 + Math.sin(i * 0.8) * 0.5,
+        Math.sin(i * 1.2) * 1.2
+      );
+      group.add(fruit);
+    }
+  }
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+  return group;
+}
+
+function createBarn(x, z) {
+  const group = new THREE.Group();
+
+  // Main building
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(8, 5, 6),
+    new THREE.MeshLambertMaterial({ color: 0xC62828 })
+  );
+  body.position.y = 2.5;
+  body.castShadow = true;
+  group.add(body);
+
+  // Roof
+  const roofGeo = new THREE.CylinderGeometry(0, 7, 9, 4, 1);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+  roof.position.y = 7;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  group.add(roof);
+
+  // Door
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 3, 0.1),
+    new THREE.MeshLambertMaterial({ color: 0x5D4037 })
+  );
+  door.position.set(0, 1.5, 3.05);
+  group.add(door);
+
+  // Hay bales
+  for (let i = 0; i < 3; i++) {
+    const bale = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 0.5, 0.8, 12),
+      new THREE.MeshLambertMaterial({ color: 0xDAA520 })
+    );
+    bale.rotation.z = Math.PI / 2;
+    bale.position.set(-2 + i * 1.5, 0.4, 5);
+    bale.castShadow = true;
+    group.add(bale);
+  }
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+}
+
+function createFence() {
+  const fenceMat = new THREE.MeshLambertMaterial({ color: 0xA1887F });
+
+  // Create fence around farm area
+  const fencePositions = [];
+  const farmHalfSize = 10;
+
+  // Front and back
+  for (let x = -farmHalfSize; x <= farmHalfSize; x += 2.5) {
+    fencePositions.push([x, -farmHalfSize]);
+    fencePositions.push([x, farmHalfSize]);
+  }
+  // Left and right
+  for (let z = -farmHalfSize; z <= farmHalfSize; z += 2.5) {
+    fencePositions.push([-farmHalfSize, z]);
+    fencePositions.push([farmHalfSize, z]);
+  }
+
+  fencePositions.forEach(([x, z]) => {
+    // Post
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.1, 1.2, 6),
+      fenceMat
+    );
+    post.position.set(x, 0.6, z);
+    post.castShadow = true;
+    scene.add(post);
+  });
+
+  // Rails
+  const railMat = new THREE.MeshLambertMaterial({ color: 0x8D6E63 });
+  [0.4, 0.8].forEach(h => {
+    // Front
+    const rail1 = new THREE.Mesh(new THREE.BoxGeometry(farmHalfSize * 2, 0.05, 0.05), railMat);
+    rail1.position.set(0, h, -farmHalfSize);
+    scene.add(rail1);
+
+    const rail2 = new THREE.Mesh(new THREE.BoxGeometry(farmHalfSize * 2, 0.05, 0.05), railMat);
+    rail2.position.set(0, h, farmHalfSize);
+    scene.add(rail2);
+
+    const rail3 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, farmHalfSize * 2), railMat);
+    rail3.position.set(-farmHalfSize, h, 0);
+    scene.add(rail3);
+
+    const rail4 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, farmHalfSize * 2), railMat);
+    rail4.position.set(farmHalfSize, h, 0);
+    scene.add(rail4);
+  });
+}
+
+function createPond() {
+  const pondGeo = new THREE.CircleGeometry(4, 24);
+  const pondMat = new THREE.MeshLambertMaterial({
+    color: 0x2196F3, transparent: true, opacity: 0.7
+  });
+  const pond = new THREE.Mesh(pondGeo, pondMat);
+  pond.rotation.x = -Math.PI / 2;
+  pond.position.set(-15, 0.05, -10);
+  scene.add(pond);
+
+  // Rocks around pond
+  for (let i = 0; i < 12; i++) {
+    const rock = new THREE.Mesh(
+      new THREE.SphereGeometry(Math.random() * 0.3 + 0.2, 6, 4),
+      new THREE.MeshLambertMaterial({ color: 0x757575 })
+    );
+    const angle = (i / 12) * Math.PI * 2;
+    rock.position.set(
+      -15 + Math.cos(angle) * 4.2,
+      0.2,
+      -10 + Math.sin(angle) * 4.2
+    );
+    rock.scale.y = 0.5;
+    scene.add(rock);
+  }
+
+  // Lily pads
+  for (let i = 0; i < 4; i++) {
+    const pad = new THREE.Mesh(
+      new THREE.CircleGeometry(0.4, 8),
+      new THREE.MeshLambertMaterial({ color: 0x4CAF50 })
+    );
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(
+      -15 + (Math.random() - 0.5) * 5,
+      0.08,
+      -10 + (Math.random() - 0.5) * 5
+    );
+    scene.add(pad);
+  }
+}
+
+function createWell(x, z) {
+  const group = new THREE.Group();
+
+  // Stone base
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 1.3, 1, 12),
+    new THREE.MeshLambertMaterial({ color: 0x9E9E9E })
+  );
+  base.position.y = 0.5;
+  base.castShadow = true;
+  group.add(base);
+
+  // Inner
+  const inner = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.9, 0.9, 0.9, 12),
+    new THREE.MeshLambertMaterial({ color: 0x1565C0 })
+  );
+  inner.position.y = 0.55;
+  group.add(inner);
+
+  // Posts
+  [-0.8, 0.8].forEach(xOff => {
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.06, 2, 6),
+      new THREE.MeshLambertMaterial({ color: 0x5D4037 })
+    );
+    post.position.set(xOff, 2, 0);
+    post.castShadow = true;
+    group.add(post);
+  });
+
+  // Roof
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(1.5, 0.8, 4),
+    new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+  );
+  roof.position.y = 3.2;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  group.add(roof);
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+}
+
+function createWindmill(x, z) {
+  const group = new THREE.Group();
+
+  // Tower
+  const tower = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.5, 2.2, 8, 8),
+    new THREE.MeshLambertMaterial({ color: 0xF5F5DC })
+  );
+  tower.position.y = 4;
+  tower.castShadow = true;
+  group.add(tower);
+
+  // Roof
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(2, 2, 8),
+    new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+  );
+  roof.position.y = 9;
+  roof.castShadow = true;
+  group.add(roof);
+
+  // Blades
+  const bladesGroup = new THREE.Group();
+  bladesGroup.position.set(0, 6, 1.6);
+
+  for (let i = 0; i < 4; i++) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 3.5, 0.05),
+      new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+    );
+    blade.position.y = 1.75;
+    blade.rotation.z = i * Math.PI / 2;
+    bladesGroup.add(blade);
+  }
+
+  // Center hub
+  const hub = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3, 8, 6),
+    new THREE.MeshLambertMaterial({ color: 0x5D4037 })
+  );
+  bladesGroup.add(hub);
+
+  group.add(bladesGroup);
+  group.userData.blades = bladesGroup;
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+  return group;
+}
+
+function createAnimal(x, z, type) {
+  const group = new THREE.Group();
+
+  if (type === 'cow') {
+    // Body
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.8, 0.8),
+      new THREE.MeshLambertMaterial({ color: 0xF5F5F5 })
+    );
+    body.position.y = 1;
+    body.castShadow = true;
+    group.add(body);
+
+    // Head
+    const head = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.5, 0.5),
+      new THREE.MeshLambertMaterial({ color: 0xF5F5F5 })
+    );
+    head.position.set(1, 1.3, 0);
+    head.castShadow = true;
+    group.add(head);
+
+    // Legs
+    [[-0.5, -0.25], [-0.5, 0.25], [0.5, -0.25], [0.5, 0.25]].forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 0.6, 6),
+        new THREE.MeshLambertMaterial({ color: 0xF5F5F5 })
+      );
+      leg.position.set(lx, 0.3, lz);
+      group.add(leg);
+    });
+
+    // Spots
+    const spot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 6, 4),
+      new THREE.MeshLambertMaterial({ color: 0x333333 })
+    );
+    spot.position.set(0, 1, 0.41);
+    spot.scale.set(1, 0.6, 0.3);
+    group.add(spot);
+  }
+
+  else if (type === 'chicken') {
+    // Body
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+    );
+    body.position.y = 0.4;
+    body.scale.set(1, 0.8, 1.2);
+    group.add(body);
+
+    // Head
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.15, 6, 5),
+      new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+    );
+    head.position.set(0, 0.65, 0.2);
+    group.add(head);
+
+    // Beak
+    const beak = new THREE.Mesh(
+      new THREE.ConeGeometry(0.04, 0.12, 4),
+      new THREE.MeshLambertMaterial({ color: 0xFF9800 })
+    );
+    beak.position.set(0, 0.63, 0.35);
+    beak.rotation.x = Math.PI / 2;
+    group.add(beak);
+
+    // Comb
+    const comb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, 4, 3),
+      new THREE.MeshLambertMaterial({ color: 0xF44336 })
+    );
+    comb.position.set(0, 0.8, 0.2);
+    group.add(comb);
+
+    // Legs
+    [-0.08, 0.08].forEach(lx => {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.01, 0.01, 0.2, 4),
+        new THREE.MeshLambertMaterial({ color: 0xFF9800 })
+      );
+      leg.position.set(lx, 0.1, 0);
+      group.add(leg);
+    });
+  }
+
+  else if (type === 'pig') {
+    // Body
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0xFFB6C1 })
+    );
+    body.position.y = 0.6;
+    body.scale.set(1.3, 0.8, 1);
+    body.castShadow = true;
+    group.add(body);
+
+    // Head
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 6, 5),
+      new THREE.MeshLambertMaterial({ color: 0xFFB6C1 })
+    );
+    head.position.set(0.5, 0.7, 0);
+    group.add(head);
+
+    // Snout
+    const snout = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 6, 4),
+      new THREE.MeshLambertMaterial({ color: 0xFF80AB })
+    );
+    snout.position.set(0.75, 0.65, 0);
+    snout.scale.set(0.5, 0.8, 1);
+    group.add(snout);
+
+    // Legs
+    [[-0.3, -0.2], [-0.3, 0.2], [0.3, -0.2], [0.3, 0.2]].forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 0.3, 6),
+        new THREE.MeshLambertMaterial({ color: 0xFFB6C1 })
+      );
+      leg.position.set(lx, 0.15, lz);
+      group.add(leg);
+    });
+
+    // Tail
+    const tail = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.3, 4),
+      new THREE.MeshLambertMaterial({ color: 0xFFB6C1 })
+    );
+    tail.position.set(-0.6, 0.7, 0);
+    tail.rotation.z = 0.5;
+    group.add(tail);
+  }
+
+  group.position.set(x, 0, z);
+  group.userData = { type: 'animal', animalType: type, wanderTimer: 0, targetX: x, targetZ: z };
+  scene.add(group);
+  state.animals.push(group);
+  return group;
+}
+
+function createFlower(x, z) {
+  const group = new THREE.Group();
+  const colors = [0xF44336, 0xFF9800, 0xFFEB3B, 0xE91E63, 0x9C27B0, 0x2196F3];
+
+  // Stem
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.01, 0.02, 0.4, 4),
+    new THREE.MeshLambertMaterial({ color: 0x4CAF50 })
+  );
+  stem.position.y = 0.2;
+  group.add(stem);
+
+  // Petals
+  const petalColor = colors[Math.floor(Math.random() * colors.length)];
+  for (let i = 0; i < 5; i++) {
+    const petal = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, 4, 3),
+      new THREE.MeshLambertMaterial({ color: petalColor })
+    );
+    petal.position.set(
+      Math.cos(i * Math.PI * 2 / 5) * 0.08,
+      0.4,
+      Math.sin(i * Math.PI * 2 / 5) * 0.08
+    );
+    petal.scale.set(1, 0.5, 1);
+    group.add(petal);
+  }
+
+  // Center
+  const center = new THREE.Mesh(
+    new THREE.SphereGeometry(0.04, 4, 3),
+    new THREE.MeshLambertMaterial({ color: 0xFFEB3B })
+  );
+  center.position.y = 0.4;
+  group.add(center);
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+}
+
+// ============== PARTICLES ==============
+function createParticle(x, y, z, color, type) {
+  const geo = new THREE.SphereGeometry(0.08, 4, 3);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+
+  state.particles.push({
+    mesh,
+    vy: type === 'water' ? 2 + Math.random() * 2 : 1 + Math.random() * 2,
+    vx: (Math.random() - 0.5) * 1,
+    vz: (Math.random() - 0.5) * 1,
+    life: 1,
+    decay: 0.8 + Math.random() * 0.5,
+    type
+  });
+}
+
+function spawnHarvestParticles(x, z, color) {
+  for (let i = 0; i < 15; i++) {
+    createParticle(
+      x + (Math.random() - 0.5) * 1.5,
+      0.5 + Math.random() * 0.5,
+      z + (Math.random() - 0.5) * 1.5,
+      color, 'harvest'
+    );
+  }
+}
+
+function spawnWaterParticles(x, z) {
+  for (let i = 0; i < 8; i++) {
+    createParticle(
+      x + (Math.random() - 0.5) * 1.5,
+      1.5 + Math.random() * 0.5,
+      z + (Math.random() - 0.5) * 1.5,
+      0x2196F3, 'water'
+    );
+  }
+}
+
+// ============== BUILD WORLD ==============
+function buildWorld() {
+  createGround();
+  createPlots();
+  createFence();
+  createPond();
+  createWell(-12, 8);
+
+  const windmill = createWindmill(15, -8);
+
+  createBarn(12, 12);
+
+  createTree(-8, -8, 'oak');
+  createTree(-10, -12, 'oak');
+  createTree(-6, -14, 'pine');
+  createTree(8, -14, 'pine');
+  createTree(10, -12, 'oak');
+  createTree(-18, 5, 'fruit');
+  createTree(18, 5, 'fruit');
+  createTree(-14, -5, 'oak');
+  createTree(14, -5, 'pine');
+
+  createAnimal(5, 8, 'cow');
+  createAnimal(-5, 10, 'cow');
+  createAnimal(3, 6, 'chicken');
+  createAnimal(-3, 7, 'chicken');
+  createAnimal(0, 5, 'chicken');
+  createAnimal(7, 10, 'pig');
+  createAnimal(-7, 12, 'pig');
+
+  // Scatter flowers
+  for (let i = 0; i < 25; i++) {
+    createFlower(
+      (Math.random() - 0.5) * 80,
+      (Math.random() - 0.5) * 80
+    );
+  }
+
+  // Hay bales scattered
+  for (let i = 0; i < 5; i++) {
+    const bale = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 0.5, 0.8, 12),
+      new THREE.MeshLambertMaterial({ color: 0xDAA520 })
+    );
+    bale.rotation.z = Math.PI / 2;
+    bale.position.set(
+      (Math.random() - 0.5) * 40,
+      0.4,
+      (Math.random() - 0.5) * 40
+    );
+    bale.castShadow = true;
+    scene.add(bale);
+  }
+
+  return windmill;
+}
+
+const windmill = buildWorld();
+
+// ============== CAMERA CONTROLS ==============
+let cameraAngleX = 0;
+let cameraAngleY = 0.6;
+let cameraDistance = 30;
+let isDragging = false;
+let lastMouseX = 0, lastMouseY = 0;
+
+document.addEventListener('mousedown', (e) => {
+  if (e.target.closest('#toolbar') || e.target.closest('#shop')) return;
+  if (e.button === 2 || e.button === 1) {
+    isDragging = true;
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+  }
+  if (e.button === 0) {
+    state.mouseDown = true;
+    handleClick(e);
+  }
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (e.button === 2 || e.button === 1) isDragging = false;
+  if (e.button === 0) state.mouseDown = false;
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (isDragging) {
+    cameraAngleX -= (e.clientX - lastMouseX) * 0.005;
+    cameraAngleY = Math.max(0.1, Math.min(1.4, cameraAngleY - (e.clientY - lastMouseY) * 0.005));
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+  }
+
+  // Raycasting for hover
+  state.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  state.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+
+document.addEventListener('wheel', (e) => {
+  cameraDistance = Math.max(10, Math.min(60, cameraDistance + e.deltaY * 0.03));
+});
+
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  state.keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === 'e') {
+    state.cameraMode = state.cameraMode === 'third' ? 'first' : 'third';
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  state.keys[e.key.toLowerCase()] = false;
+});
+
+// ============== GAME LOGIC ==============
+function selectTool(tool) {
+  state.selectedTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tool === tool);
+  });
+
+  const toolNames = {
+    select: '👆 Clique em uma planta para ver informações',
+    wheat: '🌾 Clique em um terreno para plantar Trigo ($5)',
+    corn: '🌽 Clique em um terreno para plantar Milho ($8)',
+    tomato: '🍅 Clique em um terreno para plantar Tomate ($12)',
+    carrot: '🥕 Clique em um terreno para plantar Cenoura ($6)',
+    water: '💧 Clique em uma planta para regar',
+    harvest: '🧺 Clique em uma planta pronta para colher',
+    remove: '🗑️ Clique em uma planta para removê-la'
+  };
+
+  showInfo(toolNames[tool] || '');
+}
+
+function showInfo(text) {
+  const info = document.getElementById('info');
+  info.textContent = text;
+  info.classList.add('show');
+  clearTimeout(info._timeout);
+  info._timeout = setTimeout(() => info.classList.remove('show'), 3000);
+}
+
+function notify(text) {
+  const container = document.getElementById('notifications');
+  const div = document.createElement('div');
+  div.className = 'notification';
+  div.textContent = text;
+  container.appendChild(div);
+  setTimeout(() => div.remove(), 2000);
+}
+
+function updateMoney(amount) {
+  state.money += amount;
+  document.getElementById('moneyVal').textContent = state.money;
+
+  // Animate
+  const moneyEl = document.getElementById('money');
+  moneyEl.style.transform = 'scale(1.2)';
+  setTimeout(() => moneyEl.style.transform = 'scale(1)', 200);
+}
+
+function handleClick(event) {
+  state.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  state.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  state.raycaster.setFromCamera(state.mouse, camera);
+
+  // Check plot clicks
+  const plotHits = state.raycaster.intersectObjects(plotMeshes);
+  if (plotHits.length > 0) {
+    const key = plotHits[0].object.userData.key;
+    handlePlotClick(key);
+    return;
+  }
+}
+
+function handlePlotClick(key) {
+  const plot = state.plots[key];
+  if (!plot) return;
+
+  const tool = state.selectedTool;
+
+  if (tool === 'select') {
+    if (plot.crop) {
+      const cropData = crops[plot.crop];
+      const stageNames = ['Semente', 'Broto', 'Crescendo', 'Pronto!'];
+      const stageName = stageNames[Math.min(plot.stage, 3)];
+      showInfo(`${cropData.name} - ${stageName} (${Math.floor(plot.growTimer / cropData.growTime * 100)}%)`);
+    } else {
+      showInfo('Terreno vazio - Selecione uma semente para plantar');
+    }
+    return;
+  }
+
+  if (tool === 'remove') {
+    if (plot.crop) {
+      plot.mesh.remove(plot.cropMesh);
+      plot.crop = null;
+      plot.stage = 0;
+      plot.growTimer = 0;
+      plot.watered = false;
+      notify('🗑️ Planta removida');
+    }
+    return;
+  }
+
+  if (tool === 'harvest') {
+    if (plot.crop && plot.stage >= crops[plot.crop].stages - 1) {
+      const cropData = crops[plot.crop];
+      updateMoney(cropData.sell);
+      spawnHarvestParticles(plot.x, plot.z, cropData.color);
+      notify(`🧺 Colheu ${cropData.name}! +$${cropData.sell}`);
+
+      plot.mesh.remove(plot.cropMesh);
+      plot.crop = null;
+      plot.stage = 0;
+      plot.growTimer = 0;
+      plot.watered = false;
+    } else if (plot.crop) {
+      notify('⏳ Planta ainda não está pronta para colher');
+    }
+    return;
+  }
+
+  if (tool === 'water') {
+    if (plot.crop && !plot.watered) {
+      plot.watered = true;
+      spawnWaterParticles(plot.x, plot.z);
+
+      // Make soil darker
+      plot.mesh.material.color.setHex(0x5D3A1A);
+      notify('💧 Planta regada!');
+    } else if (plot.crop && plot.watered) {
+      notify('✅ Planta já está regada');
+    } else {
+      notify('🌱 Plante algo primeiro para regar');
+    }
+    return;
+  }
+
+  // Planting tools
+  if (crops[tool]) {
+    if (plot.crop) {
+      notify('⚠️ Já existe uma planta aqui!');
+      return;
+    }
+
+    const cropData = crops[tool];
+    if (state.money < cropData.cost) {
+      notify('❌ Dinheiro insuficiente!');
+      return;
+    }
+
+    updateMoney(-cropData.cost);
+    plot.crop = tool;
+    plot.stage = 0;
+    plot.growTimer = 0;
+    plot.watered = false;
+
+    const cropMesh = createCropMesh(tool, 0);
+    cropMesh.position.y = 0.15;
+    plot.mesh.add(cropMesh);
+    plot.cropMesh = cropMesh;
+
+    plot.mesh.material.color.setHex(0x8B6914);
+
+    notify(`🌱 ${cropData.name} plantado! (-$${cropData.cost})`);
+  }
+}
+
+// ============== TIME SYSTEM ==============
+function updateTime(delta) {
+  state.minute += state.timeSpeed * delta * 60;
+  if (state.minute >= 60) {
+    state.minute -= 60;
+    state.hour++;
+  }
+  if (state.hour >= 24) {
+    state.hour = 0;
+    state.day++;
+    onNewDay();
+  }
+
+  const timeStr = `${String(Math.floor(state.hour)).padStart(2, '0')}:${String(Math.floor(state.minute)).padStart(2, '0')}`;
+  document.getElementById('timeVal').textContent = timeStr;
+
+  // Sky color based on time
+  let skyTint;
+  if (state.hour >= 6 && state.hour < 8) skyTint = 0.5 + (state.hour - 6) * 0.25;
+  else if (state.hour >= 8 && state.hour < 17) skyTint = 1.0;
+  else if (state.hour >= 17 && state.hour < 20) skyTint = 1.0 - (state.hour - 17) * 0.33;
+  else skyTint = 0.15;
+
+  const skyColor = new THREE.Color(skyColors[state.season]).lerp(new THREE.Color(0x0a0a2e), 1 - skyTint);
+  scene.background = skyColor;
+  scene.fog.color = skyColor;
+
+  sunLight.intensity = skyTint * 1.2;
+  ambientLight.intensity = 0.2 + skyTint * 0.3;
+
+  // Day/Night icon
+  const icon = state.hour >= 6 && state.hour < 19 ? '☀️' : '🌙';
+  document.getElementById('dayNight').innerHTML = `${icon} <span id="timeVal">${timeStr}</span>`;
+
+  // Windmill rotation
+  if (windmill && windmill.userData.blades) {
+    windmill.userData.blades.rotation.z += delta * 0.5;
+  }
+}
+
+function onNewDay() {
+  document.getElementById('dayVal').textContent = state.day;
+
+  // Season change every 7 days
+  const newSeason = Math.floor((state.day - 1) / 7) % 4;
+  if (newSeason !== state.season) {
+    state.season = newSeason;
+    notify(`${seasons[state.season]} chegou!`);
+
+    // Change ground color
+    scene.children.forEach(child => {
+      if (child.geometry && child.geometry.type === 'PlaneGeometry' && child.geometry.parameters.width === 200) {
+        child.material.color.setHex(seasonColors[state.season]);
+      }
+    });
+  }
+
+  // Reset watering
+  Object.values(state.plots).forEach(plot => {
+    plot.watered = false;
+    plot.mesh.material.color.setHex(0x8B6914);
+  });
+
+  // Grow crops
+  Object.values(state.plots).forEach(plot => {
+    if (plot.crop && plot.stage < crops[plot.crop].stages) {
+      const cropData = crops[plot.crop];
+      plot.growTimer += 1;
+
+      const newStage = Math.min(
+        Math.floor(plot.growTimer / cropData.growTime * cropData.stages),
+        cropData.stages - 1
+      );
+
+      if (newStage > plot.stage) {
+        plot.stage = newStage;
+        plot.mesh.remove(plot.cropMesh);
+        const newMesh = createCropMesh(plot.crop, plot.stage);
+        newMesh.position.y = 0.15;
+        plot.mesh.add(newMesh);
+        plot.cropMesh = newMesh;
+
+        if (plot.stage >= cropData.stages - 1) {
+          notify(`🎉 ${cropData.name} está pronto para colher!`);
+        }
+      }
+    }
+  });
+
+  notify(`🌅 Dia ${state.day} começou!`);
+}
+
+// ============== PLAYER MOVEMENT ==============
+function updatePlayer(delta) {
+  const speed = 12 * delta;
+  const moveDir = new THREE.Vector3();
+
+  if (state.keys['w'] || state.keys['arrowup']) moveDir.z -= 1;
+  if (state.keys['s'] || state.keys['arrowdown']) moveDir.z += 1;
+  if (state.keys['a'] || state.keys['arrowleft']) moveDir.x -= 1;
+  if (state.keys['d'] || state.keys['arrowright']) moveDir.x += 1;
+
+  if (moveDir.length() > 0) {
+    moveDir.normalize().multiplyScalar(speed);
+
+    // Rotate movement relative to camera
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const angle = Math.atan2(camDir.x, camDir.z);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const rx = moveDir.x * cos - moveDir.z * sin;
+    const rz = moveDir.x * sin + moveDir.z * cos;
+
+    state.playerPos.x += rx;
+    state.playerPos.z += rz;
+
+    // Clamp
+    state.playerPos.x = Math.max(-90, Math.min(90, state.playerPos.x));
+    state.playerPos.z = Math.max(-90, Math.min(90, state.playerPos.z));
+  }
+}
+
+// ============== ANIMAL AI ==============
+function updateAnimals(delta) {
+  state.animals.forEach(animal => {
+    animal.userData.wanderTimer -= delta;
+
+    if (animal.userData.wanderTimer <= 0) {
+      animal.userData.wanderTimer = 3 + Math.random() * 5;
+      animal.userData.targetX = animal.position.x + (Math.random() - 0.5) * 8;
+      animal.userData.targetZ = animal.position.z + (Math.random() - 0.5) * 8;
+
+      // Clamp
+      animal.userData.targetX = Math.max(-80, Math.min(80, animal.userData.targetX));
+      animal.userData.targetZ = Math.max(-80, Math.min(80, animal.userData.targetZ));
+    }
+
+    const dx = animal.userData.targetX - animal.position.x;
+    const dz = animal.userData.targetZ - animal.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    if (dist > 0.5) {
+      const speed = 1.5 * delta;
+      animal.position.x += (dx / dist) * speed;
+      animal.position.z += (dz / dist) * speed;
+
+      // Face direction
+      animal.rotation.y = Math.atan2(dx, dz);
+
+      // Bob animation
+      animal.position.y = Math.abs(Math.sin(Date.now() * 0.005)) * 0.05;
+    }
+  });
+}
+
+// ============== PARTICLES UPDATE ==============
+function updateParticles(delta) {
+  for (let i = state.particles.length - 1; i >= 0; i--) {
+    const p = state.particles[i];
+    p.life -= p.decay * delta;
+
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      state.particles.splice(i, 1);
+      continue;
+    }
+
+    p.mesh.position.y += p.vy * delta;
+    p.mesh.position.x += p.vx * delta;
+    p.mesh.position.z += p.vz * delta;
+
+    if (p.type === 'water') {
+      p.vy -= 5 * delta; // gravity
+    }
+
+    p.mesh.material.opacity = p.life;
+    p.mesh.scale.setScalar(p.life);
+  }
+}
+
+// ============== CAMERA UPDATE ==============
+function updateCamera() {
+  if (state.cameraMode === 'third') {
+    const x = state.playerPos.x + Math.sin(cameraAngleX) * Math.cos(cameraAngleY) * cameraDistance;
+    const y = Math.sin(cameraAngleY) * cameraDistance + 3;
+    const z = state.playerPos.z + Math.cos(cameraAngleX) * Math.cos(cameraAngleY) * cameraDistance;
+
+    camera.position.lerp(new THREE.Vector3(x, y, z), 0.1);
+    camera.lookAt(state.playerPos.x, 0, state.playerPos.z);
+  } else {
+    camera.position.set(
+      state.playerPos.x,
+      2,
+      state.playerPos.z
+    );
+    const dir = new THREE.Vector3(
+      Math.sin(cameraAngleX),
+      0,
+      Math.cos(cameraAngleX)
+    );
+    camera.lookAt(
+      state.playerPos.x + dir.x,
+      2,
+      state.playerPos.z + dir.z
+    );
+  }
+}
+
+// ============== RAIN (WINTER) ==============
+let rainSystem = null;
+
+function updateWeather() {
+  if (state.season === 3 && state.hour >= 6 && state.hour < 20) {
+    if (!rainSystem) {
+      const rainGeo = new THREE.BufferGeometry();
+      const rainCount = 2000;
+      const positions = new Float32Array(rainCount * 3);
+      for (let i = 0; i < rainCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 100;
+        positions[i * 3 + 1] = Math.random() * 50;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+      }
+      rainGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const rainMat = new THREE.PointsMaterial({
+        color: 0xAAAAAA,
+        size: 0.15,
+        transparent: true,
+        opacity: 0.6
+      });
+      rainSystem = new THREE.Points(rainGeo, rainMat);
+      scene.add(rainSystem);
+    }
+  } else {
+    if (rainSystem) {
+      scene.remove(rainSystem);
+      rainSystem = null;
+    }
+  }
+
+  if (rainSystem) {
+    const positions = rainSystem.geometry.attributes.position.array;
+    for (let i = 0; i < positions.length; i += 3) {
+      positions[i + 1] -= 0.5;
+      if (positions[i + 1] < 0) {
+        positions[i + 1] = 50;
+        positions[i] = (Math.random() - 0.5) * 100;
+        positions[i + 2] = (Math.random() - 0.5) * 100;
+      }
+    }
+    rainSystem.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
+// ============== MAIN LOOP ==============
+let lastTime = performance.now();
+
+function gameLoop() {
+  const now = performance.now();
+  const delta = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+
+  updatePlayer(delta);
+  updateCamera();
+  updateTime(delta);
+  updateAnimals(delta);
+  updateParticles(delta);
+  updateWeather();
+
+  // Highlight hovered plot
+  state.raycaster.setFromCamera(state.mouse, camera);
+  const plotHits = state.raycaster.intersectObjects(plotMeshes);
+  Object.values(state.plots).forEach(plot => {
+    plot.ring.material.opacity = 0;
+  });
+  if (plotHits.length > 0) {
+    const key = plotHits[0].object.userData.key;
+    if (state.plots[key]) {
+      state.plots[key].ring.material.opacity = 0.5;
+    }
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(gameLoop);
+}
+
+// ============== RESIZE ==============
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============== START ==============
+notify('🌾 Bem-vindo à sua Fazendinha 3D!');
+notify('Use WASD para mover, clique para interagir');
+selectTool('select');
+gameLoop();
+</script>
+</body>
+</html>
