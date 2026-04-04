@@ -54,6 +54,7 @@ export default function Games() {
   const selectedCell = useRef(null);
   const swapAnim = useRef(null);
   const processingClearRef = useRef(false);
+  const gameStateRef = useRef(null);
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL, { auth: { token }, withCredentials: true });
@@ -161,10 +162,13 @@ export default function Games() {
     }
   }, [match3Cooldown]);
 
+  // Sincroniza gameState no ref para o render loop não precisar reiniciar a cada update
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+
   // Listener não-passivo para eliminar delay de 300ms no touch e prevenir scroll durante o jogo
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !activeGame || !gameState || isGameOver) return;
+    if (!canvas || !activeGame || !gameStateRef.current || isGameOver) return;
     const noDefault = (e) => e.preventDefault();
     canvas.addEventListener('touchstart', noDefault, { passive: false });
     canvas.addEventListener('touchmove', noDefault, { passive: false });
@@ -172,7 +176,7 @@ export default function Games() {
       canvas.removeEventListener('touchstart', noDefault);
       canvas.removeEventListener('touchmove', noDefault);
     };
-  }, [activeGame, gameState, isGameOver]);
+  }, [activeGame, isGameOver]);
 
   const createExplosion = (x, y) => {
     if (particles.current.length > 30) return; // evita acúmulo em cascatas
@@ -182,7 +186,7 @@ export default function Games() {
   };
 
   useEffect(() => {
-    if (!activeGame || !gameState || isGameOver) return;
+    if (!activeGame || isGameOver) return;
     const render = () => {
       const canvas = canvasRef.current; if (!canvas) return;
       if (processingClearRef.current) { processingClearRef.current = false; setIsProcessing(false); }
@@ -200,7 +204,7 @@ export default function Games() {
         ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(500, i); ctx.stroke();
       }
 
-      if (activeGame === 'memory') drawMemory(ctx, gameState);
+      if (activeGame === 'memory') drawMemory(ctx, gameStateRef.current);
       if (activeGame === 'match-3') drawMatch3(ctx);
 
       // Update Particles
@@ -231,7 +235,7 @@ export default function Games() {
     };
     gameLoopRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(gameLoopRef.current);
-  }, [activeGame, gameState, isGameOver]);
+  }, [activeGame, isGameOver]);
 
   const drawMemory = (ctx, state) => {
     if (!state.board) return;
