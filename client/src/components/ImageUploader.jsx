@@ -33,7 +33,9 @@ export default function ImageUploader({ value, onChange, label = 'Imagem', previ
                 setError(res.data.message || 'Erro no upload.');
             }
         } catch (err) {
-            setError(err?.response?.data?.message || 'Erro ao enviar imagem.');
+            const msg = err?.response?.data?.message
+                || (err?.response?.status ? `Erro ${err.response.status} ao enviar imagem.` : 'Erro ao enviar imagem (sem resposta).');
+            setError(msg);
         } finally {
             setUploading(false);
             e.target.value = '';
