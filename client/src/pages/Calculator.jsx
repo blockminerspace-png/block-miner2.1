@@ -72,9 +72,6 @@ export default function CalculatorPage() {
     const hashFromMiners = calcSelectedHashRate(miners, selectedMiners);
     const { share, perBlock, perHour, perDay, perWeek, perMonth, toUSD } =
         calcRewards(myHash, netHash, price);
-    const perMonth = perBlock * BLOCKS_PER_MONTH;
-
-    const toUSD = (pol) => (pol * price).toFixed(4);
 
     const handleMinerQty = (id, delta) => {
         setSelectedMiners(prev => {
