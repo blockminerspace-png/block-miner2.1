@@ -6,14 +6,25 @@ import { toast } from 'sonner';
 
 const SOCKET_URL = '/';
 const CRYPTO_ICONS = {
-  'bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg',
-  'ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
-  'solana': 'https://cryptologos.cc/logos/solana-sol-logo.svg',
-  'binance-coin': 'https://cryptologos.cc/logos/bnb-bnb-logo.svg',
-  'cardano': 'https://cryptologos.cc/logos/cardano-ada-logo.svg',
-  'polkadot': 'https://cryptologos.cc/logos/polkadot-new-dot-logo.svg',
-  'dogecoin': 'https://cryptologos.cc/logos/dogecoin-doge-logo.svg',
-  'polygon': 'https://cryptologos.cc/logos/polygon-matic-logo.svg'
+  'bitcoin':      '/icons/bitcoin.png',
+  'ethereum':     '/icons/ethereum.png',
+  'solana':       '/icons/solana.png',
+  'binance-coin': '/icons/binance-coin.png',
+  'cardano':      '/icons/cardano.png',
+  'polkadot':     '/icons/polkadot.png',
+  'dogecoin':     '/icons/dogecoin.png',
+  'polygon':      '/icons/polygon.png',
+};
+
+const COIN_COLORS = {
+  'bitcoin':      { bg: 'rgba(247,147,26,0.25)',  glow: 'rgba(247,147,26,0.8)',  border: 'rgba(247,147,26,0.5)'  },
+  'ethereum':     { bg: 'rgba(98,126,234,0.25)',   glow: 'rgba(98,126,234,0.8)',   border: 'rgba(98,126,234,0.5)'  },
+  'solana':       { bg: 'rgba(20,241,149,0.20)',   glow: 'rgba(20,241,149,0.8)',   border: 'rgba(20,241,149,0.5)'  },
+  'binance-coin': { bg: 'rgba(243,186,47,0.25)',   glow: 'rgba(243,186,47,0.8)',   border: 'rgba(243,186,47,0.5)'  },
+  'cardano':      { bg: 'rgba(0,51,173,0.30)',     glow: 'rgba(70,130,255,0.8)',   border: 'rgba(70,130,255,0.5)'  },
+  'polkadot':     { bg: 'rgba(230,0,122,0.22)',    glow: 'rgba(230,0,122,0.8)',    border: 'rgba(230,0,122,0.5)'   },
+  'dogecoin':     { bg: 'rgba(194,166,80,0.25)',   glow: 'rgba(194,166,80,0.8)',   border: 'rgba(194,166,80,0.5)'  },
+  'polygon':      { bg: 'rgba(130,71,229,0.25)',   glow: 'rgba(130,71,229,0.8)',   border: 'rgba(130,71,229,0.5)'  },
 };
 
 const ICON_IMAGES = {};
@@ -177,11 +188,16 @@ export default function Games() {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, 500, 500);
 
-      // Cyberpunk BG
-      ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, 500, 500);
-      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
-      for (let i = 0; i < 500; i += 50) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 500); ctx.stroke(); }
-      for (let i = 0; i < 500; i += 50) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(500, i); ctx.stroke(); }
+      // BG gradiente espacial
+      const bgGrad = ctx.createRadialGradient(250, 250, 60, 250, 250, 360);
+      bgGrad.addColorStop(0, '#0d1526'); bgGrad.addColorStop(1, '#020617');
+      ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, 500, 500);
+      // Grid sutil
+      ctx.strokeStyle = 'rgba(30,58,138,0.18)'; ctx.lineWidth = 1;
+      for (let i = 0; i <= 500; i += 50) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 500); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(500, i); ctx.stroke();
+      }
 
       if (activeGame === 'memory') drawMemory(ctx, gameState);
       if (activeGame === 'match-3') drawMatch3(ctx);
@@ -225,18 +241,75 @@ export default function Games() {
       ctx.save(); ctx.translate(x + size / 2, y + size / 2);
       let sX = 1.0;
       if (card.isFlipped || card.isMatched) {
-        card.flipAnim = Math.min(1, (card.flipAnim || 0) + 0.15);
+        card.flipAnim = Math.min(1, (card.flipAnim || 0) + 0.12);
         sX = Math.cos(card.flipAnim * Math.PI / 2);
         if (card.flipAnim > 0.5) sX = -Math.sin(card.flipAnim * Math.PI / 2);
+      } else {
+        card.flipAnim = Math.max(0, (card.flipAnim || 0) - 0.12);
       }
       ctx.scale(sX, 1);
-      ctx.fillStyle = (card.isFlipped || card.isMatched) ? '#2563eb' : '#1e293b';
-      if (card.isMatched) ctx.fillStyle = '#059669';
-      ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.beginPath(); ctx.roundRect(-size / 2, -size / 2, size, size, 16); ctx.fill();
-      if (Math.abs(sX) > 0.1 && (card.isFlipped || card.isMatched)) {
+      const r = size / 2;
+      // Sombra do card
+      ctx.shadowBlur = card.isMatched ? 22 : 10;
+      ctx.shadowColor = card.isMatched ? 'rgba(16,185,129,0.6)' : 'rgba(0,0,0,0.7)';
+
+      if (card.isMatched) {
+        // Card matched: gradiente verde brilhante
+        const g = ctx.createLinearGradient(-r, -r, r, r);
+        g.addColorStop(0, '#064e3b'); g.addColorStop(1, '#065f46');
+        ctx.fillStyle = g;
+      } else if (card.isFlipped) {
+        // Card virado: gradiente azul escuro
+        const g = ctx.createLinearGradient(-r, -r, r, r);
+        g.addColorStop(0, '#1e3a8a'); g.addColorStop(1, '#1d4ed8');
+        ctx.fillStyle = g;
+      } else {
+        // Card fechado: gradiente escuro com borda
+        const g = ctx.createLinearGradient(-r, -r, r, r);
+        g.addColorStop(0, '#1e293b'); g.addColorStop(1, '#0f172a');
+        ctx.fillStyle = g;
+      }
+      ctx.beginPath(); ctx.roundRect(-r, -r, size, size, 16); ctx.fill();
+
+      // Borda do card
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = card.isMatched ? 'rgba(16,185,129,0.6)' : card.isFlipped ? 'rgba(59,130,246,0.5)' : 'rgba(51,65,85,0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(-r, -r, size, size, 16); ctx.stroke();
+
+      // Verso do card (fechado): padrão hex
+      if (!card.isFlipped && !card.isMatched && Math.abs(sX) > 0.5) {
+        ctx.strokeStyle = 'rgba(59,130,246,0.15)'; ctx.lineWidth = 1;
+        for (let dy = -r + 14; dy < r; dy += 22) {
+          for (let dxx = -r + 10; dxx < r; dxx += 20) {
+            const ox = (Math.floor((dy + r) / 22) % 2) * 10;
+            ctx.beginPath(); ctx.arc(dxx + ox, dy, 3, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
+      }
+
+      // Imagem da moeda (frente)
+      if (Math.abs(sX) > 0.15 && (card.isFlipped || card.isMatched)) {
         const img = ICON_IMAGES[card.symbol];
-        if (img && img.complete) { ctx.scale(-1, 1); ctx.drawImage(img, -size / 3, -size / 3, size / 1.5, size / 1.5); }
+        const col = COIN_COLORS[card.symbol];
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.scale(-1, 1);
+          // Halo colorido atrás da moeda
+          if (col) {
+            ctx.shadowBlur = 20; ctx.shadowColor = col.glow;
+          }
+          const is = size * 0.58;
+          ctx.drawImage(img, -is / 2, -is / 2, is, is);
+          ctx.shadowBlur = 0;
+        }
+        // Ticker da moeda
+        if (col) {
+          ctx.scale(-1, 1);
+          ctx.font = 'bold 11px monospace';
+          ctx.fillStyle = card.isMatched ? 'rgba(16,185,129,0.9)' : 'rgba(148,163,184,0.8)';
+          ctx.textAlign = 'center';
+          ctx.fillText(card.symbol?.toUpperCase().slice(0,3), 0, r - 10);
+        }
       }
       ctx.restore();
     });
@@ -262,7 +335,7 @@ export default function Games() {
         piece.visualY += (y - piece.visualY) * 0.18;
         piece.visualX += (x - piece.visualX) * 0.18;
         const isSelected = selectedCell.current?.cx === x && selectedCell.current?.cy === y;
-        piece.scale = (piece.scale ?? 1.0) + ((isSelected ? 1.18 : 1.0) - (piece.scale ?? 1.0)) * 0.2;
+        piece.scale = (piece.scale ?? 1.0) + ((isSelected ? 1.15 : 1.0) - (piece.scale ?? 1.0)) * 0.2;
 
         let drawX = sx + piece.visualX * (s + p);
         let drawY = sy + piece.visualY * (s + p);
@@ -274,37 +347,48 @@ export default function Games() {
           else if (sa.rfx !== undefined && sa.rfx === x && sa.rfy === y) { drawX += (sa.rx - sa.rfx) * saOffset * (s + p); drawY += (sa.ry - sa.rfy) * saOffset * (s + p); }
         }
 
+        const col = COIN_COLORS[piece.symbol];
+        const cx2 = drawX + s / 2, cy2 = drawY + s / 2;
         ctx.save();
 
         if (isSelected) {
-          const t = Date.now() / 800;
-          const pulse = 10 + Math.sin(t * Math.PI * 2) * 6;
-
-          // Borda sutil pulsante
-          ctx.shadowBlur = pulse; ctx.shadowColor = 'rgba(99,179,237,0.7)';
-          ctx.strokeStyle = `rgba(99,179,237,${0.3 + 0.15 * Math.sin(t * Math.PI * 2)})`;
-          ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.roundRect(drawX - 1, drawY - 1, s + 2, s + 2, 13); ctx.stroke();
+          const t = Date.now() / 700;
+          const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
+          // Glow externo da cor da moeda
+          ctx.shadowBlur = 18 + 8 * pulse;
+          ctx.shadowColor = col ? col.glow : 'rgba(99,179,237,0.9)';
+          ctx.strokeStyle = col ? col.border : 'rgba(99,179,237,0.9)';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.roundRect(drawX - 2, drawY - 2, s + 4, s + 4, 14); ctx.stroke();
           ctx.shadowBlur = 0;
-
-          // Fundo levemente destacado
-          ctx.fillStyle = 'rgba(59,130,246,0.15)';
-          ctx.beginPath(); ctx.roundRect(drawX, drawY, s, s, 12); ctx.fill();
-        } else {
-          ctx.fillStyle = 'rgba(30,41,59,0.6)';
-          ctx.beginPath(); ctx.roundRect(drawX, drawY, s, s, 12); ctx.fill();
         }
 
+        // Card background com gradiente da cor da moeda
+        const bgGrad = ctx.createRadialGradient(cx2, cy2, 2, cx2, cy2, s * 0.75);
+        if (col) {
+          bgGrad.addColorStop(0, col.bg);
+          bgGrad.addColorStop(1, 'rgba(15,23,42,0.92)');
+        } else {
+          bgGrad.addColorStop(0, 'rgba(30,41,59,0.8)');
+          bgGrad.addColorStop(1, 'rgba(15,23,42,0.92)');
+        }
+        ctx.fillStyle = bgGrad;
+        ctx.beginPath(); ctx.roundRect(drawX, drawY, s, s, 12); ctx.fill();
+
+        // Borda fina
+        ctx.strokeStyle = col ? col.border.replace('0.5', '0.3') : 'rgba(51,65,85,0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.roundRect(drawX, drawY, s, s, 12); ctx.stroke();
+
+        // Ícone da moeda
         const img = ICON_IMAGES[piece.symbol];
-        if (img && img.complete) {
+        if (img && img.complete && img.naturalWidth > 0) {
           const sc = piece.scale ?? 1.0;
-          if (isSelected) {
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = 'rgba(99,179,237,0.5)';
-          }
-          ctx.translate(drawX + s / 2, drawY + s / 2);
+          ctx.translate(cx2, cy2);
           ctx.scale(sc, sc);
-          ctx.drawImage(img, -s / 2 + 8, -s / 2 + 8, s - 16, s - 16);
+          if (isSelected && col) { ctx.shadowBlur = 14; ctx.shadowColor = col.glow; }
+          const is = s * 0.64;
+          ctx.drawImage(img, -is / 2, -is / 2, is, is);
           ctx.shadowBlur = 0;
         }
         ctx.restore();
