@@ -77,7 +77,7 @@ export default function Games() {
     });
 
     newSocket.on('game:card_flipped', (data) => {
-      setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => c.id === data.id ? { ...c, symbol: data.symbol, isFlipped: true, flipAnim: 0 } : c) }; });
+      setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => c.id === data.id ? { ...c, symbol: data.symbol, isFlipped: true, flipStart: performance.now(), flipDir: 1 } : c) }; });
     });
 
     newSocket.on('game:match', (data) => {
@@ -87,10 +87,11 @@ export default function Games() {
 
     newSocket.on('game:mismatch', (data) => {
       setIsProcessing(true);
+      // Mostra as moedas por 300ms depois fecha imediatamente
       setTimeout(() => {
-        setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isFlipped: false, symbol: null } : c) }; });
+        setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isFlipped: false, flipStart: performance.now(), flipDir: -1 } : c) }; });
         setIsProcessing(false);
-      }, 800);
+      }, 300);
     });
 
     newSocket.on('game:board_update', (data) => {
@@ -241,11 +242,20 @@ export default function Games() {
       ctx.save(); ctx.translate(x + size / 2, y + size / 2);
       let sX = 1.0;
       if (card.isFlipped || card.isMatched) {
-        card.flipAnim = Math.min(1, (card.flipAnim || 0) + 0.12);
-        sX = Math.cos(card.flipAnim * Math.PI / 2);
-        if (card.flipAnim > 0.5) sX = -Math.sin(card.flipAnim * Math.PI / 2);
+        const elapsed = performance.now() - (card.flipStart || 0);
+        const t = Math.min(1, elapsed / 160);
+        sX = Math.cos(t * Math.PI / 2);
+        if (t > 0.5) sX = -Math.sin(t * Math.PI / 2);
+      } else if (card.flipDir === -1) {
+        // Fechando: anima de volta
+        const elapsed = performance.now() - (card.flipStart || 0);
+        const t = Math.min(1, elapsed / 160);
+        const tp = 1 - t;
+        sX = Math.cos(tp * Math.PI / 2);
+        if (tp > 0.5) sX = -Math.sin(tp * Math.PI / 2);
+        if (t >= 1) { card.flipDir = 0; card.symbol = null; }
       } else {
-        card.flipAnim = Math.max(0, (card.flipAnim || 0) - 0.12);
+        sX = 1.0;
       }
       ctx.scale(sX, 1);
       const r = size / 2;
@@ -259,7 +269,7 @@ export default function Games() {
       ctx.beginPath(); ctx.roundRect(-r, -r, size, size, 16); ctx.stroke();
 
       // Imagem da moeda (frente) — só a imagem, sem efeito
-      if (Math.abs(sX) > 0.15 && (card.isFlipped || card.isMatched)) {
+      if (Math.abs(sX) > 0.15 && (card.isFlipped || card.isMatched || card.flipDir === -1)) {
         const img = ICON_IMAGES[card.symbol];
         if (img && img.complete && img.naturalWidth > 0) {
           ctx.scale(-1, 1);
