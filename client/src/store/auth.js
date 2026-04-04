@@ -81,6 +81,10 @@ export const useAuthStore = create((set) => ({
         }
     },
 
+    setUser: (updatedFields) => {
+        set((state) => ({ user: { ...state.user, ...updatedFields } }));
+    },
+
     logout: async () => {
         try {
             await api.post('/auth/logout');

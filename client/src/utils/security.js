@@ -24,20 +24,18 @@ class IronDome {
     }
 
     generatePayload() {
-        const uptime = Date.now() - this.startTime;
+        const now = Date.now();
         const data = {
+            ts: now,
             b: this.isBotDetected,
-            u: uptime,
+            u: now - this.startTime,
             k: this.secretKey,
             v: "5.0"
         };
 
-        const raw = JSON.stringify(data);
-        const encoded = btoa(raw.split('').map(c =>
-            String.fromCharCode(c.charCodeAt(0) ^ this.secretKey.charCodeAt(0))
-        ).join(''));
+        const encoded = btoa(JSON.stringify(data));
 
-        return { fingerprint: encoded, isBot: this.isBotDetected, sk: this.secretKey };
+        return { fingerprint: encoded, isBot: this.isBotDetected };
     }
 }
 

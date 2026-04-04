@@ -12,16 +12,19 @@ import {
     CheckCircle2
 } from 'lucide-react';
 import { api, useAuthStore } from '../store/auth';
+import { Edit2 } from 'lucide-react';
 import { useGameStore } from '../store/game';
 
 export default function Settings() {
     const { t } = useTranslation();
-    const { user } = useAuthStore();
+    const { user, setUser } = useAuthStore();
     const { stats, fetchAll } = useGameStore();
     
     const [isSavingWallet, setIsSavingWallet] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
-    
+    const [isChangingUsername, setIsChangingUsername] = useState(false);
+    const [newUsername, setNewUsername] = useState('');
+
     const [walletAddress, setWalletAddress] = useState('');
     const [passwords, setPasswords] = useState({
         current: '',
@@ -34,6 +37,27 @@ export default function Settings() {
             setWalletAddress(stats.miner.walletAddress);
         }
     }, [stats]);
+
+    const handleChangeUsername = async (e) => {
+        e.preventDefault();
+        const trimmed = newUsername.trim();
+        if (!trimmed) return;
+        if (trimmed.length < 3) return toast.error('Nome deve ter pelo menos 3 caracteres.');
+        if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) return toast.error('Nome só pode conter letras, números, ponto, underline e hífen.');
+        try {
+            setIsChangingUsername(true);
+            const res = await api.post('/user/change-username', { username: trimmed });
+            if (res.data.ok) {
+                toast.success('Nome de usuário alterado com sucesso!');
+                setUser({ username: trimmed, name: trimmed });
+                setNewUsername('');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao alterar o nome de usuário.');
+        } finally {
+            setIsChangingUsername(false);
+        }
+    };
 
     const handleUpdateWallet = async (e) => {
         e.preventDefault();
@@ -112,6 +136,30 @@ export default function Settings() {
                                 <span className="text-sm font-bold text-white truncate">{user?.email}</span>
                             </div>
                         </div>
+
+                        <form onSubmit={handleChangeUsername} className="space-y-3 pt-4 border-t border-gray-800">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2 block">Novo Nome de Usuário</label>
+                            <div className="relative flex items-center bg-gray-950 border border-gray-800 rounded-2xl p-1.5 focus-within:border-primary/50 transition-all shadow-inner">
+                                <input
+                                    type="text"
+                                    value={newUsername}
+                                    onChange={(e) => setNewUsername(e.target.value)}
+                                    placeholder={user?.username || user?.name}
+                                    minLength={3}
+                                    maxLength={24}
+                                    className="bg-transparent border-none text-sm font-bold text-gray-300 px-4 w-full focus:outline-none"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={isChangingUsername || !newUsername.trim()}
+                                    className="bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-xl transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest"
+                                >
+                                    {isChangingUsername ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Edit2 className="w-3.5 h-3.5" />}
+                                    Salvar
+                                </button>
+                            </div>
+                            <p className="text-[9px] text-gray-600 font-medium px-4">3–24 caracteres. Letras, números, ponto, underline e hífen.</p>
+                        </form>
 
                         <form onSubmit={handleUpdateWallet} className="space-y-4">
                             <div className="flex items-center gap-4 mb-4 pt-4 border-t border-gray-800">
