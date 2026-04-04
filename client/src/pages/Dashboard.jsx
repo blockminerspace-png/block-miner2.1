@@ -21,6 +21,27 @@ export default function Dashboard() {
         initSocket();
     }, [initSocket]);
 
+    // Sync de saldo via REST a cada 60s como rede de segurança contra divergências no engine
+    useEffect(() => {
+        const syncBalance = async () => {
+            try {
+                const res = await api.get('/wallet/balance');
+                if (res.data.ok && res.data.balance !== undefined) {
+                    const dbBalance = Number(res.data.balance);
+                    useGameStore.setState(state => {
+                        if (!state.stats?.miner) return {};
+                        const engineBalance = state.stats.miner.balance;
+                        if (Math.abs(dbBalance - engineBalance) < 0.000001) return {};
+                        return { stats: { ...state.stats, miner: { ...state.stats.miner, balance: dbBalance } } };
+                    });
+                }
+            } catch { /* silencioso */ }
+        };
+        syncBalance();
+        const interval = setInterval(syncBalance, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
     const miner = stats?.miner;
     const blockHistory = stats?.blockHistory || [];
 

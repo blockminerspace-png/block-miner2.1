@@ -1,6 +1,7 @@
 import prisma from '../../src/db/prisma.js';
 import { createNotification } from '../../controllers/notificationController.js';
 import { getMiningEngine } from '../../src/miningEngineInstance.js';
+import { applyUserBalanceDelta } from '../../src/runtime/miningRuntime.js';
 
 export async function markCheckinConfirmed(checkinId, now) {
   return prisma.dailyCheckin.update({
@@ -75,8 +76,9 @@ export async function getMiningEngineStateRows() {
 
 export async function persistBlockRewards({ blockNumber, blockReward, totalWork, minerRewards, now }) {
   const engine = getMiningEngine();
+  const pendingReferralDeltas = []; // coleta comissões para sincronizar no engine após o commit
   
-  return prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const timestamp = new Date(now);
 
     for (const r of minerRewards) {
@@ -125,6 +127,8 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
             createdAt: timestamp
           }
         });
+
+        pendingReferralDeltas.push({ userId: user.referredBy, delta: commission });
       }
 
       // 4. Create Notification
@@ -160,6 +164,11 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
     });
 
   });
+
+  // Após commit: sincroniza comissões de referral no engine para o dashboard atualizar em tempo real
+  for (const { userId, delta } of pendingReferralDeltas) {
+    applyUserBalanceDelta(userId, delta);
+  }
 }
 
 export async function loadRecentBlocks(limit = 12) {
