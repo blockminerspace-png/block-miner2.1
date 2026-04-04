@@ -11,7 +11,8 @@ import {
     ShieldAlert,
     Tag,
     MessageSquare,
-    Ticket
+    Ticket,
+    Megaphone
 } from 'lucide-react';
 
 const adminMenuItems = [
@@ -21,6 +22,7 @@ const adminMenuItems = [
   { icon: Tag, label: 'Ofertas', path: '/admin/offer-events' },
   { icon: Wallet, label: 'Financeiro', path: '/admin/finance' },
   { icon: MessageSquare, label: 'Suporte', path: '/admin/support' },
+  { icon: Megaphone, label: 'Banners', path: '/admin/banners' },
   { icon: Ticket, label: 'Dep. Tickets', path: '/admin/deposit-tickets' },
   { icon: Database, label: 'Backups', path: '/admin/backups' },
   { icon: FileText, label: 'Logs', path: '/admin/logs' },

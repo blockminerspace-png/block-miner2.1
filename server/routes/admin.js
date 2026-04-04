@@ -2,6 +2,7 @@ import express from "express";
 import * as adminController from "../controllers/adminController.js";
 import * as adminSupportController from "../controllers/adminSupportController.js";
 import * as depositTicketController from "../controllers/depositTicketController.js";
+import * as bannerController from "../controllers/bannerController.js";
 import { adminOfferEventsRouter } from "./admin-offer-events.js";
 import { requireAdminAuth } from "../middleware/adminAuth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
@@ -60,6 +61,12 @@ adminRouter.use((err, _req, res, _next) => {
 
 // Dashboard Stats
 adminRouter.get("/stats", adminController.getStats);
+
+// Banners
+adminRouter.get("/banners", bannerController.adminList);
+adminRouter.post("/banners", bannerController.adminCreate);
+adminRouter.put("/banners/:id", bannerController.adminUpdate);
+adminRouter.delete("/banners/:id", bannerController.adminDelete);
 
 // Users
 adminRouter.get("/users", adminController.listRecentUsers);

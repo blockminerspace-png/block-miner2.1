@@ -8,6 +8,7 @@ import { useAuthStore, api } from '../store/auth';
 import { useGameStore } from '../store/game';
 import { formatHashrate } from '../utils/machine';
 import { toast } from 'sonner';
+import DashboardBanners from '../components/DashboardBanners';
 
 export default function Dashboard() {
     const { t } = useTranslation();
@@ -97,7 +98,7 @@ export default function Dashboard() {
                     <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Sincronizado</span>
                 </div>
             </div>
-
+            <DashboardBanners />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card
                     icon={Coins}

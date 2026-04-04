@@ -819,6 +819,23 @@ model UserRoom {
   @@map("user_rooms")
 }
 
+model DashboardBanner {
+  id        Int       @id @default(autoincrement())
+  title     String
+  message   String
+  type      String    @default("info") // info | warning | success | promo
+  link      String?
+  linkLabel String?   @map("link_label")
+  isActive  Boolean   @default(true) @map("is_active")
+  startsAt  DateTime? @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("dashboard_banners")
+}
+
 model UserRack {
   id                Int       @id @default(autoincrement())
   userId            Int       @map("user_id")

@@ -41,6 +41,7 @@ import AdminOfferEvents from './pages/AdminOfferEvents';
 import AdminOfferEventManage from './pages/AdminOfferEventManage';
 import AdminSupport from './pages/AdminSupport';
 import AdminDepositTickets from './pages/AdminDepositTickets';
+import AdminBanners from './pages/AdminBanners';
 import Landing from './pages/Landing';
 
 const ProtectedLayout = () => {
@@ -152,6 +153,7 @@ function App() {
           <Route path="/admin/offer-events/:id" element={<AdminOfferEventManage />} />
           <Route path="/admin/support" element={<AdminSupport />} />
           <Route path="/admin/deposit-tickets" element={<AdminDepositTickets />} />
+          <Route path="/admin/banners" element={<AdminBanners />} />
         </Route>
       </Routes>
     </BrowserRouter>

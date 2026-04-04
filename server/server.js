@@ -46,6 +46,7 @@ import { adminAutoMiningRewardsRouter } from "./routes/admin-auto-mining-rewards
 import supportRouter from "./routes/support.js";
 import userRouter from "./routes/user.js";
 import * as healthController from "./controllers/healthController.js";
+import * as bannerController from "./controllers/bannerController.js";
 
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
@@ -268,6 +269,9 @@ app.get("/api/public-stats", async (req, res) => {
 
 // Health check
 app.get("/health", healthController.health);
+
+// Active banners (no auth — used by Dashboard)
+app.get("/api/banners", bannerController.getActiveBanners);
 
 // 7. Static Assets & Frontend Production Build
 // Serve user-uploaded miner images from the persistent volume (survives rebuilds)
