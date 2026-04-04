@@ -24,7 +24,7 @@ async function main() {
       baseHashRate: 95,
       price: 150.0,
       slotSize: 2,
-      imageUrl: "/assets/machines/3.png",
+      imageUrl: "/machines/3.png",
       isActive: true,
       showInShop: true
     },
@@ -34,7 +34,7 @@ async function main() {
       baseHashRate: 40,
       price: 45.0,
       slotSize: 1,
-      imageUrl: "/assets/machines/2.png",
+      imageUrl: "/machines/2.png",
       isActive: true,
       showInShop: true
     },
@@ -44,7 +44,7 @@ async function main() {
       baseHashRate: 88,
       price: 120.0,
       slotSize: 2,
-      imageUrl: "/assets/machines/1.png",
+      imageUrl: "/machines/1.png",
       isActive: true,
       showInShop: true
     },
@@ -54,7 +54,7 @@ async function main() {
       baseHashRate: 2,
       price: 5.0,
       slotSize: 1,
-      imageUrl: "/assets/machines/reward3.png",
+      imageUrl: "/machines/reward3.png",
       isActive: true,
       showInShop: true
     },
@@ -64,7 +64,7 @@ async function main() {
       baseHashRate: 1,
       price: 0,
       slotSize: 1,
-      imageUrl: "/assets/machines/reward2.png",
+      imageUrl: "/machines/reward2.png",
       isActive: true,
       showInShop: false
     }
@@ -98,7 +98,7 @@ async function main() {
       name: "Pulse GPU v1",
       gpuHashRate: 1,
       isActive: true,
-      imageUrl: "/assets/machines/reward3.png",
+      imageUrl: "/machines/reward3.png",
       description: "Hardware de mineração automática de baixo consumo."
     },
     create: {
@@ -106,7 +106,7 @@ async function main() {
       slug: "pulse-gpu-v1",
       gpuHashRate: 1,
       isActive: true,
-      imageUrl: "/assets/machines/reward3.png",
+      imageUrl: "/machines/reward3.png",
       description: "Hardware de mineração automática de baixo consumo."
     }
   });

@@ -14,8 +14,10 @@ export default function AutoMining() {
     const [isRunning, setIsRunning] = useState(false);
     const [countdown, setCountdown] = useState(300); // 5 minutes
     const [isLoading, setIsLoading] = useState(true);
+    const [isClaiming, setIsClaiming] = useState(false);
     
     const timerRef = useRef(null);
+    const isClaimingRef = useRef(false);
 
     const fetchData = useCallback(async () => {
         try {
@@ -40,6 +42,9 @@ export default function AutoMining() {
     }, [fetchData]);
 
     const claimGPU = async (gpuId) => {
+        if (isClaimingRef.current) return false;
+        isClaimingRef.current = true;
+        setIsClaiming(true);
         try {
             const res = await api.post('/auto-mining-gpu/claim', { gpu_id: gpuId });
             if (res.data.success) {
@@ -50,6 +55,9 @@ export default function AutoMining() {
         } catch (err) {
             toast.error(err.response?.data?.error || "Falha no resgate automático.");
             setIsRunning(false);
+        } finally {
+            isClaimingRef.current = false;
+            setIsClaiming(false);
         }
         return false;
     };
@@ -184,7 +192,7 @@ export default function AutoMining() {
                             <div className="flex flex-col md:flex-row items-center gap-6">
                                 <button
                                     onClick={handleToggleSystem}
-                                    disabled={!status?.data}
+                                    disabled={!status?.data || isClaiming}
                                     className={`w-full md:w-auto px-12 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 italic ${isRunning
                                             ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20'
                                             : 'bg-primary text-white shadow-primary/20 hover:scale-105 active:scale-95 disabled:opacity-20'
@@ -242,9 +250,10 @@ export default function AutoMining() {
                                             if (!validateTrustedEvent(e)) return;
                                             claimGPU(gpu.id);
                                         }}
-                                        className="px-4 py-2 bg-emerald-500 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-emerald-400 active:scale-95 transition-all shadow-glow-emerald"
+                                        disabled={isClaiming}
+                                        className="px-4 py-2 bg-emerald-500 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-emerald-400 active:scale-95 transition-all shadow-glow-emerald disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        Resgatar Agora
+                                        {isClaiming ? 'Resgatando...' : 'Resgatar Agora'}
                                     </button>
                                 </div>
                             ))}

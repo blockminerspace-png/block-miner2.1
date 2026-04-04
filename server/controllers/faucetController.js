@@ -3,7 +3,7 @@ import * as inventoryModel from "../models/inventoryModel.js";
 import * as minersModel from "../models/minersModel.js";
 import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 
-const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
+const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 const DEFAULT_FAUCET_COOLDOWN_MS = 60 * 60 * 1000;
 const FAUCET_PARTNER_WAIT_MS = 10_000;
 const FAUCET_PARTNER_URL = String(process.env.FAUCET_PARTNER_URL || "https://faucetpay.io/").trim();

@@ -513,7 +513,7 @@ function registerAppRoutes({
 
         res.json({
           ok: true,
-          imageUrl: `/assets/machines/uploaded/${fileName}`
+          imageUrl: `/machines/uploaded/${fileName}`
         });
       } catch (error) {
         logger.error("Admin miner image upload failed", {

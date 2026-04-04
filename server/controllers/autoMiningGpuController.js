@@ -130,7 +130,7 @@ export async function claimGPUHandler(req, res) {
           level: 1,
           hashRate: gpu.gpuHashRate,
           slotSize: 1,
-          imageUrl: reward?.imageUrl || "/assets/machines/reward2.png",
+          imageUrl: reward?.imageUrl || "/machines/reward2.png",
           acquiredAt: now,
           expiresAt: expiresAt
         }

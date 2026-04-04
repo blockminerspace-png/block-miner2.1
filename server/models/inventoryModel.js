@@ -1,6 +1,6 @@
 import prisma from '../src/db/prisma.js';
 
-const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
+const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
 export async function listInventory(userId) {
   return prisma.userInventory.findMany({

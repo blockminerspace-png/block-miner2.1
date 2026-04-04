@@ -292,6 +292,46 @@ adminRouter.get("/users/:id/details", async (req, res) => {
     }
 });
 
+// Send Miner to User
+adminRouter.post("/users/:id/send-miner", async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const minerId = parseInt(req.body?.minerId);
+        const quantity = Math.max(1, Math.min(100, parseInt(req.body?.quantity || 1)));
+
+        if (!userId || isNaN(userId)) return res.status(400).json({ ok: false, message: 'ID de usuário inválido.' });
+        if (!minerId || isNaN(minerId)) return res.status(400).json({ ok: false, message: 'ID de máquina inválido.' });
+
+        const [user, miner] = await Promise.all([
+            prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, email: true } }),
+            prisma.miner.findUnique({ where: { id: minerId } })
+        ]);
+
+        if (!user) return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' });
+        if (!miner) return res.status(404).json({ ok: false, message: 'Máquina não encontrada.' });
+
+        const now = new Date();
+        await prisma.userInventory.createMany({
+            data: Array.from({ length: quantity }, () => ({
+                userId,
+                minerId: miner.id,
+                minerName: miner.name,
+                level: 1,
+                hashRate: Number(miner.baseHashRate),
+                slotSize: Number(miner.slotSize || 1),
+                imageUrl: miner.imageUrl || '/machines/reward1.png',
+                acquiredAt: now,
+                updatedAt: now
+            }))
+        });
+
+        res.json({ ok: true, message: `${quantity}x ${miner.name} enviado(s) para ${user.username || user.email}.` });
+    } catch (err) {
+        console.error('send-miner error', err);
+        res.status(500).json({ ok: false, message: 'Erro ao enviar máquina.' });
+    }
+});
+
 // Support / Tickets
 adminRouter.get("/support", adminSupportController.listMessages);
 adminRouter.get("/support/:id", adminSupportController.getMessage);

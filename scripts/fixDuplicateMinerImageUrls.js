@@ -2,11 +2,11 @@ const sqlite3 = require("sqlite3").verbose();
 
 const DB_PATH = "data/blockminer.db";
 const FALLBACK_CANDIDATES = [
-  "/assets/machines/reward2.png",
-  "/assets/machines/reward3.png",
-  "/assets/machines/1.png",
-  "/assets/machines/2.png",
-  "/assets/machines/3.png"
+  "/machines/reward2.png",
+  "/machines/reward3.png",
+  "/machines/1.png",
+  "/machines/2.png",
+  "/machines/3.png"
 ];
 
 function all(db, sql, params = []) {

@@ -8,51 +8,32 @@ const AdBlockDetector = () => {
 
     useEffect(() => {
         const detectAdBlock = async () => {
-            // Logic 1: Attempt to fetch a common ad script URL
-            // AdBlockers often block requests to URLs containing "ads", "google-analytics", etc.
-            const adUrls = [
-                'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
-                'https://www.google-analytics.com/analytics.js'
-            ];
-
-            let blocked = false;
-            
-            try {
-                // We use 'no-cors' to avoid CORS issues, we just want to see if the REQUEST is blocked by the browser
-                await fetch(adUrls[0], { mode: 'no-cors' }).catch(() => {
-                    blocked = true;
-                });
-            } catch (e) {
-                blocked = true;
-            }
-
-            // Logic 2: Create a honeypot element
-            // AdBlockers hide elements with certain classes or IDs
+            // Honeypot: cria elemento com classes típicas de anúncio
+            // Adblocks ocultam (display:none) ou colapsam (height=0) esses elementos
             const honeypot = document.createElement('div');
             honeypot.className = 'ad-banner adsbox ads-google ad-placement public_ads';
-            honeypot.style.position = 'absolute';
-            honeypot.style.left = '-9999px';
-            honeypot.style.top = '-9999px';
+            honeypot.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;';
             honeypot.innerHTML = '&nbsp;';
             document.body.appendChild(honeypot);
 
-            window.setTimeout(() => {
-                if (honeypot.offsetHeight === 0 || honeypot.clientHeight === 0 || window.getComputedStyle(honeypot).display === 'none') {
-                    blocked = true;
-                }
-                
-                if (blocked) {
-                    setIsDetected(true);
-                    // Mark in database
-                    api.post('/auth/mark-adblock').catch(() => {});
-                }
-                
-                document.body.removeChild(honeypot);
-            }, 100);
+            await new Promise(r => setTimeout(r, 200));
+
+            const style = window.getComputedStyle(honeypot);
+            const isHidden =
+                honeypot.offsetHeight === 0 &&
+                honeypot.clientHeight === 0 &&
+                style.display === 'none';
+
+            document.body.removeChild(honeypot);
+
+            if (isHidden) {
+                setIsDetected(true);
+                api.post('/auth/mark-adblock').catch(() => {});
+            }
         };
 
-        // Delay detection slightly to let adblockers load
-        const timer = setTimeout(detectAdBlock, 2000);
+        // Aguarda adblockers carregarem antes de testar
+        const timer = setTimeout(detectAdBlock, 2500);
         return () => clearTimeout(timer);
     }, []);
 

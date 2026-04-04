@@ -10,9 +10,9 @@ import {
   userBalanceFieldForCurrency
 } from "./offerEventHelpers.js";
 
-const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
+const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
-async function incrementSoldCountOptimistic(tx, minerId) {
+async function incrementSoldCountOptimistic(tx, minerId, quantity = 1) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const m = await tx.eventMiner.findUnique({ where: { id: minerId } });
     if (!m) {
@@ -20,14 +20,17 @@ async function incrementSoldCountOptimistic(tx, minerId) {
       err.code = "NOT_FOUND";
       throw err;
     }
-    if (!hasEventMinerStock(m)) {
-      const err = new Error("OUT_OF_STOCK");
-      err.code = "OUT_OF_STOCK";
-      throw err;
+    if (!m.stockUnlimited) {
+      const remaining = (m.stockCount || 0) - (m.soldCount || 0);
+      if (remaining < quantity) {
+        const err = new Error("OUT_OF_STOCK");
+        err.code = "OUT_OF_STOCK";
+        throw err;
+      }
     }
     const res = await tx.eventMiner.updateMany({
       where: { id: minerId, soldCount: m.soldCount },
-      data: { soldCount: { increment: 1 } }
+      data: { soldCount: { increment: quantity } }
     });
     if (res.count === 1) return m;
   }
@@ -51,7 +54,7 @@ function mapBalances(user) {
 /**
  * @returns {Promise<{ ok: true, message: string, balances: object } | { ok: false, code: string, message: string, status: number }>}
  */
-export async function purchaseEventMinerForUser(userId, eventMinerId) {
+export async function purchaseEventMinerForUser(userId, eventMinerId, quantity = 1) {
   const now = new Date();
 
   try {
@@ -86,6 +89,7 @@ export async function purchaseEventMinerForUser(userId, eventMinerId) {
         throw err;
       }
 
+      const totalPrice = price * quantity;
       const currency = normalizeOfferCurrency(em.currency);
       const balanceField = userBalanceFieldForCurrency(currency);
 
@@ -96,33 +100,33 @@ export async function purchaseEventMinerForUser(userId, eventMinerId) {
         throw err;
       }
 
-      if (getUserBalanceNumber(user, currency) < price) {
+      if (getUserBalanceNumber(user, currency) < totalPrice) {
         const err = new Error("INSUFFICIENT_BALANCE");
         err.code = "INSUFFICIENT";
         throw err;
       }
 
-      await incrementSoldCountOptimistic(tx, em.id);
+      await incrementSoldCountOptimistic(tx, em.id, quantity);
 
       await tx.user.update({
         where: { id: userId },
-        data: { [balanceField]: { decrement: price } }
+        data: { [balanceField]: { decrement: totalPrice } }
       });
 
-      await tx.eventPurchase.create({
-        data: {
+      await tx.eventPurchase.createMany({
+        data: Array.from({ length: quantity }, () => ({
           userId,
           eventId: em.eventId,
           eventMinerId: em.id,
           pricePaid: em.price,
           currency
-        }
+        }))
       });
 
       const slotSize = Number.isInteger(em.slotSize) && em.slotSize >= 1 && em.slotSize <= 2 ? em.slotSize : 1;
 
-      await tx.userInventory.create({
-        data: {
+      await tx.userInventory.createMany({
+        data: Array.from({ length: quantity }, () => ({
           userId,
           minerId: null,
           minerName: `[Event] ${em.name}`,
@@ -132,7 +136,7 @@ export async function purchaseEventMinerForUser(userId, eventMinerId) {
           imageUrl: em.imageUrl || DEFAULT_MINER_IMAGE_URL,
           acquiredAt: now,
           updatedAt: now
-        }
+        }))
       });
 
       const updatedUser = await tx.user.findUnique({ where: { id: userId } });
@@ -141,27 +145,28 @@ export async function purchaseEventMinerForUser(userId, eventMinerId) {
         eventTitle: em.event.title,
         currency,
         price,
+        totalPrice,
         updatedUser
       };
     });
 
-    const { minerName, eventTitle, currency, price, updatedUser } = result;
+    const { minerName, eventTitle, currency, totalPrice, updatedUser } = result;
 
     if (currency === "POL") {
-      applyUserBalanceDelta(userId, -price);
+      applyUserBalanceDelta(userId, -totalPrice);
     }
 
     await createNotification({
       userId,
       title: "Oferta especial",
-      message: `Você comprou ${minerName} no evento "${eventTitle}". O equipamento está no inventário!`,
+      message: `Você comprou ${quantity}x ${minerName} no evento "${eventTitle}". ${quantity > 1 ? 'Os equipamentos estão' : 'O equipamento está'} no inventário!`,
       type: "success",
       io: getMiningEngine()?.io
     });
 
     return {
       ok: true,
-      message: `${minerName} adicionado ao inventário.`,
+      message: `${quantity}x ${minerName} adicionado(s) ao inventário.`,
       balances: mapBalances(updatedUser)
     };
   } catch (e) {

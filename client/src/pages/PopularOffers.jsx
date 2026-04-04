@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Zap, TrendingUp, CheckCircle2, AlertTriangle, X, Sparkles, Calendar, Clock } from 'lucide-react';
+import { Loader2, Zap, TrendingUp, CheckCircle2, AlertTriangle, X, Sparkles, Calendar, Clock, Minus, Plus } from 'lucide-react';
 import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
 import { formatHashrate } from '../utils/machine';
@@ -20,7 +20,9 @@ export default function PopularOffers() {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modal, setModal] = useState(null);
+    const [quantity, setQuantity] = useState(1);
     const [buying, setBuying] = useState(false);
+    const MAX_QTY = 25;
 
     const load = useCallback(async () => {
         try {
@@ -41,11 +43,13 @@ export default function PopularOffers() {
         load();
     }, [load]);
 
+    const openModal = (ev, m) => { setQuantity(1); setModal({ event: ev, miner: m }); };
+
     const confirmBuy = async () => {
         if (!modal?.miner || buying) return;
         try {
             setBuying(true);
-            const res = await api.post('/offer-events/purchase', { eventMinerId: modal.miner.id });
+            const res = await api.post('/offer-events/purchase', { eventMinerId: modal.miner.id, quantity });
             if (res.data.ok) {
                 toast.success(res.data.message || t('offers.purchase_ok'));
                 fetchAll();
@@ -158,7 +162,7 @@ export default function PopularOffers() {
                                             <button
                                                 type="button"
                                                 disabled={!ev.isLive || !m.inStock}
-                                                onClick={() => ev.isLive && m.inStock && setModal({ event: ev, miner: m })}
+                                                onClick={() => ev.isLive && m.inStock && openModal(ev, m)}
                                                 className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
                                                 {!ev.isLive ? 'Em Breve' : m.inStock ? t('offers.buy') : t('offers.sold_out')}
@@ -212,12 +216,28 @@ export default function PopularOffers() {
                                     </div>
                                 </div>
                                 <div className="h-[1px] bg-gray-800 w-full" />
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Quantidade</span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => setQuantity(q => Math.max(1, q - 1))} disabled={quantity <= 1} className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center disabled:opacity-30 transition-colors">
+                                            <Minus className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="w-8 text-center font-black text-white text-sm">{quantity}</span>
+                                        <button onClick={() => setQuantity(q => Math.min(MAX_QTY, q + 1))} disabled={quantity >= MAX_QTY} className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center disabled:opacity-30 transition-colors">
+                                            <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="h-[1px] bg-gray-800 w-full" />
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total a Pagar</span>
-                                    <span className="text-xl font-black text-white italic">
-                                        {Number(modal.miner.price).toFixed(6)}{' '}
-                                        <span className="text-xs font-bold text-gray-500 not-italic uppercase">{modal.miner.currency}</span>
-                                    </span>
+                                    <div className="text-right">
+                                        <span className="text-xl font-black text-white italic">
+                                            {(Number(modal.miner.price) * quantity).toFixed(6)}{' '}
+                                            <span className="text-xs font-bold text-gray-500 not-italic uppercase">{modal.miner.currency}</span>
+                                        </span>
+                                        {quantity > 1 && <p className="text-[10px] text-gray-600 mt-0.5">{Number(modal.miner.price).toFixed(6)} × {quantity}</p>}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-3">

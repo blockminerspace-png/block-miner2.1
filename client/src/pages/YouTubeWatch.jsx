@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Youtube, Play, Pause, Zap, Clock, TrendingUp, AlertCircle, CheckCircle2, History, BarChart3, ShieldCheck } from 'lucide-react';
+import { Youtube, Zap, Clock, TrendingUp, AlertCircle, CheckCircle2, History, BarChart3, ShieldCheck } from 'lucide-react';
 import { api } from '../store/auth';
 import { formatHashrate } from '../utils/machine';
 import { validateTrustedEvent, generateSecurityPayload } from '../utils/security';
@@ -16,6 +16,38 @@ export default function YouTubeWatch() {
     const [stats, setStats] = useState(null);
 
     const timerRef = useRef(null);
+    const isClaimingRef = useRef(false);
+    const playerRef = useRef(null);
+    const playerDivRef = useRef(null);
+    const ytReadyRef = useRef(false);
+
+    // Carrega a YouTube IFrame API uma vez
+    useEffect(() => {
+        if (window.YT?.Player) {
+            ytReadyRef.current = true;
+            return;
+        }
+        const prev = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+            ytReadyRef.current = true;
+            if (typeof prev === 'function') prev();
+        };
+        if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+            const tag = document.createElement('script');
+            tag.src = 'https://www.youtube.com/iframe_api';
+            document.head.appendChild(tag);
+        }
+    }, []);
+
+    // Destrói o player ao desmontar o componente
+    useEffect(() => {
+        return () => {
+            if (playerRef.current) {
+                try { playerRef.current.destroy(); } catch (_) {}
+                playerRef.current = null;
+            }
+        };
+    }, []);
 
     const extractVideoId = (input) => {
         const raw = String(input || "").trim();
@@ -81,15 +113,65 @@ export default function YouTubeWatch() {
     const handleLoadVideo = (e) => {
         if (!validateTrustedEvent(e)) return;
         const id = extractVideoId(url);
-        if (id) {
-            setVideoId(id);
-            toast.success('Vídeo carregado com sucesso!');
-        } else {
+        if (!id) {
             toast.error('URL do YouTube inválida ou formato não suportado.');
+            return;
+        }
+        setIsRunning(false);
+        if (playerRef.current && ytReadyRef.current) {
+            // Reutiliza o player existente com novo vídeo
+            playerRef.current.loadVideoById(id);
+            setVideoId(id);
+            toast.success('Vídeo carregado! Ganhos iniciam ao apertar play.');
+        } else {
+            setVideoId(id);
+            toast.success('Vídeo carregado! Ganhos iniciam ao apertar play.');
         }
     };
 
-    const claimReward = async () => {
+    // Inicializa o player YT quando videoId muda (e player ainda não existe)
+    useEffect(() => {
+        if (!videoId || !playerDivRef.current) return;
+        if (playerRef.current) return; // já existe, usa loadVideoById acima
+
+        const initPlayer = () => {
+            if (!playerDivRef.current) return;
+            playerRef.current = new window.YT.Player(playerDivRef.current, {
+                videoId,
+                width: '100%',
+                height: '100%',
+                playerVars: { autoplay: 1, rel: 0, modestbranding: 1 },
+                events: {
+                    onStateChange: (event) => {
+                        const YTState = window.YT.PlayerState;
+                        if (event.data === YTState.PLAYING) {
+                            setIsRunning(true);
+                        } else if (
+                            event.data === YTState.PAUSED ||
+                            event.data === YTState.ENDED
+                        ) {
+                            setIsRunning(false);
+                        }
+                    },
+                },
+            });
+        };
+
+        if (ytReadyRef.current && window.YT?.Player) {
+            initPlayer();
+        } else {
+            const prev = window.onYouTubeIframeAPIReady;
+            window.onYouTubeIframeAPIReady = () => {
+                ytReadyRef.current = true;
+                if (typeof prev === 'function') prev();
+                initPlayer();
+            };
+        }
+    }, [videoId]);
+
+    const claimReward = useCallback(async () => {
+        if (isClaimingRef.current) return;
+        isClaimingRef.current = true;
         try {
             const res = await api.post('/youtube/claim', { videoId });
             if (res.data.ok) {
@@ -101,8 +183,10 @@ export default function YouTubeWatch() {
         } catch (err) {
             toast.error(err.response?.data?.message || 'Falha no resgate.');
             setIsRunning(false);
+        } finally {
+            isClaimingRef.current = false;
         }
-    };
+    }, [videoId, fetchStatus, fetchUserStats]);
 
     // Heartbeat to sync time with server (anti-cheat + focus check)
     useEffect(() => {
@@ -138,12 +222,7 @@ export default function YouTubeWatch() {
             clearInterval(timerRef.current);
         }
         return () => clearInterval(timerRef.current);
-    }, [isRunning, videoId]);
-
-    const handleToggleRunning = (e) => {
-        if (!validateTrustedEvent(e)) return;
-        setIsRunning(!isRunning);
-    };
+    }, [isRunning, claimReward]);
 
     const dailyProgress = stats ? (stats.hashGranted24h / stats.dailyLimit) * 100 : 0;
 
@@ -174,6 +253,7 @@ export default function YouTubeWatch() {
                                 type="text"
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleLoadVideo(e); }}
                                 placeholder="Cole a URL do vídeo do YouTube aqui..."
                                 className="flex-1 bg-gray-900/50 border border-gray-800 rounded-2xl py-4 px-6 text-gray-200 text-sm focus:outline-none focus:border-primary/50 transition-all shadow-inner"
                             />
@@ -186,16 +266,14 @@ export default function YouTubeWatch() {
                         </div>
 
                         <div className="aspect-video bg-gray-900 rounded-[2rem] overflow-hidden border border-gray-800 relative group shadow-inner">
-                            {videoId ? (
-                                <>
-                                <iframe
-                                    className="w-full h-full"
-                                    src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
-                                    title="YouTube video player"
-                                    frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                ></iframe>
+                            <div ref={playerDivRef} className="w-full h-full" />
+                            {!videoId && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600">
+                                    <Youtube className="w-20 h-20 mb-4 opacity-20" />
+                                    <p className="font-bold uppercase tracking-widest text-[10px]">Aguardando vídeo do YouTube...</p>
+                                </div>
+                            )}
+                            {videoId && (
                                 <a
                                     href={`https://www.youtube.com/watch?v=${videoId}`}
                                     target="_blank"
@@ -204,27 +282,11 @@ export default function YouTubeWatch() {
                                 >
                                     <Youtube className="w-3 h-3" /> Abrir no YouTube
                                 </a>
-                                </>
-                            ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600">
-                                    <Youtube className="w-20 h-20 mb-4 opacity-20" />
-                                    <p className="font-bold uppercase tracking-widest text-[10px]">Aguardando vídeo do YouTube...</p>
-                                </div>
                             )}
                         </div>
 
                         <div className="mt-8 flex items-center justify-between relative z-10">
                             <div className="flex items-center gap-4">
-                                <button
-                                    onClick={handleToggleRunning}
-                                    disabled={!videoId}
-                                    className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl italic ${isRunning
-                                            ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20'
-                                            : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-30'
-                                        }`}
-                                >
-                                    {isRunning ? <><Pause className="w-4 h-4 fill-current" /> Pausar Ganho</> : <><Play className="w-4 h-4 fill-current" /> Iniciar Ganho</>}
-                                </button>
                                 {isRunning && (
                                     <div className="flex items-center gap-3 px-6 py-4 bg-gray-800/50 rounded-2xl border border-gray-700/50 shadow-inner">
                                         <Clock className="w-4 h-4 text-primary animate-pulse" />

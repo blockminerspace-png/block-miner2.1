@@ -19,7 +19,11 @@ import {
     Globe,
     MessageSquare,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Package,
+    Send,
+    Minus,
+    Plus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../store/auth';
@@ -34,6 +38,10 @@ export default function AdminUsers() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [isDetailsLoading, setIsDetailsLoading] = useState(false);
     const [detailsTab, setDetailsTab] = useState('perfil');
+    const [minersList, setMinersList] = useState([]);
+    const [sendMinerId, setSendMinerId] = useState('');
+    const [sendQty, setSendQty] = useState(1);
+    const [isSending, setIsSending] = useState(false);
     const navigate = useNavigate();
 
     const fetchUsers = useCallback(async () => {
@@ -71,14 +79,39 @@ export default function AdminUsers() {
         try {
             setIsDetailsLoading(true);
             setDetailsTab('perfil');
-            const res = await api.get(`/admin/users/${userId}/details`);
-            if (res.data.ok) {
-                setSelectedUser(res.data);
-            }
+            setSendMinerId('');
+            setSendQty(1);
+            const [detailsRes, minersRes] = await Promise.all([
+                api.get(`/admin/users/${userId}/details`),
+                minersList.length === 0 ? api.get('/admin/miners') : Promise.resolve(null)
+            ]);
+            if (detailsRes.data.ok) setSelectedUser(detailsRes.data);
+            if (minersRes?.data?.ok) setMinersList(minersRes.data.miners || []);
         } catch (err) {
             toast.error('Erro ao carregar detalhes do usuário.');
         } finally {
             setIsDetailsLoading(false);
+        }
+    };
+
+    const handleSendMiner = async () => {
+        if (isSending || !sendMinerId || !selectedUser) return;
+        if (!confirm(`Enviar ${sendQty}x máquina para ${selectedUser.user.username || selectedUser.user.email}?`)) return;
+        try {
+            setIsSending(true);
+            const res = await api.post(`/admin/users/${selectedUser.user.id}/send-miner`, {
+                minerId: sendMinerId,
+                quantity: sendQty
+            });
+            if (res.data.ok) {
+                toast.success(res.data.message);
+                setSendMinerId('');
+                setSendQty(1);
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao enviar máquina.');
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -233,17 +266,19 @@ export default function AdminUsers() {
 
                         {/* Tabs */}
                         <div className="flex px-8 pt-4 gap-2 border-b border-slate-800">
-                            {['perfil', 'transações', 'tickets'].map(tab => (
+                            {['perfil', 'transações', 'tickets', 'enviar máquina'].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setDetailsTab(tab)}
                                     className={`px-4 py-2 rounded-t-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                         detailsTab === tab
-                                            ? 'bg-amber-500/10 text-amber-500 border-b-2 border-amber-500'
+                                            ? tab === 'enviar máquina'
+                                                ? 'bg-emerald-500/10 text-emerald-400 border-b-2 border-emerald-500'
+                                                : 'bg-amber-500/10 text-amber-500 border-b-2 border-amber-500'
                                             : 'text-slate-500 hover:text-white'
                                     }`}
                                 >
-                                    {tab}
+                                    {tab === 'enviar máquina' ? <span className="flex items-center gap-1"><Send className="w-3 h-3" /> enviar máquina</span> : tab}
                                 </button>
                             ))}
                         </div>
@@ -354,6 +389,95 @@ export default function AdminUsers() {
                                     >
                                         Ver todos os tickets
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Tab: Enviar Máquina */}
+                            {detailsTab === 'enviar máquina' && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
+                                        <Package className="w-5 h-5 text-emerald-400 shrink-0" />
+                                        <div>
+                                            <p className="text-xs font-black text-white">Enviar Máquina Gratuitamente</p>
+                                            <p className="text-[10px] text-slate-500 mt-0.5">A máquina vai direto pro inventário do usuário sem cobrar POL.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Máquina</label>
+                                            <select
+                                                value={sendMinerId}
+                                                onChange={e => setSendMinerId(e.target.value)}
+                                                className="w-full bg-slate-800 border border-slate-700 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-all"
+                                            >
+                                                <option value="">Selecione uma máquina...</option>
+                                                {minersList.map(m => (
+                                                    <option key={m.id} value={m.id}>
+                                                        {m.name} — {Number(m.baseHashRate).toFixed(1)} H/s
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Quantidade</label>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => setSendQty(q => Math.max(1, q - 1))}
+                                                    disabled={sendQty <= 1}
+                                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-all disabled:opacity-30"
+                                                >
+                                                    <Minus className="w-4 h-4" />
+                                                </button>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="100"
+                                                    value={sendQty}
+                                                    onChange={e => setSendQty(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                                                    className="w-20 text-center bg-slate-800 border border-slate-700 rounded-xl py-2 text-white font-black text-lg focus:outline-none focus:border-emerald-500/50"
+                                                />
+                                                <button
+                                                    onClick={() => setSendQty(q => Math.min(100, q + 1))}
+                                                    disabled={sendQty >= 100}
+                                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-all disabled:opacity-30"
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {sendMinerId && (() => {
+                                            const m = minersList.find(x => String(x.id) === String(sendMinerId));
+                                            return m ? (
+                                                <div className="flex items-center gap-4 p-4 bg-slate-900/60 border border-slate-800 rounded-2xl">
+                                                    <img src={m.imageUrl || '/machines/reward1.png'} className="w-12 h-12 object-contain" alt={m.name} />
+                                                    <div className="flex-1">
+                                                        <p className="text-white font-bold text-sm">{m.name}</p>
+                                                        <p className="text-slate-500 text-[10px]">{Number(m.baseHashRate).toFixed(1)} H/s — {m.slotSize} slot(s)</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-emerald-400 font-black text-lg">{sendQty}x</p>
+                                                        <p className="text-slate-500 text-[9px] uppercase">unidades</p>
+                                                    </div>
+                                                </div>
+                                            ) : null;
+                                        })()
+                                        }
+
+                                        <button
+                                            onClick={handleSendMiner}
+                                            disabled={isSending || !sendMinerId}
+                                            className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+                                        >
+                                            {isSending ? (
+                                                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <><Send className="w-4 h-4" /> Enviar para {selectedUser.user.username || selectedUser.user.email}</>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

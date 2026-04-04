@@ -5,7 +5,7 @@ import { getOrCreateMinerProfile, syncUserBaseHashRate } from "../models/minerPr
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import prisma from '../src/db/prisma.js';
 
-const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
+const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
 export async function listMachines(req, res) {
   try {

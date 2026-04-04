@@ -5,7 +5,7 @@ export const INTERNAL_REWARD_NAME = "Shortlink Reward 5 HS";
 export const INTERNAL_REWARD_SLUG = "shortlink-5hs-reward";
 export const INTERNAL_REWARD_HASH_RATE = 5;
 export const INTERNAL_REWARD_SLOT_SIZE = 1;
-export const INTERNAL_REWARD_IMAGE_URL = "/assets/machines/reward3.png";
+export const INTERNAL_REWARD_IMAGE_URL = "/machines/reward3.png";
 
 export async function ensureDefaultInternalReward() {
   let miner = await prisma.miner.findUnique({

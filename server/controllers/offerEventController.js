@@ -107,7 +107,9 @@ export async function purchaseOfferMiner(req, res) {
       return res.status(400).json({ ok: false, message: "Invalid event miner id." });
     }
 
-    const out = await purchaseEventMinerForUser(req.user.id, eventMinerId);
+    const quantity = Math.max(1, Math.min(25, parseInt(req.body?.quantity || 1) || 1));
+
+    const out = await purchaseEventMinerForUser(req.user.id, eventMinerId, quantity);
     if (!out.ok) {
       return res.status(out.status || 500).json({ ok: false, message: out.message, code: out.code });
     }

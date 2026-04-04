@@ -4,7 +4,7 @@ import loggerLib from "../utils/logger.js";
 const logger = loggerLib.child("YouTubeController");
 
 const REWARD_PER_CLAIM = 3.0; // H/s per claim (same unit as User.baseHashRate / miners)
-const DURATION_HOURS = Number(process.env.YT_POWER_DAYS || 7) * 24;
+const DURATION_HOURS = Number(process.env.YOUTUBE_REWARD_DURATION_HOURS || 24);
 const DAILY_LIMIT_HASH = 1440.0; // Max H/s granted via YT claims per rolling 24h (sum of hashRate)
 
 export async function getStatus(req, res) {

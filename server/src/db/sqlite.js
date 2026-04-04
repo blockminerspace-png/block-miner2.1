@@ -345,7 +345,7 @@ export async function initializeDatabase() {
 
   const faucetMinerSlug = config.faucet?.rewardMinerSlug || "faucet-1ghs";
   const faucetMinerName = "Faucet Miner";
-  const faucetMinerImage = "/assets/machines/reward1.png";
+  const faucetMinerImage = "/machines/reward1.png";
   const faucetMinerRow = await get("SELECT id, image_url FROM miners WHERE slug = ?", [faucetMinerSlug]);
   let faucetMinerId = null;
   if (!faucetMinerRow) {
@@ -358,7 +358,7 @@ export async function initializeDatabase() {
   } else {
     faucetMinerId = faucetMinerRow.id;
     const currentImage = String(faucetMinerRow.image_url || "").trim();
-    if (!currentImage || currentImage === "/assets/machines/auto_mining_gpu1.png") {
+    if (!currentImage || currentImage === "/machines/auto_mining_gpu1.png") {
       await run("UPDATE miners SET image_url = ? WHERE id = ?", [faucetMinerImage, faucetMinerId]);
     }
     await run("UPDATE miners SET show_in_shop = 0 WHERE id = ?", [faucetMinerId]);
@@ -785,12 +785,12 @@ export async function initializeDatabase() {
     }
   }
 
-  const autoRewardDefaultImage = "/assets/machines/reward2.png";
+  const autoRewardDefaultImage = "/machines/reward2.png";
   try {
     await run(
       `UPDATE auto_mining_rewards
          SET image_url = ?, updated_at = ?
-       WHERE (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/assets/machines/auto_mining_gpu1.png')`,
+       WHERE (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/machines/auto_mining_gpu1.png')`,
       [autoRewardDefaultImage, Date.now()]
     );
   } catch {
@@ -801,7 +801,7 @@ export async function initializeDatabase() {
     `UPDATE user_inventory
        SET image_url = ?
      WHERE miner_name = 'GPU 1 GHS'
-       AND (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/assets/machines/auto_mining_gpu1.png')`,
+       AND (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/machines/auto_mining_gpu1.png')`,
     [autoRewardDefaultImage]
   );
 

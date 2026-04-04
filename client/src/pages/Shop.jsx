@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { ShoppingCart, Zap, TrendingUp, Info, X, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShoppingCart, Zap, TrendingUp, Info, X, CheckCircle2, AlertTriangle, Loader2, Minus, Plus } from 'lucide-react';
 import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
 import { formatHashrate } from '../utils/machine';
+
+const MAX_QTY = 25;
 
 export default function Shop() {
     const { t } = useTranslation();
@@ -14,6 +16,7 @@ export default function Shop() {
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [selectedMiner, setSelectedMiner] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [quantity, setQuantity] = useState(1);
     const { fetchAll } = useGameStore();
 
     useEffect(() => {
@@ -35,6 +38,7 @@ export default function Shop() {
 
     const openConfirmModal = (miner) => {
         setSelectedMiner(miner);
+        setQuantity(1);
         setShowConfirmModal(true);
     };
 
@@ -43,10 +47,10 @@ export default function Shop() {
 
         try {
             setIsPurchasing(true);
-            const res = await api.post('/shop/purchase', { minerId: selectedMiner.id });
+            const res = await api.post('/shop/purchase', { minerId: selectedMiner.id, quantity });
             if (res.data.ok) {
                 toast.success(res.data.message || t('shop.purchase_success'));
-                fetchAll(); // Refresh balance and inventory
+                fetchAll();
                 setShowConfirmModal(false);
             }
         } catch (err) {
@@ -152,12 +156,12 @@ export default function Shop() {
 
                             <div className="space-y-2">
                                 <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Confirmar Compra</h3>
-                                <p className="text-gray-500 font-medium">Você está prestes a adquirir um novo equipamento de mineração.</p>
+                                <p className="text-gray-500 font-medium">Selecione a quantidade e confirme.</p>
                             </div>
 
                             <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-6 space-y-4">
                                 <div className="flex items-center gap-4 text-left">
-                                    <div className="w-16 h-16 bg-gray-800 rounded-2xl p-2 border border-gray-700">
+                                    <div className="w-16 h-16 bg-gray-800 rounded-2xl p-2 border border-gray-700 shrink-0">
                                         <img src={selectedMiner.imageUrl} className="w-full h-full object-contain" />
                                     </div>
                                     <div>
@@ -165,10 +169,39 @@ export default function Shop() {
                                         <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-2 block">{formatHashrate(selectedMiner.baseHashRate)}</span>
                                     </div>
                                 </div>
+
                                 <div className="h-[1px] bg-gray-800 w-full" />
+
+                                {/* Seletor de quantidade */}
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Quantidade</span>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                            disabled={quantity <= 1}
+                                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white transition-all disabled:opacity-30"
+                                        >
+                                            <Minus className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="w-10 text-center text-lg font-black text-white italic">{quantity}</span>
+                                        <button
+                                            onClick={() => setQuantity(q => Math.min(MAX_QTY, q + 1))}
+                                            disabled={quantity >= MAX_QTY}
+                                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white transition-all disabled:opacity-30"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="h-[1px] bg-gray-800 w-full" />
+
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total a Pagar</span>
-                                    <span className="text-xl font-black text-white italic">{selectedMiner.price} <span className="text-xs font-bold text-gray-500 not-italic uppercase">POL</span></span>
+                                    <div className="text-right">
+                                        <span className="text-xl font-black text-white italic">{(selectedMiner.price * quantity).toFixed(2)} <span className="text-xs font-bold text-gray-500 not-italic uppercase">POL</span></span>
+                                        {quantity > 1 && <p className="text-[9px] text-gray-600 font-bold">{selectedMiner.price} POL × {quantity}</p>}
+                                    </div>
                                 </div>
                             </div>
 

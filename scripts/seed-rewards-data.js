@@ -37,7 +37,7 @@ const db = new sqlite3.Database(dbPath, async (err) => {
           slug: 'gpu-1-ghs',
           gpu_hash_rate: 1,
           description: 'Distribui apenas uma GPU de 1 GHS para cada usuário a cada 5 minutos',
-          image_url: '/assets/machines/reward2.png'
+          image_url: '/machines/reward2.png'
         }
       ];
 

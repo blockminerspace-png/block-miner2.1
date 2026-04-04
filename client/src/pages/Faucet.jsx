@@ -83,32 +83,23 @@ export default function Faucet() {
         return () => clearInterval(partnerTimerRef.current);
     }, [partnerWaitMs, remainingMs]);
 
-    // Detection of Ad Click via Window Blur
-    useEffect(() => {
-        const handleBlur = () => {
-            // Check if the click happened on an iframe
-            if (document.activeElement instanceof HTMLIFrameElement || document.activeElement?.tagName === 'IFRAME') {
-                if (!isAdClicked && remainingMs <= 0 && !isPartnerUnlocked) {
-                    startPartnerTimer();
-                }
-            }
-        };
-
-        window.addEventListener('blur', handleBlur);
-        return () => window.removeEventListener('blur', handleBlur);
-    }, [isAdClicked, remainingMs, isPartnerUnlocked]);
-
     const startPartnerTimer = async () => {
         try {
             setIsAdClicked(true);
             const res = await api.post('/faucet/partner/start');
             if (res.data.ok) {
-                setPartnerWaitMs(res.data.waitMs || 10000); // 10s wait
+                window.open(res.data.partnerUrl, '_blank', 'noopener,noreferrer');
+                setPartnerWaitMs(res.data.waitMs || 10000);
                 toast.info("Patrocinador visitado! Mantenha a aba aberta.");
             }
         } catch (err) {
             setIsAdClicked(false);
         }
+    };
+
+    const handleAdClick = () => {
+        if (isAdClicked || remainingMs > 0 || isPartnerUnlocked) return;
+        startPartnerTimer();
     };
 
     const handleClaim = async () => {
@@ -166,7 +157,7 @@ export default function Faucet() {
                         
                         <div className="flex flex-col items-center text-center space-y-8">
                             <div className="w-48 h-48 bg-gray-900/50 rounded-3xl p-8 border border-gray-800 group-hover:border-primary/30 transition-all duration-500 group-hover:scale-105 shadow-inner">
-                                <img src={reward?.imageUrl || '/assets/machines/reward1.png'} alt={reward?.name} className="w-full h-full object-contain" />
+                                <img src={reward?.imageUrl || '/machines/reward1.png'} alt={reward?.name} className="w-full h-full object-contain" />
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">{reward?.name || 'Pulse Mini v1'}</h2>
@@ -236,19 +227,17 @@ export default function Faucet() {
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
-                                            <div className="w-full h-[100px] bg-gray-900/80 border border-gray-800 rounded-2xl flex items-center justify-center relative group/ad overflow-hidden">
-                                                <div className="text-center space-y-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                                                    <MousePointer2 className="w-6 h-6 mx-auto text-primary mb-1 group-hover:animate-bounce" />
-                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Espaço Publicitário</p>
+                                            <button
+                                                onClick={handleAdClick}
+                                                disabled={isAdClicked || isPartnerUnlocked}
+                                                className="w-full h-[100px] bg-gray-900/80 border border-gray-800 hover:border-primary/40 rounded-2xl flex items-center justify-center transition-all group/ad cursor-pointer disabled:cursor-not-allowed"
+                                            >
+                                                <div className="text-center space-y-1 opacity-40 group-hover/ad:opacity-100 transition-opacity">
+                                                    <MousePointer2 className="w-6 h-6 mx-auto text-primary mb-1 group-hover/ad:animate-bounce" />
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Visitar Patrocinador</p>
                                                     <p className="text-[8px] font-bold text-gray-600 uppercase">Clique para desbloquear</p>
                                                 </div>
-                                                
-                                                <iframe 
-                                                    src="about:blank" 
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
-                                                    title="Ad Click Area"
-                                                />
-                                            </div>
+                                            </button>
                                             
                                             <div className="flex items-center justify-center gap-2 text-primary/50">
                                                 <ExternalLink className="w-3 h-3" />

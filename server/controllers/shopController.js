@@ -5,7 +5,7 @@ import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { createNotification } from "./notificationController.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 
-const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
+const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
 export async function listMiners(req, res) {
   try {
@@ -40,8 +40,15 @@ export async function listMiners(req, res) {
 export async function purchaseMiner(req, res) {
   try {
     const minerId = Number(req.body?.minerId);
+    const quantity = Number(req.body?.quantity || 1);
+    const maxBulk = Number(process.env.SHOP_MAX_BULK_QUANTITY || 25);
+
     if (!Number.isInteger(minerId) || minerId <= 0) {
       res.status(400).json({ ok: false, message: "Invalid miner ID." });
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > maxBulk) {
+      res.status(400).json({ ok: false, message: `Quantity must be between 1 and ${maxBulk}.` });
       return;
     }
 
@@ -52,6 +59,7 @@ export async function purchaseMiner(req, res) {
     }
 
     const price = Number(miner.price || 0);
+    const totalPrice = price * quantity;
     const baseHashRate = Number(miner.baseHashRate || 0);
     const slotSize = Number(miner.slotSize || 1);
     if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(baseHashRate) || baseHashRate <= 0) {
@@ -70,17 +78,17 @@ export async function purchaseMiner(req, res) {
     try {
       updatedUser = await prisma.$transaction(async (tx) => {
         const user = await tx.user.findUnique({ where: { id: req.user.id } });
-        if (!user || user.polBalance < price) {
+        if (!user || user.polBalance < totalPrice) {
           throw new Error("Insufficient balance.");
         }
 
         const newUser = await tx.user.update({
           where: { id: req.user.id },
-          data: { polBalance: { decrement: price } }
+          data: { polBalance: { decrement: totalPrice } }
         });
 
-        await tx.userInventory.create({
-          data: {
+        await tx.userInventory.createMany({
+          data: Array.from({ length: quantity }, () => ({
             userId: req.user.id,
             minerId: miner.id,
             minerName: miner.name,
@@ -90,19 +98,19 @@ export async function purchaseMiner(req, res) {
             imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
             acquiredAt: now,
             updatedAt: now
-          }
+          }))
         });
 
         return newUser;
       });
       
-      applyUserBalanceDelta(req.user.id, -price);
+      applyUserBalanceDelta(req.user.id, -totalPrice);
 
       // Create Notification
       await createNotification({
         userId: req.user.id,
         title: "Compra Realizada",
-        message: `Você adquiriu ${miner.name} por ${price} POL. O equipamento já está no seu inventário!`,
+        message: `Você adquiriu ${quantity}x ${miner.name} por ${totalPrice} POL. Os equipamentos já estão no seu inventário!`,
         type: "success",
         io: getMiningEngine()?.io
       });
@@ -116,7 +124,7 @@ export async function purchaseMiner(req, res) {
 
     res.json({
       ok: true,
-      message: `${miner.name} added to inventory!`,
+      message: `${quantity}x ${miner.name} adicionado(s) ao inventário!`,
       newBalance: Number(updatedUser?.polBalance || 0)
     });
   } catch (error) {

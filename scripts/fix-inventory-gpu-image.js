@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./data/blockminer.db');
 
-const IMAGE_URL = '/assets/machines/reward2.png';
+const IMAGE_URL = '/machines/reward2.png';
 const MINER_NAME = 'GPU 1 GHS';
 
 // Atualiza todos itens de inventário com nome 'GPU 1 GHS' e hash_rate = 1
