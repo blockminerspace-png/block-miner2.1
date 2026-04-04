@@ -3,6 +3,7 @@ import loggerLib from '../../utils/logger.js';
 import { syncUserBaseHashRate } from '../../models/minerProfileModel.js';
 import { verifyAccessToken } from '../../utils/authTokens.js';
 import { getTokenFromRequest } from '../../utils/token.js';
+import { getBrazilCheckinDateKey } from '../../utils/checkinDate.js';
 
 const logger = loggerLib.child("GamesSocket");
 const GAME_SESSIONS = new Map();
@@ -216,7 +217,18 @@ async function finishGame(socket, state, success, engine) {
       return socket.emit("game:finished", { success: false, message: "AÇÃO SUSPEITA DETECTADA! Tempo de jogo irreal." });
     }
 
-    const expiresAt = new Date(Date.now() + GAME_POWER_DAYS * 24 * 60 * 60 * 1000);
+    // Verifica se o usuário fez check-in hoje — sem check-in bônus dura só 24h
+    const today = getBrazilCheckinDateKey();
+    const checkinToday = await prisma.dailyCheckin.findUnique({
+      where: { userId_checkinDate: { userId: Number(state.userId), checkinDate: today } },
+      select: { status: true },
+    });
+    const powerDays = (checkinToday?.status === 'confirmed') ? GAME_POWER_DAYS : 1;
+    const rewardMsg = powerDays >= GAME_POWER_DAYS
+      ? `BÔNUS DE 50 H/S ATIVADO POR ${GAME_POWER_DAYS} DIAS!`
+      : `BÔNUS DE 50 H/S ATIVADO POR 24 HORAS! Faça check-in para ${GAME_POWER_DAYS} dias!`;
+
+    const expiresAt = new Date(Date.now() + powerDays * 24 * 60 * 60 * 1000);
     try {
       // ANTI-CHEAT: Limita o máximo de poderes ativos acumulados pelo minigame a um valor seguro (ex: max 10 instâncias = 500 H/s)
       await prisma.userPowerGame.create({ 
@@ -232,7 +244,7 @@ async function finishGame(socket, state, success, engine) {
       const miner = engine.miners.get(state.userId.toString());
       if (miner) miner.baseHashRate = total;
 
-      socket.emit("game:finished", { success: true, reward: `BÔNUS DE 50 H/S ATIVADO POR ${GAME_POWER_DAYS} DIAS!`, cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000) });
+      socket.emit("game:finished", { success: true, reward: rewardMsg, cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000) });
       socket.emit("machines:update");
     } catch (e) { 
       socket.emit("game:finished", { success: true, reward: "BÔNUS PROCESSADO COM SUCESSO!", cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000) });
