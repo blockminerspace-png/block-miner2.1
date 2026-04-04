@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Zap, TrendingUp, CheckCircle2, AlertTriangle, X, Sparkles, Calendar, Clock, Minus, Plus } from 'lucide-react';
+import { Loader2, Zap, TrendingUp, CheckCircle2, AlertTriangle, X, Sparkles, Calendar, Clock, Minus, Plus, Package } from 'lucide-react';
 import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
 import { formatHashrate } from '../utils/machine';
@@ -121,6 +121,23 @@ export default function PopularOffers() {
                                                 <span className="text-[10px] font-bold uppercase tracking-widest">Evento</span>
                                             </div>
                                         </div>
+
+                                        {/* Estoque restante */}
+                                        {m.remaining !== null && m.remaining !== undefined && (
+                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold w-fit ${
+                                                m.remaining === 0
+                                                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                    : m.remaining <= 5
+                                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                                    : 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                            }`}>
+                                                <Package className="w-3 h-3" />
+                                                {m.remaining === 0
+                                                    ? 'Esgotado'
+                                                    : `${m.remaining} restante${m.remaining === 1 ? '' : 's'}`
+                                                }
+                                            </div>
+                                        )}
 
                                         <div className="aspect-square bg-gray-900/50 rounded-3xl p-6 border border-gray-800 group-hover:scale-105 transition-transform duration-500 flex items-center justify-center">
                                             {m.imageUrl
