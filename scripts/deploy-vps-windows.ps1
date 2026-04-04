@@ -72,7 +72,7 @@ try {
     }
 
     # Por último faz o build e restart
-    $remoteBuildCmd = "set -e`ncd $RemotePath`ndocker compose up -d --build --no-deps app`ncurl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true`n"
+    $remoteBuildCmd = "set -e`ncd $RemotePath`ndocker compose up -d --build --no-deps app`ndocker compose exec -T nginx nginx -s reload || true`ncurl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true`n"
     Write-Host "==> docker compose build no VPS ($SshHost)..."
     & $PlinkExe -batch -ssh -pwfile $tmpPw "${SshUser}@${SshHost}" $remoteBuildCmd
     Write-Host '==> Feito.'
