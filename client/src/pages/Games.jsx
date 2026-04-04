@@ -98,7 +98,11 @@ export default function Games() {
     });
 
     newSocket.on('game:invalid_swap', () => {
-      if (swapAnim.current) { swapAnim.current.returning = true; swapAnim.current.t = 0; }
+      // Snap-back instantâneo: anima de volta na posição original rapidamente
+      if (swapAnim.current) {
+        const sa = swapAnim.current;
+        swapAnim.current = { rx: sa.fx, ry: sa.fy, rfx: sa.tx, rfy: sa.ty, startTime: performance.now(), duration: 100 };
+      }
       selectedCell.current = null;
     });
 
@@ -159,8 +163,9 @@ export default function Games() {
   }, [activeGame, gameState, isGameOver]);
 
   const createExplosion = (x, y) => {
-    for (let i = 0; i < 25; i++) {
-      particles.current.push({ x, y, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, life: 1.0, color: '#3b82f6', size: Math.random() * 5 + 2 });
+    if (particles.current.length > 30) return; // evita acúmulo em cascatas
+    for (let i = 0; i < 8; i++) {
+      particles.current.push({ x, y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, life: 1.0, color: '#3b82f6', size: Math.random() * 4 + 1.5 });
     }
   };
 
@@ -184,7 +189,7 @@ export default function Games() {
       // Update Particles
       particles.current = particles.current.filter(p => p.life > 0);
       particles.current.forEach(p => {
-        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+        p.x += p.vx; p.y += p.vy; p.vx *= 0.92; p.vy *= 0.92; p.life -= 0.06;
         ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
       });
@@ -244,11 +249,13 @@ export default function Games() {
     const eio = t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
 
     const sa = swapAnim.current;
+    let saOffset = 0;
     if (sa) {
-      sa.t = Math.min(1, sa.t + 0.1);
-      if (sa.t >= 1 && sa.returning) { swapAnim.current = null; processingClearRef.current = true; }
+      const elapsed = performance.now() - sa.startTime;
+      const t = Math.min(1, elapsed / sa.duration);
+      saOffset = eio(t);
+      if (t >= 1) { swapAnim.current = null; processingClearRef.current = true; }
     }
-    const saOffset = sa ? (sa.returning ? 1 - eio(sa.t) : eio(sa.t)) : 0;
 
     visualBoard.current.forEach((row, y) => {
       row.forEach((piece, x) => {
@@ -263,6 +270,8 @@ export default function Games() {
         if (sa) {
           if (sa.fx === x && sa.fy === y) { drawX += (sa.tx - sa.fx) * saOffset * (s + p); drawY += (sa.ty - sa.fy) * saOffset * (s + p); }
           else if (sa.tx === x && sa.ty === y) { drawX += (sa.fx - sa.tx) * saOffset * (s + p); drawY += (sa.fy - sa.ty) * saOffset * (s + p); }
+          else if (sa.rx !== undefined && sa.rx === x && sa.ry === y) { drawX += (sa.rfx - sa.rx) * saOffset * (s + p); drawY += (sa.rfy - sa.ry) * saOffset * (s + p); }
+          else if (sa.rfx !== undefined && sa.rfx === x && sa.rfy === y) { drawX += (sa.rx - sa.rfx) * saOffset * (s + p); drawY += (sa.ry - sa.rfy) * saOffset * (s + p); }
         }
 
         ctx.save();
@@ -344,7 +353,7 @@ export default function Games() {
         const dx = Math.abs(cx - sel.cx), dy = Math.abs(cy - sel.cy);
         if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
           if (!swapAnim.current) {
-            swapAnim.current = { fx: sel.cx, fy: sel.cy, tx: cx, ty: cy, t: 0, returning: false };
+            swapAnim.current = { fx: sel.cx, fy: sel.cy, tx: cx, ty: cy, startTime: performance.now(), duration: 120 };
             socket.emit('game:action', { type: 'swap', from: { x: sel.cx, y: sel.cy }, to: { x: cx, y: cy } });
             selectedCell.current = null;
             setIsProcessing(true);
