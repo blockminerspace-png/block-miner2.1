@@ -25,9 +25,8 @@ export default function ImageUploader({ value, onChange, label = 'Imagem', previ
         try {
             const form = new FormData();
             form.append('image', file);
-            const res = await api.post('/admin/upload-image', form, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            // Não passar Content-Type — o Axios define automaticamente com o boundary correto
+            const res = await api.post('/admin/upload-image', form);
             if (res.data.ok) {
                 onChange(res.data.url);
             } else {
