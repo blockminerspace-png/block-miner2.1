@@ -72,9 +72,12 @@ async function main() {
 
   console.log('Seed: Start seeding miners...');
   for (const minerData of miners) {
+    // update só atualiza campos técnicos (hashRate, slotSize, imageUrl)
+    // NÃO sobrescreve showInShop, isActive, price — gerenciados pelo admin
+    const { showInShop: _s, isActive: _a, price: _p, ...technicalFields } = minerData;
     await prisma.miner.upsert({
       where: { slug: minerData.slug },
-      update: minerData,
+      update: technicalFields,
       create: minerData,
     });
   }

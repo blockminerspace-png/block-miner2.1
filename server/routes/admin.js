@@ -9,6 +9,7 @@ import * as walletModel from "../models/walletModel.js";
 import prisma from "../src/db/prisma.js";
 import path from "path";
 import fs from "fs/promises";
+import { mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import crypto from "crypto";
@@ -22,11 +23,11 @@ const adminLimiter = createRateLimiter({
 
 // Multer — salva em /app/uploads (docker) ou ./uploads (dev)
 const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "../../uploads"));
+// Garante que o diretório existe na inicialização (síncrono, sem risco de race condition no multer)
+mkdirSync(UPLOADS_DIR, { recursive: true });
 const upload = multer({
     storage: multer.diskStorage({
-        destination: async (_req, _file, cb) => {
-            const { mkdir } = await import("fs/promises");
-            await mkdir(UPLOADS_DIR, { recursive: true });
+        destination: (_req, _file, cb) => {
             cb(null, UPLOADS_DIR);
         },
         filename: (_req, file, cb) => {
