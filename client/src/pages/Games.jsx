@@ -255,27 +255,18 @@ export default function Games() {
         ctx.save();
 
         if (isSelected) {
-          const t = Date.now() / 600;
-          const pulse = 28 + Math.sin(t * Math.PI * 2) * 14;
-          const cx2 = drawX + s / 2, cy2 = drawY + s / 2;
+          const t = Date.now() / 800;
+          const pulse = 10 + Math.sin(t * Math.PI * 2) * 6;
 
-          // Halo pulsante azul
-          ctx.shadowBlur = pulse; ctx.shadowColor = '#3b82f6';
-          ctx.strokeStyle = `rgba(59,130,246,${0.5 + 0.4 * Math.sin(t * Math.PI * 2)})`;
-          ctx.lineWidth = 2.5;
-          ctx.beginPath(); ctx.roundRect(drawX - 2, drawY - 2, s + 4, s + 4, 14); ctx.stroke();
-          ctx.shadowBlur = 0;
-
-          // Halo pulsante verde (defasado)
-          const pulse2 = 20 + Math.sin((t + 0.5) * Math.PI * 2) * 10;
-          ctx.shadowBlur = pulse2; ctx.shadowColor = '#22c55e';
-          ctx.strokeStyle = `rgba(34,197,94,${0.35 + 0.3 * Math.sin((t + 0.5) * Math.PI * 2)})`;
+          // Borda sutil pulsante
+          ctx.shadowBlur = pulse; ctx.shadowColor = 'rgba(99,179,237,0.7)';
+          ctx.strokeStyle = `rgba(99,179,237,${0.3 + 0.15 * Math.sin(t * Math.PI * 2)})`;
           ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.roundRect(drawX - 5, drawY - 5, s + 10, s + 10, 17); ctx.stroke();
+          ctx.beginPath(); ctx.roundRect(drawX - 1, drawY - 1, s + 2, s + 2, 13); ctx.stroke();
           ctx.shadowBlur = 0;
 
-          // Fundo brilhante
-          ctx.fillStyle = 'rgba(59,130,246,0.22)';
+          // Fundo levemente destacado
+          ctx.fillStyle = 'rgba(59,130,246,0.15)';
           ctx.beginPath(); ctx.roundRect(drawX, drawY, s, s, 12); ctx.fill();
         } else {
           ctx.fillStyle = 'rgba(30,41,59,0.6)';
@@ -286,9 +277,8 @@ export default function Games() {
         if (img && img.complete) {
           const sc = piece.scale ?? 1.0;
           if (isSelected) {
-            const t2 = Date.now() / 600;
-            ctx.shadowBlur = 20 + Math.sin(t2 * Math.PI * 2) * 10;
-            ctx.shadowColor = Math.sin(t2 * Math.PI * 2) > 0 ? '#60a5fa' : '#4ade80';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = 'rgba(99,179,237,0.5)';
           }
           ctx.translate(drawX + s / 2, drawY + s / 2);
           ctx.scale(sc, sc);
