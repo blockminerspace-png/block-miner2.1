@@ -252,7 +252,7 @@ app.get("/api/public-stats", async (req, res) => {
         where: { type: "withdrawal", status: "completed" },
         _sum: { amount: true },
       }),
-      prisma.miner.count({ where: { status: "active" } }),
+      prisma.userMiner.count({ where: { isActive: true } }),
     ]);
     res.json({
       ok: true,
