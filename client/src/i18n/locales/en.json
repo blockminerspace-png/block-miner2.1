@@ -1,4 +1,79 @@
 {
+  "landing": {
+    "nav": {
+      "login": "Sign In",
+      "register": "Get Started"
+    },
+    "hero": {
+      "badge": "Polygon (POL) · Simulated Mining · ~10 min blocks",
+      "title": "Build your mining farm",
+      "title_highlight": "in real time",
+      "subtitle": "The engine closes a simulated block every 10 minutes and distributes POL rewards proportional to your hashrate and round contribution. Buy rigs in the shop, rack them up and watch the network live — no guaranteed-profit promises: it's a competitive Web3 simulation.",
+      "cta_start": "Start Mining",
+      "cta_login": "I already have an account"
+    },
+    "stats": {
+      "block_label": "Block interval",
+      "block_value": "~10 min",
+      "block_sub": "Fixed cycle — server-side engine",
+      "currency_label": "Simulation token",
+      "currency_value": "POL",
+      "currency_sub": "Polygon network",
+      "db_label": "Database & ORM",
+      "db_value": "PostgreSQL",
+      "db_sub": "Prisma ORM",
+      "auth_label": "Authentication",
+      "auth_value": "JWT + Refresh",
+      "auth_sub": "HttpOnly cookies"
+    },
+    "how": {
+      "title": "How it works",
+      "subtitle": "Three steps to your first POL reward.",
+      "step1_title": "Create your account",
+      "step1_body": "Register for free, no credit card needed. Your mining dashboard is ready instantly.",
+      "step2_title": "Buy rigs and build your farm",
+      "step2_body": "Purchase miners in the Shop, place them on racks in your rooms and watch your hashrate grow.",
+      "step3_title": "Earn POL every block",
+      "step3_body": "Every ~10 minutes the engine closes a block and splits the reward pool proportionally. Withdraw on-chain when you want."
+    },
+    "features": {
+      "title": "What the platform actually does",
+      "subtitle": "Real features in the codebase — no empty marketing.",
+      "f1_title": "Live block engine",
+      "f1_body": "Server tick updates network hashrate, block progress and reward distribution when the ~10 min cycle closes.",
+      "f2_title": "Wallet & withdrawals",
+      "f2_body": "Internal POL balance, withdrawal requests and Polygon network integration for on-chain operations.",
+      "f3_title": "Daily check-in, faucet & PTC",
+      "f3_body": "Daily check-in, faucet, shortlinks and offerwalls (e.g. ZerAds) to earn hashrate credits or balance.",
+      "f4_title": "Shop, ranking & offer events",
+      "f4_body": "Buy miners in the store, manage inventory, global leaderboard and exclusive miner offer events via admin panel.",
+      "f5_title": "Secure API with JWT",
+      "f5_body": "Access and refresh tokens, configurable CORS and a separate admin dashboard.",
+      "f6_title": "Games & extras",
+      "f6_body": "Mini-games, YouTube rewards, auto-mining GPU and real-time chat (Socket.IO) per client routes."
+    },
+    "faq": {
+      "title": "FAQ",
+      "q1": "Is it free?",
+      "a1": "Yes. Creating an account and receiving mining rewards is completely free. Buying miners in the shop uses your earned balance.",
+      "q2": "Are the POL coins real?",
+      "a2": "The simulation uses real Polygon (POL) token addresses. Withdrawal to an on-chain wallet is available for verified balances.",
+      "q3": "How is the reward calculated?",
+      "a3": "Your share = your hashrate / total network hashrate. Every block the engine computes this ratio and distributes the round reward pool.",
+      "q4": "Can I lose money?",
+      "a4": "The platform is a simulation. Shop purchases cost in-platform POL. No fiat money is required to play."
+    },
+    "cta": {
+      "title": "Ready to join the network?",
+      "subtitle": "Create a free account, connect your Polygon wallet whenever you want, and boost your hashrate with rigs and platform activities.",
+      "register": "Register now",
+      "explore": "Explore Polygon"
+    },
+    "footer": {
+      "rights": "Block Miner",
+      "disclaimer": "Educational Web3 simulation. Crypto assets carry risk — not financial advice."
+    }
+  },
   "common": {
     "loading": "Loading...",
     "error": "Error",

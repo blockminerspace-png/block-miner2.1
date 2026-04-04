@@ -1,4 +1,79 @@
 ﻿{
+  "landing": {
+    "nav": {
+      "login": "Iniciar sesión",
+      "register": "Crear cuenta"
+    },
+    "hero": {
+      "badge": "Polygon (POL) · Minería Simulada · Bloques ~10 min",
+      "title": "Construye tu granja de minería",
+      "title_highlight": "en tiempo real",
+      "subtitle": "El motor cierra un bloque simulado cada 10 minutos y distribuye recompensas en POL proporcionales a tu hashrate y participación en la ronda. Compra rigs en la tienda, móntalos y observa la red en vivo — sin promesas de ganancias garantizadas: es una simulación competitiva estilo Web3.",
+      "cta_start": "Empezar a minar",
+      "cta_login": "Ya tengo cuenta"
+    },
+    "stats": {
+      "block_label": "Intervalo de bloque",
+      "block_value": "~10 min",
+      "block_sub": "Ciclo fijo — motor del lado del servidor",
+      "currency_label": "Token de simulación",
+      "currency_value": "POL",
+      "currency_sub": "Red Polygon",
+      "db_label": "Base de datos & ORM",
+      "db_value": "PostgreSQL",
+      "db_sub": "Prisma ORM",
+      "auth_label": "Autenticación",
+      "auth_value": "JWT + Refresh",
+      "auth_sub": "Cookies HttpOnly"
+    },
+    "how": {
+      "title": "¿Cómo funciona?",
+      "subtitle": "Tres pasos para tu primera recompensa en POL.",
+      "step1_title": "Crea tu cuenta",
+      "step1_body": "Registro gratuito, sin tarjeta. Tu panel de minería está listo al instante.",
+      "step2_title": "Compra rigs y construye tu granja",
+      "step2_body": "Adquiere mineros en la Tienda, colócalos en los racks y mira crecer tu hashrate.",
+      "step3_title": "Gana POL con cada bloque",
+      "step3_body": "Cada ~10 minutos el motor cierra un bloque y divide el fondo de recompensas proporcionalmente. Retira on-chain cuando quieras."
+    },
+    "features": {
+      "title": "Lo que la plataforma hace de verdad",
+      "subtitle": "Funcionalidades reales del repositorio — sin marketing vacío.",
+      "f1_title": "Motor de bloques en vivo",
+      "f1_body": "El tick del servidor actualiza el hashrate de la red, el progreso del bloque y la distribución al cerrar el ciclo de ~10 min.",
+      "f2_title": "Billetera y retiros",
+      "f2_body": "Saldo interno en POL, solicitudes de retiro e integración con la red Polygon para operaciones on-chain.",
+      "f3_title": "Check-in, faucet & PTC",
+      "f3_body": "Check-in diario, faucet, shortlinks y offerwalls (ej.: ZerAds) para ganar créditos de hashrate o saldo.",
+      "f4_title": "Tienda, ranking y eventos",
+      "f4_body": "Compra mineros en la tienda, gestiona inventario, ranking global y eventos de mineros exclusivos vía panel admin.",
+      "f5_title": "API segura con JWT",
+      "f5_body": "Tokens de acceso y refresco, CORS configurable y panel de administración separado.",
+      "f6_title": "Juegos y extras",
+      "f6_body": "Minijuegos, recompensas YouTube, auto-mining GPU y chat en tiempo real (Socket.IO) según las rutas del cliente."
+    },
+    "faq": {
+      "title": "Preguntas frecuentes",
+      "q1": "¿Es gratuito?",
+      "a1": "Sí. Crear una cuenta y recibir recompensas de minería es completamente gratuito. Comprar mineros en la tienda usa el saldo ganado.",
+      "q2": "¿Las monedas POL son reales?",
+      "a2": "La simulación usa direcciones reales del token Polygon (POL). El retiro a una billetera on-chain está disponible para saldos verificados.",
+      "q3": "¿Cómo se calcula la recompensa?",
+      "a3": "Tu parte = tu hashrate / hashrate total de la red. Cada bloque el motor calcula esta proporción y distribuye el fondo de la ronda.",
+      "q4": "¿Puedo perder dinero?",
+      "a4": "La plataforma es una simulación. Las compras en la tienda cuestan POL de la plataforma. No se requiere dinero fiduciario para jugar."
+    },
+    "cta": {
+      "title": "¿Listo para unirte a la red?",
+      "subtitle": "Crea una cuenta gratuita, conecta tu billetera Polygon cuando quieras y aumenta tu hashrate con rigs y actividades en la plataforma.",
+      "register": "Registrarse ahora",
+      "explore": "Explorar Polygon"
+    },
+    "footer": {
+      "rights": "Block Miner",
+      "disclaimer": "Simulación Web3 educativa. Los criptoactivos conllevan riesgo — no es asesoramiento financiero."
+    }
+  },
   "common": {
     "loading": "Cargando...",
     "error": "Error",
