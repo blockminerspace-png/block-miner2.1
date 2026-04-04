@@ -21,6 +21,7 @@ import {
   Bell,
   MessageSquare,
   Map,
+  Calculator,
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { useGameStore } from '../store/game';
@@ -73,6 +74,7 @@ export default function Sidebar() {
       title: t('sidebar.categories.social', 'Social & Fun'),
       items: [
         { icon: Gamepad2, label: t('sidebar.games', 'Jogos'), path: '/games' },
+        { icon: Calculator, label: t('sidebar.calculator', 'Calculadora'), path: '/calculator' },
         { icon: Trophy, label: t('sidebar.ranking', 'Ranking'), path: '/ranking' },
         { icon: Map, label: t('sidebar.roadmap', 'Roadmap'), path: '/roadmap' },
       ]
