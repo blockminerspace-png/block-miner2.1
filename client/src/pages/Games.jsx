@@ -249,66 +249,22 @@ export default function Games() {
       }
       ctx.scale(sX, 1);
       const r = size / 2;
-      // Sombra do card
-      ctx.shadowBlur = card.isMatched ? 22 : 10;
-      ctx.shadowColor = card.isMatched ? 'rgba(16,185,129,0.6)' : 'rgba(0,0,0,0.7)';
-
-      if (card.isMatched) {
-        // Card matched: gradiente verde brilhante
-        const g = ctx.createLinearGradient(-r, -r, r, r);
-        g.addColorStop(0, '#064e3b'); g.addColorStop(1, '#065f46');
-        ctx.fillStyle = g;
-      } else if (card.isFlipped) {
-        // Card virado: gradiente azul escuro
-        const g = ctx.createLinearGradient(-r, -r, r, r);
-        g.addColorStop(0, '#1e3a8a'); g.addColorStop(1, '#1d4ed8');
-        ctx.fillStyle = g;
-      } else {
-        // Card fechado: gradiente escuro com borda
-        const g = ctx.createLinearGradient(-r, -r, r, r);
-        g.addColorStop(0, '#1e293b'); g.addColorStop(1, '#0f172a');
-        ctx.fillStyle = g;
-      }
+      // Fundo do card: escuro neutro sempre
+      ctx.fillStyle = card.isMatched ? '#0f2d1f' : '#0f172a';
       ctx.beginPath(); ctx.roundRect(-r, -r, size, size, 16); ctx.fill();
 
-      // Borda do card
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = card.isMatched ? 'rgba(16,185,129,0.6)' : card.isFlipped ? 'rgba(59,130,246,0.5)' : 'rgba(51,65,85,0.8)';
+      // Borda: verde se matched, slate se fechado/virado
+      ctx.strokeStyle = card.isMatched ? 'rgba(16,185,129,0.5)' : 'rgba(51,65,85,0.7)';
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.roundRect(-r, -r, size, size, 16); ctx.stroke();
 
-      // Verso do card (fechado): padrão hex
-      if (!card.isFlipped && !card.isMatched && Math.abs(sX) > 0.5) {
-        ctx.strokeStyle = 'rgba(59,130,246,0.15)'; ctx.lineWidth = 1;
-        for (let dy = -r + 14; dy < r; dy += 22) {
-          for (let dxx = -r + 10; dxx < r; dxx += 20) {
-            const ox = (Math.floor((dy + r) / 22) % 2) * 10;
-            ctx.beginPath(); ctx.arc(dxx + ox, dy, 3, 0, Math.PI * 2); ctx.stroke();
-          }
-        }
-      }
-
-      // Imagem da moeda (frente)
+      // Imagem da moeda (frente) — só a imagem, sem efeito
       if (Math.abs(sX) > 0.15 && (card.isFlipped || card.isMatched)) {
         const img = ICON_IMAGES[card.symbol];
-        const col = COIN_COLORS[card.symbol];
         if (img && img.complete && img.naturalWidth > 0) {
           ctx.scale(-1, 1);
-          // Halo colorido atrás da moeda
-          if (col) {
-            ctx.shadowBlur = 20; ctx.shadowColor = col.glow;
-          }
-          const is = size * 0.58;
+          const is = size * 0.68;
           ctx.drawImage(img, -is / 2, -is / 2, is, is);
-          ctx.shadowBlur = 0;
-        }
-        // Ticker da moeda
-        if (col) {
-          ctx.scale(-1, 1);
-          ctx.font = 'bold 11px monospace';
-          ctx.fillStyle = card.isMatched ? 'rgba(16,185,129,0.9)' : 'rgba(148,163,184,0.8)';
-          ctx.textAlign = 'center';
-          ctx.fillText(card.symbol?.toUpperCase().slice(0,3), 0, r - 10);
         }
       }
       ctx.restore();
