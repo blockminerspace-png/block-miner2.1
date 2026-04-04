@@ -2,7 +2,7 @@
 FROM node:20-bookworm-slim AS frontend-builder
 WORKDIR /app
 COPY client/package*.json ./
-RUN npm ci
+RUN npm install --no-audit --no-fund
 COPY client/ ./
 RUN npm run build
 
