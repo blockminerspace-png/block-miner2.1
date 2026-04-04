@@ -5,6 +5,18 @@ import loggerLib from "../utils/logger.js";
 import { runDepositVerifier } from "../services/depositVerifier.js";
 import { wakeUpScanner } from "../cron/depositsCron.js";
 
+/** Minimum POL for a deposit request. */
+export const DEPOSIT_MIN_POL = 1;
+
+/** Minimum POL for a withdrawal request. */
+export const WITHDRAW_MIN_POL = 10;
+
+/**
+ * Business days (in hours) expected before a withdrawal is processed.
+ * This is shown to users and validated nowhere else — it is purely informational.
+ */
+export const WITHDRAW_PROCESSING_HOURS = 72;
+
 const logger = loggerLib.child("WalletController");
 
 export async function getBalance(req, res) {
@@ -38,6 +50,13 @@ export async function requestDeposit(req, res) {
     const { amount, txHash } = req.body;
     if (!amount || !txHash) {
       return res.status(400).json({ ok: false, message: "Amount and TX Hash required." });
+    }
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < DEPOSIT_MIN_POL) {
+      return res.status(400).json({
+        ok: false,
+        message: `Minimum deposit is ${DEPOSIT_MIN_POL} POL.`
+      });
     }
     await walletModel.createDepositRequest(req.user.id, amount, txHash);
     res.json({ ok: true, message: "Deposit completed and confirmed." });
@@ -76,8 +95,26 @@ export async function requestWithdrawal(req, res) {
     if (!amount || !address) {
       return res.status(400).json({ ok: false, message: "Amount and address are required." });
     }
-    const transaction = await walletModel.createWithdrawal(req.user.id, amount, address);
-    res.json({ ok: true, message: "Withdrawal request created and pending processing.", transaction });
+
+    // Validate Ethereum/Polygon address format
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      return res.status(400).json({ ok: false, message: "Invalid wallet address format." });
+    }
+
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < WITHDRAW_MIN_POL) {
+      return res.status(400).json({
+        ok: false,
+        message: `Minimum withdrawal is ${WITHDRAW_MIN_POL} POL.`
+      });
+    }
+
+    const transaction = await walletModel.createWithdrawal(req.user.id, parsedAmount, address);
+    res.json({
+      ok: true,
+      message: `Withdrawal request submitted. Processing time: up to ${WITHDRAW_PROCESSING_HOURS} business hours.`,
+      transaction
+    });
   } catch (error) {
     logger.error("Error requesting withdrawal", { error: error.message });
     if (error.message === "Pending withdrawal exists") {
@@ -114,6 +151,12 @@ export async function submitDeposit(req, res) {
       parsedClaimed = parseFloat(claimedAmount);
       if (isNaN(parsedClaimed) || parsedClaimed < 0) {
         return res.status(400).json({ ok: false, message: "Valor inválido." });
+      }
+      if (parsedClaimed > 0 && parsedClaimed < DEPOSIT_MIN_POL) {
+        return res.status(400).json({
+          ok: false,
+          message: `Depósito mínimo é ${DEPOSIT_MIN_POL} POL.`
+        });
       }
     }
 

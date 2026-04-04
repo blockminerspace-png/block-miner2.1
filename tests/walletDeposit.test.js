@@ -37,6 +37,19 @@ test("deposit returns 400 when missing txHash or amount", async (t) => {
     assert.equal(res.body?.ok, false);
 });
 
+test("deposit returns 400 when amount is below minimum (1 POL)", async () => {
+    const req = {
+        user: { id: 1 },
+        body: { amount: "0.5", txHash: "abc123" }
+    };
+    const res = createRes();
+
+    await walletController.requestDeposit(req, res);
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body?.ok, false);
+    assert.match(res.body?.message, /Minimum deposit is 1 POL/);
+});
+
 test("deposit successfully creates a deposit when valid (mock mode)", async (t) => {
     // We'll mock the walletModel.createDepositRequest since it does DB calls we might want to avoid full integration on.
     const originalCreateDepositRequest = walletModel.createDepositRequest;

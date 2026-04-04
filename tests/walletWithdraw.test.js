@@ -76,3 +76,33 @@ test("withdraw creates pending transaction when request is valid", async () => {
     walletModel.createWithdrawal = oldCreate;
   }
 });
+
+test("withdraw returns 400 when amount is below minimum (10 POL)", async () => {
+  const req = {
+    user: { id: 1 },
+    body: { amount: "5", address: "0x000000000000000000000000000000000000dead" },
+    get: () => "",
+    headers: {}
+  };
+  const res = createRes();
+
+  await walletController.requestWithdrawal(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body?.ok, false);
+  assert.match(res.body?.message, /Minimum withdrawal is 10 POL/);
+});
+
+test("withdraw returns 400 when wallet address format is invalid", async () => {
+  const req = {
+    user: { id: 1 },
+    body: { amount: "15", address: "not-a-valid-address" },
+    get: () => "",
+    headers: {}
+  };
+  const res = createRes();
+
+  await walletController.requestWithdrawal(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body?.ok, false);
+  assert.match(res.body?.message, /Invalid wallet address format/);
+});

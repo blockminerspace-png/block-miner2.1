@@ -42,7 +42,7 @@ export default function Wallet() {
     const [transactions, setTransactions] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('withdraw');
+    const [activeTab, setActiveTab] = useState('deposit');
     const [systemDepositAddress, setSystemDepositAddress] = useState(null);
 
     const [withdrawForm, setWithdrawForm] = useState({
@@ -192,8 +192,8 @@ export default function Wallet() {
             }
 
             const amount = parseFloat(depositForm.amount);
-            if (isNaN(amount) || amount <= 0) {
-                toast.error(t('wallet.invalid_amount', 'Please enter a valid amount'));
+            if (isNaN(amount) || amount < 1) {
+                toast.error(t('wallet.min_deposit_error', { min: 1 }));
                 return;
             }
 
@@ -275,6 +275,11 @@ export default function Wallet() {
 
             const claimedAmount = parseFloat(depositForm.amount) || 0;
 
+            if (claimedAmount > 0 && claimedAmount < 1) {
+                toast.error(t('wallet.min_deposit_error', { min: 1 }));
+                return;
+            }
+
             const res = await api.post('/wallet/deposit/submit', {
                 txHash,
                 claimedAmount: claimedAmount > 0 ? claimedAmount : undefined
@@ -313,8 +318,8 @@ export default function Wallet() {
             toast.error(t('wallet.dest_address'));
             return;
         }
-        if (isNaN(amount) || amount < 0.1) {
-            toast.error(t('wallet.min_withdrawal', 'Minimum withdrawal is 0.1 POL'));
+        if (isNaN(amount) || amount < 10) {
+            toast.error(t('wallet.min_withdraw_error', { min: 10 }));
             return;
         }
         if (amount > balance.amount) {
@@ -508,22 +513,22 @@ export default function Wallet() {
                     <div className="bg-slate-950/80 border border-slate-800/50 rounded-[2.5rem] p-1 shadow-2xl backdrop-blur-2xl">
                         <div className="flex bg-slate-900/50 p-2 rounded-[2.2rem] gap-2">
                             <button
-                                onClick={() => setActiveTab('withdraw')}
-                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
-                            >
-                                Send Funds
-                            </button>
-                            <button
                                 onClick={() => setActiveTab('deposit')}
                                 className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
-                                Add Funds
+                                {t('wallet.tab_deposit')}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('withdraw')}
+                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                {t('wallet.tab_withdraw')}
                             </button>
                             <button
                                 onClick={() => { setActiveTab('ticket'); if (!ticketsLoaded) fetchMyTickets(); }}
                                 className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'ticket' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
-                                Ticket
+                                {t('wallet.tab_ticket')}
                             </button>
                         </div>
 
@@ -600,8 +605,11 @@ export default function Wallet() {
                                         className="w-full py-5 bg-gradient-to-r from-primary to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.3em] transition-all shadow-2xl shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-3"
                                     >
                                         {isActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ArrowUpCircle className="w-5 h-5" />}
-                                        {isActionLoading ? 'Processing...' : 'Authorize Transaction'}
+                                        {isActionLoading ? t('wallet.processing') : t('wallet.confirm_withdraw')}
                                     </button>
+                                    <p className="text-center text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+                                        {t('wallet.processing_time', { hours: 72 })}
+                                    </p>
                                 </form>
                             )}
 
