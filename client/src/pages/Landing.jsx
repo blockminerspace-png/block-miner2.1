@@ -94,7 +94,6 @@ export default function Landing() {
       label: t('landing.stats.users_label'),
       value: publicStats ? publicStats.users.toLocaleString() : '—',
       sub: t('landing.stats.users_sub'),
-      accent: 'border-blue-500/30 bg-blue-950/60',
       iconColor: 'text-blue-400',
     },
     {
@@ -102,7 +101,6 @@ export default function Landing() {
       label: t('landing.stats.withdrawn_label'),
       value: publicStats ? `${Number(publicStats.totalWithdrawn).toLocaleString(undefined, { maximumFractionDigits: 2 })} POL` : '—',
       sub: t('landing.stats.withdrawn_sub'),
-      accent: 'border-emerald-500/30 bg-emerald-950/60',
       iconColor: 'text-emerald-400',
     },
     {
@@ -110,7 +108,6 @@ export default function Landing() {
       label: t('landing.stats.uptime_label'),
       value: `${days} dias`,
       sub: t('landing.stats.uptime_sub'),
-      accent: 'border-violet-500/30 bg-violet-950/60',
       iconColor: 'text-violet-400',
     },
     {
@@ -118,7 +115,6 @@ export default function Landing() {
       label: t('landing.stats.miners_label'),
       value: publicStats ? publicStats.activeMiners.toLocaleString() : '—',
       sub: t('landing.stats.miners_sub'),
-      accent: 'border-amber-500/30 bg-amber-950/60',
       iconColor: 'text-amber-400',
     },
   ];
@@ -240,13 +236,13 @@ export default function Landing() {
           {/* Quick stats */}
           <FadeUp delayClass="[animation-delay:360ms]" className="mt-16 sm:mt-20">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {statsCards.map(({ label, value, sub, icon: Icon, accent, iconColor }) => (
+              {statsCards.map(({ label, value, sub, icon: Icon, iconColor }) => (
                 <div
                   key={label}
-                  className={`group p-4 sm:p-5 rounded-2xl border ${accent} hover:brightness-110 transition-all duration-300`}
+                  className="group p-4 sm:p-5 rounded-2xl border border-white/[0.08] bg-[#0d1520] hover:border-white/20 hover:bg-[#111b2a] transition-all duration-300"
                 >
                   <Icon className={`w-5 h-5 mb-3 ${iconColor} group-hover:scale-110 transition-transform`} aria-hidden />
-                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
+                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
                   <p className="text-xl sm:text-2xl font-black text-white mt-1">{value}</p>
                   <p className="text-[11px] text-gray-500 mt-1 leading-snug">{sub}</p>
                 </div>
