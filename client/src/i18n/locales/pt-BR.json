@@ -13,18 +13,14 @@
       "cta_login": "Já tenho conta"
     },
     "stats": {
-      "block_label": "Intervalo de bloco",
-      "block_value": "~10 min",
-      "block_sub": "Ciclo fixo — motor lado servidor",
-      "currency_label": "Token da simulação",
-      "currency_value": "POL",
-      "currency_sub": "Rede Polygon",
-      "db_label": "Banco de dados & ORM",
-      "db_value": "PostgreSQL",
-      "db_sub": "Prisma ORM",
-      "auth_label": "Autenticação",
-      "auth_value": "JWT + Refresh",
-      "auth_sub": "Cookies HttpOnly"
+      "users_label": "Usuários cadastrados",
+      "users_sub": "desde o lançamento",
+      "withdrawn_label": "POL sacados",
+      "withdrawn_sub": "transações on-chain",
+      "uptime_label": "Online desde",
+      "uptime_sub": "5 de março de 2026",
+      "miners_label": "Mineradores ativos",
+      "miners_sub": "rodando agora"
     },
     "how": {
       "title": "Como funciona",

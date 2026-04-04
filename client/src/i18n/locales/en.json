@@ -13,18 +13,14 @@
       "cta_login": "I already have an account"
     },
     "stats": {
-      "block_label": "Block interval",
-      "block_value": "~10 min",
-      "block_sub": "Fixed cycle — server-side engine",
-      "currency_label": "Simulation token",
-      "currency_value": "POL",
-      "currency_sub": "Polygon network",
-      "db_label": "Database & ORM",
-      "db_value": "PostgreSQL",
-      "db_sub": "Prisma ORM",
-      "auth_label": "Authentication",
-      "auth_value": "JWT + Refresh",
-      "auth_sub": "HttpOnly cookies"
+      "users_label": "Registered users",
+      "users_sub": "since launch",
+      "withdrawn_label": "POL withdrawn",
+      "withdrawn_sub": "on-chain transactions",
+      "uptime_label": "Online since",
+      "uptime_sub": "March 5, 2026",
+      "miners_label": "Active miners",
+      "miners_sub": "running right now"
     },
     "how": {
       "title": "How it works",

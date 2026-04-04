@@ -16,6 +16,9 @@ vi.mock("../components/BrandLogo", () => ({
   default: () => <div data-testid="brand-logo" />,
 }));
 
+// Mock fetch so public-stats call doesn't throw in jsdom
+global.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ ok: false }) }));
+
 const renderLanding = () =>
   render(
     <MemoryRouter>
@@ -62,12 +65,12 @@ describe("Landing page", () => {
     expect(screen.getAllByText("landing.nav.register").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders 4 stats cards", () => {
+  it("renders 4 stats cards with labels", () => {
     renderLanding();
-    expect(screen.getByText("landing.stats.block_value")).toBeInTheDocument();
-    expect(screen.getByText("landing.stats.currency_value")).toBeInTheDocument();
-    expect(screen.getByText("landing.stats.db_value")).toBeInTheDocument();
-    expect(screen.getByText("landing.stats.auth_value")).toBeInTheDocument();
+    expect(screen.getByText("landing.stats.users_label")).toBeInTheDocument();
+    expect(screen.getByText("landing.stats.withdrawn_label")).toBeInTheDocument();
+    expect(screen.getByText("landing.stats.uptime_label")).toBeInTheDocument();
+    expect(screen.getByText("landing.stats.miners_label")).toBeInTheDocument();
   });
 
   it("renders How it works section title", () => {

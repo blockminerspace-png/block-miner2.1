@@ -2,17 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Blocks,
   ChevronDown,
-  Cpu,
-  Database,
+  Clock,
   Gift,
   Globe,
-  KeyRound,
   Pickaxe,
   Shield,
   Sparkles,
   TrendingUp,
+  Users,
   UserPlus,
   Wallet,
   Zap,
@@ -20,7 +18,12 @@ import {
 import { useAuthStore } from '../store/auth';
 import BrandLogo from '../components/BrandLogo';
 
+const LAUNCH_DATE = new Date('2026-03-05T00:00:00.000Z');
 const STAGGER = ['[animation-delay:0ms]', '[animation-delay:90ms]', '[animation-delay:180ms]', '[animation-delay:270ms]'];
+
+function uptimeDays() {
+  return Math.floor((Date.now() - LAUNCH_DATE.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 function FadeUp({ children, className = '', delayClass = STAGGER[0] }) {
   return (
@@ -35,7 +38,7 @@ function FadeUp({ children, className = '', delayClass = STAGGER[0] }) {
 function FaqItem({ question, answer }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-white/[0.08] rounded-2xl overflow-hidden">
+    <div className="border border-white/10 rounded-2xl overflow-hidden bg-[#0f1623]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -60,6 +63,7 @@ function FaqItem({ question, answer }) {
 export default function Landing() {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
+  const [publicStats, setPublicStats] = useState(null);
 
   useEffect(() => {
     document.title = 'Block Miner — Simulated POL Mining Farm | blockminer.space';
@@ -71,17 +75,52 @@ export default function Landing() {
     }
     meta.content =
       'Build your simulated cryptocurrency mining farm on Polygon (POL). Buy rigs, earn block rewards every ~10 minutes proportional to your hashrate, withdraw on-chain. Free to play — no guaranteed returns.';
+
+    fetch('/api/public-stats')
+      .then((r) => r.json())
+      .then((data) => { if (data.ok) setPublicStats(data); })
+      .catch(() => {});
   }, []);
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const days = uptimeDays();
+
   const statsCards = [
-    { labelKey: 'landing.stats.block_label', valueKey: 'landing.stats.block_value', subKey: 'landing.stats.block_sub', icon: Blocks },
-    { labelKey: 'landing.stats.currency_label', valueKey: 'landing.stats.currency_value', subKey: 'landing.stats.currency_sub', icon: Cpu },
-    { labelKey: 'landing.stats.db_label', valueKey: 'landing.stats.db_value', subKey: 'landing.stats.db_sub', icon: Database },
-    { labelKey: 'landing.stats.auth_label', valueKey: 'landing.stats.auth_value', subKey: 'landing.stats.auth_sub', icon: KeyRound },
+    {
+      icon: Users,
+      label: t('landing.stats.users_label'),
+      value: publicStats ? publicStats.users.toLocaleString() : '—',
+      sub: t('landing.stats.users_sub'),
+      accent: 'border-blue-500/30 bg-blue-950/60',
+      iconColor: 'text-blue-400',
+    },
+    {
+      icon: Wallet,
+      label: t('landing.stats.withdrawn_label'),
+      value: publicStats ? `${Number(publicStats.totalWithdrawn).toLocaleString(undefined, { maximumFractionDigits: 2 })} POL` : '—',
+      sub: t('landing.stats.withdrawn_sub'),
+      accent: 'border-emerald-500/30 bg-emerald-950/60',
+      iconColor: 'text-emerald-400',
+    },
+    {
+      icon: Clock,
+      label: t('landing.stats.uptime_label'),
+      value: `${days} dias`,
+      sub: t('landing.stats.uptime_sub'),
+      accent: 'border-violet-500/30 bg-violet-950/60',
+      iconColor: 'text-violet-400',
+    },
+    {
+      icon: Zap,
+      label: t('landing.stats.miners_label'),
+      value: publicStats ? publicStats.activeMiners.toLocaleString() : '—',
+      sub: t('landing.stats.miners_sub'),
+      accent: 'border-amber-500/30 bg-amber-950/60',
+      iconColor: 'text-amber-400',
+    },
   ];
 
   const featureCards = [
@@ -201,15 +240,15 @@ export default function Landing() {
           {/* Quick stats */}
           <FadeUp delayClass="[animation-delay:360ms]" className="mt-16 sm:mt-20">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {statsCards.map(({ labelKey, valueKey, subKey, icon: Icon }) => (
+              {statsCards.map(({ label, value, sub, icon: Icon, accent, iconColor }) => (
                 <div
-                  key={labelKey}
-                  className="group p-4 sm:p-5 rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-transparent hover:border-primary/35 hover:bg-white/[0.07] transition-all duration-300"
+                  key={label}
+                  className={`group p-4 sm:p-5 rounded-2xl border ${accent} hover:brightness-110 transition-all duration-300`}
                 >
-                  <Icon className="w-5 h-5 text-primary mb-3 opacity-90 group-hover:scale-110 transition-transform" aria-hidden />
-                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-gray-500">{t(labelKey)}</p>
-                  <p className="text-xl sm:text-2xl font-black text-white mt-1">{t(valueKey)}</p>
-                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">{t(subKey)}</p>
+                  <Icon className={`w-5 h-5 mb-3 ${iconColor} group-hover:scale-110 transition-transform`} aria-hidden />
+                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
+                  <p className="text-xl sm:text-2xl font-black text-white mt-1">{value}</p>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">{sub}</p>
                 </div>
               ))}
             </div>

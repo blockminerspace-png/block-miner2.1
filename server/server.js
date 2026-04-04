@@ -243,6 +243,29 @@ app.use("/api/admin/auth", adminAuthRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/admin/auto-mining-rewards", adminAutoMiningRewardsRouter);
 
+// Public stats (no auth — used by Landing page)
+app.get("/api/public-stats", async (req, res) => {
+  try {
+    const [userCount, withdrawnAgg, activeMiners] = await Promise.all([
+      prisma.user.count(),
+      prisma.transaction.aggregate({
+        where: { type: "withdrawal", status: "completed" },
+        _sum: { amount: true },
+      }),
+      prisma.miner.count({ where: { status: "active" } }),
+    ]);
+    res.json({
+      ok: true,
+      users: userCount,
+      totalWithdrawn: Number(withdrawnAgg._sum.amount || 0),
+      activeMiners,
+      launchDate: "2026-03-05T00:00:00.000Z",
+    });
+  } catch {
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Health check
 app.get("/health", healthController.health);
 
