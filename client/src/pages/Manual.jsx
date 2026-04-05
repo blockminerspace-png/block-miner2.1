@@ -318,50 +318,45 @@ export default function Manual() {
                     </Section>
 
                     {/* 4. Máquinas */}
-                    <Section id="maquinas" icon={Cpu} color="text-primary" title="Máquinas" subtitle="Categorias, tiers e como interpretar as specs">
-                        <div className="space-y-4">
+                    <Section id="maquinas" icon={Cpu} color="text-primary" title="Máquinas" subtitle="Como funcionam os mineradores e os slots">
+                        <div className="space-y-3">
                             <Card>
-                                <p className="text-sm text-gray-400 leading-relaxed">
-                                    Os mineradores são classificados por tier conforme o hashrate. Quanto maior o tier, mais POL por segundo, mas também mais slots ocupados.
+                                <p className="text-sm text-gray-400 leading-relaxed mb-4">
+                                    Cada minerador tem <strong className="text-white">hashrate</strong> e <strong className="text-white">tamanho de slot</strong> definidos pelo administrador na loja. Quanto maior o hashrate, mais POL gerado — mas máquinas maiores podem ocupar <strong className="text-white">2 slots consecutivos</strong> no rack.
                                 </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 space-y-2">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                            <p className="text-xs font-black text-white uppercase tracking-widest">Slot simples (1 slot)</p>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 leading-relaxed">Máquinas menores. Cabem 8 unidades por rack.</p>
+                                        <div className="grid grid-cols-8 gap-1 mt-2">
+                                            {Array.from({ length: 8 }).map((_, i) => (
+                                                <div key={i} className="aspect-square rounded bg-primary/30 border border-primary/50" />
+                                            ))}
+                                        </div>
+                                        <p className="text-[9px] text-gray-600 text-center">8 de 8 slots ocupados</p>
+                                    </div>
+                                    <div className="p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 space-y-2">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                            <p className="text-xs font-black text-white uppercase tracking-widest">Slot duplo (2 slots)</p>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 leading-relaxed">Máquinas maiores (alto hashrate). Cada uma ocupa 2 slots seguidos — cabem 4 por rack.</p>
+                                        <div className="grid grid-cols-8 gap-1 mt-2">
+                                            {Array.from({ length: 4 }).map((_, i) => (
+                                                <div key={i} className="col-span-2 aspect-[2/1] rounded bg-amber-500/30 border border-amber-500/50" />
+                                            ))}
+                                        </div>
+                                        <p className="text-[9px] text-gray-600 text-center">4 máquinas × 2 slots = 8 slots ocupados</p>
+                                    </div>
+                                </div>
                             </Card>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-xs">
-                                    <thead>
-                                        <tr className="border-b border-gray-800/60">
-                                            <th className="text-left py-2.5 px-3 text-[9px] font-black text-gray-600 uppercase tracking-widest">Tier</th>
-                                            <th className="text-left py-2.5 px-3 text-[9px] font-black text-gray-600 uppercase tracking-widest">Hashrate</th>
-                                            <th className="text-left py-2.5 px-3 text-[9px] font-black text-gray-600 uppercase tracking-widest">Slots</th>
-                                            <th className="text-left py-2.5 px-3 text-[9px] font-black text-gray-600 uppercase tracking-widest">Imagem</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-800/30">
-                                        {[
-                                            { tier: 'Quantum', range: '≥ 1.000 H/s', slots: '2', img: '/machines/reward3.png', pill: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-                                            { tier: 'Elite',   range: '500 – 999 H/s', slots: '2', img: '/machines/reward2.png', pill: 'text-purple-400 bg-purple-500/10 border-purple-500/20' },
-                                            { tier: 'Pro',     range: '100 – 499 H/s', slots: '2', img: '/machines/reward1.png', pill: 'text-primary bg-primary/10 border-primary/20' },
-                                            { tier: 'Advanced',range: '50 – 99 H/s', slots: '1', img: '/machines/3.png', pill: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-                                            { tier: 'Standard',range: '10 – 49 H/s', slots: '1', img: '/machines/2.png', pill: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
-                                            { tier: 'Basic',   range: '0 – 9 H/s', slots: '1', img: '/machines/1.png', pill: 'text-gray-400 bg-gray-700/30 border-gray-700/40' },
-                                        ].map(({ tier, range, slots, img, pill }) => (
-                                            <tr key={tier} className="hover:bg-gray-800/20 transition-colors">
-                                                <td className="py-3 px-3">
-                                                    <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase ${pill}`}>{tier}</span>
-                                                </td>
-                                                <td className="py-3 px-3 text-gray-400 font-bold">{range}</td>
-                                                <td className="py-3 px-3 text-gray-400 font-bold">{slots}</td>
-                                                <td className="py-3 px-3">
-                                                    <img src={img} alt={tier} className="w-8 h-8 object-contain" onError={e => { e.target.style.display = 'none'; }} />
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
                             <div className="p-3 bg-gray-800/30 border border-gray-700/30 rounded-xl flex gap-2">
                                 <Info className="w-3.5 h-3.5 text-gray-500 shrink-0 mt-0.5" />
                                 <p className="text-[10px] text-gray-500 leading-relaxed">
-                                    O nome e imagem exibidos na sua sala são definidos pelo administrador ao criar o minerador na loja. O tier é calculado automaticamente com base no hashrate configurado.
+                                    Nome, imagem, hashrate e tamanho de slot são configurados pelo administrador por máquina. Verifique as specs na loja antes de comprar.
                                 </p>
                             </div>
                         </div>
