@@ -436,6 +436,136 @@
     "games": "Arena de Jogos",
     "ranking": "Hall da Fama",
     "settings": "Configurações de Conta",
-    "overview": "Visão Geral"
+    "overview": "Visão Geral",
+    "transparency": "Transparência"
     }
+    },
+  "transparency": {
+    "page_title": "Portal de Transparência",
+    "page_subtitle": "BlockMiner — Custos operacionais e investimentos",
+    "page_description": "Todos os gastos do site abertos à comunidade: infraestrutura, ferramentas, marketing e onde o dinheiro está investido.",
+    "badge_title": "100% Transparente",
+    "badge_updated": "Atualizado: {{date}}",
+    "loading_error": "Não foi possível carregar os dados.",
+    "connection_error": "Erro de conexão.",
+    "no_entries": "Nenhuma entrada publicada ainda.",
+    "footer_note": "Valores em USD. Conversões de período são estimativas. Atualizado manualmente pela equipe BlockMiner.",
+    "kpi": {
+      "monthly_cost": "Custo Mensal",
+      "monthly_cost_sub": "Despesas recorrentes",
+      "total_income": "Total Receitas",
+      "total_income_sub": "Receitas mensais",
+      "net_balance": "Saldo Líquido",
+      "net_positive": "Saldo positivo",
+      "net_deficit": "Déficit mensal",
+      "annual_cost": "Custo Anual",
+      "annual_cost_sub": "{{paid}} pago(s), {{pending}} pendente(s)"
+    },
+    "charts": {
+      "monthly_distribution": "Distribuição Mensal",
+      "cost_by_category": "Custo por Categoria / Mês",
+      "weight_by_category": "Peso por Categoria",
+      "total_monthly": "{{total}}/mês no total",
+      "per_month": "/mês"
+    },
+    "table": {
+      "title": "Detalhamento Completo",
+      "col_name": "Nome / Categoria",
+      "col_provider": "Fornecedor",
+      "col_amount": "Valor / Período",
+      "col_status": "Status"
+    },
+    "status": {
+      "paid": "Pago",
+      "pending": "Pendente",
+      "received": "Recebido"
+    },
+    "period": {
+      "daily": "diário",
+      "monthly": "mensal",
+      "annual": "anual",
+      "one_time": "único"
+    },
+    "category": {
+      "infrastructure": "Infraestrutura",
+      "tooling": "Ferramentas",
+      "marketing": "Marketing",
+      "payroll": "Equipe",
+      "legal": "Jurídico",
+      "misc": "Outros"
+    },
+    "income_category": {
+      "revenue": "Receita Operacional",
+      "sponsorship": "Patrocínio",
+      "donation": "Doação",
+      "investment_return": "Retorno de Investimento",
+      "other": "Outro"
+    },
+    "income_section": {
+      "title": "Receitas, Patrocínios & Doações",
+      "per_month": "/mês"
+    },
+    "wallet": {
+      "title": "Carteira de Investimentos",
+      "subtitle": "Polygon Network — On-chain em tempo real",
+      "native_balance": "Saldo Nativo",
+      "unavailable": "Indisponível",
+      "debank": "DeBank",
+      "polygonscan": "Polygonscan",
+      "active_pools": "Posições Ativas nas Pools"
+    },
+    "admin": {
+      "title": "Portal de Transparência",
+      "entries_count_one": "{{count}} entrada cadastrada",
+      "entries_count_other": "{{count}} entradas cadastradas",
+      "new_entry": "Nova Entrada",
+      "edit_entry": "Editar Entrada",
+      "expense": "Gasto",
+      "income": "Receita",
+      "field_type": "Tipo",
+      "field_category": "Categoria",
+      "field_income_category": "Tipo de Receita",
+      "field_name": "Nome *",
+      "field_amount": "Valor (USD) *",
+      "field_period": "Período",
+      "field_provider": "Fornecedor / Origem",
+      "field_provider_url": "URL do Fornecedor",
+      "field_description": "Descrição",
+      "field_notes": "Notas Internas",
+      "field_order": "Ordem",
+      "field_image": "Imagem (logo, comprovante, screenshot)",
+      "field_image_placeholder": "URL da imagem ou faça upload",
+      "check_paid": "Pago",
+      "check_visible": "Visível publicamente",
+      "upload": "Upload",
+      "uploading": "Enviando…",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "cancel": "Cancelar",
+      "col_name": "Nome / Categoria",
+      "col_provider": "Fornecedor",
+      "col_amount": "Valor / Período",
+      "col_paid": "Pago",
+      "col_public": "Público",
+      "col_actions": "Ações",
+      "badge_income": "Receita",
+      "badge_expense": "Gasto",
+      "yes": "Sim",
+      "no": "Não",
+      "placeholder_expense_name": "ex: VPS Hetzner",
+      "placeholder_income_name": "ex: Patrocínio XYZ",
+      "placeholder_provider_expense": "ex: Hetzner Cloud",
+      "placeholder_provider_income": "ex: Nome do Patrocinador",
+      "placeholder_description": "Descrição curta",
+      "placeholder_notes": "Notas (não exibidas publicamente)",
+      "toast_created": "Entrada criada.",
+      "toast_updated": "Entrada atualizada.",
+      "toast_deleted": "Entrada removida.",
+      "toast_name_required": "Nome é obrigatório.",
+      "toast_invalid_amount": "Valor inválido.",
+      "toast_image_too_large": "Imagem muito grande (máx 5MB).",
+      "toast_image_uploaded": "Imagem enviada.",
+      "toast_image_error": "Erro ao enviar imagem.",
+      "toast_error": "Erro ao salvar."
     }
+  }

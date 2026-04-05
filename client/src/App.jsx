@@ -45,6 +45,7 @@ import AdminBanners from './pages/AdminBanners';
 import AdminCreators from './pages/AdminCreators';
 import AdminTransparency from './pages/AdminTransparency';
 import Transparency from './pages/Transparency';
+import TransparencyErrorBoundary from './components/TransparencyErrorBoundary';
 import Landing from './pages/Landing';
 
 const ProtectedLayout = () => {
@@ -139,7 +140,7 @@ function App() {
           <Route path="/games" element={<Games />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/calculator" element={<CalculatorPage />} />
-          <Route path="/transparency" element={<Transparency />} />
+          <Route path="/transparency" element={<TransparencyErrorBoundary><Transparency /></TransparencyErrorBoundary>} />
           <Route path="/shortlink/internal-shortlink/step/:step" element={<ShortlinkStep />} />
         </Route>
 

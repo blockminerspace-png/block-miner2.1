@@ -431,6 +431,136 @@
     "games": "Game Arena",
     "ranking": "Hall of Fame",
     "settings": "Account Settings",
-    "overview": "Overview"
+    "overview": "Overview",
+    "transparency": "Transparency"
     }
+    },
+  "transparency": {
+    "page_title": "Transparency Portal",
+    "page_subtitle": "BlockMiner — Operational costs and investments",
+    "page_description": "All site expenses open to the community: infrastructure, tooling, marketing and where money is invested.",
+    "badge_title": "100% Transparent",
+    "badge_updated": "Updated: {{date}}",
+    "loading_error": "Could not load data.",
+    "connection_error": "Connection error.",
+    "no_entries": "No entries published yet.",
+    "footer_note": "Values in USD. Period conversions are estimates. Manually updated by the BlockMiner team.",
+    "kpi": {
+      "monthly_cost": "Monthly Cost",
+      "monthly_cost_sub": "Recurring expenses",
+      "total_income": "Total Revenue",
+      "total_income_sub": "Monthly income",
+      "net_balance": "Net Balance",
+      "net_positive": "Positive balance",
+      "net_deficit": "Monthly deficit",
+      "annual_cost": "Annual Cost",
+      "annual_cost_sub": "{{paid}} paid, {{pending}} pending"
+    },
+    "charts": {
+      "monthly_distribution": "Monthly Distribution",
+      "cost_by_category": "Cost by Category / Month",
+      "weight_by_category": "Weight by Category",
+      "total_monthly": "{{total}}/month total",
+      "per_month": "/month"
+    },
+    "table": {
+      "title": "Full Breakdown",
+      "col_name": "Name / Category",
+      "col_provider": "Provider",
+      "col_amount": "Amount / Period",
+      "col_status": "Status"
+    },
+    "status": {
+      "paid": "Paid",
+      "pending": "Pending",
+      "received": "Received"
+    },
+    "period": {
+      "daily": "daily",
+      "monthly": "monthly",
+      "annual": "annual",
+      "one_time": "one-time"
+    },
+    "category": {
+      "infrastructure": "Infrastructure",
+      "tooling": "Tooling",
+      "marketing": "Marketing",
+      "payroll": "Payroll",
+      "legal": "Legal",
+      "misc": "Misc"
+    },
+    "income_category": {
+      "revenue": "Operating Revenue",
+      "sponsorship": "Sponsorship",
+      "donation": "Donation",
+      "investment_return": "Investment Return",
+      "other": "Other"
+    },
+    "income_section": {
+      "title": "Revenue, Sponsorships & Donations",
+      "per_month": "/month"
+    },
+    "wallet": {
+      "title": "Investment Wallet",
+      "subtitle": "Polygon Network — On-chain real-time",
+      "native_balance": "Native Balance",
+      "unavailable": "Unavailable",
+      "debank": "DeBank",
+      "polygonscan": "Polygonscan",
+      "active_pools": "Active Pool Positions"
+    },
+    "admin": {
+      "title": "Transparency Portal",
+      "entries_count_one": "{{count}} entry registered",
+      "entries_count_other": "{{count}} entries registered",
+      "new_entry": "New Entry",
+      "edit_entry": "Edit Entry",
+      "expense": "Expense",
+      "income": "Income",
+      "field_type": "Type",
+      "field_category": "Category",
+      "field_income_category": "Income Type",
+      "field_name": "Name *",
+      "field_amount": "Amount (USD) *",
+      "field_period": "Period",
+      "field_provider": "Provider / Source",
+      "field_provider_url": "Provider URL",
+      "field_description": "Description",
+      "field_notes": "Internal Notes",
+      "field_order": "Sort Order",
+      "field_image": "Image (logo, receipt, screenshot)",
+      "field_image_placeholder": "Image URL or upload",
+      "check_paid": "Paid",
+      "check_visible": "Visible publicly",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "col_name": "Name / Category",
+      "col_provider": "Provider",
+      "col_amount": "Amount / Period",
+      "col_paid": "Paid",
+      "col_public": "Public",
+      "col_actions": "Actions",
+      "badge_income": "Income",
+      "badge_expense": "Expense",
+      "yes": "Yes",
+      "no": "No",
+      "placeholder_expense_name": "e.g. Hetzner VPS",
+      "placeholder_income_name": "e.g. XYZ Sponsorship",
+      "placeholder_provider_expense": "e.g. Hetzner Cloud",
+      "placeholder_provider_income": "e.g. Sponsor Name",
+      "placeholder_description": "Short description",
+      "placeholder_notes": "Notes (not shown publicly)",
+      "toast_created": "Entry created.",
+      "toast_updated": "Entry updated.",
+      "toast_deleted": "Entry removed.",
+      "toast_name_required": "Name is required.",
+      "toast_invalid_amount": "Invalid amount.",
+      "toast_image_too_large": "Image too large (max 5MB).",
+      "toast_image_uploaded": "Image uploaded.",
+      "toast_image_error": "Error uploading image.",
+      "toast_error": "Error saving."
     }
+  }
