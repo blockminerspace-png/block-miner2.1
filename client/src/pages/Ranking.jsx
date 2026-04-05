@@ -274,12 +274,12 @@ export default function Ranking() {
           <table className="w-full text-left text-sm text-gray-400">
             <thead className="bg-gray-800/30 text-[10px] uppercase font-bold tracking-widest text-gray-500">
               <tr>
-                <th className="px-8 py-6 w-20">Rank</th>
-                <th className="px-8 py-6">Minerador</th>
-                <th className="px-8 py-6">HashRate Total</th>
-                <th className="px-8 py-6 hidden md:table-cell">Sala</th>
-                <th className="px-8 py-6 hidden md:table-cell">Games</th>
-                <th className="px-8 py-6 text-right">Sala</th>
+                <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 w-12 sm:w-20">Rank</th>
+                <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">Minerador</th>
+                <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">Hash</th>
+                <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 hidden md:table-cell">Sala</th>
+                <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 hidden md:table-cell">Games</th>
+                <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 text-right">Ver</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/50 font-medium">
@@ -295,7 +295,7 @@ export default function Ranking() {
                   onClick={() => navigate(`/room/${entry.username}`)}
                   className={`cursor-pointer hover:bg-primary/5 transition-colors group ${i < 3 ? 'bg-primary/5' : ''}`}
                 >
-                  <td className="px-8 py-5">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5">
                     {entry.isCreator
                       ? <YtBadge youtubeUrl={entry.youtubeUrl} className={`w-8 h-8 ${i < 3 ? 'animate-pulse' : ''}`} />
                       : <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${
@@ -306,33 +306,33 @@ export default function Ranking() {
                         }`}>{entry.rank}</span>
                     }
                   </td>
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-[10px] font-bold text-white border border-gray-700">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-800 flex items-center justify-center text-[10px] font-bold text-white border border-gray-700 shrink-0">
                         {entry.username.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-white font-bold">{entry.username}</span>
+                      <span className="text-white font-bold truncate max-w-[80px] sm:max-w-none">{entry.username}</span>
                     </div>
                   </td>
-                  <td className="px-8 py-5 text-primary font-black">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 text-primary font-black text-xs sm:text-sm">
                     {formatHashrate(entry.totalHashRate)}
                   </td>
-                  <td className="px-8 py-5 hidden md:table-cell text-[10px] uppercase font-bold tracking-tighter">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 hidden md:table-cell text-[10px] uppercase font-bold tracking-tighter">
                     <div className="flex items-center gap-2">
                       <Cpu className="w-3 h-3 text-slate-500" />
                       {formatHashrate(entry.baseHashRate)}
                     </div>
                   </td>
-                  <td className="px-8 py-5 hidden md:table-cell text-[10px] uppercase font-bold tracking-tighter">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 hidden md:table-cell text-[10px] uppercase font-bold tracking-tighter">
                     <div className="flex items-center gap-2">
                       <Gamepad2 className="w-3 h-3 text-slate-500" />
                       {formatHashrate(entry.gameHashRate)}
                     </div>
                   </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border bg-gray-800/50 border-gray-700/50 text-gray-500 group-hover:border-primary/30 group-hover:text-primary">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 text-right">
+                    <div className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 sm:px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border bg-gray-800/50 border-gray-700/50 text-gray-500 group-hover:border-primary/30 group-hover:text-primary">
                       <ChevronRight className="w-3 h-3" />
-                      Ver
+                      <span className="hidden sm:inline">Ver</span>
                     </div>
                   </td>
                 </tr>

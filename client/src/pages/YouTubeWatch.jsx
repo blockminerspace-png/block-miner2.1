@@ -244,22 +244,22 @@ export default function YouTubeWatch() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Video Area */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group">
+                <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+                    <div className="bg-surface border border-gray-800/50 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 shadow-xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/5 rounded-bl-[120px] -mr-20 -mt-20 group-hover:bg-red-500/10 transition-colors" />
                         
-                        <div className="flex gap-4 mb-8 relative z-10">
+                        <div className="flex flex-col sm:flex-row gap-3 mb-6 sm:mb-8 relative z-10">
                             <input
                                 type="text"
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') handleLoadVideo(e); }}
-                                placeholder="Cole a URL do vídeo do YouTube aqui..."
-                                className="flex-1 bg-gray-900/50 border border-gray-800 rounded-2xl py-4 px-6 text-gray-200 text-sm focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                                placeholder="Cole a URL do vídeo do YouTube..."
+                                className="flex-1 bg-gray-900/50 border border-gray-800 rounded-2xl py-3 sm:py-4 px-4 sm:px-6 text-gray-200 text-sm focus:outline-none focus:border-primary/50 transition-all shadow-inner"
                             />
                             <button
                                 onClick={handleLoadVideo}
-                                className="px-8 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all italic shadow-lg shadow-primary/20"
+                                className="shrink-0 px-6 sm:px-8 py-3 sm:py-4 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all italic shadow-lg shadow-primary/20"
                             >
                                 Carregar
                             </button>
@@ -285,7 +285,7 @@ export default function YouTubeWatch() {
                             )}
                         </div>
 
-                        <div className="mt-8 flex items-center justify-between relative z-10">
+                        <div className="mt-4 sm:mt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
                             <div className="flex items-center gap-4">
                                 {isRunning && (
                                     <div className="flex items-center gap-3 px-6 py-4 bg-gray-800/50 rounded-2xl border border-gray-700/50 shadow-inner">
@@ -303,8 +303,8 @@ export default function YouTubeWatch() {
                 </div>
 
                 {/* Reward Tracker Sidebar */}
-                <div className="space-y-6">
-                    <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden">
+                <div className="space-y-4 sm:space-y-6">
+                    <div className="bg-surface border border-gray-800/50 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-[100px] -mr-10 -mt-10" />
                         
                         <h3 className="text-sm font-black text-white uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
@@ -320,7 +320,7 @@ export default function YouTubeWatch() {
                         </div>
                     </div>
 
-                    <div className="bg-gray-900 border border-gray-800 rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 space-y-6 shadow-2xl">
                         <div className="space-y-4">
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
                                 <span className="text-slate-500">Claims (24h)</span>
