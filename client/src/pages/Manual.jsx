@@ -424,14 +424,15 @@ export default function Manual() {
                                 },
                                 {
                                     icon: Bolt,
-                                    title: '4. Auto Mining (GPU Automática)',
+                                    title: '4. Auto Mining',
                                     color: 'text-blue-400',
                                     content: (
                                         <>
-                                            <p>GPUs especiais geram hashrate adicional de forma automática, sem precisar instalar em rack. As recompensas são creditadas periodicamente conforme a GPU ativa.</p>
+                                            <p>Deixe a tela de <strong className="text-white">Auto Mining aberta</strong> e as máquinas são resgatadas automaticamente a cada 5 minutos, sem nenhuma ação sua.</p>
                                             <ul className="space-y-1.5 mt-2 text-[12px]">
-                                                <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span>GPUs Auto Mining não ocupam slots de rack</span></li>
-                                                <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span>Podem ser obtidas via eventos, ofertas e recompensas especiais</span></li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span><strong className="text-white">Como funciona:</strong> clique em iniciar, mantenha a aba aberta e o timer de 5 min roda sozinho</span></li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span>Ao atingir o tempo, a GPU disponível é resgatada e vai direto para o seu inventário</span></li>
+                                                <li className="flex items-start gap-2"><AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" /><span>Fechar a aba ou trocar de página para o timer — mantenha o Auto Mining visível</span></li>
                                             </ul>
                                         </>
                                     )
