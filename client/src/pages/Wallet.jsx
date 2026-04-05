@@ -214,8 +214,21 @@ export default function Wallet() {
                 );
                 return;
             }
-            // Use raw EIP-1193 eth_sendTransaction to avoid ethers.js
-            // polling eth_blockNumber through the user's (possibly broken) wallet RPC.
+            // Força o MetaMask a usar nosso RPC confiável para Polygon,
+            // sobrescrevendo qualquer RPC quebrado que o usuário possa ter.
+            try {
+                await eip1193.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: '0x89',
+                        chainName: 'Polygon Mainnet',
+                        nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+                        rpcUrls: ['https://polygon-bor-rpc.publicnode.com'],
+                        blockExplorerUrls: ['https://polygonscan.com/'],
+                    }]
+                });
+            } catch (_) { /* wallet pode rejeitar se já está na rede — ignoramos */ }
+
             const accounts = await eip1193.request({ method: 'eth_accounts' });
             const from = accounts[0];
             const valueHex = '0x' + parseEther(amount.toString()).toString(16);
