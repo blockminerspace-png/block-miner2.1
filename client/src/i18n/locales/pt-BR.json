@@ -422,7 +422,7 @@
     "notes_blocks": "{{blocks}} blocos/dia · ganhos proporcionais ao hash",
     "notes_estimate": "Estimativa não considera variações de rede"
   },
-    "pages": {
+  "pages": {
     "dashboard": "Dashboard Central",
     "shop": "Loja de Equipamentos",
     "offers": "Ofertas populares",
@@ -438,8 +438,7 @@
     "settings": "Configurações de Conta",
     "overview": "Visão Geral",
     "transparency": "Transparência"
-    }
-    },
+  },
   "transparency": {
     "page_title": "Portal de Transparência",
     "page_subtitle": "BlockMiner — Custos operacionais e investimentos",
@@ -569,3 +568,4 @@
       "toast_error": "Erro ao salvar."
     }
   }
+}

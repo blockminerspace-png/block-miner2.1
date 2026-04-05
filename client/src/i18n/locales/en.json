@@ -417,7 +417,7 @@
     "notes_blocks": "{{blocks}} blocks/day · rewards proportional to hash",
     "notes_estimate": "Estimate does not account for network fluctuations"
   },
-    "pages": {
+  "pages": {
     "dashboard": "Main Dashboard",
     "shop": "Equipment Shop",
     "offers": "Popular Offers",
@@ -433,8 +433,7 @@
     "settings": "Account Settings",
     "overview": "Overview",
     "transparency": "Transparency"
-    }
-    },
+  },
   "transparency": {
     "page_title": "Transparency Portal",
     "page_subtitle": "BlockMiner — Operational costs and investments",
@@ -564,3 +563,4 @@
       "toast_error": "Error saving."
     }
   }
+}
