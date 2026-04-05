@@ -49,12 +49,16 @@ export default function PublicRoom() {
 
     const gamePower = targetUser?.gamePower || 0;
     const totalHashRate = activeMachinesHashRate + gamePower;
+    const installedCount = machines.filter(m => !m.isSecondSlot).length;
 
     if (isLoading) {
         return (
             <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
-                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Sincronizando Hardware...</p>
+                <div className="relative w-14 h-14">
+                    <div className="absolute inset-0 border-4 border-primary/20 rounded-full" />
+                    <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+                <p className="text-gray-600 font-black uppercase tracking-[0.3em] text-[10px]">Sincronizando Hardware...</p>
             </div>
         );
     }
@@ -69,78 +73,126 @@ export default function PublicRoom() {
     }
 
     return (
-        <div className="space-y-8 pb-20 animate-in fade-in duration-700">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[100px] -mr-32 -mt-32" />
-                
-                <div className="flex items-center gap-6 relative z-10">
-                    <div className="w-20 h-20 rounded-3xl bg-gray-800 flex items-center justify-center text-3xl font-black text-white border-2 border-gray-700 shadow-2xl">
-                        {targetUser.username.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-black text-white tracking-tight italic uppercase">
-                                Sala de <span className="text-primary">{targetUser.username}</span>
-                            </h1>
-                            <div className="px-3 py-1 bg-primary/10 rounded-lg border border-primary/20 flex items-center gap-1.5">
-                                <Shield className="w-3 h-3 text-primary" />
-                                <span className="text-[10px] font-black text-primary uppercase">Modo Visitação</span>
-                            </div>
-                        </div>
-                        <p className="text-gray-500 font-medium mt-1 uppercase text-xs tracking-widest flex items-center gap-2">
-                            <Trophy className="w-3 h-3" /> Visualizando configuração de rede global
-                        </p>
-                    </div>
+        <div className="space-y-6 pb-20 animate-in fade-in duration-700">
+
+            {/* ── Header ──────────────────────────────────────────── */}
+            <div className="relative rounded-[2.5rem] overflow-hidden border border-slate-800/80 shadow-2xl bg-slate-900/50">
+                {/* ambient glows */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div className="absolute -top-20 left-1/3 w-96 h-96 bg-primary/6 rounded-full blur-[120px]" />
+                    <div className="absolute -bottom-10 right-0 w-64 h-64 bg-blue-500/4 rounded-full blur-[100px]" />
                 </div>
 
-                <div className="flex flex-col md:flex-row items-center gap-4 relative z-10">
-                    <button 
-                        onClick={() => navigate('/ranking')}
-                        className="flex items-center gap-3 px-6 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl transition-all border border-gray-700 shadow-xl group font-bold text-sm uppercase tracking-widest order-2 md:order-1 w-full md:w-auto justify-center"
-                    >
-                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                        Voltar
-                    </button>
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 p-8">
+                    {/* identity */}
+                    <div className="flex items-center gap-5">
+                        <div className="relative shrink-0">
+                            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/25 via-slate-800 to-slate-900 flex items-center justify-center text-4xl font-black text-white shadow-2xl border border-primary/20 ring-1 ring-primary/10">
+                                {targetUser.username.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-lg shadow-emerald-500/30" />
+                        </div>
+                        <div>
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                <h1 className="text-3xl font-black text-white tracking-tight italic uppercase leading-none">
+                                    {targetUser.username}
+                                </h1>
+                                <span className="px-2.5 py-1 bg-primary/10 rounded-lg border border-primary/20 flex items-center gap-1.5 shrink-0">
+                                    <Shield className="w-3 h-3 text-primary" />
+                                    <span className="text-[9px] font-black text-primary uppercase tracking-wider">Visitação</span>
+                                </span>
+                            </div>
+                            <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                                <Trophy className="w-3 h-3" />
+                                Rede de mineração global
+                            </p>
+                        </div>
+                    </div>
 
-                    <div className="flex items-center gap-3 order-1 md:order-2">
-                        <div className="px-6 py-4 bg-gray-950 rounded-2xl border border-gray-800 flex flex-col items-center min-w-[140px]">
-                            <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1 text-center">HashRate Total</span>
-                            <div className="flex items-center gap-2 text-white font-black text-xl italic">
-                                <Zap className="w-5 h-5 text-primary" />
-                                {formatHashrate(totalHashRate)}
+                    {/* stats + back */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <div className="px-4 py-3.5 bg-black/40 rounded-2xl border border-gray-800/80 flex flex-col items-center min-w-[100px]">
+                                <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">Hashrate</span>
+                                <div className="flex items-center gap-1.5 text-white font-black text-base italic">
+                                    <Zap className="w-3.5 h-3.5 text-primary" />
+                                    {formatHashrate(totalHashRate)}
+                                </div>
+                            </div>
+                            <div className="px-4 py-3.5 bg-black/40 rounded-2xl border border-gray-800/80 flex flex-col items-center min-w-[100px]">
+                                <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">Jogos</span>
+                                <div className="flex items-center gap-1.5 text-primary font-black text-base italic">
+                                    <Gamepad2 className="w-3.5 h-3.5" />
+                                    {formatHashrate(gamePower)}
+                                </div>
+                            </div>
+                            <div className="px-4 py-3.5 bg-black/40 rounded-2xl border border-gray-800/80 flex flex-col items-center min-w-[100px]">
+                                <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">Máquinas</span>
+                                <div className="flex items-center gap-1.5 text-white font-black text-base italic">
+                                    <Cpu className="w-3.5 h-3.5 text-primary" />
+                                    {installedCount}
+                                </div>
                             </div>
                         </div>
-                        
-                        <div className="px-6 py-4 bg-gray-950 rounded-2xl border border-gray-800 flex flex-col items-center min-w-[140px]">
-                            <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1 text-center">Poder de Jogos</span>
-                            <div className="flex items-center gap-2 text-primary font-black text-xl italic">
-                                <Gamepad2 className="w-5 h-5" />
-                                {formatHashrate(gamePower)}
-                            </div>
-                        </div>
+                        <button
+                            onClick={() => navigate('/ranking')}
+                            className="flex items-center gap-2 px-5 py-3 bg-gray-800/70 hover:bg-gray-700/80 text-gray-300 hover:text-white rounded-2xl transition-all border border-gray-700/50 group font-bold text-xs uppercase tracking-widest"
+                        >
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                            Voltar
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* ── Racks grid ──────────────────────────────────────── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {Array.from({ length: RACKS_COUNT }).map((_, i) => {
                     const rackIndex = i + 1;
                     const rackName = racks[rackIndex] || `Rack ${rackIndex}`;
 
+                    const rackMachines = Array.from({ length: SLOTS_PER_RACK }, (_, localI) => {
+                        const g = getGlobalSlotIndex(rackIndex, localI);
+                        return getMachineBySlot(g, machines);
+                    }).filter(m => m && !m.isSecondSlot);
+
+                    const rackOccupied = rackMachines.length;
+                    const rackHashRate = rackMachines.reduce((s, m) => s + Number(m?.hashRate || m?.hash_rate || 0), 0);
+                    const fillPct = Math.round((rackOccupied / SLOTS_PER_RACK) * 100);
+                    const isEmpty = rackOccupied === 0;
+
                     return (
-                        <div key={rackIndex} className="bg-surface border border-gray-800/50 rounded-[2.5rem] overflow-hidden shadow-2xl relative group">
-                            <div className="px-8 py-6 bg-gray-800/20 border-b border-gray-800/50 flex justify-between items-center relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                                <div className="flex items-center gap-4">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-glow" />
-                                    <h3 className="text-base font-black text-white italic uppercase tracking-tighter">{rackName}</h3>
+                        <div
+                            key={rackIndex}
+                            className={`bg-surface border rounded-[1.75rem] overflow-hidden shadow-lg transition-colors ${
+                                isEmpty ? 'border-gray-800/30 opacity-50' : 'border-gray-800/60 hover:border-gray-700/60'
+                            }`}
+                        >
+                            {/* rack header */}
+                            <div className="px-5 py-3.5 bg-gray-900/50 border-b border-gray-800/40 flex items-center justify-between relative overflow-hidden">
+                                <div className={`absolute left-0 top-0 w-0.5 h-full transition-colors ${isEmpty ? 'bg-gray-700/30' : 'bg-primary/60'}`} />
+                                <div className="flex items-center gap-2.5">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${rackOccupied > 0 ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse' : 'bg-gray-700'}`} />
+                                    <h3 className="text-xs font-black text-white italic uppercase tracking-tight">{rackName}</h3>
                                 </div>
-                                <div className="text-[10px] font-black text-gray-600 uppercase tracking-widest bg-gray-900/50 px-3 py-1 rounded-lg border border-gray-800">
-                                    Status: Online
+                                <div className="flex items-center gap-3">
+                                    {rackHashRate > 0 && (
+                                        <span className="text-[9px] font-black text-primary italic">{formatHashrate(rackHashRate)}</span>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-14 h-1 rounded-full bg-gray-800 overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full bg-primary transition-all duration-700"
+                                                style={{ width: `${fillPct}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[9px] font-black text-gray-600 tabular-nums">{rackOccupied}/{SLOTS_PER_RACK}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="p-8 grid grid-cols-4 gap-4">
+                            {/* slots */}
+                            <div className="p-4 grid grid-cols-4 gap-2">
                                 {Array.from({ length: SLOTS_PER_RACK }).map((_, localI) => {
                                     const globalI = getGlobalSlotIndex(rackIndex, localI);
                                     const machine = getMachineBySlot(globalI, machines);
@@ -155,32 +207,29 @@ export default function PublicRoom() {
                                         <div
                                             key={localI}
                                             className={`
-                                                relative aspect-square rounded-2xl border transition-all duration-500 flex items-center justify-center overflow-hidden
-                                                ${isDouble ? 'col-span-2 aspect-auto' : ''}
+                                                relative aspect-square rounded-xl border transition-all duration-300 flex items-center justify-center overflow-hidden
+                                                ${isDouble ? 'col-span-2' : ''}
                                                 ${isOccupied
-                                                    ? 'bg-gray-800/40 border-gray-700/50 shadow-inner'
-                                                    : 'bg-gray-950/40 border-dashed border-gray-900 opacity-20'}
+                                                    ? 'bg-gradient-to-b from-gray-800/50 to-gray-900/60 border-gray-700/50 hover:border-primary/30 hover:shadow-sm hover:shadow-primary/10 cursor-default'
+                                                    : 'bg-gray-950/20 border-dashed border-gray-800/30 opacity-30'}
                                             `}
                                         >
                                             {isOccupied ? (
-                                                <div className="relative w-full h-full p-2 flex items-center justify-center group-item">
-                                                    <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                <div className="relative w-full h-full p-1.5 flex items-center justify-center">
                                                     <img
                                                         src={descriptor.image}
                                                         alt={descriptor.name}
-                                                        className="w-4/5 h-4/5 object-contain z-10"
-                                                        onError={(e) => e.target.src = DEFAULT_MINER_IMAGE_URL}
+                                                        className="w-4/5 h-4/5 object-contain z-10 drop-shadow-sm"
+                                                        onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }}
                                                     />
-                                                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary shadow-glow animate-pulse" />
-                                                    
-                                                    {/* Tooltip on hover */}
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 opacity-0 hover:opacity-100 transition-opacity z-20 p-2 text-center">
-                                                        <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em]">{descriptor.name}</span>
-                                                        <span className="text-[10px] font-black text-white mt-1 italic">{formatHashrate(machine.hashRate || machine.hash_rate || 0)}</span>
+                                                    <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/92 opacity-0 hover:opacity-100 transition-opacity z-20 rounded-xl gap-0.5 p-2 text-center">
+                                                        <span className="text-[7px] font-black text-primary uppercase tracking-wide leading-tight">{descriptor.name}</span>
+                                                        <span className="text-[10px] font-black text-white italic">{formatHashrate(machine.hashRate || machine.hash_rate || 0)}</span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="w-1.5 h-1.5 rounded-full bg-gray-800" />
+                                                <div className="w-1 h-1 rounded-full bg-gray-800" />
                                             )}
                                         </div>
                                     );
@@ -191,16 +240,12 @@ export default function PublicRoom() {
                 })}
             </div>
 
-            <div className="p-8 bg-blue-500/5 border border-blue-500/10 rounded-[2.5rem] flex items-start gap-6 max-w-2xl mx-auto">
-                <div className="p-4 bg-blue-500/10 rounded-2xl">
-                    <Shield className="w-6 h-6 text-blue-400" />
-                </div>
-                <div>
-                    <h4 className="text-white font-black text-lg italic uppercase">Acesso de Visitante</h4>
-                    <p className="text-sm text-gray-500 leading-relaxed font-medium mt-1">
-                        Você está no modo de visualização. Não é possível alterar as configurações, mover máquinas ou renomear racks deste minerador.
-                    </p>
-                </div>
+            {/* ── Visitor notice ──────────────────────────────────── */}
+            <div className="flex items-center justify-center gap-2.5 py-3 px-6 bg-slate-900/30 border border-slate-800/40 rounded-2xl max-w-lg mx-auto">
+                <Shield className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+                    Modo visitação — configurações bloqueadas para este minerador
+                </p>
             </div>
         </div>
     );
