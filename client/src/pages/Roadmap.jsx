@@ -84,7 +84,7 @@ const MILESTONES = [
       { icon: MessageSquare,label: 'Chat Global & DMs',                 status: S.LAUNCHED },
       { icon: Users,        label: 'Sala Pública do Minerador',         status: S.LAUNCHED },
       { icon: Ticket,       label: 'Tickets de Suporte',                status: S.LAUNCHED },
-      { icon: TrendingUp,   label: 'Swap POL ↔ USDC',                  status: S.LAUNCHED },
+      { icon: TrendingUp,   label: 'Swap POL ↔ USDC',                  status: S.PLANNED },
     ],
   },
   {
@@ -110,7 +110,6 @@ const MILESTONES = [
       { icon: Gavel,        label: 'Leilão de Miners Raros',           status: S.PLANNED },
       { icon: Store,        label: 'Marketplace P2P',                  status: S.PLANNED },
       { icon: Swords,       label: 'Torneios & Competições',           status: S.PLANNED },
-      { icon: Users,        label: 'Afiliados Multi-nível',            status: S.PLANNED },
     ],
   },
   {
