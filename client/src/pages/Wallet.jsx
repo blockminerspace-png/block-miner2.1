@@ -218,19 +218,17 @@ export default function Wallet() {
             const from = accounts[0];
             const valueHex = '0x' + parseEther(amount.toString()).toString(16);
 
-            // Busca nonce e gasPrice do nosso RPC diretamente,
-            // assim o MetaMask não precisa consultar o RPC dele (possivelmente quebrado).
-            const OUR_RPC = 'https://polygon-bor-rpc.publicnode.com';
-            const rpcCall = (method, params = []) =>
-                fetch(OUR_RPC, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-                }).then(r => r.json()).then(r => r.result);
+            // Busca nonce e gasPrice via Polygonscan API (sem depender de RPC).
+            // Isso resolve o erro eth_blockNumber quando o RPC do MetaMask está quebrado.
+            const PSCAN = 'https://api.polygonscan.com/api';
+            const PSCAN_KEY = 'DNIDH8EQQ6BXBA8A1BZS644DGGMYBACMDV';
+            const pscan = (action, extra = '') =>
+                fetch(`${PSCAN}?module=proxy&action=${action}${extra}&apikey=${PSCAN_KEY}`)
+                    .then(r => r.json()).then(r => r.result);
 
             const [nonce, gasPrice] = await Promise.all([
-                rpcCall('eth_getTransactionCount', [from, 'pending']),
-                rpcCall('eth_gasPrice'),
+                pscan('eth_getTransactionCount', `&address=${from}&tag=pending`),
+                pscan('eth_gasPrice'),
             ]);
 
             toast.info('Requesting transaction authorized...');
