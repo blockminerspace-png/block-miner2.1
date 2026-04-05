@@ -143,16 +143,19 @@ export default function AdminMiners() {
 
         setIsUploading(true);
         try {
-            const res = await api.post('/admin/miners/upload-image', file, {
-                headers: { 'Content-Type': file.type, 'X-File-Name': file.name }
+            const formData = new FormData();
+            formData.append('image', file);
+            const res = await api.post('/admin/upload-image', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
-            if (res.data.imageUrl) {
+            const imageUrl = res.data.url || res.data.imageUrl;
+            if (imageUrl) {
                 toast.success('Imagem carregada!');
                 if (targetId === null) {
-                    setNewMiner(prev => ({ ...prev, imageUrl: res.data.imageUrl }));
+                    setNewMiner(prev => ({ ...prev, imageUrl }));
                 } else {
                     setMiners(prev => prev.map(item =>
-                        item.id === targetId ? { ...item, imageUrl: res.data.imageUrl } : item
+                        item.id === targetId ? { ...item, imageUrl } : item
                     ));
                 }
             }
