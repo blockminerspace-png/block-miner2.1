@@ -24,7 +24,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { api } from '../store/auth';
-import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
+import { parseEther, formatEther, isAddress } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
 import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -214,24 +214,23 @@ export default function Wallet() {
                 );
                 return;
             }
-            const provider = new BrowserProvider(eip1193);
-            const signer = await provider.getSigner();
+            // Use raw EIP-1193 eth_sendTransaction to avoid ethers.js
+            // polling eth_blockNumber through the user's (possibly broken) wallet RPC.
+            const accounts = await eip1193.request({ method: 'eth_accounts' });
+            const from = accounts[0];
+            const valueHex = '0x' + parseEther(amount.toString()).toString(16);
 
             toast.info('Requesting transaction authorized...');
 
-            // We use a manual gasLimit to force MetaMask to open even if 
-            // the user has 0 funds. This allows the user to see the 
-            // "Insufficient Funds" warning INSIDE MetaMask.
-            const tx = await signer.sendTransaction({
-                to: systemDepositAddress,
-                value: parseEther(amount.toString()),
-                gasLimit: 21000 // Standard transfer gas
+            const txHash = await eip1193.request({
+                method: 'eth_sendTransaction',
+                params: [{ from, to: systemDepositAddress, value: valueHex, gas: '0x5208' }]
             });
 
             toast.info('Transação enviada! Registrando para verificação...');
 
             const res = await api.post('/wallet/deposit/submit', {
-                txHash: tx.hash,
+                txHash: txHash,
                 claimedAmount: amount
             });
 
