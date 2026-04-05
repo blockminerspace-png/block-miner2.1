@@ -216,8 +216,7 @@ export default function AdminMiners() {
                                     <input value={newMiner.imageUrl} onChange={e => setNewMiner(p => ({ ...p, imageUrl: e.target.value }))} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
                                     <button type="button" onClick={() => fileInputRef.current.click()} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white"><Upload className="w-5 h-5" /></button>
                                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, null)} />
-                                    <input type="file" ref={rowFileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, uploadTargetId)} />
-                                </div>
+                                                </div>
                             </div>
                             <div className="md:col-span-2 flex items-center gap-6 py-4">
                                 <label className="flex items-center gap-2 cursor-pointer group">
@@ -245,6 +244,9 @@ export default function AdminMiners() {
                 </div>,
                 document.body
             )}
+
+            {/* Input de upload de imagem para linhas da tabela — sempre no DOM */}
+            <input type="file" ref={rowFileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, uploadTargetId)} />
 
             <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
