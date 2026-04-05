@@ -40,7 +40,8 @@ export default function PublicRoom() {
             }
         };
         fetchRoomData();
-    }, [username, navigate]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [username]);
 
     const machines = targetUser?.miners || [];
     const racks = targetUser?.racks || {};
