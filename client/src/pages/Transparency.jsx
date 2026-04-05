@@ -17,7 +17,7 @@ const INVESTMENT_WALLET = '0x1f4872991e6bFc74C2064E2fE4875a78503B5cc1';
 const POLYGON_RPC = 'https://polygon-rpc.com';
 
 const POOL_POSITIONS = [
-  { id: 'XYaDWC63das', label: 'WBTC / USDC — Uniswap V3 (0.05%)', link: 'https://defi.krystal.app' },
+  { id: 'XYaDWC63das', label: 'WBTC / USDC — Uniswap V3 (0.05%)', link: 'https://defi.krystal.app/strategies/75416799' },
 ];
 
 const CATEGORY_ICONS = {
