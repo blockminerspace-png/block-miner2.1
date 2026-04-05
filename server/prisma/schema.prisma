@@ -859,24 +859,30 @@ model UserRack {
 }
 
 model TransparencyEntry {
-  id          Int      @id @default(autoincrement())
-  // Categoria: infrastructure | tooling | marketing | payroll | legal | misc
-  category    String   @default("misc")
-  name        String
-  description String?  @db.Text
-  provider    String?                     // ex: Hetzner, Cloudflare, GitHub
-  providerUrl String?  @map("provider_url")
-  amountUsd   Decimal  @map("amount_usd") @db.Decimal(20, 2)
+  id             Int      @id @default(autoincrement())
+  // Tipo: expense | income
+  type           String   @default("expense")
+  // Categoria (gastos): infrastructure | tooling | marketing | payroll | legal | misc
+  category       String   @default("misc")
+  // Categoria (receitas): sponsorship | donation | revenue | investment_return | other
+  incomeCategory String?  @map("income_category")
+  name           String
+  description    String?  @db.Text
+  provider       String?                     // ex: Hetzner, Cloudflare, GitHub
+  providerUrl    String?  @map("provider_url")
+  imageUrl       String?  @map("image_url")  // comprovante / logo do patrocinador
+  amountUsd      Decimal  @map("amount_usd") @db.Decimal(20, 2)
   // Período: monthly | annual | one_time | daily
-  period      String   @default("monthly")
-  isPaid      Boolean  @default(true) @map("is_paid")
-  isActive    Boolean  @default(true) @map("is_active")
-  notes       String?  @db.Text
-  sortOrder   Int      @default(0) @map("sort_order")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  period         String   @default("monthly")
+  isPaid         Boolean  @default(true) @map("is_paid")
+  isActive       Boolean  @default(true) @map("is_active")
+  notes          String?  @db.Text
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@index([isActive])
   @@index([category])
+  @@index([type])
   @@map("transparency_entries")
 }

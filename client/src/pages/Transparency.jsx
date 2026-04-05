@@ -7,7 +7,7 @@ import {
   Eye, Server, Wrench, Megaphone, Briefcase, Scale, Package,
   DollarSign, RefreshCw, ExternalLink, TrendingUp, TrendingDown,
   CheckCircle2, Clock, Wallet, Copy, Check as CheckIcon, ShieldCheck,
-  BarChart2, Activity,
+  BarChart2, Activity, ArrowUpRight, ImageIcon,
 } from 'lucide-react';
 
 const INVESTMENT_WALLET = '0x1f4872991e6bFc74C2064E2fE4875a78503B5cc1';
@@ -28,6 +28,14 @@ const CATEGORY_META = {
 
 const PERIOD_LABEL = { daily: 'Diario', monthly: 'Mensal', annual: 'Anual', one_time: 'Unico' };
 const CATEGORY_ORDER = ['infrastructure', 'tooling', 'marketing', 'payroll', 'legal', 'misc'];
+
+const INCOME_CATEGORY_META = {
+  revenue:           { label: 'Receita Operacional', color: '#34d399', bg: 'bg-emerald-500/15',  tw: 'text-emerald-400' },
+  sponsorship:       { label: 'Patrocinio',           color: '#60a5fa', bg: 'bg-blue-500/15',    tw: 'text-blue-400'    },
+  donation:          { label: 'Doacao',               color: '#f472b6', bg: 'bg-pink-500/15',    tw: 'text-pink-400'    },
+  investment_return: { label: 'Retorno Invest.',       color: '#a78bfa', bg: 'bg-violet-500/15',  tw: 'text-violet-400'  },
+  other:             { label: 'Outro',                color: '#9ca3af', bg: 'bg-gray-500/15',    tw: 'text-gray-400'    },
+};
 
 function toMonthly(amount, period) {
   const n = parseFloat(amount);
@@ -117,7 +125,43 @@ function CategoryBar({ meta, monthly, totalMonthly, entries }) {
   );
 }
 
-function EntryRow({ entry }) {
+function IncomeCard({ entry }) {
+  const meta = INCOME_CATEGORY_META[entry.incomeCategory] || INCOME_CATEGORY_META.other;
+  return (
+    <div className="rounded-2xl border border-emerald-500/15 bg-emerald-950/20 overflow-hidden flex flex-col">
+      {entry.imageUrl ? (
+        <div className="w-full bg-black/20 overflow-hidden" style={{ aspectRatio: '16/7' }}>
+          <img src={entry.imageUrl} alt={entry.name} className="w-full h-full object-cover" onError={e => { e.target.parentElement.style.display='none'; }} />
+        </div>
+      ) : (
+        <div className="flex items-center justify-center bg-emerald-950/30 border-b border-emerald-500/10" style={{ height: 56 }}>
+          <ImageIcon className="w-6 h-6 text-emerald-900" />
+        </div>
+      )}
+      <div className="p-4 flex flex-col gap-2 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-black text-white leading-tight">{entry.name}</p>
+          <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${meta.bg} ${meta.tw} uppercase tracking-wider`}>{meta.label}</span>
+        </div>
+        {entry.description && <p className="text-[11px] text-gray-500">{entry.description}</p>}
+        {entry.provider && (
+          entry.providerUrl
+            ? <a href={entry.providerUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold">
+                {entry.provider} <ArrowUpRight className="w-3 h-3" />
+              </a>
+            : <p className="text-xs text-gray-500 font-semibold">{entry.provider}</p>
+        )}
+        <div className="flex items-center justify-between mt-auto pt-1">
+          <span className="text-sm font-black text-emerald-300">{fmt(entry.amountUsd)}<span className="text-[11px] text-gray-500 ml-1">/{(PERIOD_LABEL[entry.period] || entry.period).toLowerCase()}</span></span>
+          {entry.isPaid
+            ? <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Recebido</span>
+            : <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">Pendente</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
   const meta = CATEGORY_META[entry.category] || CATEGORY_META.misc;
   const Icon = meta.icon;
   return (
@@ -351,10 +395,10 @@ export default function Transparency() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={DollarSign}   label="Custo Mensal"  value={fmt(totalMonthly, true)} sub="Despesas recorrentes"       accent="text-primary"      glow />
-            <StatCard icon={TrendingUp}   label="Custo Anual"   value={fmt(totalAnnual, true)}  sub="Incl. gastos unicos"         accent="text-amber-400"   />
-            <StatCard icon={CheckCircle2} label="Em dia"        value={paidUp}                  sub={`${paidUp} item(s) pagos`}  accent="text-emerald-400" />
-            <StatCard icon={Clock}        label="Pendentes"     value={pending}                 sub="Pagamentos futuros"          accent="text-amber-400"   />
+            <StatCard icon={DollarSign}   label="Custo Mensal"      value={fmt(totalMonthly, true)}  sub="Despesas recorrentes"      accent="text-primary"      glow />
+            <StatCard icon={TrendingUp}   label="Total Receitas"    value={fmt(totalIncMonthly, true)} sub="Receitas mensais"          accent="text-emerald-400" />
+            <StatCard icon={Activity}     label="Saldo Liquido"     value={fmt(Math.abs(netBalance), true)} sub={netPositive ? 'Saldo positivo' : 'Deficit mensal'} accent={netPositive ? 'text-emerald-400' : 'text-red-400'} />
+            <StatCard icon={CheckCircle2} label="Anuais (gastos)"   value={fmt(totalAnnual, true)}   sub={`${paidUp} pago(s), ${pending} pendente(s)`} accent="text-amber-400"   />
           </div>
 
           {/* Charts */}
@@ -428,6 +472,22 @@ export default function Transparency() {
                     entries={byCategory[c].length}
                   />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Receitas / Patrocinios / Doacoes */}
+          {incomes.length > 0 && (
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 overflow-hidden">
+              <div className="px-6 py-4 border-b border-emerald-500/10 bg-emerald-500/5 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <p className="text-xs font-black text-emerald-400 uppercase tracking-widest">Receitas, Patrocinios &amp; Doacoes</p>
+                <span className="ml-auto text-xs font-black text-emerald-300">{fmt(totalIncMonthly, true)}<span className="text-gray-600 font-normal">/mes</span></span>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {incomes.map(e => <IncomeCard key={e.id} entry={e} />)}
+                </div>
               </div>
             </div>
           )}

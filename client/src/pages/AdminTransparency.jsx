@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Eye,
   Plus,
@@ -15,6 +15,10 @@ import {
   ExternalLink,
   ToggleLeft,
   ToggleRight,
+  TrendingDown,
+  TrendingUp,
+  Upload,
+  ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,6 +31,14 @@ const CATEGORIES = [
   { value: 'misc',          label: 'Outros',          icon: Package },
 ];
 
+const INCOME_CATEGORIES = [
+  { value: 'revenue',           label: 'Receita Operacional' },
+  { value: 'sponsorship',       label: 'Patrocínio' },
+  { value: 'donation',          label: 'Doação' },
+  { value: 'investment_return', label: 'Retorno de Investimento' },
+  { value: 'other',             label: 'Outro' },
+];
+
 const PERIODS = [
   { value: 'monthly',  label: 'Mensal' },
   { value: 'annual',   label: 'Anual' },
@@ -35,11 +47,14 @@ const PERIODS = [
 ];
 
 const EMPTY_FORM = {
+  type: 'expense',
   category: 'infrastructure',
+  incomeCategory: 'revenue',
   name: '',
   description: '',
   provider: '',
   providerUrl: '',
+  imageUrl: '',
   amountUsd: '',
   period: 'monthly',
   isPaid: true,
@@ -52,7 +67,8 @@ function fmt(n) {
   return `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function getCatLabel(v) {
+function getCatLabel(v, type) {
+  if (type === 'income') return INCOME_CATEGORIES.find(c => c.value === v)?.label || v;
   return CATEGORIES.find(c => c.value === v)?.label || v;
 }
 
@@ -79,6 +95,8 @@ export default function AdminTransparency() {
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   const adminToken = localStorage.getItem('adminToken');
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` };
@@ -105,19 +123,42 @@ export default function AdminTransparency() {
   function openEdit(entry) {
     setEditId(entry.id);
     setForm({
-      category:    entry.category,
-      name:       entry.name,
-      description: entry.description || '',
-      provider:   entry.provider || '',
-      providerUrl: entry.providerUrl || '',
-      amountUsd:  String(entry.amountUsd),
-      period:     entry.period,
-      isPaid:     entry.isPaid,
-      isActive:   entry.isActive,
-      notes:      entry.notes || '',
-      sortOrder:  entry.sortOrder,
+      type:           entry.type || 'expense',
+      category:       entry.category || 'infrastructure',
+      incomeCategory: entry.incomeCategory || 'revenue',
+      name:           entry.name,
+      description:    entry.description || '',
+      provider:       entry.provider || '',
+      providerUrl:    entry.providerUrl || '',
+      imageUrl:       entry.imageUrl || '',
+      amountUsd:      String(entry.amountUsd),
+      period:         entry.period,
+      isPaid:         entry.isPaid,
+      isActive:       entry.isActive,
+      notes:          entry.notes || '',
+      sortOrder:      entry.sortOrder,
     });
     setShowForm(true);
+  }
+
+  async function handleImageUpload(file) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return toast.error('Imagem muito grande (máx 5MB).');
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const r = await fetch('/api/admin/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${adminToken}` }, body: fd });
+      const d = await r.json();
+      if (d.ok && d.url) {
+        setForm(f => ({ ...f, imageUrl: d.url }));
+        toast.success('Imagem enviada.');
+      } else {
+        toast.error(d.message || 'Erro ao enviar imagem.');
+      }
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSave() {
@@ -186,14 +227,48 @@ export default function AdminTransparency() {
           <h2 className="text-xs font-black text-primary uppercase tracking-widest mb-2">
             {editId ? 'Editar Entrada' : 'Nova Entrada'}
           </h2>
+          {/* Tipo: Gasto / Receita */}
+          <div className="flex gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, type: 'expense' }))}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-colors ${
+                form.type === 'expense'
+                  ? 'bg-red-500/20 border-red-500/40 text-red-400'
+                  : 'bg-white/5 border-white/8 text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <TrendingDown className="w-3.5 h-3.5" /> Gasto
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, type: 'income' }))}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-colors ${
+                form.type === 'income'
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                  : 'bg-white/5 border-white/8 text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" /> Receita
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Categoria">
-              <select className={inputCls} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-            </Field>
+            {form.type === 'expense' ? (
+              <Field label="Categoria">
+                <select className={inputCls} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                  {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </Field>
+            ) : (
+              <Field label="Tipo de Receita">
+                <select className={inputCls} value={form.incomeCategory} onChange={e => setForm(f => ({ ...f, incomeCategory: e.target.value }))}>
+                  {INCOME_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </Field>
+            )}
             <Field label="Nome *">
-              <input className={inputCls} placeholder="ex: VPS Hetzner" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <input className={inputCls} placeholder={form.type === 'expense' ? 'ex: VPS Hetzner' : 'ex: Patrocínio XYZ'} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </Field>
             <Field label="Valor (USD) *">
               <input className={inputCls} type="number" min="0" step="0.01" placeholder="0.00" value={form.amountUsd} onChange={e => setForm(f => ({ ...f, amountUsd: e.target.value }))} />
@@ -203,8 +278,8 @@ export default function AdminTransparency() {
                 {PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </Field>
-            <Field label="Fornecedor">
-              <input className={inputCls} placeholder="ex: Hetzner Cloud" value={form.provider} onChange={e => setForm(f => ({ ...f, provider: e.target.value }))} />
+            <Field label="Fornecedor / Origem">
+              <input className={inputCls} placeholder={form.type === 'expense' ? 'ex: Hetzner Cloud' : 'ex: Nome do Patrocinador'} value={form.provider} onChange={e => setForm(f => ({ ...f, provider: e.target.value }))} />
             </Field>
             <Field label="URL do Fornecedor">
               <input className={inputCls} placeholder="https://..." value={form.providerUrl} onChange={e => setForm(f => ({ ...f, providerUrl: e.target.value }))} />
@@ -219,6 +294,42 @@ export default function AdminTransparency() {
               <input className={inputCls} type="number" min="0" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))} />
             </Field>
           </div>
+
+          {/* Imagem / Comprovante */}
+          <Field label="Imagem (logo, comprovante, screenshot)">
+            <div className="flex gap-2">
+              <input
+                className={inputCls + ' flex-1'}
+                placeholder="URL da imagem ou faça upload"
+                value={form.imageUrl}
+                onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white/8 border border-white/12 hover:bg-white/15 text-gray-300 rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                {uploading ? <div className="w-3.5 h-3.5 border border-gray-400 border-t-transparent rounded-full animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                Upload
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => handleImageUpload(e.target.files[0])}
+              />
+            </div>
+            {form.imageUrl && (
+              <div className="mt-2 flex items-start gap-2">
+                <img src={form.imageUrl} alt="preview" className="h-16 w-auto rounded-lg border border-white/10 object-cover" />
+                <button type="button" onClick={() => setForm(f => ({ ...f, imageUrl: '' }))} className="p-1 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </Field>
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" className="accent-primary" checked={form.isPaid} onChange={e => setForm(f => ({ ...f, isPaid: e.target.checked }))} />
@@ -269,8 +380,19 @@ export default function AdminTransparency() {
               {entries.map(entry => (
                 <tr key={entry.id} className={`border-b border-white/5 hover:bg-white/3 transition-colors ${!entry.isActive ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3">
-                    <p className="font-bold text-white">{entry.name}</p>
-                    <p className="text-[11px] text-gray-500">{getCatLabel(entry.category)}{entry.description ? ` — ${entry.description}` : ''}</p>
+                    <div className="flex items-center gap-2">
+                      {entry.imageUrl && <img src={entry.imageUrl} alt={entry.name} className="w-7 h-7 rounded-lg object-cover border border-white/10 shrink-0" />}
+                      {!entry.imageUrl && <ImageIcon className="w-5 h-5 text-gray-700 shrink-0" />}
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-white">{entry.name}</p>
+                          {entry.type === 'income'
+                            ? <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 uppercase tracking-wider">Receita</span>
+                            : <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 uppercase tracking-wider">Gasto</span>}
+                        </div>
+                        <p className="text-[11px] text-gray-500">{getCatLabel(entry.type === 'income' ? entry.incomeCategory : entry.category, entry.type)}{entry.description ? ` — ${entry.description}` : ''}</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     {entry.provider ? (
