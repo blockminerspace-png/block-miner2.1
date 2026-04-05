@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pencil, X, Save, Megaphone, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, Save, Megaphone, ToggleLeft, ToggleRight, Upload, Image as ImageIcon } from 'lucide-react';
 import { api } from '../store/auth';
 
 const TYPES = [
@@ -10,7 +10,7 @@ const TYPES = [
   { value: 'promo',   label: 'Promo',    color: 'bg-violet-500/20 text-violet-300 border-violet-500/30' },
 ];
 
-const EMPTY_FORM = { title: '', message: '', type: 'info', link: '', linkLabel: '', isActive: true, startsAt: '', endsAt: '' };
+const EMPTY_FORM = { title: '', message: '', imageUrl: '', type: 'promo', link: '', linkLabel: '', isActive: true, startsAt: '', endsAt: '' };
 
 function TypeBadge({ type }) {
   const cfg = TYPES.find(t => t.value === type) || TYPES[0];
@@ -19,11 +19,62 @@ function TypeBadge({ type }) {
 
 function BannerForm({ initial, onSave, onCancel, isSaving }) {
   const [form, setForm] = useState(initial || EMPTY_FORM);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await api.post('/admin/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (res.data.ok) { set('imageUrl', res.data.url); toast.success('Imagem enviada!'); }
+    } catch { toast.error('Erro ao enviar imagem.'); }
+    finally { setUploading(false); }
+  };
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* Image upload */}
+        <div className="md:col-span-2 space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Imagem do Banner</label>
+          <div
+            onClick={() => fileRef.current?.click()}
+            className="relative w-full rounded-xl border-2 border-dashed border-slate-700 hover:border-amber-500/50 transition-colors cursor-pointer overflow-hidden"
+            style={{ aspectRatio: '16/5' }}
+          >
+            {form.imageUrl ? (
+              <>
+                <img src={form.imageUrl} alt="" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-2 text-white font-bold text-sm">
+                    <Upload className="w-4 h-4" /> Trocar imagem
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-500">
+                <ImageIcon className="w-8 h-8" />
+                <p className="text-xs font-bold">{uploading ? 'Enviando...' : 'Clique para enviar imagem (PNG, JPG, GIF, WebP)'}</p>
+              </div>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+          {form.imageUrl && (
+            <input
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-400 focus:outline-none"
+              value={form.imageUrl}
+              onChange={e => set('imageUrl', e.target.value)}
+              placeholder="Ou cole a URL da imagem"
+            />
+          )}
+        </div>
+
         <div className="space-y-1 md:col-span-2">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Título *</label>
           <input
@@ -34,13 +85,12 @@ function BannerForm({ initial, onSave, onCancel, isSaving }) {
           />
         </div>
         <div className="space-y-1 md:col-span-2">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mensagem *</label>
-          <textarea
-            rows={2}
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50 resize-none"
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descrição (opcional)</label>
+          <input
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
             value={form.message}
             onChange={e => set('message', e.target.value)}
-            placeholder="Texto da mensagem"
+            placeholder="Texto adicional"
           />
         </div>
         <div className="space-y-1">
@@ -65,7 +115,7 @@ function BannerForm({ initial, onSave, onCancel, isSaving }) {
           </button>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link (opcional)</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link ao clicar (opcional)</label>
           <input
             className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
             value={form.link}
@@ -74,25 +124,7 @@ function BannerForm({ initial, onSave, onCancel, isSaving }) {
           />
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Label do botão</label>
-          <input
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
-            value={form.linkLabel}
-            onChange={e => set('linkLabel', e.target.value)}
-            placeholder="Saiba mais"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Início (opcional)</label>
-          <input
-            type="datetime-local"
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
-            value={form.startsAt}
-            onChange={e => set('startsAt', e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fim (opcional)</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fim da oferta — countdown (opcional)</label>
           <input
             type="datetime-local"
             className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
@@ -100,12 +132,21 @@ function BannerForm({ initial, onSave, onCancel, isSaving }) {
             onChange={e => set('endsAt', e.target.value)}
           />
         </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Início de exibição (opcional)</label>
+          <input
+            type="datetime-local"
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
+            value={form.startsAt}
+            onChange={e => set('startsAt', e.target.value)}
+          />
+        </div>
       </div>
       <div className="flex gap-3 pt-2">
         <button
           type="button"
           onClick={() => onSave(form)}
-          disabled={isSaving || !form.title.trim() || !form.message.trim()}
+          disabled={isSaving || uploading || !form.title.trim()}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-sm transition-colors disabled:opacity-40"
         >
           <Save className="w-4 h-4" />
@@ -229,6 +270,10 @@ export default function AdminBanners() {
                 <BannerForm
                   initial={{
                     ...banner,
+                    imageUrl: banner.imageUrl || '',
+                    message: banner.message || '',
+                    link: banner.link || '',
+                    linkLabel: banner.linkLabel || '',
                     startsAt: banner.startsAt ? banner.startsAt.slice(0, 16) : '',
                     endsAt: banner.endsAt ? banner.endsAt.slice(0, 16) : '',
                   }}
@@ -238,6 +283,12 @@ export default function AdminBanners() {
                 />
               ) : (
                 <div className={`flex items-start gap-4 p-4 rounded-2xl border ${banner.isActive ? 'bg-slate-900 border-slate-700' : 'bg-slate-950 border-slate-800 opacity-60'}`}>
+                  {/* Thumbnail */}
+                  {banner.imageUrl && (
+                    <div className="w-24 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-800 border border-slate-700">
+                      <img src={banner.imageUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <TypeBadge type={banner.type} />

@@ -822,7 +822,8 @@ model UserRoom {
 model DashboardBanner {
   id        Int       @id @default(autoincrement())
   title     String
-  message   String
+  message   String    @default("")
+  imageUrl  String?   @map("image_url")
   type      String    @default("info") // info | warning | success | promo
   link      String?
   linkLabel String?   @map("link_label")
