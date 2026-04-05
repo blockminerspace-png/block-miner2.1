@@ -235,9 +235,11 @@ export default function Wallet() {
 
             toast.info('Requesting transaction authorized...');
 
+            // type: '0x0' = transação legada (Type 0). Isso impede o MetaMask
+            // de chamar eth_blockNumber para buscar o base fee do EIP-1559.
             const txHash = await eip1193.request({
                 method: 'eth_sendTransaction',
-                params: [{ from, to: systemDepositAddress, value: valueHex, gas: '0x5208', gasPrice, nonce }]
+                params: [{ from, to: systemDepositAddress, value: valueHex, gas: '0x5208', gasPrice, nonce, type: '0x0' }]
             });
 
             toast.info('Transação enviada! Registrando para verificação...');
