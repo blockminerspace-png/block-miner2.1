@@ -24,6 +24,7 @@ import AutoMining from './pages/AutoMining';
 import Games from './pages/Games';
 import ShortlinkStep from './pages/ShortlinkStep';
 import Roadmap from './pages/Roadmap';
+import Manual from './pages/Manual';
 import CalculatorPage from './pages/Calculator';
 import ChatSidebar from './components/ChatSidebar';
 import AdBlockDetector from './components/AdBlockDetector';
@@ -139,6 +140,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/games" element={<Games />} />
           <Route path="/roadmap" element={<Roadmap />} />
+          <Route path="/manual" element={<Manual />} />
           <Route path="/calculator" element={<CalculatorPage />} />
           <Route path="/transparency" element={<TransparencyErrorBoundary><Transparency /></TransparencyErrorBoundary>} />
           <Route path="/shortlink/internal-shortlink/step/:step" element={<ShortlinkStep />} />
