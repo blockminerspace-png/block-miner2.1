@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Eye,
   Server,
@@ -14,7 +14,121 @@ import {
   TrendingUp,
   CheckCircle2,
   Clock,
+  Wallet,
+  Copy,
+  Check as CheckIcon,
 } from 'lucide-react';
+
+const INVESTMENT_WALLET = '0x1f4872991e6bFc74C2064E2fE4875a78503B5cc1';
+// RPC público Polygon — sem API key necessária
+const POLYGON_RPC = 'https://polygon-rpc.com';
+
+function truncate(addr) {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function InvestmentWallet() {
+  const [polBalance, setPolBalance] = useState(null);
+  const [loadingBal, setLoadingBal] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const fetchBalance = useCallback(async () => {
+    setLoadingBal(true);
+    try {
+      const res = await fetch(POLYGON_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'eth_getBalance',
+          params: [INVESTMENT_WALLET, 'latest'],
+        }),
+      });
+      const data = await res.json();
+      if (data.result) {
+        const wei = BigInt(data.result);
+        const pol = Number(wei) / 1e18;
+        setPolBalance(pol);
+      }
+    } catch {
+      setPolBalance(null);
+    } finally {
+      setLoadingBal(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchBalance(); }, [fetchBalance]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(INVESTMENT_WALLET).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Wallet className="w-4 h-4 text-emerald-400" />
+        <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Carteira de Investimentos</span>
+        <span className="ml-auto text-[10px] text-gray-600">Polygon (POL)</span>
+      </div>
+
+      {/* Endereço */}
+      <div className="flex items-center gap-3 bg-black/30 rounded-xl px-4 py-3 flex-wrap">
+        <code className="text-xs text-gray-300 font-mono break-all flex-1">{INVESTMENT_WALLET}</code>
+        <button
+          onClick={handleCopy}
+          title="Copiar endereço"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-[11px] font-bold transition-colors"
+        >
+          {copied ? <CheckIcon className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          {copied ? 'Copiado!' : 'Copiar'}
+        </button>
+      </div>
+
+      {/* Saldo + links */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex flex-col">
+          <span className="text-[10px] text-gray-500 uppercase tracking-widest">Saldo POL</span>
+          {loadingBal
+            ? <span className="text-lg font-black text-gray-600 animate-pulse">—</span>
+            : polBalance !== null
+              ? <span className="text-lg font-black text-white">{polBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} <span className="text-sm text-emerald-400">POL</span></span>
+              : <span className="text-sm text-gray-600">Indisponível</span>}
+        </div>
+        <div className="flex gap-2 ml-auto flex-wrap">
+          <a
+            href={`https://debank.com/profile/${INVESTMENT_WALLET}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 text-blue-400 text-xs font-bold transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" /> DeBank
+          </a>
+          <a
+            href={`https://polygonscan.com/address/${INVESTMENT_WALLET}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 text-purple-400 text-xs font-bold transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" /> Polygonscan
+          </a>
+          <button
+            onClick={fetchBalance}
+            title="Atualizar saldo"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 text-gray-400 text-xs font-bold transition-colors"
+          >
+            <RefreshCw className={`w-3 h-3 ${loadingBal ? 'animate-spin' : ''}`} /> Atualizar
+          </button>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-gray-600">
+        Esta é a carteira onde os fundos de investimento do BlockMiner ficam alocados. O saldo é lido diretamente da blockchain Polygon em tempo real.
+      </p>
+    </div>
+  );
+}
 
 const CATEGORY_META = {
   infrastructure: { label: 'Infraestrutura',   icon: Server,       color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20'  },
@@ -264,6 +378,9 @@ export default function Transparency() {
               })}
             </div>
           )}
+
+          {/* Investment Wallet */}
+          <InvestmentWallet />
 
           {/* Disclaimer */}
           <p className="text-[11px] text-gray-600 text-center pb-4">
