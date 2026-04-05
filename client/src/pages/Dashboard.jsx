@@ -217,6 +217,12 @@ export default function Dashboard() {
                             <div className="flex-1 max-w-sm space-y-4">
                                 <div className="space-y-2">
                                     <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-2">Seu Link de Indicação</span>
+                                    {user?.id && (
+                                        <div className="flex items-center gap-2 ml-2">
+                                            <span className="text-[10px] text-gray-600 uppercase tracking-widest">Seu código:</span>
+                                            <span className="text-xs font-black text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-lg tracking-widest select-all">{user.id}</span>
+                                        </div>
+                                    )}
                                     <div className="relative flex items-center bg-gray-950 border border-gray-800 rounded-2xl p-1.5 focus-within:border-primary/50 transition-all shadow-inner">
                                         <input 
                                             type="text" 
