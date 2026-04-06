@@ -30,30 +30,6 @@ export default function Faucet() {
     
     const timerRef = useRef(null);
     const partnerTimerRef = useRef(null);
-    const zerAdsRef = useRef(null);
-
-    useEffect(() => {
-        fetch('https://zerads.com/ad/ad.php?ref=10776&width=468')
-            .then(r => r.text())
-            .then(data => {
-                const el = zerAdsRef.current;
-                if (!el) return;
-                if (!data.includes('*BLANK*')) {
-                    const cleaned = data.replace('<meta http-equiv="refresh" content="280">', '');
-                    const iframe = document.createElement('iframe');
-                    iframe.style.border = 'none';
-                    iframe.style.maxWidth = '100%';
-                    iframe.width = '468';
-                    iframe.height = '60';
-                    iframe.srcdoc = cleaned;
-                    el.innerHTML = '';
-                    el.appendChild(iframe);
-                } else {
-                    el.innerHTML = `<a href="https://zerads.com/index.php?view=site&id=10776" target="_blank" rel="noopener noreferrer"><div style="width:468px;max-width:100%;height:60px;background:rgba(200,200,200,0.05);display:flex;align-items:center;justify-content:center;"><span style="color:#666;font-family:Arial;font-style:italic">Advertise Here</span></div></a>`;
-                }
-            })
-            .catch(() => {});
-    }, []);
 
     const fetchStatus = useCallback(async () => {
         try {
@@ -251,13 +227,20 @@ export default function Faucet() {
                                         </div>
                                     ) : (
                                         <div className="space-y-3">
-                                            {/* Banner ZerAds 100% visível + overlay transparente captura o clique */}
-                                            <div
-                                                className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center cursor-pointer"
-                                                style={{ minHeight: '60px' }}
-                                            >
-                                                <div ref={zerAdsRef} style={{ lineHeight: 0, maxWidth: '100%', overflow: 'hidden' }} />
-                                                {/* Overlay 100% transparente — só captura o clique */}
+                                            {/* Banner ZerAds — iframe direto, overlay transparente captura clique */}
+                                            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center" style={{ minHeight: '250px' }}>
+                                                <iframe
+                                                    src="https://zerads.com/ad/ad.php?width=300&ref=10776"
+                                                    marginWidth={0}
+                                                    marginHeight={0}
+                                                    width="300"
+                                                    height="250"
+                                                    scrolling="no"
+                                                    frameBorder={0}
+                                                    style={{ border: 'none', display: 'block', maxWidth: '100%' }}
+                                                    title="Patrocinador"
+                                                />
+                                                {/* Overlay transparente — captura clique sem esconder o banner */}
                                                 <div
                                                     className="absolute inset-0 z-10"
                                                     onClick={handleAdClick}
