@@ -1,5 +1,6 @@
 import express from "express";
 import * as adminController from "../controllers/adminController.js";
+import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 import * as adminSupportController from "../controllers/adminSupportController.js";
 import * as depositTicketController from "../controllers/depositTicketController.js";
 import * as bannerController from "../controllers/bannerController.js";
@@ -83,19 +84,33 @@ adminRouter.get("/analytics", async (req, res) => {
     try {
         const { period = 'month', userId } = req.query;
 
-        // Define date range
+        // POL price
+        let polPrice = 0.35;
+        try { polPrice = await getPolUsdPrice(); } catch {}
+
+        // Engine constants
+        const BLOCK_REWARD = 0.30;      // POL per block
+        const BLOCK_DURATION_MS = 10 * 60 * 1000; // 10 min
+        const BLOCKS_PER_DAY = (24 * 60 * 60 * 1000) / BLOCK_DURATION_MS; // 144
+        const BLOCKS_PER_MONTH = BLOCKS_PER_DAY * 30;
+        const BLOCKS_PER_YEAR = BLOCKS_PER_DAY * 365;
+
         const now = new Date();
         let since;
         const months = [];
         if (period === 'week') {
             since = new Date(now); since.setDate(since.getDate() - 7);
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(now); d.setDate(d.getDate() - i);
+                months.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
+            }
         } else if (period === 'year') {
             since = new Date(now); since.setFullYear(since.getFullYear() - 1);
             for (let i = 11; i >= 0; i--) {
                 const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
                 months.push({ label: d.toLocaleString('pt-BR', { month: 'short', year: '2-digit' }), year: d.getFullYear(), month: d.getMonth() + 1 });
             }
-        } else { // month
+        } else {
             since = new Date(now); since.setMonth(since.getMonth() - 1);
             for (let i = 29; i >= 0; i--) {
                 const d = new Date(now); d.setDate(d.getDate() - i);
@@ -114,33 +129,47 @@ adminRouter.get("/analytics", async (req, res) => {
             periodWithdrawals,
             activeUsersCount,
             blockCount,
+            totalBlocksEver,
+            networkHashData,
         ] = await Promise.all([
-            // Total geral distribuído (mining)
             prisma.blockMinerReward.aggregate({ _sum: { rewardAmount: true }, where: userFilter }),
-            // Distribuído no período
             prisma.blockMinerReward.aggregate({ _sum: { rewardAmount: true }, where: { ...userFilter, createdAt: { gte: since } } }),
-            // Top 10 ganhadores
             userId ? Promise.resolve(null) : prisma.blockMinerReward.groupBy({
                 by: ['userId'],
                 _sum: { rewardAmount: true },
                 orderBy: { _sum: { rewardAmount: 'desc' } },
                 take: 10,
             }),
-            // Recompensas agrupadas por dia/mês
             prisma.blockMinerReward.findMany({
                 where: { ...userFilter, createdAt: { gte: since } },
                 select: { rewardAmount: true, createdAt: true },
                 orderBy: { createdAt: 'asc' },
             }),
-            // Total saques
             prisma.transaction.aggregate({ _sum: { amount: true }, where: { ...userFilter, type: 'withdrawal', status: 'completed' } }),
-            // Saques no período
             prisma.transaction.aggregate({ _sum: { amount: true }, where: { ...userFilter, type: 'withdrawal', status: 'completed', createdAt: { gte: since } } }),
-            // Usuários ativos com mining
             userId ? Promise.resolve(null) : prisma.blockMinerReward.groupBy({ by: ['userId'], where: { createdAt: { gte: since } } }).then(r => r.length),
-            // Blocos distribuídos no período
             userId ? Promise.resolve(null) : prisma.blockDistribution.count({ where: { createdAt: { gte: since } } }),
+            prisma.blockDistribution.count(),
+            // Network hashrate: sum hashRate of all active userMiners
+            prisma.userMiner.aggregate({ _sum: { hashRate: true }, where: { isActive: true } }),
         ]);
+
+        // User-specific hashrate for forecast
+        let userHashRate = 0;
+        if (userId) {
+            const uhr = await prisma.userMiner.aggregate({ _sum: { hashRate: true }, where: { userId: parseInt(userId), isActive: true } });
+            userHashRate = Number(uhr._sum.hashRate || 0);
+        }
+
+        const networkHashRate = Number(networkHashData._sum.hashRate || 1);
+
+        // --- FORECAST ---
+        // Share = userHashRate / networkHashRate (if no user, show total network)
+        const shareRatio = userId && networkHashRate > 0 ? userHashRate / networkHashRate : 1;
+        const forecastDay   = BLOCKS_PER_DAY   * BLOCK_REWARD * shareRatio;
+        const forecastWeek  = BLOCKS_PER_DAY * 7 * BLOCK_REWARD * shareRatio;
+        const forecastMonth = BLOCKS_PER_MONTH * BLOCK_REWARD * shareRatio;
+        const forecastYear  = BLOCKS_PER_YEAR  * BLOCK_REWARD * shareRatio;
 
         // Build top earners with user info
         let topEarnersWithInfo = [];
@@ -154,11 +183,12 @@ adminRouter.get("/analytics", async (req, res) => {
             topEarnersWithInfo = topEarners.map(e => ({
                 userId: e.userId,
                 username: uMap[e.userId]?.username || uMap[e.userId]?.email || `#${e.userId}`,
-                total: Number(e._sum.rewardAmount || 0)
+                total: Number(e._sum.rewardAmount || 0),
+                totalUsd: Number(e._sum.rewardAmount || 0) * polPrice,
             }));
         }
 
-        // Aggregate rewards over time into buckets
+        // Chart buckets
         const buckets = {};
         for (const r of rewardsOverTime) {
             const d = new Date(r.createdAt);
@@ -178,10 +208,10 @@ adminRouter.get("/analytics", async (req, res) => {
             } else {
                 key = `${m.year}-${String(m.month).padStart(2, '0')}-${String(m.day).padStart(2, '0')}`;
             }
-            return { label: m.label, value: Number((buckets[key] || 0).toFixed(8)) };
+            const pol = Number((buckets[key] || 0).toFixed(8));
+            return { label: m.label, value: pol, valueUsd: pol * polPrice };
         });
 
-        // If specific user, get per-block details
         let userRecentBlocks = null;
         if (userId) {
             userRecentBlocks = await prisma.blockMinerReward.findMany({
@@ -192,16 +222,38 @@ adminRouter.get("/analytics", async (req, res) => {
             });
         }
 
+        const totalDistributedPol = Number(totalDistributed._sum.rewardAmount || 0);
+        const periodDistributedPol = Number(periodDistributed._sum.rewardAmount || 0);
+        const totalWithdrawalsPol = Number(totalWithdrawals._sum.amount || 0);
+        const periodWithdrawalsPol = Number(periodWithdrawals._sum.amount || 0);
+
         res.json({
             ok: true,
+            polPrice,
             summary: {
-                totalDistributed: Number(totalDistributed._sum.rewardAmount || 0),
-                periodDistributed: Number(periodDistributed._sum.rewardAmount || 0),
-                totalWithdrawals: Number(totalWithdrawals._sum.amount || 0),
-                periodWithdrawals: Number(periodWithdrawals._sum.amount || 0),
+                totalDistributed: totalDistributedPol,
+                totalDistributedUsd: totalDistributedPol * polPrice,
+                periodDistributed: periodDistributedPol,
+                periodDistributedUsd: periodDistributedPol * polPrice,
+                totalWithdrawals: totalWithdrawalsPol,
+                totalWithdrawalsUsd: totalWithdrawalsPol * polPrice,
+                periodWithdrawals: periodWithdrawalsPol,
+                periodWithdrawalsUsd: periodWithdrawalsPol * polPrice,
                 activeUsers: activeUsersCount ?? null,
                 blockCount: blockCount ?? null,
+                totalBlocksEver,
+                networkHashRate,
+                userHashRate: userId ? userHashRate : null,
                 period,
+            },
+            forecast: {
+                day:   { pol: forecastDay,   usd: forecastDay   * polPrice },
+                week:  { pol: forecastWeek,  usd: forecastWeek  * polPrice },
+                month: { pol: forecastMonth, usd: forecastMonth * polPrice },
+                year:  { pol: forecastYear,  usd: forecastYear  * polPrice },
+                sharePercent: userId ? (shareRatio * 100) : null,
+                networkHashRate,
+                userHashRate: userId ? userHashRate : null,
             },
             topEarners: topEarnersWithInfo,
             chartData,
