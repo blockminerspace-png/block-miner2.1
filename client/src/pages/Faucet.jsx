@@ -250,23 +250,27 @@ export default function Faucet() {
                                             <span className="text-lg font-black text-emerald-500 uppercase italic tracking-tighter">{t('faucet.unlocked')}</span>
                                         </div>
                                     ) : (
-                                        <div className="space-y-4">
+                                        <div className="space-y-3">
+                                            {/* Banner ZerAds 100% visível + overlay transparente captura o clique */}
                                             <div
                                                 className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center cursor-pointer"
                                                 style={{ minHeight: '60px' }}
-                                                onClick={handleAdClick}
                                             >
-                                                {/* Banner ZerAds via fetch+srcdoc */}
-                                                <div ref={zerAdsRef} style={{ lineHeight: 0, maxWidth: '100%', overflow: 'hidden', pointerEvents: 'none' }} />
-                                                {/* Overlay CTA */}
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/55 hover:bg-black/35 transition-colors">
-                                                    <MousePointer2 className="w-5 h-5 text-primary animate-bounce" />
-                                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/90">Visitar Patrocinador</p>
-                                                    <p className="text-[8px] font-bold text-gray-400 uppercase">Clique para desbloquear</p>
-                                                </div>
+                                                <div ref={zerAdsRef} style={{ lineHeight: 0, maxWidth: '100%', overflow: 'hidden' }} />
+                                                {/* Overlay 100% transparente — só captura o clique */}
+                                                <div
+                                                    className="absolute inset-0 z-10"
+                                                    onClick={handleAdClick}
+                                                    style={{ cursor: 'pointer' }}
+                                                />
                                             </div>
-                                            
-                                            <div className="flex items-center justify-center gap-2 text-primary/50">
+
+                                            <div className="flex items-center justify-center gap-2 text-primary/60">
+                                                <MousePointer2 className="w-3 h-3" />
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Clique no banner para desbloquear</span>
+                                            </div>
+
+                                            <div className="flex items-center justify-center gap-2 text-primary/40">
                                                 <ExternalLink className="w-3 h-3" />
                                                 <span className="text-[9px] font-black uppercase tracking-widest">O link abrirá em uma nova aba</span>
                                             </div>
