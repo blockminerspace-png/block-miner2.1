@@ -20,7 +20,8 @@ function baseDirectives({ allowWebSockets }) {
       "'self'",
       "https://www.youtube.com",
       "https://www.youtube-nocookie.com",
-      "https://ad.a-ads.com"
+      "https://ad.a-ads.com",
+      "https://zerads.com"
     ],
     objectSrc: ["'none'"],
     imgSrc: ["'self'", "data:", "https:"],

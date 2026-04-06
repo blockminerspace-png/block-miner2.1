@@ -227,17 +227,27 @@ export default function Faucet() {
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
-                                            <button
-                                                onClick={handleAdClick}
-                                                disabled={isAdClicked || isPartnerUnlocked}
-                                                className="w-full h-[100px] bg-gray-900/80 border border-gray-800 hover:border-primary/40 rounded-2xl flex items-center justify-center transition-all group/ad cursor-pointer disabled:cursor-not-allowed"
-                                            >
-                                                <div className="text-center space-y-1 opacity-40 group-hover/ad:opacity-100 transition-opacity">
-                                                    <MousePointer2 className="w-6 h-6 mx-auto text-primary mb-1 group-hover/ad:animate-bounce" />
-                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Visitar Patrocinador</p>
-                                                    <p className="text-[8px] font-bold text-gray-600 uppercase">Clique para desbloquear</p>
-                                                </div>
-                                            </button>
+                                            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-800">
+                                                <iframe
+                                                    src="https://zerads.com/ad/ad.php?width=300&ref=10776"
+                                                    width="300"
+                                                    height="250"
+                                                    marginWidth={0}
+                                                    marginHeight={0}
+                                                    scrolling="no"
+                                                    frameBorder={0}
+                                                    style={{ border: 'none', width: '100%', height: '250px', display: 'block', pointerEvents: isAdClicked ? 'none' : 'auto' }}
+                                                    title="ZerAds Sponsor"
+                                                />
+                                                {/* Overlay invisivel que captura o clique e dispara handleAdClick */}
+                                                {!isAdClicked && (
+                                                    <div
+                                                        className="absolute inset-0 cursor-pointer"
+                                                        onClick={handleAdClick}
+                                                        title="Visitar Patrocinador"
+                                                    />
+                                                )}
+                                            </div>
                                             
                                             <div className="flex items-center justify-center gap-2 text-primary/50">
                                                 <ExternalLink className="w-3 h-3" />
