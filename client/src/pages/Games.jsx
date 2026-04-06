@@ -76,7 +76,7 @@ export default function Games() {
         selectedCell.current = null; swapAnim.current = null;
         visualBoard.current = data.board.map((row, y) => row.map((s, x) => ({ symbol: s, x, y, visualX: x, visualY: y, scale: 1.0 })));
       }
-      setTimeLeft(data.game === 'crypto-memory' ? 60 : 180);
+      setTimeLeft(data.game === 'crypto-memory' ? 70 : 180);
     });
 
     newSocket.on('game:card_flipped', (data) => {
