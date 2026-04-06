@@ -364,7 +364,7 @@ export default function AdminAnalytics() {
                                                 <td className="py-2 px-2 font-mono text-slate-400">#{r.block?.blockNumber ?? r.blockId}</td>
                                                 <td className="py-2 px-2 font-black text-amber-400">{Number(r.rewardAmount).toFixed(8)}</td>
                                                 <td className="py-2 px-2 text-slate-400">{polPrice > 0 ? `$${(Number(r.rewardAmount) * polPrice).toFixed(6)}` : '--'}</td>
-                                                <td className="py-2 px-2 text-slate-400">{(Number(r.percentage) * 100).toFixed(2)}%</td>
+                                                <td className="py-2 px-2 text-slate-400">{Number(r.percentage).toFixed(2)}%</td>
                                                 <td className="py-2 px-2 text-right text-slate-600">{new Date(r.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                                             </tr>
                                         ))}
