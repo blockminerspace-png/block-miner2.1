@@ -530,19 +530,19 @@ export default function Wallet() {
                         <div className="flex bg-slate-900/50 p-2 rounded-[2.2rem] gap-2">
                             <button
                                 onClick={() => setActiveTab('deposit')}
-                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex-1 py-2.5 sm:py-4 text-[8px] sm:text-xs font-black uppercase tracking-tight sm:tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 {t('wallet.tab_deposit')}
                             </button>
                             <button
                                 onClick={() => setActiveTab('withdraw')}
-                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex-1 py-2.5 sm:py-4 text-[8px] sm:text-xs font-black uppercase tracking-tight sm:tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 {t('wallet.tab_withdraw')}
                             </button>
                             <button
                                 onClick={() => { setActiveTab('ticket'); if (!ticketsLoaded) fetchMyTickets(); }}
-                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'ticket' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex-1 py-2.5 sm:py-4 text-[8px] sm:text-xs font-black uppercase tracking-tight sm:tracking-widest leading-tight rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'ticket' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 {t('wallet.tab_ticket')}
                             </button>
@@ -553,7 +553,7 @@ export default function Wallet() {
                                 <form onSubmit={handleWithdraw} className="space-y-4 sm:space-y-8">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Recipient Address</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.recipient_address')}</label>
                                             <div className="relative group">
                                                 <input
                                                     type="text"
@@ -576,7 +576,7 @@ export default function Wallet() {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Amount (POL)</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.amount_pol')}</label>
                                             <div className="relative group">
                                                 <input
                                                     type="number"
@@ -594,6 +594,7 @@ export default function Wallet() {
                                                     Max
                                                 </button>
                                             </div>
+                                            <p className="text-[9px] text-slate-600 font-bold ml-2">{t('wallet.min_withdraw_hint', { min: 10 })}</p>
                                         </div>
                                     </div>
 
@@ -618,7 +619,7 @@ export default function Wallet() {
                                     <button
                                         type="submit"
                                         disabled={isActionLoading}
-                                        className="w-full py-5 bg-gradient-to-r from-primary to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.3em] transition-all shadow-2xl shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-3"
+                                        className="w-full py-4 sm:py-5 bg-gradient-to-r from-primary to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-xs sm:text-sm uppercase tracking-tight sm:tracking-[0.2em] transition-all shadow-2xl shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-3"
                                     >
                                         {isActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ArrowUpCircle className="w-5 h-5" />}
                                         {isActionLoading ? t('wallet.processing') : t('wallet.confirm_withdraw')}
@@ -633,7 +634,7 @@ export default function Wallet() {
                                 <form onSubmit={(e) => e.preventDefault()} className="space-y-4 sm:space-y-8">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Deposit Address</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.deposit_address_label')}</label>
                                             <div className="relative group">
                                                 <input
                                                     type="text"
@@ -652,7 +653,7 @@ export default function Wallet() {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Amount to Add</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.amount_to_add')}</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -661,6 +662,7 @@ export default function Wallet() {
                                                 placeholder="0.00"
                                                 className="w-full bg-slate-900 border border-slate-800 group-hover:border-slate-700 focus:border-indigo-500 rounded-2xl py-5 px-5 text-slate-200 text-sm font-black transition-all outline-none"
                                             />
+                                            <p className="text-[9px] text-slate-600 font-bold ml-2">{t('wallet.min_deposit_hint', { min: 1 })}</p>
                                         </div>
                                     </div>
 
@@ -669,25 +671,25 @@ export default function Wallet() {
                                             type="button"
                                             onClick={handleAutoDeposit}
                                             disabled={isActionLoading || !systemDepositAddress}
-                                            className={`flex-[2] py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50 ${showManualForm ? 'opacity-50' : ''}`}
+                                            className={`flex-[2] py-4 sm:py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-[10px] sm:text-sm uppercase tracking-tight sm:tracking-[0.1em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 ${showManualForm ? 'opacity-50' : ''}`}
                                         >
-                                            <Smartphone className="w-5 h-5" />
-                                            Express Deposit via Web3 Wallet
+                                            <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                                            {t('wallet.express_deposit')}
                                         </button>
                                         <button
                                             type="button"
-                                            className={`flex-1 py-5 rounded-3xl font-bold text-xs uppercase tracking-widest transition-all border flex items-center justify-center gap-2 ${showManualForm ? 'bg-primary text-white border-primary shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/50'}`}
+                                            className={`flex-1 py-4 sm:py-5 rounded-3xl font-bold text-[9px] sm:text-xs uppercase tracking-tight sm:tracking-widest transition-all border flex items-center justify-center gap-2 ${showManualForm ? 'bg-primary text-white border-primary shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/50'}`}
                                             onClick={() => setShowManualForm(!showManualForm)}
                                         >
                                             {showManualForm ? <XCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                                            {showManualForm ? 'Cancel Manual' : 'Manual Transfer'}
+                                            {showManualForm ? t('wallet.cancel_manual') : t('wallet.manual_transfer')}
                                         </button>
                                     </div>
 
                                     {showManualForm && (
                                         <div className="p-6 bg-slate-900/80 border border-primary/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-500">
                                             <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">Hash da Transação (TxHash)</label>
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">{t('wallet.tx_hash_label')}</label>
                                                 <input
                                                     type="text"
                                                     value={depositForm.txHash}
@@ -703,10 +705,10 @@ export default function Wallet() {
                                                 className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
                                             >
                                                 {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : null}
-                                                {isActionLoading ? 'Registrando...' : 'Registrar Depósito'}
+                                                {isActionLoading ? t('wallet.registering') : t('wallet.register_deposit')}
                                             </button>
                                             <p className="text-[9px] text-slate-500 font-bold italic text-center">
-                                                O sistema verifica na blockchain em segundo plano. Você pode fechar esta página — o crédito é automático.
+                                                {t('wallet.deposit_verify_msg')}
                                             </p>
                                         </div>
                                     )}
@@ -716,7 +718,7 @@ export default function Wallet() {
                                         <div className="space-y-3 animate-in fade-in duration-500">
                                             <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                                 <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                                                Depósitos em Verificação
+                                                {t('wallet.pending_deposits_title')}
                                             </h4>
                                             <div className="space-y-2 max-h-52 overflow-y-auto scrollbar-hide">
                                                 {pendingDeposits.map(dep => {
@@ -740,9 +742,9 @@ export default function Wallet() {
                                                                         {dep.txHash ? `${dep.txHash.slice(0,10)}...${dep.txHash.slice(-6)}` : 'N/A'}
                                                                     </p>
                                                                     <p className="text-[9px] text-slate-600">
-                                                                        {isPending ? `Tentativa ${dep.verifyAttempts}/20` :
-                                                                         isOk ? `+${Number(dep.amount).toFixed(4)} POL creditado` :
-                                                                         dep.failReason || 'Falhou'}
+                                                                        {isPending ? t('wallet.verifying_attempt', { current: dep.verifyAttempts, max: 20 }) :
+                                                                         isOk ? `+${Number(dep.amount).toFixed(4)} POL` :
+                                                                         dep.failReason || t('wallet.status_failed')}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -762,7 +764,7 @@ export default function Wallet() {
                                                                     isOk ? 'text-emerald-300 bg-emerald-400/10' :
                                                                     'text-red-300 bg-red-400/10'
                                                                 }`}>
-                                                                    {isPending ? 'Verificando' : isOk ? 'Creditado' : 'Falhou'}
+                                                                    {isPending ? t('wallet.status_verifying') : isOk ? t('wallet.status_credited') : t('wallet.status_failed')}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -808,23 +810,23 @@ export default function Wallet() {
                                     <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
                                         <HelpCircle className="w-5 h-5 text-amber-400 shrink-0" />
                                         <p className="text-[10px] text-slate-400 leading-relaxed font-bold">
-                                            Depositou POL mas o saldo não caiu? Abra um ticket com o hash da transação. Nossa equipe vai verificar on-chain e creditar manualmente.
+                                            {t('wallet.ticket_hint')}
                                         </p>
                                     </div>
 
                                     <form onSubmit={handleOpenTicket} className="space-y-6">
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Endereço da Carteira de Origem *</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_wallet_origin')}</label>
                                             <input
                                                 type="text"
                                                 value={ticketForm.walletAddress}
                                                 onChange={(e) => setTicketForm(p => ({ ...p, walletAddress: e.target.value.trim() }))}
-                                                placeholder="0x... carteira que fez o depósito"
+                                                placeholder={t('wallet.ticket_wallet_placeholder')}
                                                 className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
                                             />
                                         </div>
                                         <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Hash da Transação (opcional mas recomendado)</label>
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_tx_hash_opt')}</label>
                                             <input
                                                 type="text"
                                                 value={ticketForm.txHash}
@@ -835,7 +837,7 @@ export default function Wallet() {
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Valor Enviado (POL)</label>
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_amount_sent')}</label>
                                                 <input
                                                     type="number"
                                                     min="0"
@@ -847,7 +849,7 @@ export default function Wallet() {
                                                 />
                                             </div>
                                             <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Observação (opcional)</label>
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_note')}</label>
                                                 <input
                                                     type="text"
                                                     value={ticketForm.description}
@@ -863,28 +865,28 @@ export default function Wallet() {
                                             className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                         >
                                             {isSubmittingTicket ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
-                                            {isSubmittingTicket ? 'Enviando...' : 'Abrir Ticket de Depósito'}
+                                            {isSubmittingTicket ? t('wallet.ticket_submitting') : t('wallet.ticket_submit')}
                                         </button>
                                     </form>
 
                                     {/* Meus tickets */}
                                     {myTickets.length > 0 && (
                                         <div className="space-y-4">
-                                            <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Meus Tickets</h4>
+                                            <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t('wallet.ticket_my_tickets')}</h4>
                                             <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">
                                                 {myTickets.map(t => {
                                                     const statusCfg = {
-                                                        open: { color: 'text-blue-400 bg-blue-400/10', label: 'Aberto' },
-                                                        analyzing: { color: 'text-amber-400 bg-amber-400/10', label: 'Em Análise' },
-                                                        credited: { color: 'text-emerald-400 bg-emerald-400/10', label: 'Creditado' },
-                                                        rejected: { color: 'text-red-400 bg-red-400/10', label: 'Rejeitado' },
-                                                        approved: { color: 'text-emerald-400 bg-emerald-400/10', label: 'Aprovado' }
+                                                        open: { color: 'text-blue-400 bg-blue-400/10', label: t('wallet.ticket_status_open') },
+                                                        analyzing: { color: 'text-amber-400 bg-amber-400/10', label: t('wallet.ticket_status_analyzing') },
+                                                        credited: { color: 'text-emerald-400 bg-emerald-400/10', label: t('wallet.ticket_status_credited') },
+                                                        rejected: { color: 'text-red-400 bg-red-400/10', label: t('wallet.ticket_status_rejected') },
+                                                        approved: { color: 'text-emerald-400 bg-emerald-400/10', label: t('wallet.ticket_status_approved') }
                                                     }[t.status] || { color: 'text-slate-400 bg-slate-400/10', label: t.status };
                                                     return (
                                                         <div key={t.id} className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800/50 rounded-2xl">
                                                             <div className="space-y-1">
                                                                 <p className="text-[10px] font-black text-white">Ticket #{t.id}</p>
-                                                                <p className="text-[9px] text-slate-500 font-mono">{t.txHash ? `${t.txHash.slice(0,12)}...` : 'Sem hash'}</p>
+                                                                <p className="text-[9px] text-slate-500 font-mono">{t.txHash ? `${t.txHash.slice(0,12)}...` : t('wallet.ticket_no_hash')}</p>
                                                                 <p className="text-[9px] text-slate-600">{new Date(t.createdAt).toLocaleDateString()}</p>
                                                             </div>
                                                             <div className="text-right space-y-1">
