@@ -72,6 +72,7 @@ const ProtectedLayout = () => {
         <Header />
         <main className="flex-1 overflow-y-auto scrollbar-hide mt-14 md:mt-0">
           <div className="p-4 pb-24 md:p-8 md:pb-8 max-w-7xl mx-auto">
+            <AdBanner size="728x90" />
             <Outlet />
             <AdBanner size="728x90" />
           </div>
