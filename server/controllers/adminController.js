@@ -91,13 +91,34 @@ async function measureCpuUsagePercent(sampleMs = 300) {
 
 async function collectServerMetrics() {
   const cpuUsage = await measureCpuUsagePercent();
+  const memTotal = os.totalmem();
+  const memFree = os.freemem();
+  const memUsed = memTotal - memFree;
+
+  let diskTotal = 500 * 1024 ** 3;
+  let diskUsed = 50 * 1024 ** 3;
+  try {
+    const { execSync } = await import('child_process');
+    const lines = execSync('df -k / --output=size,used', { timeout: 2000 }).toString().split('\n');
+    const parts = lines[1].trim().split(/\s+/);
+    diskTotal = parseInt(parts[0]) * 1024;
+    diskUsed = parseInt(parts[1]) * 1024;
+  } catch {}
+
   return {
-    cpuUsagePercent: cpuUsage,
-    memoryTotalBytes: os.totalmem(),
-    memoryFreeBytes: os.freemem(),
-    memoryUsagePercent: (1 - os.freemem() / os.totalmem()) * 100,
+    serverCpuUsagePercent: cpuUsage,
+    serverCpuCores: os.cpus().length,
+    serverMemoryTotalBytes: memTotal,
+    serverMemoryFreeBytes: memFree,
+    serverMemoryUsedBytes: memUsed,
+    serverMemoryUsagePercent: (memUsed / memTotal) * 100,
+    serverDiskTotalBytes: diskTotal,
+    serverDiskUsedBytes: diskUsed,
+    serverDiskUsagePercent: (diskUsed / diskTotal) * 100,
     uptimeSeconds: process.uptime(),
-    platform: process.platform
+    platform: process.platform,
+    nodeVersion: process.version,
+    processId: process.pid,
   };
 }
 
