@@ -28,6 +28,7 @@ import Manual from './pages/Manual';
 import CalculatorPage from './pages/Calculator';
 import ChatSidebar from './components/ChatSidebar';
 import AdBlockDetector from './components/AdBlockDetector';
+import AdBanner from './components/AdBanner';
 
 import AdminLogin from './pages/AdminLogin';
 import AdminLayout from './components/AdminLayout';
@@ -72,6 +73,7 @@ const ProtectedLayout = () => {
         <main className="flex-1 overflow-y-auto scrollbar-hide mt-14 md:mt-0">
           <div className="p-4 pb-24 md:p-8 md:pb-8 max-w-7xl mx-auto">
             <Outlet />
+            <AdBanner size="728x90" />
           </div>
         </main>
         <ChatSidebar />
