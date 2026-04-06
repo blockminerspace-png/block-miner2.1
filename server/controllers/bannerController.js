@@ -46,14 +46,15 @@ export async function adminList(req, res) {
 
 export async function adminCreate(req, res) {
   try {
-    const { title, message, type, link, linkLabel, isActive, startsAt, endsAt } = req.body;
-    if (!title?.trim() || !message?.trim()) {
-      return res.status(400).json({ ok: false, message: "Título e mensagem são obrigatórios." });
+    const { title, message, imageUrl, type, link, linkLabel, isActive, startsAt, endsAt } = req.body;
+    if (!title?.trim()) {
+      return res.status(400).json({ ok: false, message: "Título é obrigatório." });
     }
     const banner = await prisma.dashboardBanner.create({
       data: {
         title: title.trim(),
-        message: message.trim(),
+        message: message?.trim() || "",
+        imageUrl: imageUrl?.trim() || null,
         type: type || "info",
         link: link?.trim() || null,
         linkLabel: linkLabel?.trim() || null,
@@ -72,12 +73,13 @@ export async function adminCreate(req, res) {
 export async function adminUpdate(req, res) {
   try {
     const id = parseInt(req.params.id);
-    const { title, message, type, link, linkLabel, isActive, startsAt, endsAt } = req.body;
+    const { title, message, imageUrl, type, link, linkLabel, isActive, startsAt, endsAt } = req.body;
     const banner = await prisma.dashboardBanner.update({
       where: { id },
       data: {
         ...(title !== undefined && { title: title.trim() }),
         ...(message !== undefined && { message: message.trim() }),
+        ...(imageUrl !== undefined && { imageUrl: imageUrl?.trim() || null }),
         ...(type !== undefined && { type }),
         link: link?.trim() || null,
         linkLabel: linkLabel?.trim() || null,
