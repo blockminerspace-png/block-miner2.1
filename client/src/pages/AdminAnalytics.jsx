@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     TrendingUp, Users, Zap, ArrowDownLeft, BarChart2,
     RefreshCw, Search, Calendar, Award, Loader2, Clock
@@ -8,8 +8,8 @@ import { toast } from 'sonner';
 
 // helpers
 function fmtPol(v, dec = 4) { return `${Number(v || 0).toFixed(dec)} POL`; }
-function fmtUsd(v, price) { return price > 0 ? `â‰ˆ $${(Number(v || 0) * price).toFixed(2)}` : null; }
-function fmtUsdLong(v, price) { return price > 0 ? `â‰ˆ $${(Number(v || 0) * price).toFixed(4)}` : null; }
+function fmtUsd(v, price) { return price > 0 ? `~$${(Number(v || 0) * price).toFixed(2)}` : null; }
+function fmtUsdLong(v, price) { return price > 0 ? `~$${(Number(v || 0) * price).toFixed(4)}` : null; }
 
 function StatCard({ label, polValue, usdValue, sub, icon: Icon, color = 'amber' }) {
     const icnMap = { amber: 'text-amber-500', emerald: 'text-emerald-400', blue: 'text-blue-400', violet: 'text-violet-400', rose: 'text-rose-400' };
@@ -32,7 +32,7 @@ function StatCard({ label, polValue, usdValue, sub, icon: Icon, color = 'amber' 
 }
 
 function MiniBarChart({ data, polPrice }) {
-    if (!data || data.length === 0) return <div className="h-44 flex items-center justify-center text-slate-600 text-xs">Sem dados no perÃ­odo</div>;
+    if (!data || data.length === 0) return <div className="h-44 flex items-center justify-center text-slate-600 text-xs">Sem dados no periodo</div>;
     const max = Math.max(...data.map(d => d.value), 0.000001);
     return (
         <div className="flex items-end gap-0.5 h-44 w-full">
@@ -111,12 +111,12 @@ export default function AdminAnalytics() {
     return (
         <div className="space-y-6 animate-in fade-in duration-700">
 
-            {/* â”€â”€ Header â”€â”€ */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-black text-white">Analytics de Rendimentos</h2>
                     <p className="text-slate-500 text-sm font-medium">
-                        DistribuiÃ§Ã£o de recompensas, saques e previsÃµes.
+                        Distribuicao de recompensas, saques e previsoes.
                         {polPrice > 0 && (
                             <span className="ml-2 text-amber-400 font-black">
                                 1 POL = ${polPrice.toFixed(4)} USD
@@ -138,16 +138,16 @@ export default function AdminAnalytics() {
                 </div>
             </div>
 
-            {/* â”€â”€ User filter â”€â”€ */}
+            {/* Filtro de usuario */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <Search className="w-3 h-3" /> Filtrar por UsuÃ¡rio (opcional)
+                    <Search className="w-3 h-3" /> Filtrar por Usuario (opcional)
                 </p>
                 <div className="flex gap-3">
                     <div className="relative flex-1">
                         <input type="text" value={userSearch}
                             onChange={e => { setUserSearch(e.target.value); setUserQuery(e.target.value); }}
-                            placeholder="Buscar usuÃ¡rio por nome, e-mail, ID ou carteira..."
+                            placeholder="Buscar por nome, e-mail, ID ou carteira..."
                             className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500/50 transition-all"
                         />
                         {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 animate-spin" />}
@@ -177,13 +177,13 @@ export default function AdminAnalytics() {
                 {selectedUser && (
                     <p className="text-[10px] text-amber-500 font-black mt-2 uppercase tracking-widest">
                         Exibindo: {selectedUser.username || selectedUser.email} (#{selectedUser.id})
-                        {summary?.userHashRate != null && ` Â· ${Number(summary.userHashRate).toFixed(2)} H/s`}
-                        {forecast?.sharePercent != null && ` Â· ${Number(forecast.sharePercent).toFixed(3)}% da rede`}
+                        {summary?.userHashRate != null && ` - ${Number(summary.userHashRate).toFixed(2)} H/s`}
+                        {forecast?.sharePercent != null && ` - ${Number(forecast.sharePercent).toFixed(3)}% da rede`}
                     </p>
                 )}
             </div>
 
-            {/* â”€â”€ Summary cards â”€â”€ */}
+            {/* Cards de resumo */}
             {isLoading ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -192,15 +192,15 @@ export default function AdminAnalytics() {
                 </div>
             ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <StatCard label="Total distribuÃ­do" icon={TrendingUp} color="amber"
+                    <StatCard label="Total distribuido" icon={TrendingUp} color="amber"
                         polValue={fmtPol(summary?.totalDistributed)}
                         usdValue={fmtUsd(summary?.totalDistributed, polPrice)}
-                        sub="HistÃ³rico completo"
+                        sub="Historico completo"
                     />
-                    <StatCard label={`DistribuÃ­do (${periodLabel})`} icon={BarChart2} color="emerald"
+                    <StatCard label={`Distribuido (${periodLabel})`} icon={BarChart2} color="emerald"
                         polValue={fmtPol(summary?.periodDistributed)}
                         usdValue={fmtUsd(summary?.periodDistributed, polPrice)}
-                        sub={`Ãšltimos ${periodLabel}`}
+                        sub={`Ultimos ${periodLabel}`}
                     />
                     <StatCard label="Total saques" icon={ArrowDownLeft} color="violet"
                         polValue={fmtPol(summary?.totalWithdrawals)}
@@ -208,34 +208,34 @@ export default function AdminAnalytics() {
                         sub="Saques completados"
                     />
                     {!selectedUser ? (
-                        <StatCard label={`UsuÃ¡rios ativos (${periodLabel})`} icon={Users} color="blue"
-                            polValue={`${summary?.activeUsers ?? '--'} usuÃ¡rios`}
-                            sub={`${summary?.blockCount ?? '--'} blocos Â· ${summary?.totalBlocksEver ?? '--'} total`}
+                        <StatCard label={`Usuarios ativos (${periodLabel})`} icon={Users} color="blue"
+                            polValue={`${summary?.activeUsers ?? '--'} usuarios`}
+                            sub={`${summary?.blockCount ?? '--'} blocos - ${summary?.totalBlocksEver ?? '--'} total`}
                         />
                     ) : (
                         <StatCard label={`Saques (${periodLabel})`} icon={ArrowDownLeft} color="blue"
                             polValue={fmtPol(summary?.periodWithdrawals)}
                             usdValue={fmtUsd(summary?.periodWithdrawals, polPrice)}
-                            sub="No perÃ­odo"
+                            sub="No periodo"
                         />
                     )}
                 </div>
             )}
 
-            {/* â”€â”€ Forecast â”€â”€ */}
+            {/* Previsao */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                 <div className="flex items-start gap-3 mb-5">
                     <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                     <div>
                         <p className="text-xs font-black text-white uppercase tracking-widest">
-                            PrevisÃ£o de Rendimento
-                            {selectedUser ? ` â€” ${selectedUser.username || selectedUser.email}` : ' â€” Rede Total'}
+                            Previsao de Rendimento
+                            {selectedUser ? ` -- ${selectedUser.username || selectedUser.email}` : ' -- Rede Total'}
                         </p>
                         <p className="text-[10px] text-slate-500 mt-0.5">
                             {selectedUser
-                                ? `${Number(forecast?.userHashRate || 0).toFixed(2)} H/s Â· ${Number(forecast?.sharePercent || 0).toFixed(3)}% da rede`
+                                ? `${Number(forecast?.userHashRate || 0).toFixed(2)} H/s - ${Number(forecast?.sharePercent || 0).toFixed(3)}% da rede`
                                 : `${Number(summary?.networkHashRate || 0).toFixed(2)} H/s total`
-                            } Â· 0.30 POL/bloco Â· bloco a cada 10 min
+                            } - 0.30 POL/bloco - bloco a cada 10 min
                         </p>
                     </div>
                 </div>
@@ -253,7 +253,7 @@ export default function AdminAnalytics() {
                         <ForecastCard label="Por semana"
                             pol={`${Number(forecast?.week?.pol || 0).toFixed(6)} POL`}
                             usdVal={fmtUsdLong(forecast?.week?.pol, polPrice)} />
-                        <ForecastCard label="Por mÃªs"
+                        <ForecastCard label="Por mes"
                             pol={`${Number(forecast?.month?.pol || 0).toFixed(4)} POL`}
                             usdVal={fmtUsdLong(forecast?.month?.pol, polPrice)}
                             highlight />
@@ -264,13 +264,13 @@ export default function AdminAnalytics() {
                 )}
             </div>
 
-            {/* â”€â”€ Chart â”€â”€ */}
+            {/* Grafico */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-5">
                     <div>
-                        <p className="text-xs font-black text-white uppercase tracking-widest">DistribuiÃ§Ã£o de Recompensas</p>
+                        <p className="text-xs font-black text-white uppercase tracking-widest">Distribuicao de Recompensas</p>
                         <p className="text-[10px] text-slate-500 mt-0.5">
-                            POL distribuÃ­do por {period === 'year' ? 'mÃªs' : 'dia'} â€” Ãºltimos {periodLabel}
+                            POL distribuido por {period === 'year' ? 'mes' : 'dia'} -- ultimos {periodLabel}
                         </p>
                     </div>
                     <Calendar className="w-4 h-4 text-slate-600" />
@@ -292,11 +292,11 @@ export default function AdminAnalytics() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                {/* â”€â”€ Top Earners â”€â”€ */}
+                {/* Top Earners */}
                 {!selectedUser && (
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                         <p className="text-xs font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <Award className="w-4 h-4 text-amber-500" /> Top 10 Ganhadores (histÃ³rico)
+                            <Award className="w-4 h-4 text-amber-500" /> Top 10 Ganhadores (historico)
                         </p>
                         {isLoading ? (
                             <div className="space-y-2">
@@ -305,7 +305,7 @@ export default function AdminAnalytics() {
                                 ))}
                             </div>
                         ) : !topEarners || topEarners.length === 0 ? (
-                            <p className="text-slate-600 text-xs text-center py-8">Sem dados de mineraÃ§Ã£o</p>
+                            <p className="text-slate-600 text-xs text-center py-8">Sem dados de mineracao</p>
                         ) : (
                             <div className="space-y-1.5">
                                 {topEarners.map((e, i) => (
@@ -333,11 +333,11 @@ export default function AdminAnalytics() {
                     </div>
                 )}
 
-                {/* â”€â”€ Right panel: user blocks OR period summary â”€â”€ */}
+                {/* Painel direito: blocos do usuario OU resumo do periodo */}
                 <div className={`bg-slate-900 border border-slate-800 rounded-2xl p-6 ${!selectedUser ? '' : 'md:col-span-2'}`}>
                     <p className="text-xs font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
                         <Zap className="w-4 h-4 text-emerald-400" />
-                        {selectedUser ? `Ãšltimos 50 blocos â€” ${selectedUser.username || selectedUser.email}` : 'Resumo do PerÃ­odo'}
+                        {selectedUser ? `Ultimos 50 blocos -- ${selectedUser.username || selectedUser.email}` : 'Resumo do Periodo'}
                     </p>
                     {isLoading ? (
                         <div className="space-y-2">
@@ -372,17 +372,17 @@ export default function AdminAnalytics() {
                                 </table>
                             </div>
                         ) : (
-                            <p className="text-slate-600 text-xs text-center py-8">Nenhum bloco encontrado para este usuÃ¡rio</p>
+                            <p className="text-slate-600 text-xs text-center py-8">Nenhum bloco encontrado para este usuario</p>
                         )
                     ) : (
                         <div className="space-y-2">
                             {[
-                                { label: 'DistribuÃ­do no perÃ­odo', pol: summary?.periodDistributed, clr: 'text-amber-400' },
-                                { label: 'Saques no perÃ­odo', pol: summary?.periodWithdrawals, clr: 'text-violet-400' },
-                                { label: 'UsuÃ¡rios mineradores', val: `${summary?.activeUsers ?? '--'} usuÃ¡rios`, clr: 'text-blue-400' },
-                                { label: 'Blocos distribuÃ­dos', val: `${summary?.blockCount ?? '--'} blocos`, clr: 'text-emerald-400' },
-                                { label: 'MÃ©dia por bloco', pol: summary?.blockCount ? Number(summary.periodDistributed) / summary.blockCount : null, clr: 'text-amber-400' },
-                                { label: 'Total de blocos (histÃ³rico)', val: `${summary?.totalBlocksEver ?? '--'} blocos`, clr: 'text-slate-400' },
+                                { label: 'Distribuido no periodo', pol: summary?.periodDistributed, clr: 'text-amber-400' },
+                                { label: 'Saques no periodo', pol: summary?.periodWithdrawals, clr: 'text-violet-400' },
+                                { label: 'Usuarios mineradores', val: `${summary?.activeUsers ?? '--'} usuarios`, clr: 'text-blue-400' },
+                                { label: 'Blocos distribuidos', val: `${summary?.blockCount ?? '--'} blocos`, clr: 'text-emerald-400' },
+                                { label: 'Media por bloco', pol: summary?.blockCount ? Number(summary.periodDistributed) / summary.blockCount : null, clr: 'text-amber-400' },
+                                { label: 'Total de blocos (historico)', val: `${summary?.totalBlocksEver ?? '--'} blocos`, clr: 'text-slate-400' },
                             ].map((item, i) => (
                                 <div key={i} className="flex items-center justify-between p-3 bg-slate-800/30 hover:bg-slate-800/50 rounded-xl transition-colors">
                                     <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wide">{item.label}</span>
@@ -404,4 +404,3 @@ export default function AdminAnalytics() {
         </div>
     );
 }
-
