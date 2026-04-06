@@ -653,3 +653,64 @@ adminRouter.get("/deposit-tickets", depositTicketController.adminListTickets);
 adminRouter.get("/deposit-tickets/:id", depositTicketController.adminGetTicket);
 adminRouter.post("/deposit-tickets/:id/approve", depositTicketController.adminApproveTicket);
 adminRouter.post("/deposit-tickets/:id/reject", depositTicketController.adminRejectTicket);
+
+// ── Broadcast Messages ──────────────────────────────────────────────────────
+adminRouter.get("/broadcast", async (req, res) => {
+  try {
+    const messages = await prisma.broadcastMessage.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { views: true } } },
+    });
+    res.json({ ok: true, messages });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message });
+  }
+});
+
+adminRouter.post("/broadcast", async (req, res) => {
+  try {
+    const { title, content, imageUrl, isActive } = req.body;
+    if (!title) return res.status(400).json({ ok: false, message: "Title required" });
+    // If activating this one, deactivate all others first
+    if (isActive) {
+      await prisma.broadcastMessage.updateMany({ data: { isActive: false } });
+    }
+    const msg = await prisma.broadcastMessage.create({
+      data: { title, content: content || null, imageUrl: imageUrl || null, isActive: !!isActive },
+    });
+    res.json({ ok: true, message: msg });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message });
+  }
+});
+
+adminRouter.patch("/broadcast/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { title, content, imageUrl, isActive } = req.body;
+    if (isActive) {
+      await prisma.broadcastMessage.updateMany({ where: { id: { not: id } }, data: { isActive: false } });
+    }
+    const msg = await prisma.broadcastMessage.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(content !== undefined && { content }),
+        ...(imageUrl !== undefined && { imageUrl }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+    res.json({ ok: true, message: msg });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message });
+  }
+});
+
+adminRouter.delete("/broadcast/:id", async (req, res) => {
+  try {
+    await prisma.broadcastMessage.delete({ where: { id: Number(req.params.id) } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message });
+  }
+});

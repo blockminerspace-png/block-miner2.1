@@ -47,6 +47,8 @@ import AdminBanners from './pages/AdminBanners';
 import AdminCreators from './pages/AdminCreators';
 import AdminTransparency from './pages/AdminTransparency';
 import AdminAnalytics from './pages/AdminAnalytics';
+import AdminBroadcast from './pages/AdminBroadcast';
+import BroadcastPopup from './components/BroadcastPopup';
 import Transparency from './pages/Transparency';
 import TransparencyErrorBoundary from './components/TransparencyErrorBoundary';
 import Landing from './pages/Landing';
@@ -71,6 +73,7 @@ const ProtectedLayout = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <Header />
+        <BroadcastPopup />
         <main className="flex-1 overflow-y-auto scrollbar-hide mt-14 md:mt-0">
           <div className="p-4 pb-24 md:p-8 md:pb-8 max-w-7xl mx-auto">
             <AdBanner size="728x90" />
@@ -168,6 +171,7 @@ function App() {
           <Route path="/admin/creators" element={<AdminCreators />} />
           <Route path="/admin/transparency" element={<AdminTransparency />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/broadcast" element={<AdminBroadcast />} />
         </Route>
       </Routes>
     </BrowserRouter>

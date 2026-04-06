@@ -15,7 +15,8 @@ import {
     Megaphone,
     Youtube,
     Eye,
-    TrendingUp
+    TrendingUp,
+    Bell
 } from 'lucide-react';
 
 const adminMenuItems = [
@@ -33,6 +34,7 @@ const adminMenuItems = [
   { icon: FileText, label: 'Logs', path: '/admin/logs' },
   { icon: Activity, label: 'Métricas', path: '/admin/metrics' },
   { icon: TrendingUp, label: 'Analytics', path: '/admin/analytics' },
+  { icon: Bell, label: 'Notificacoes', path: '/admin/broadcast' },
 ];
 
 export default function AdminSidebar() {
