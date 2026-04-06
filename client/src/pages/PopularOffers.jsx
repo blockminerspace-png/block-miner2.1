@@ -44,12 +44,12 @@ export default function PopularOffers() {
     }, [load]);
 
     const openModal = (ev, m) => {
-        // For free miners, cap initial qty at remaining claims
-        const maxQty = m.isFree && m.claimLimitPerUser > 0
+        const effectivelyFree = m.isFree || Number(m.price) === 0;
+        const maxQty = effectivelyFree && m.claimLimitPerUser > 0
             ? Math.max(0, m.claimLimitPerUser - (m.userClaimCount || 0))
             : MAX_QTY;
         setQuantity(Math.min(1, maxQty));
-        setModal({ event: ev, miner: m });
+        setModal({ event: ev, miner: { ...m, effectivelyFree } });
     };
 
     const confirmBuy = async () => {
@@ -117,20 +117,29 @@ export default function PopularOffers() {
                     {(ev.miners || []).length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
                             {(ev.miners || []).map((m) => {
-                                const alreadyClaimed = m.isFree && m.claimLimitPerUser > 0 && (m.userClaimCount || 0) >= m.claimLimitPerUser;
-                                const remainingClaims = m.isFree && m.claimLimitPerUser > 0
+                                const effectivelyFree = m.isFree || Number(m.price) === 0;
+                                const alreadyClaimed = effectivelyFree && m.claimLimitPerUser > 0 && (m.userClaimCount || 0) >= m.claimLimitPerUser;
+                                const remainingClaims = effectivelyFree && m.claimLimitPerUser > 0
                                     ? Math.max(0, m.claimLimitPerUser - (m.userClaimCount || 0))
                                     : null;
                                 const canCollect = ev.isLive && m.inStock && !alreadyClaimed;
                                 return (
-                                <div key={m.id} className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl hover:border-primary/30 transition-all duration-500 group relative overflow-hidden">
+                                <div key={m.id} className={`bg-surface border rounded-[2.5rem] p-8 shadow-xl transition-all duration-500 group relative overflow-hidden ${
+                                    effectivelyFree
+                                        ? 'border-green-500/20 hover:border-green-400/40'
+                                        : 'border-gray-800/50 hover:border-primary/30'
+                                }`}>
                                     <div className="relative z-10 space-y-6">
                                         <div className="flex justify-between items-start">
-                                            <div className="px-3 py-1 bg-gray-900 rounded-full border border-gray-800 text-[9px] font-black text-gray-500 uppercase tracking-widest group-hover:text-primary transition-colors">
-                                                {m.isFree ? 'Gratuita' : 'Edicao Limitada'}
+                                            <div className={`px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest transition-colors ${
+                                                effectivelyFree
+                                                    ? 'bg-green-500/10 border-green-500/30 text-green-500'
+                                                    : 'bg-gray-900 border-gray-800 text-gray-500 group-hover:text-primary'
+                                            }`}>
+                                                {effectivelyFree ? 'Maquina Gratis' : 'Edicao Limitada'}
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                                {m.isFree ? (
+                                                {effectivelyFree ? (
                                                     <span className="flex items-center gap-1 px-3 py-1 bg-green-500/15 border border-green-500/30 rounded-full text-[9px] font-black text-green-400 uppercase tracking-widest">
                                                         GRATIS
                                                     </span>
@@ -142,6 +151,33 @@ export default function PopularOffers() {
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* Info free: limite por jogador */}
+                                        {effectivelyFree && (
+                                            <div className="bg-green-500/5 border border-green-500/20 rounded-2xl px-4 py-3 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[9px] font-black text-green-500/70 uppercase tracking-widest">Limite por jogador</span>
+                                                    <span className="text-xs font-black text-green-400">
+                                                        {m.claimLimitPerUser === 0 ? 'Ilimitado' : `${m.claimLimitPerUser}x`}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[9px] font-black text-green-500/70 uppercase tracking-widest">Suas coletas</span>
+                                                    <span className={`text-xs font-black ${alreadyClaimed ? 'text-slate-400' : 'text-green-400'}`}>
+                                                        {m.claimLimitPerUser === 0
+                                                            ? `${m.userClaimCount || 0} coletadas`
+                                                            : `${m.userClaimCount || 0} / ${m.claimLimitPerUser}`
+                                                        }
+                                                    </span>
+                                                </div>
+                                                {alreadyClaimed && (
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                                                        <CheckCircle2 className="w-3 h-3" />
+                                                        Limite atingido
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {/* Estoque restante */}
                                         {m.remaining !== null && m.remaining !== undefined && (
@@ -156,23 +192,6 @@ export default function PopularOffers() {
                                                 {m.remaining === 0
                                                     ? 'Esgotado'
                                                     : `${m.remaining} restante${m.remaining === 1 ? '' : 's'}`
-                                                }
-                                            </div>
-                                        )}
-
-                                        {/* Claims restantes para maquinas gratis */}
-                                        {m.isFree && (
-                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold w-fit ${
-                                                alreadyClaimed
-                                                    ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
-                                                    : 'bg-green-500/10 text-green-400 border border-green-500/20'
-                                            }`}>
-                                                <CheckCircle2 className="w-3 h-3" />
-                                                {alreadyClaimed
-                                                    ? 'Ja coletada'
-                                                    : m.claimLimitPerUser === 0
-                                                    ? 'Coleta ilimitada'
-                                                    : `${remainingClaims} coleta${remainingClaims === 1 ? '' : 's'} disponivel${remainingClaims === 1 ? '' : 'is'}`
                                                 }
                                             </div>
                                         )}
@@ -208,8 +227,8 @@ export default function PopularOffers() {
 
                                         <div className="pt-4 border-t border-gray-800/50 flex items-center justify-between">
                                             <div className="flex flex-col">
-                                                <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">{m.isFree ? 'Custo' : t('shop.price')}</span>
-                                                {m.isFree ? (
+                                                <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">{effectivelyFree ? 'Custo' : t('shop.price')}</span>
+                                                {effectivelyFree ? (
                                                     <span className="text-lg font-black text-green-400 italic">GRATIS</span>
                                                 ) : (
                                                     <span className="text-lg font-black text-white italic">
@@ -223,12 +242,12 @@ export default function PopularOffers() {
                                                 disabled={!ev.isLive || !m.inStock || alreadyClaimed}
                                                 onClick={() => canCollect && openModal(ev, m)}
                                                 className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
-                                                    m.isFree
+                                                    effectivelyFree
                                                         ? 'bg-green-500 hover:bg-green-400 text-slate-950 shadow-green-500/20'
                                                         : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20'
                                                 }`}
                                             >
-                                                {!ev.isLive ? 'Em Breve' : alreadyClaimed ? 'Coletada' : !m.inStock ? t('offers.sold_out') : m.isFree ? 'Coletar' : t('offers.buy')}
+                                                {!ev.isLive ? 'Em Breve' : alreadyClaimed ? 'Coletada' : !m.inStock ? t('offers.sold_out') : effectivelyFree ? 'Coletar' : t('offers.buy')}
                                             </button>
                                         </div>
                                     </div>
@@ -257,18 +276,18 @@ export default function PopularOffers() {
                         </div>
                         <div className="p-10 text-center space-y-8">
                             <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto border ${
-                                modal.miner.isFree
+                                modal.miner.effectivelyFree
                                     ? 'bg-green-500/10 border-green-500/20'
                                     : 'bg-primary/10 border-primary/20'
                             }`}>
-                                <Sparkles className={`w-10 h-10 ${modal.miner.isFree ? 'text-green-400' : 'text-primary'}`} />
+                                <Sparkles className={`w-10 h-10 ${modal.miner.effectivelyFree ? 'text-green-400' : 'text-primary'}`} />
                             </div>
                             <div className="space-y-2">
                                 <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">
-                                    {modal.miner.isFree ? 'Coletar Maquina Gratis' : 'Confirmar Compra'}
+                                    {modal.miner.effectivelyFree ? 'Coletar Maquina Gratis' : 'Confirmar Compra'}
                                 </h3>
                                 <p className="text-gray-500 font-medium">
-                                    {modal.miner.isFree
+                                    {modal.miner.effectivelyFree
                                         ? 'Voce esta coletando esta maquina gratuitamente!'
                                         : 'Voce esta prestes a adquirir um equipamento de evento limitado.'}
                                 </p>
@@ -286,7 +305,7 @@ export default function PopularOffers() {
                                         <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-2 block">
                                             {formatHashrate(Number(modal.miner.hashRate) || 0)}
                                         </span>
-                                        {modal.miner.isFree && (
+                                        {modal.miner.effectivelyFree && (
                                             <span className="text-[10px] font-black text-green-400 uppercase mt-1 block">GRATIS</span>
                                         )}
                                     </div>
@@ -305,12 +324,12 @@ export default function PopularOffers() {
                                         <span className="w-8 text-center font-black text-white text-sm">{quantity}</span>
                                         <button
                                             onClick={() => {
-                                                const maxQty = modal.miner.isFree && modal.miner.claimLimitPerUser > 0
+                                                const maxQty = modal.miner.effectivelyFree && modal.miner.claimLimitPerUser > 0
                                                     ? Math.max(0, modal.miner.claimLimitPerUser - (modal.miner.userClaimCount || 0))
                                                     : MAX_QTY;
                                                 setQuantity(q => Math.min(maxQty, q + 1));
                                             }}
-                                            disabled={modal.miner.isFree
+                                            disabled={modal.miner.effectivelyFree
                                                 ? modal.miner.claimLimitPerUser > 0 && quantity >= Math.max(0, modal.miner.claimLimitPerUser - (modal.miner.userClaimCount || 0))
                                                 : quantity >= MAX_QTY
                                             }
@@ -324,7 +343,7 @@ export default function PopularOffers() {
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total</span>
                                     <div className="text-right">
-                                        {modal.miner.isFree ? (
+                                        {modal.miner.effectivelyFree ? (
                                             <span className="text-xl font-black text-green-400 italic">GRATIS</span>
                                         ) : (
                                             <>
@@ -343,14 +362,14 @@ export default function PopularOffers() {
                                     onClick={confirmBuy}
                                     disabled={buying}
                                     className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 ${
-                                        modal.miner.isFree
+                                        modal.miner.effectivelyFree
                                             ? 'bg-green-500 hover:bg-green-400 text-slate-950 shadow-green-500/20'
                                             : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20'
                                     }`}
                                 >
                                     {buying
                                         ? <Loader2 className="w-5 h-5 animate-spin" />
-                                        : <><CheckCircle2 className="w-5 h-5" /> {modal.miner.isFree ? 'Confirmar Coleta' : 'Confirmar Pagamento'}</>
+                                        : <><CheckCircle2 className="w-5 h-5" /> {modal.miner.effectivelyFree ? 'Confirmar Coleta' : 'Confirmar Pagamento'}</>
                                     }
                                 </button>
                                 <button
@@ -361,7 +380,7 @@ export default function PopularOffers() {
                                     {t('common.cancel')}
                                 </button>
                             </div>
-                            {!modal.miner.isFree && (
+                            {!modal.miner.effectivelyFree && (
                                 <div className="flex items-center justify-center gap-2 text-amber-500/50">
                                     <AlertTriangle className="w-3.5 h-3.5" />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Esta acao e irreversivel</span>
