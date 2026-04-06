@@ -78,6 +78,141 @@ adminRouter.use((err, _req, res, _next) => {
 // Dashboard Stats
 adminRouter.get("/stats", adminController.getStats);
 
+// Analytics
+adminRouter.get("/analytics", async (req, res) => {
+    try {
+        const { period = 'month', userId } = req.query;
+
+        // Define date range
+        const now = new Date();
+        let since;
+        const months = [];
+        if (period === 'week') {
+            since = new Date(now); since.setDate(since.getDate() - 7);
+        } else if (period === 'year') {
+            since = new Date(now); since.setFullYear(since.getFullYear() - 1);
+            for (let i = 11; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({ label: d.toLocaleString('pt-BR', { month: 'short', year: '2-digit' }), year: d.getFullYear(), month: d.getMonth() + 1 });
+            }
+        } else { // month
+            since = new Date(now); since.setMonth(since.getMonth() - 1);
+            for (let i = 29; i >= 0; i--) {
+                const d = new Date(now); d.setDate(d.getDate() - i);
+                months.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
+            }
+        }
+
+        const userFilter = userId ? { userId: parseInt(userId) } : {};
+
+        const [
+            totalDistributed,
+            periodDistributed,
+            topEarners,
+            rewardsOverTime,
+            totalWithdrawals,
+            periodWithdrawals,
+            activeUsersCount,
+            blockCount,
+        ] = await Promise.all([
+            // Total geral distribuído (mining)
+            prisma.blockMinerReward.aggregate({ _sum: { rewardAmount: true }, where: userFilter }),
+            // Distribuído no período
+            prisma.blockMinerReward.aggregate({ _sum: { rewardAmount: true }, where: { ...userFilter, createdAt: { gte: since } } }),
+            // Top 10 ganhadores
+            userId ? Promise.resolve(null) : prisma.blockMinerReward.groupBy({
+                by: ['userId'],
+                _sum: { rewardAmount: true },
+                orderBy: { _sum: { rewardAmount: 'desc' } },
+                take: 10,
+            }),
+            // Recompensas agrupadas por dia/mês
+            prisma.blockMinerReward.findMany({
+                where: { ...userFilter, createdAt: { gte: since } },
+                select: { rewardAmount: true, createdAt: true },
+                orderBy: { createdAt: 'asc' },
+            }),
+            // Total saques
+            prisma.transaction.aggregate({ _sum: { amount: true }, where: { ...userFilter, type: 'withdrawal', status: 'completed' } }),
+            // Saques no período
+            prisma.transaction.aggregate({ _sum: { amount: true }, where: { ...userFilter, type: 'withdrawal', status: 'completed', createdAt: { gte: since } } }),
+            // Usuários ativos com mining
+            userId ? Promise.resolve(null) : prisma.blockMinerReward.groupBy({ by: ['userId'], where: { createdAt: { gte: since } } }).then(r => r.length),
+            // Blocos distribuídos no período
+            userId ? Promise.resolve(null) : prisma.blockDistribution.count({ where: { createdAt: { gte: since } } }),
+        ]);
+
+        // Build top earners with user info
+        let topEarnersWithInfo = [];
+        if (topEarners) {
+            const userIds = topEarners.map(e => e.userId);
+            const users = await prisma.user.findMany({
+                where: { id: { in: userIds } },
+                select: { id: true, username: true, email: true }
+            });
+            const uMap = Object.fromEntries(users.map(u => [u.id, u]));
+            topEarnersWithInfo = topEarners.map(e => ({
+                userId: e.userId,
+                username: uMap[e.userId]?.username || uMap[e.userId]?.email || `#${e.userId}`,
+                total: Number(e._sum.rewardAmount || 0)
+            }));
+        }
+
+        // Aggregate rewards over time into buckets
+        const buckets = {};
+        for (const r of rewardsOverTime) {
+            const d = new Date(r.createdAt);
+            let key;
+            if (period === 'year') {
+                key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            } else {
+                key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+            buckets[key] = (buckets[key] || 0) + Number(r.rewardAmount);
+        }
+
+        const chartData = months.map(m => {
+            let key;
+            if (period === 'year') {
+                key = `${m.year}-${String(m.month).padStart(2, '0')}`;
+            } else {
+                key = `${m.year}-${String(m.month).padStart(2, '0')}-${String(m.day).padStart(2, '0')}`;
+            }
+            return { label: m.label, value: Number((buckets[key] || 0).toFixed(8)) };
+        });
+
+        // If specific user, get per-block details
+        let userRecentBlocks = null;
+        if (userId) {
+            userRecentBlocks = await prisma.blockMinerReward.findMany({
+                where: { userId: parseInt(userId) },
+                orderBy: { createdAt: 'desc' },
+                take: 50,
+                include: { block: { select: { blockNumber: true, reward: true } } }
+            });
+        }
+
+        res.json({
+            ok: true,
+            summary: {
+                totalDistributed: Number(totalDistributed._sum.rewardAmount || 0),
+                periodDistributed: Number(periodDistributed._sum.rewardAmount || 0),
+                totalWithdrawals: Number(totalWithdrawals._sum.amount || 0),
+                periodWithdrawals: Number(periodWithdrawals._sum.amount || 0),
+                activeUsers: activeUsersCount ?? null,
+                blockCount: blockCount ?? null,
+                period,
+            },
+            topEarners: topEarnersWithInfo,
+            chartData,
+            userRecentBlocks,
+        });
+    } catch (err) {
+        console.error('[admin analytics error]', err?.message || err);
+        res.status(500).json({ ok: false, message: 'Erro ao carregar analytics.' });
+    }
+});
+
 // Banners
 adminRouter.get("/banners", bannerController.adminList);
 adminRouter.post("/banners", bannerController.adminCreate);

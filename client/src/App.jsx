@@ -46,6 +46,7 @@ import AdminDepositTickets from './pages/AdminDepositTickets';
 import AdminBanners from './pages/AdminBanners';
 import AdminCreators from './pages/AdminCreators';
 import AdminTransparency from './pages/AdminTransparency';
+import AdminAnalytics from './pages/AdminAnalytics';
 import Transparency from './pages/Transparency';
 import TransparencyErrorBoundary from './components/TransparencyErrorBoundary';
 import Landing from './pages/Landing';
@@ -166,6 +167,7 @@ function App() {
           <Route path="/admin/banners" element={<AdminBanners />} />
           <Route path="/admin/creators" element={<AdminCreators />} />
           <Route path="/admin/transparency" element={<AdminTransparency />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
         </Route>
       </Routes>
     </BrowserRouter>
