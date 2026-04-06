@@ -96,7 +96,8 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onClose }) {
   );
 }
 
-function RackCard({ rackNumber, slots, onSlotClick }) {
+function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop }) {
+  const [dragOverId, setDragOverId] = useState(null);
   return (
     <div className="bg-surface border border-gray-800/50 rounded-3xl overflow-hidden shadow-xl">
       <div className="px-3 py-2.5 sm:px-6 sm:py-4 bg-gray-800/20 border-b border-gray-800/50">
@@ -116,6 +117,8 @@ function RackCard({ rackNumber, slots, onSlotClick }) {
             const isOccupied = !!machine;
             const isBlocked = !machine && !!rack?.blockedByMinerId;
             const isDoubleSlot = isOccupied && machine.slotSize >= 2;
+            const slotKey = rack?.id ?? i;
+            const isDragTarget = dragOverId === slotKey;
 
             // Se é slot bloqueado por miner de 2 slots, pula (já foi renderizado com col-span-2)
             if (isBlocked) {
@@ -128,11 +131,16 @@ function RackCard({ rackNumber, slots, onSlotClick }) {
                 key={rack ? rack.id : i}
                 onClick={() => onSlotClick({ rack, miner: machine, visualRackNumber: rackNumber, slotInRack: i })}
                 style={isDoubleSlot ? { gridColumn: 'span 2' } : {}}
+                onDragOver={!isOccupied ? (e) => { e.preventDefault(); setDragOverId(slotKey); } : undefined}
+                onDragLeave={!isOccupied ? () => setDragOverId(null) : undefined}
+                onDrop={!isOccupied ? (e) => { e.preventDefault(); setDragOverId(null); const id = parseInt(e.dataTransfer.getData('inventoryId'), 10); if (id && rack?.id) onSlotDrop(rack.id, id); } : undefined}
                 className={`relative rounded-2xl border ${
                   isOccupied
                     ? "border-primary/30 bg-primary/5"
+                    : isDragTarget
+                    ? "border-primary bg-primary/15 scale-[1.04] shadow-glow"
                     : "border-gray-800/50 bg-gray-900/30 hover:border-gray-700"
-                } transition-all duration-300 group flex items-center justify-center ${isDoubleSlot ? 'aspect-[2/1]' : 'aspect-square'}`}
+                } transition-all duration-200 group flex items-center justify-center ${isDoubleSlot ? 'aspect-[2/1]' : 'aspect-square'}`}
               >
                 {isOccupied ? (
                   <>
@@ -142,6 +150,8 @@ function RackCard({ rackNumber, slots, onSlotClick }) {
                       <div className="absolute bottom-1 left-1 bg-amber-500/80 text-black text-[7px] font-black px-1 rounded pointer-events-none leading-tight">2×</div>
                     )}
                   </>
+                ) : isDragTarget ? (
+                  <Plus className="w-6 h-6 text-primary animate-pulse" />
                 ) : (
                   <Plus className="w-5 h-5 text-gray-700 group-hover:text-gray-500 transition-colors" />
                 )}
@@ -275,7 +285,7 @@ export default function Inventory() {
             currentRoom.unlocked ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {visualRacksOfCurrent.map((vr) => (
-                  <RackCard key={vr.rackNumber} rackNumber={rackOffset + vr.rackNumber} slots={vr.slots} onSlotClick={setSelectedSlot} />
+                  <RackCard key={vr.rackNumber} rackNumber={rackOffset + vr.rackNumber} slots={vr.slots} onSlotClick={setSelectedSlot} onSlotDrop={handleInstall} />
                 ))}
               </div>
             ) : (
@@ -322,7 +332,10 @@ export default function Inventory() {
                 {groupedInventory.map((group) => {
                   const descriptor = getMachineDescriptor({ hashRate: group.hashRate, slotSize: group.slotSize, imageUrl: group.imageUrl });
                   return (
-                    <div key={group.id} className="bg-gray-800/30 border border-gray-800/50 rounded-2xl p-4 flex items-center gap-4 hover:border-gray-700 transition-all">
+                    <div key={group.id}
+                      draggable
+                      onDragStart={(e) => { e.dataTransfer.setData('inventoryId', String(group.items[0].id)); e.dataTransfer.effectAllowed = 'move'; }}
+                      className="bg-gray-800/30 border border-gray-800/50 rounded-2xl p-4 flex items-center gap-4 hover:border-gray-700 transition-all cursor-grab active:cursor-grabbing select-none">
                       <div className="w-14 h-14 bg-gray-900/50 rounded-xl p-2 border border-gray-800/50 shrink-0 relative">
                         <img src={descriptor.image} alt={group.minerName} className="w-full h-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
                         <div className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-primary/20">x{group.quantity}</div>
