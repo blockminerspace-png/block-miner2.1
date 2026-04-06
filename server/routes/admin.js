@@ -340,7 +340,7 @@ adminRouter.get("/users/:id/details", async (req, res) => {
             }),
             prisma.userMiner.count({ where: { userId, isActive: true } }),
             prisma.userMiner.aggregate({ where: { userId, isActive: true }, _sum: { hashRate: true } }),
-            prisma.faucetClaim.findUnique({ where: { userId } }),
+            prisma.faucetClaim.findFirst({ where: { userId } }),
             prisma.transaction.findMany({
                 where: { userId },
                 orderBy: { createdAt: 'desc' },

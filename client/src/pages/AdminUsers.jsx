@@ -86,16 +86,18 @@ export default function AdminUsers() {
             setSendMinerId('');
             setSendQty(1);
             setUserLogs([]);
-            const [detailsRes, minersRes] = await Promise.all([
-                api.get(`/admin/users/${userId}/details`),
-                minersList.length === 0 ? api.get('/admin/miners?withEvents=1') : Promise.resolve(null)
-            ]);
+            const detailsRes = await api.get(`/admin/users/${userId}/details`);
             if (detailsRes.data.ok) setSelectedUser(detailsRes.data);
-            if (minersRes?.data?.ok) setMinersList(minersRes.data.miners || []);
         } catch (err) {
             toast.error('Erro ao carregar detalhes do usuário.');
         } finally {
             setIsDetailsLoading(false);
+        }
+        if (minersList.length === 0) {
+            try {
+                const minersRes = await api.get('/admin/miners?withEvents=1');
+                if (minersRes?.data?.ok) setMinersList(minersRes.data.miners || []);
+            } catch {}
         }
     };
 
