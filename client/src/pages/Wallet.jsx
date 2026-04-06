@@ -218,22 +218,27 @@ export default function Wallet() {
             const from = accounts[0];
             const valueHex = '0x' + parseEther(amount.toString()).toString(16);
 
-            // Busca nonce e gasPrice via RPC público da Polygon (sem API key, sem endpoint deprecated).
-            const POLYGON_RPC = 'https://polygon-bor-rpc.publicnode.com';
-            const rpcCall = (method, params = []) =>
-                fetch(POLYGON_RPC, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 })
-                }).then(r => r.json()).then(r => {
-                    if (r.error) throw new Error(r.error.message || 'RPC error');
-                    return r.result;
-                });
+            /** JSON-RPC quantity must be 0x + hex digits only (wallets reject prose e.g. API deprecation notices). */
+            const normalizeQuantity = (val, label) => {
+                if (typeof val === 'number' && Number.isFinite(val) && val >= 0 && Number.isInteger(val)) {
+                    return '0x' + BigInt(val).toString(16);
+                }
+                if (typeof val === 'string' && /^0x[0-9a-fA-F]+$/.test(val)) {
+                    return val;
+                }
+                throw new Error(
+                    `${label} inválido da rede. Troque de RPC na carteira ou tente “Transferência manual”.`
+                );
+            };
 
-            const [nonce, gasPrice] = await Promise.all([
-                rpcCall('eth_getTransactionCount', [from, 'pending']),
-                rpcCall('eth_gasPrice'),
+            // Usa o mesmo RPC da carteira (Polygon). fetch() a um RPC público pode devolver HTML/erro de proxy
+            // e quebrar eth_sendTransaction com "gasPrice is not a valid hexadecimal string".
+            const [nonceRaw, gasPriceRaw] = await Promise.all([
+                eip1193.request({ method: 'eth_getTransactionCount', params: [from, 'pending'] }),
+                eip1193.request({ method: 'eth_gasPrice' }),
             ]);
+            const nonce = normalizeQuantity(nonceRaw, 'Nonce');
+            const gasPrice = normalizeQuantity(gasPriceRaw, 'Preço do gás');
 
             toast.info('Requesting transaction authorized...');
 
