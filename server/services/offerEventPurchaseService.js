@@ -82,48 +82,75 @@ export async function purchaseEventMinerForUser(userId, eventMinerId, quantity =
         throw err;
       }
 
-      const price = Number(em.price);
-      if (!Number.isFinite(price) || price <= 0) {
-        const err = new Error("INVALID_PRICE");
-        err.code = "SERVER";
-        throw err;
-      }
-
-      const totalPrice = price * quantity;
       const currency = normalizeOfferCurrency(em.currency);
-      const balanceField = userBalanceFieldForCurrency(currency);
-
-      const user = await tx.user.findUnique({ where: { id: userId } });
-      if (!user) {
-        const err = new Error("USER_NOT_FOUND");
-        err.code = "NOT_FOUND";
-        throw err;
-      }
-
-      if (getUserBalanceNumber(user, currency) < totalPrice) {
-        const err = new Error("INSUFFICIENT_BALANCE");
-        err.code = "INSUFFICIENT";
-        throw err;
-      }
-
-      await incrementSoldCountOptimistic(tx, em.id, quantity);
-
-      await tx.user.update({
-        where: { id: userId },
-        data: { [balanceField]: { decrement: totalPrice } }
-      });
-
-      await tx.eventPurchase.createMany({
-        data: Array.from({ length: quantity }, () => ({
-          userId,
-          eventId: em.eventId,
-          eventMinerId: em.id,
-          pricePaid: em.price,
-          currency
-        }))
-      });
-
       const slotSize = Number.isInteger(em.slotSize) && em.slotSize >= 1 && em.slotSize <= 2 ? em.slotSize : 1;
+      let totalPrice = 0;
+
+      if (em.isFree) {
+        // Check per-user claim limit
+        if (em.claimLimitPerUser > 0) {
+          const existingClaims = await tx.eventPurchase.count({
+            where: { userId, eventMinerId: em.id }
+          });
+          if (existingClaims + quantity > em.claimLimitPerUser) {
+            const err = new Error("CLAIM_LIMIT_EXCEEDED");
+            err.code = "CLAIM_LIMIT_EXCEEDED";
+            throw err;
+          }
+        }
+
+        await incrementSoldCountOptimistic(tx, em.id, quantity);
+
+        await tx.eventPurchase.createMany({
+          data: Array.from({ length: quantity }, () => ({
+            userId,
+            eventId: em.eventId,
+            eventMinerId: em.id,
+            pricePaid: 0,
+            currency
+          }))
+        });
+      } else {
+        const price = Number(em.price);
+        if (!Number.isFinite(price) || price <= 0) {
+          const err = new Error("INVALID_PRICE");
+          err.code = "SERVER";
+          throw err;
+        }
+
+        totalPrice = price * quantity;
+        const balanceField = userBalanceFieldForCurrency(currency);
+
+        const user = await tx.user.findUnique({ where: { id: userId } });
+        if (!user) {
+          const err = new Error("USER_NOT_FOUND");
+          err.code = "NOT_FOUND";
+          throw err;
+        }
+
+        if (getUserBalanceNumber(user, currency) < totalPrice) {
+          const err = new Error("INSUFFICIENT_BALANCE");
+          err.code = "INSUFFICIENT";
+          throw err;
+        }
+
+        await incrementSoldCountOptimistic(tx, em.id, quantity);
+
+        await tx.user.update({
+          where: { id: userId },
+          data: { [balanceField]: { decrement: totalPrice } }
+        });
+
+        await tx.eventPurchase.createMany({
+          data: Array.from({ length: quantity }, () => ({
+            userId,
+            eventId: em.eventId,
+            eventMinerId: em.id,
+            pricePaid: em.price,
+            currency
+          }))
+        });
+      }
 
       await tx.userInventory.createMany({
         data: Array.from({ length: quantity }, () => ({
@@ -144,29 +171,32 @@ export async function purchaseEventMinerForUser(userId, eventMinerId, quantity =
         minerName: em.name,
         eventTitle: em.event.title,
         currency,
-        price,
+        isFree: em.isFree,
+        price: em.isFree ? 0 : Number(em.price),
         totalPrice,
         updatedUser
       };
     });
 
-    const { minerName, eventTitle, currency, totalPrice, updatedUser } = result;
+    const { minerName, eventTitle, currency, isFree, totalPrice, updatedUser } = result;
 
-    if (currency === "POL") {
+    if (!isFree && currency === "POL") {
       applyUserBalanceDelta(userId, -totalPrice);
     }
 
     await createNotification({
       userId,
-      title: "Oferta especial",
-      message: `Você comprou ${quantity}x ${minerName} no evento "${eventTitle}". ${quantity > 1 ? 'Os equipamentos estão' : 'O equipamento está'} no inventário!`,
+      title: isFree ? "Maquina gratis coletada!" : "Oferta especial",
+      message: isFree
+        ? `Voce coletou ${quantity}x ${minerName} gratuitamente! ${quantity > 1 ? 'Os equipamentos estao' : 'O equipamento esta'} no inventario!`
+        : `Voce comprou ${quantity}x ${minerName} no evento "${eventTitle}". ${quantity > 1 ? 'Os equipamentos estao' : 'O equipamento esta'} no inventario!`,
       type: "success",
       io: getMiningEngine()?.io
     });
 
     return {
       ok: true,
-      message: `${quantity}x ${minerName} adicionado(s) ao inventário.`,
+      message: `${quantity}x ${minerName} adicionado(s) ao inventario.`,
       balances: mapBalances(updatedUser)
     };
   } catch (e) {
@@ -176,6 +206,9 @@ export async function purchaseEventMinerForUser(userId, eventMinerId, quantity =
     }
     if (e.message === "INSUFFICIENT_BALANCE") {
       return { ok: false, status: 400, code: "insufficient_balance", message: "Insufficient balance." };
+    }
+    if (e.message === "CLAIM_LIMIT_EXCEEDED") {
+      return { ok: false, status: 400, code: "claim_limit_exceeded", message: "Limite de coletas atingido para esta maquina." };
     }
     if (e.message === "OUT_OF_STOCK" || e.message === "MINER_UNAVAILABLE") {
       return { ok: false, status: 400, code: "out_of_stock", message: "This offer is sold out or unavailable." };

@@ -19,13 +19,15 @@ const minerCreateSchema = z
     name: z.string().trim().min(1).max(200),
     description: z.string().trim().min(1).max(20000),
     imageUrl: z.string().trim().max(2000).optional().nullable(),
-    price: z.union([z.number().positive(), z.string().regex(/^\d+(\.\d+)?$/)]),
+    price: z.union([z.number().min(0), z.string().regex(/^\d+(\.\d+)?$/)]),
     hashRate: z.number().positive(),
     currency: z.enum(["POL", "BTC", "ETH", "USDT", "USDC", "ZER"]).optional(),
     stockUnlimited: z.boolean(),
     stockCount: z.number().int().positive().optional().nullable(),
     slotSize: z.union([z.literal(1), z.literal(2)]).optional(),
-    isActive: z.boolean().optional()
+    isActive: z.boolean().optional(),
+    isFree: z.boolean().optional(),
+    claimLimitPerUser: z.number().int().min(0).optional()
   })
   .strict()
   .refine((d) => d.stockUnlimited || (d.stockCount != null && d.stockCount > 0), {
@@ -37,13 +39,15 @@ const minerUpdateSchema = z
     name: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().min(1).max(20000).optional(),
     imageUrl: z.string().trim().max(2000).optional().nullable(),
-    price: z.union([z.number().positive(), z.string().regex(/^\d+(\.\d+)?$/)]).optional(),
+    price: z.union([z.number().min(0), z.string().regex(/^\d+(\.\d+)?$/)]).optional(),
     hashRate: z.number().positive().optional(),
     currency: z.enum(["POL", "BTC", "ETH", "USDT", "USDC", "ZER"]).optional(),
     stockUnlimited: z.boolean().optional(),
     stockCount: z.number().int().positive().optional().nullable(),
     slotSize: z.union([z.literal(1), z.literal(2)]).optional(),
-    isActive: z.boolean().optional()
+    isActive: z.boolean().optional(),
+    isFree: z.boolean().optional(),
+    claimLimitPerUser: z.number().int().min(0).optional()
   })
   .strict();
 
@@ -51,7 +55,7 @@ export { eventCreateSchema, eventUpdateSchema, minerCreateSchema, minerUpdateSch
 
 function toDecimalPrice(v) {
   const n = typeof v === "number" ? v : Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new Error("invalid price");
+  if (!Number.isFinite(n) || n < 0) throw new Error("invalid price");
   return String(n);
 }
 
@@ -270,7 +274,9 @@ export async function adminCreateEventMiner(req, res) {
         stockUnlimited: d.stockUnlimited,
         stockCount: d.stockUnlimited ? null : d.stockCount,
         slotSize: d.slotSize ?? 1,
-        isActive: d.isActive !== false
+        isActive: d.isActive !== false,
+        isFree: d.isFree === true,
+        claimLimitPerUser: d.claimLimitPerUser ?? 1
       }
     });
 
@@ -322,7 +328,9 @@ export async function adminUpdateEventMiner(req, res) {
             }
           : {}),
         ...(d.slotSize != null && { slotSize: d.slotSize }),
-        ...(d.isActive != null && { isActive: d.isActive })
+        ...(d.isActive != null && { isActive: d.isActive }),
+        ...(d.isFree !== undefined && { isFree: d.isFree }),
+        ...(d.claimLimitPerUser !== undefined && { claimLimitPerUser: d.claimLimitPerUser })
       }
     });
 

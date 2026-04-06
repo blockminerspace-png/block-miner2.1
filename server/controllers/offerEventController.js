@@ -2,7 +2,7 @@ import prisma from "../src/db/prisma.js";
 import { isOfferEventActiveForPublic, hasEventMinerStock } from "../services/offerEventHelpers.js";
 import { purchaseEventMinerForUser } from "../services/offerEventPurchaseService.js";
 
-function serializeMinerPublic(m) {
+function serializeMinerPublic(m, claimMap = {}) {
   const remaining =
     m.stockUnlimited || m.stockCount == null ? null : Math.max(0, (m.stockCount || 0) - (m.soldCount || 0));
   return {
@@ -15,11 +15,14 @@ function serializeMinerPublic(m) {
     currency: m.currency,
     slotSize: m.slotSize,
     inStock: hasEventMinerStock(m),
-    remaining
+    remaining,
+    isFree: m.isFree,
+    claimLimitPerUser: m.claimLimitPerUser,
+    userClaimCount: claimMap[m.id] ?? 0
   };
 }
 
-function serializeEventPublic(e, now) {
+function serializeEventPublic(e, now, claimMap = {}) {
   return {
     id: e.id,
     title: e.title,
@@ -28,13 +31,14 @@ function serializeEventPublic(e, now) {
     startsAt: e.startsAt,
     endsAt: e.endsAt,
     isActive: e.isActive,
-    miners: (e.miners || []).map(serializeMinerPublic),
+    miners: (e.miners || []).map((m) => serializeMinerPublic(m, claimMap)),
     isLive: isOfferEventActiveForPublic(now, e)
   };
 }
 
 export async function listActiveOfferEvents(req, res) {
   try {
+    const userId = req.user?.id;
     const now = new Date();
     const events = await prisma.offerEvent.findMany({
       where: {
@@ -51,9 +55,22 @@ export async function listActiveOfferEvents(req, res) {
       orderBy: { endsAt: "asc" }
     });
 
+    let claimMap = {};
+    if (userId) {
+      const allMinerIds = events.flatMap((e) => e.miners.map((m) => m.id));
+      if (allMinerIds.length > 0) {
+        const claimCounts = await prisma.eventPurchase.groupBy({
+          by: ["eventMinerId"],
+          where: { userId, eventMinerId: { in: allMinerIds } },
+          _count: { id: true }
+        });
+        claimMap = Object.fromEntries(claimCounts.map((row) => [row.eventMinerId, row._count.id]));
+      }
+    }
+
     res.json({
       ok: true,
-      events: events.map((e) => serializeEventPublic(e, now)),
+      events: events.map((e) => serializeEventPublic(e, now, claimMap)),
       serverTime: now.toISOString()
     });
   } catch (e) {

@@ -38,7 +38,9 @@ export default function AdminOfferEventManage() {
         stockUnlimited: false,
         stockCount: '',
         slotSize: 1,
-        isActive: true
+        isActive: true,
+        isFree: false,
+        claimLimitPerUser: 1
     });
 
     const loadEvent = useCallback(async () => {
@@ -140,7 +142,9 @@ export default function AdminOfferEventManage() {
             stockUnlimited: false,
             stockCount: '',
             slotSize: 1,
-            isActive: true
+            isActive: true,
+            isFree: false,
+            claimLimitPerUser: 1
         });
     };
 
@@ -161,7 +165,9 @@ export default function AdminOfferEventManage() {
             stockUnlimited: m.stockUnlimited,
             stockCount: m.stockCount != null ? String(m.stockCount) : '',
             slotSize: m.slotSize || 1,
-            isActive: m.isActive
+            isActive: m.isActive,
+            isFree: m.isFree || false,
+            claimLimitPerUser: m.claimLimitPerUser ?? 1
         });
         setShowMinerForm(true);
     };
@@ -175,13 +181,15 @@ export default function AdminOfferEventManage() {
                 name: minerForm.name,
                 description: minerForm.description,
                 imageUrl: minerForm.imageUrl || null,
-                price: Number(minerForm.price),
+                price: minerForm.isFree ? 0 : Number(minerForm.price),
                 hashRate: Number(minerForm.hashRate),
                 currency: minerForm.currency,
                 stockUnlimited: minerForm.stockUnlimited,
                 stockCount: minerForm.stockUnlimited ? null : Number(minerForm.stockCount),
                 slotSize: Number(minerForm.slotSize),
-                isActive: minerForm.isActive
+                isActive: minerForm.isActive,
+                isFree: minerForm.isFree,
+                claimLimitPerUser: Number(minerForm.claimLimitPerUser)
             };
             if (editingMinerId) {
                 await api.put(`/admin/offer-events/${id}/miners/${editingMinerId}`, payload);
@@ -339,12 +347,12 @@ export default function AdminOfferEventManage() {
                             <thead className="bg-slate-950 text-[10px] uppercase text-slate-500">
                                 <tr>
                                     <th className="px-4 py-3">Nome</th>
-                                    <th className="px-4 py-3">Preço</th>
+                                    <th className="px-4 py-3">Preco / Tipo</th>
                                     <th className="px-4 py-3">Hash</th>
                                     <th className="px-4 py-3">Estoque</th>
-                                    <th className="px-4 py-3">Vendidos</th>
+                                    <th className="px-4 py-3">Coletados</th>
                                     <th className="px-4 py-3">Ativo</th>
-                                    <th className="px-4 py-3 text-right">Ações</th>
+                                    <th className="px-4 py-3 text-right">Acoes</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800 text-slate-300">
@@ -352,7 +360,11 @@ export default function AdminOfferEventManage() {
                                     <tr key={m.id}>
                                         <td className="px-4 py-3 text-white font-semibold">{m.name}</td>
                                         <td className="px-4 py-3 font-mono text-xs">
-                                            {Number(m.price)} {m.currency}
+                                            {m.isFree ? (
+                                                <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-black text-[9px] uppercase">GRATIS</span>
+                                            ) : (
+                                                <>{Number(m.price)} {m.currency}</>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3">{m.hashRate}</td>
                                         <td className="px-4 py-3">
@@ -450,15 +462,39 @@ export default function AdminOfferEventManage() {
                             onChange={(url) => setMinerForm((f) => ({ ...f, imageUrl: url }))}
                             previewClass="max-h-32"
                         />
+                        {/* Maquina gratuita */}
+                        <label className="flex items-center gap-2 text-sm text-slate-300">
+                            <input
+                                type="checkbox"
+                                checked={minerForm.isFree}
+                                onChange={(e) => setMinerForm((f) => ({ ...f, isFree: e.target.checked, price: e.target.checked ? '0' : f.price }))}
+                            />
+                            Maquina gratuita (coletavel sem custo)
+                        </label>
+                        {minerForm.isFree && (
+                            <div>
+                                <label className="text-[10px] uppercase text-slate-500 font-bold">Limite por jogador (0 = ilimitado)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
+                                    placeholder="Ex: 1 (cada jogador coleta 1 vez)"
+                                    value={minerForm.claimLimitPerUser}
+                                    onChange={(e) => setMinerForm((f) => ({ ...f, claimLimitPerUser: e.target.value }))}
+                                />
+                            </div>
+                        )}
                         <div className="grid grid-cols-2 gap-3">
                             <input
                                 type="number"
                                 step="any"
-                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
-                                placeholder="Preço"
-                                value={minerForm.price}
+                                min="0"
+                                disabled={minerForm.isFree}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white disabled:opacity-30"
+                                placeholder={minerForm.isFree ? 'Gratis' : 'Preco'}
+                                value={minerForm.isFree ? '0' : minerForm.price}
                                 onChange={(e) => setMinerForm((f) => ({ ...f, price: e.target.value }))}
-                                required
+                                required={!minerForm.isFree}
                             />
                             <input
                                 type="number"
@@ -470,17 +506,19 @@ export default function AdminOfferEventManage() {
                                 required
                             />
                         </div>
-                        <select
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
-                            value={minerForm.currency}
-                            onChange={(e) => setMinerForm((f) => ({ ...f, currency: e.target.value }))}
-                        >
-                            {CURRENCIES.map((c) => (
-                                <option key={c} value={c}>
-                                    {c}
-                                </option>
-                            ))}
-                        </select>
+                        {!minerForm.isFree && (
+                            <select
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
+                                value={minerForm.currency}
+                                onChange={(e) => setMinerForm((f) => ({ ...f, currency: e.target.value }))}
+                            >
+                                {CURRENCIES.map((c) => (
+                                    <option key={c} value={c}>
+                                        {c}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
                         <label className="flex items-center gap-2 text-sm text-slate-300">
                             <input
                                 type="checkbox"

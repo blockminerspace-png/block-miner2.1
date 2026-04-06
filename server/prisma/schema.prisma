@@ -729,21 +729,23 @@ model OfferEvent {
 }
 
 model EventMiner {
-  id             Int      @id @default(autoincrement())
-  eventId        Int      @map("event_id")
-  name           String
-  description    String   @db.Text
-  imageUrl       String?  @map("image_url")
-  price          Decimal  @db.Decimal(20, 8)
-  hashRate       Float    @map("hash_rate")
-  currency       String   @default("POL")
-  stockUnlimited Boolean  @default(false) @map("stock_unlimited")
-  stockCount     Int?     @map("stock_count")
-  soldCount      Int      @default(0) @map("sold_count")
-  slotSize       Int      @default(1) @map("slot_size")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                Int      @id @default(autoincrement())
+  eventId           Int      @map("event_id")
+  name              String
+  description       String   @db.Text
+  imageUrl          String?  @map("image_url")
+  price             Decimal  @db.Decimal(20, 8)
+  hashRate          Float    @map("hash_rate")
+  currency          String   @default("POL")
+  stockUnlimited    Boolean  @default(false) @map("stock_unlimited")
+  stockCount        Int?     @map("stock_count")
+  soldCount         Int      @default(0) @map("sold_count")
+  slotSize          Int      @default(1) @map("slot_size")
+  isActive          Boolean  @default(true) @map("is_active")
+  isFree            Boolean  @default(false) @map("is_free")
+  claimLimitPerUser Int      @default(1) @map("claim_limit_per_user")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   event     OfferEvent      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   purchases EventPurchase[]
