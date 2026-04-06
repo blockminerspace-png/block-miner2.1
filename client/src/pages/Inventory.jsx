@@ -136,7 +136,7 @@ function RackCard({ rackNumber, slots, onSlotClick }) {
               >
                 {isOccupied ? (
                   <>
-                    <img src={descriptor.image} alt={descriptor.name} className="w-4/5 h-4/5 object-contain p-2 group-hover:scale-110 transition-transform pointer-events-none" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
+                    <img src={descriptor.image} alt={descriptor.name} className="w-full h-full object-contain group-hover:scale-110 transition-transform pointer-events-none" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
                     <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary pointer-events-none" />
                     {isDoubleSlot && (
                       <div className="absolute bottom-1 left-1 bg-amber-500/80 text-black text-[7px] font-black px-1 rounded pointer-events-none leading-tight">2×</div>
