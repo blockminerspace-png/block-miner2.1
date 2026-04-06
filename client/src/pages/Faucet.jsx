@@ -227,26 +227,28 @@ export default function Faucet() {
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
-                                            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-800">
+                                            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900" style={{ height: '120px' }}>
+                                                {/* iframe ZerAds carrega no fundo para contar impressão */}
                                                 <iframe
                                                     src="https://zerads.com/ad/ad.php?width=300&ref=10776"
                                                     width="300"
-                                                    height="250"
+                                                    height="120"
                                                     marginWidth={0}
                                                     marginHeight={0}
                                                     scrolling="no"
                                                     frameBorder={0}
-                                                    style={{ border: 'none', width: '100%', height: '250px', display: 'block', pointerEvents: isAdClicked ? 'none' : 'auto' }}
+                                                    style={{ border: 'none', width: '100%', height: '120px', display: 'block', pointerEvents: 'none', position: 'absolute', inset: 0 }}
                                                     title="ZerAds Sponsor"
                                                 />
-                                                {/* Overlay invisivel que captura o clique e dispara handleAdClick */}
-                                                {!isAdClicked && (
-                                                    <div
-                                                        className="absolute inset-0 cursor-pointer"
-                                                        onClick={handleAdClick}
-                                                        title="Visitar Patrocinador"
-                                                    />
-                                                )}
+                                                {/* Overlay visível com CTA — some ao clicar */}
+                                                <div
+                                                    className="absolute inset-0 flex flex-col items-center justify-center gap-2 cursor-pointer bg-black/60 hover:bg-black/40 transition-colors"
+                                                    onClick={handleAdClick}
+                                                >
+                                                    <MousePointer2 className="w-6 h-6 text-primary animate-bounce" />
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/90">Visitar Patrocinador</p>
+                                                    <p className="text-[8px] font-bold text-gray-400 uppercase">Clique para desbloquear</p>
+                                                </div>
                                             </div>
                                             
                                             <div className="flex items-center justify-center gap-2 text-primary/50">
