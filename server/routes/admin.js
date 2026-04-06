@@ -101,7 +101,49 @@ adminRouter.get("/users", adminController.listRecentUsers);
 adminRouter.put("/users/:id/ban", adminController.setUserBan);
 
 // Miners
-adminRouter.get("/miners", adminController.listMiners);
+adminRouter.get("/miners", async (req, res) => {
+    try {
+        const rows = await prisma.miner.findMany({ orderBy: { id: 'asc' } });
+        const miners = rows.map(m => ({
+            id: m.id,
+            name: m.name,
+            slug: m.slug,
+            baseHashRate: Number(m.baseHashRate ?? 0),
+            price: Number(m.price ?? 0),
+            slotSize: Number(m.slotSize ?? 1),
+            imageUrl: m.imageUrl && String(m.imageUrl).trim() !== "" ? String(m.imageUrl).trim() : null,
+            isActive: Boolean(m.isActive),
+            showInShop: Boolean(m.showInShop),
+            createdAt: m.createdAt
+        }));
+
+        if (req.query.withEvents === '1') {
+            const eventMiners = await prisma.eventMiner.findMany({
+                where: { isActive: true, event: { isActive: true, deletedAt: null } },
+                include: { event: { select: { name: true } } },
+                orderBy: { id: 'asc' }
+            });
+            for (const em of eventMiners) {
+                miners.push({
+                    id: `event_${em.id}`,
+                    name: `[Evento: ${em.event.name}] ${em.name}`,
+                    baseHashRate: Number(em.hashRate),
+                    price: 0,
+                    slotSize: Number(em.slotSize ?? 1),
+                    imageUrl: em.imageUrl && String(em.imageUrl).trim() !== "" ? String(em.imageUrl).trim() : null,
+                    isActive: Boolean(em.isActive),
+                    showInShop: false,
+                    slug: null,
+                    createdAt: em.createdAt
+                });
+            }
+        }
+
+        res.json({ ok: true, miners });
+    } catch (error) {
+        res.status(500).json({ ok: false, message: "Load failed" });
+    }
+});
 adminRouter.post("/miners", adminController.createMiner);
 adminRouter.put("/miners/:id", adminController.updateMiner);
 
@@ -353,36 +395,59 @@ adminRouter.get("/users/:id/logs", async (req, res) => {
 adminRouter.post("/users/:id/send-miner", async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
-        const minerId = parseInt(req.body?.minerId);
+        const minerIdRaw = String(req.body?.minerId ?? '');
         const quantity = Math.max(1, Math.min(100, parseInt(req.body?.quantity || 1)));
 
         if (!userId || isNaN(userId)) return res.status(400).json({ ok: false, message: 'ID de usuário inválido.' });
-        if (!minerId || isNaN(minerId)) return res.status(400).json({ ok: false, message: 'ID de máquina inválido.' });
+        if (!minerIdRaw) return res.status(400).json({ ok: false, message: 'ID de máquina inválido.' });
 
-        const [user, miner] = await Promise.all([
-            prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, email: true } }),
-            prisma.miner.findUnique({ where: { id: minerId } })
-        ]);
-
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, email: true } });
         if (!user) return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' });
-        if (!miner) return res.status(404).json({ ok: false, message: 'Máquina não encontrada.' });
 
         const now = new Date();
-        await prisma.userInventory.createMany({
-            data: Array.from({ length: quantity }, () => ({
-                userId,
-                minerId: miner.id,
-                minerName: miner.name,
-                level: 1,
-                hashRate: Number(miner.baseHashRate),
-                slotSize: Number(miner.slotSize || 1),
-                imageUrl: miner.imageUrl || '/machines/reward1.png',
-                acquiredAt: now,
-                updatedAt: now
-            }))
-        });
+        const isEventMiner = minerIdRaw.startsWith('event_');
 
-        res.json({ ok: true, message: `${quantity}x ${miner.name} enviado(s) para ${user.username || user.email}.` });
+        if (isEventMiner) {
+            const eventMinerId = parseInt(minerIdRaw.replace('event_', ''));
+            if (!eventMinerId || isNaN(eventMinerId)) return res.status(400).json({ ok: false, message: 'ID de máquina de evento inválido.' });
+            const eventMiner = await prisma.eventMiner.findUnique({ where: { id: eventMinerId } });
+            if (!eventMiner) return res.status(404).json({ ok: false, message: 'Máquina de evento não encontrada.' });
+
+            await prisma.userInventory.createMany({
+                data: Array.from({ length: quantity }, () => ({
+                    userId,
+                    minerId: null,
+                    minerName: eventMiner.name,
+                    level: 1,
+                    hashRate: Number(eventMiner.hashRate),
+                    slotSize: Number(eventMiner.slotSize || 1),
+                    imageUrl: eventMiner.imageUrl || '/machines/reward1.png',
+                    acquiredAt: now,
+                    updatedAt: now
+                }))
+            });
+            res.json({ ok: true, message: `${quantity}x ${eventMiner.name} enviado(s) para ${user.username || user.email}.` });
+        } else {
+            const minerId = parseInt(minerIdRaw);
+            if (!minerId || isNaN(minerId)) return res.status(400).json({ ok: false, message: 'ID de máquina inválido.' });
+            const miner = await prisma.miner.findUnique({ where: { id: minerId } });
+            if (!miner) return res.status(404).json({ ok: false, message: 'Máquina não encontrada.' });
+
+            await prisma.userInventory.createMany({
+                data: Array.from({ length: quantity }, () => ({
+                    userId,
+                    minerId: miner.id,
+                    minerName: miner.name,
+                    level: 1,
+                    hashRate: Number(miner.baseHashRate),
+                    slotSize: Number(miner.slotSize || 1),
+                    imageUrl: miner.imageUrl || '/machines/reward1.png',
+                    acquiredAt: now,
+                    updatedAt: now
+                }))
+            });
+            res.json({ ok: true, message: `${quantity}x ${miner.name} enviado(s) para ${user.username || user.email}.` });
+        }
     } catch (err) {
         console.error('send-miner error', err);
         res.status(500).json({ ok: false, message: 'Erro ao enviar máquina.' });

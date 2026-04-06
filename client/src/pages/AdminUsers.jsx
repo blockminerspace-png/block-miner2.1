@@ -88,7 +88,7 @@ export default function AdminUsers() {
             setUserLogs([]);
             const [detailsRes, minersRes] = await Promise.all([
                 api.get(`/admin/users/${userId}/details`),
-                minersList.length === 0 ? api.get('/admin/miners') : Promise.resolve(null)
+                minersList.length === 0 ? api.get('/admin/miners?withEvents=1') : Promise.resolve(null)
             ]);
             if (detailsRes.data.ok) setSelectedUser(detailsRes.data);
             if (minersRes?.data?.ok) setMinersList(minersRes.data.miners || []);

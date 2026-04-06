@@ -45,7 +45,7 @@ export async function listUsers({ page, pageSize, query, fromDate, toDate }) {
     if (toDate) where.createdAt.lte = new Date(toDate);
   }
 
-  const [users, total] = await Promise.all([
+  const [rawUsers, total] = await Promise.all([
     prisma.user.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -59,11 +59,21 @@ export async function listUsers({ page, pageSize, query, fromDate, toDate }) {
         ip: true,
         isBanned: true,
         createdAt: true,
-        lastLoginAt: true
+        lastLoginAt: true,
+        polBalance: true,
+        miners: {
+          where: { isActive: true },
+          select: { hashRate: true }
+        }
       }
     }),
     prisma.user.count({ where })
   ]);
+
+  const users = rawUsers.map(({ miners, ...u }) => ({
+    ...u,
+    baseHashRate: miners.reduce((sum, m) => sum + m.hashRate, 0)
+  }));
 
   return { users, total };
 }
