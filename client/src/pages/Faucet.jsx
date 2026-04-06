@@ -31,6 +31,29 @@ export default function Faucet() {
     const timerRef = useRef(null);
     const partnerTimerRef = useRef(null);
 
+    // Carrega banner ZerAds quando a seção do patrocinador fica visível
+    useEffect(() => {
+        if (isLoading || remainingMs > 0 || partnerWaitMs > 0 || isPartnerUnlocked) return;
+        fetch('https://zerads.com/ad/ad.php?ref=10776&width=468')
+            .then(response => response.text())
+            .then(data => {
+                const elements = document.querySelectorAll('[id="ZerAds468"]');
+                for (const element of elements) {
+                    if (element.style.display === 'none') {
+                        element.style.display = 'inline-block';
+                        if (data.includes("*BLANK*") == false) {
+                            data = data.replace('<meta http-equiv="refresh" content="280">', '');
+                            element.innerHTML = "<iframe style='border:none;' width='468' height='60'></iframe>";
+                            element.querySelector('iframe').srcdoc = data;
+                        } else {
+                            element.innerHTML = "<a href='https://zerads.com/index.php?view=site&id=10776' target='_blank'><div style='width: 468px; height: 60px; background-color: rgba(200, 200, 200, 0.1); position: relative;'><div style='position: absolute; color: #999; font-size: 30px; top: 17%; left: 28%; font-family: Arial; '><i>Advertise Here</i></div></div></a>";
+                        }
+                        break;
+                    }
+                }
+            });
+    }, [isLoading, remainingMs, partnerWaitMs, isPartnerUnlocked]);
+
     const fetchStatus = useCallback(async () => {
         try {
             const res = await api.get('/faucet/status');
@@ -227,20 +250,13 @@ export default function Faucet() {
                                         </div>
                                     ) : (
                                         <div className="space-y-3">
-                                            {/* Banner ZerAds — iframe direto, overlay transparente captura clique */}
-                                            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center" style={{ minHeight: '250px' }}>
-                                                <iframe
-                                                    src="https://zerads.com/ad/ad.php?width=300&ref=10776"
-                                                    marginWidth={0}
-                                                    marginHeight={0}
-                                                    width="300"
-                                                    height="250"
-                                                    scrolling="no"
-                                                    frameBorder={0}
-                                                    style={{ border: 'none', display: 'block', maxWidth: '100%' }}
-                                                    title="Patrocinador"
-                                                />
-                                                {/* Overlay transparente — captura clique sem esconder o banner */}
+                                            <div
+                                                className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center"
+                                                style={{ minHeight: '60px' }}
+                                            >
+                                                {/* Banner ZerAds — exato código oficial */}
+                                                <div id="ZerAds468" style={{ display: 'none' }}></div>
+                                                {/* Overlay transparente captura clique */}
                                                 <div
                                                     className="absolute inset-0 z-10"
                                                     onClick={handleAdClick}
