@@ -103,6 +103,7 @@
     "copy": "Copiar",
     "copied": "¡Copiado al portapapeles!",
     "confirm": "Confirmar",
+    "close": "Cerrar",
     "active": "Activo",
     "inactive": "Inactivo",
     "new": "NUEVO",
@@ -245,9 +246,24 @@
       "settings": "Ajustes",
       "remove_to_inventory": "Eliminar al Inventario",
       "confirm_remove": "¿Quieres enviar esta máquina de vuelta al inventario?",
+      "confirm_remove_button": "Confirmar desmontaje",
+      "remove_warning": "Esto enviará la máquina de vuelta al inventario y liberará el rack.",
       "choose_machine": "Elige una máquina para instalar en este espacio:",
       "no_machines_avail": "No hay máquinas disponibles."
-    }
+    },
+    "dismantle_rack": "Desmontar rack",
+    "dismantle_rack_tooltip": "Quitar todas las máquinas de este rack al inventario",
+    "dismantle_rack_aria": "Desmontar el rack completo y enviar todas las máquinas al inventario",
+    "dismantle_rack_confirm": "¿Deseas desmontar el rack {{rack}}?",
+    "dismantle_rack_warning": "Esto quitará todas las máquinas instaladas en este rack y las enviará de vuelta a tu inventario.",
+    "dismantle_rack_confirm_button": "Confirmar desmontaje",
+    "dismantle_rack_loading": "Quitando máquinas…",
+    "dismantle_rack_success": "¡Rack desmontado correctamente!",
+    "rack_heading": "Rack {{rack}}",
+    "slot_empty_tooltip": "Espacio libre — ábrelo para instalar una máquina del inventario",
+    "double_slot_tooltip": "Usa dos espacios del rack",
+    "double_slot_aria_suffix": "Usa dos espacios del rack.",
+    "rack_slot_machine_aria": "{{name}}. {{labelHashrate}} {{hashrate}}{{doubleSlot}}"
   },
   "wallet": {
     "title": "Billetera Digital",

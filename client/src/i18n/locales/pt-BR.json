@@ -103,6 +103,7 @@
     "copy": "Copiar",
     "copied": "Copiado para a área de transferência!",
     "confirm": "Confirmar",
+    "close": "Fechar",
     "active": "Ativo",
     "inactive": "Inativo",
     "new": "NOVO",
@@ -255,9 +256,17 @@
     },
     "dismantle_rack": "Desmontar Rack",
     "dismantle_rack_tooltip": "Remover todas as máquinas deste rack para o inventário",
+    "dismantle_rack_aria": "Desmontar o rack inteiro e enviar todas as máquinas para o inventário",
     "dismantle_rack_confirm": "Deseja desmontar o rack {{rack}}?",
     "dismantle_rack_warning": "Isso removerá todas as máquinas instaladas neste rack e as enviará de volta ao seu inventário.",
-    "dismantle_rack_success": "Rack desmontado com sucesso!"
+    "dismantle_rack_confirm_button": "Confirmar desmontagem",
+    "dismantle_rack_loading": "Removendo máquinas…",
+    "dismantle_rack_success": "Rack desmontado com sucesso!",
+    "rack_heading": "Rack {{rack}}",
+    "slot_empty_tooltip": "Slot vazio — abra para instalar uma máquina do inventário",
+    "double_slot_tooltip": "Ocupa dois slots do rack",
+    "double_slot_aria_suffix": "Ocupa dois slots do rack.",
+    "rack_slot_machine_aria": "{{name}}. {{labelHashrate}} {{hashrate}}{{doubleSlot}}"
   },
   "wallet": {
     "title": "Carteira Digital",

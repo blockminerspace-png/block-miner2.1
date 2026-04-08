@@ -103,6 +103,7 @@
     "copy": "Copy",
     "copied": "Copied to clipboard!",
     "confirm": "Confirm",
+    "close": "Close",
     "active": "Active",
     "inactive": "Inactive",
     "new": "NEW",
@@ -254,9 +255,17 @@
     },
     "dismantle_rack": "Dismantle Rack",
     "dismantle_rack_tooltip": "Remove all machines from this rack to inventory",
+    "dismantle_rack_aria": "Dismantle entire rack and send all machines to inventory",
     "dismantle_rack_confirm": "Do you want to dismantle rack {{rack}}?",
     "dismantle_rack_warning": "This will remove all installed machines from this rack and send them back to your inventory.",
-    "dismantle_rack_success": "Rack dismantled successfully!"
+    "dismantle_rack_confirm_button": "Confirm dismantle",
+    "dismantle_rack_loading": "Removing machines…",
+    "dismantle_rack_success": "Rack dismantled successfully!",
+    "rack_heading": "Rack {{rack}}",
+    "slot_empty_tooltip": "Empty slot — open to install a machine from inventory",
+    "double_slot_tooltip": "Uses two rack slots",
+    "double_slot_aria_suffix": "Uses two rack slots.",
+    "rack_slot_machine_aria": "{{name}}. {{labelHashrate}} {{hashrate}}{{doubleSlot}}"
   },
   "wallet": {
     "title": "Digital Wallet",

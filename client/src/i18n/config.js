@@ -17,6 +17,9 @@ const resources = {
   es: {
     translation: translationES,
   },
+  'es-ES': {
+    translation: translationES,
+  },
 };
 
 i18n
@@ -25,7 +28,7 @@ i18n
   .init({
     resources,
     fallbackLng: 'en', // Default language if browser language is not available
-    supportedLngs: ['en', 'pt-BR', 'es'],
+    supportedLngs: ['en', 'pt-BR', 'es', 'es-ES'],
     interpolation: {
       escapeValue: false, // react already safes from xss
     },

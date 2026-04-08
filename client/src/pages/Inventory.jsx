@@ -1,8 +1,8 @@
-﻿import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { Lock, Plus, Zap, Trash2, Box, AlertCircle } from "lucide-react";
+import { Lock, Plus, Zap, Trash2, Box, AlertCircle, X } from "lucide-react";
 import { api } from "../store/auth";
 import { formatHashrate, DEFAULT_MINER_IMAGE_URL, getMachineDescriptor } from "../utils/machine";
 
@@ -14,6 +14,140 @@ function groupIntoRacks(racks) {
     groups.push({ rackNumber: r + 1, slots: racks.slice(r * SLOTS_PER_VISUAL_RACK, (r + 1) * SLOTS_PER_VISUAL_RACK) });
   }
   return groups;
+}
+
+/**
+ * Accessible confirmation dialog for dismantling every machine in one visual rack.
+ * Focus trap, Escape to close (when not loading), and restore focus are handled by the parent via onClose.
+ *
+ * @param {object} props
+ * @param {boolean} props.open
+ * @param {() => void} props.onClose
+ * @param {() => Promise<void>} props.onConfirm
+ * @param {number} props.displayRackNumber Global rack label shown in the header (room offset + local index).
+ * @param {boolean} props.loading When true, actions are disabled and Escape is ignored.
+ */
+function RackDismantleModal({ open, onClose, onConfirm, displayRackNumber, loading }) {
+  const { t } = useTranslation();
+  const panelRef = useRef(null);
+  const titleId = useId();
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const focusClose = () => {
+      closeButtonRef.current?.focus();
+    };
+    const id = requestAnimationFrame(focusClose);
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        if (!loading) {
+          e.preventDefault();
+          onClose();
+        }
+        return;
+      }
+      if (e.key !== "Tab" || !panelRef.current) return;
+
+      const focusable = panelRef.current.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      const list = Array.from(focusable).filter((el) => el.getClientRects().length > 0);
+      if (list.length === 0) return;
+
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, loading, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-300"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !loading) onClose();
+      }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="bg-surface border border-gray-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="px-4 pt-6 pb-4 sm:px-8 sm:pt-8 sm:pb-6 flex items-center justify-between border-b border-gray-800/50">
+          <div>
+            <h3 id={titleId} className="text-xl font-bold text-white">
+              {t("inventory.dismantle_rack")}
+            </h3>
+            <p className="text-xs font-bold text-gray-500 mt-1 uppercase tracking-widest">
+              {t("inventory.rack_heading", { rack: displayRackNumber })}
+            </p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={() => !loading && onClose()}
+            disabled={loading}
+            aria-label={t("common.close")}
+            className="w-10 h-10 rounded-xl bg-gray-800/50 text-gray-400 flex items-center justify-center hover:text-white transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <Plus className="w-6 h-6 rotate-45" />
+          </button>
+        </div>
+        <div className="p-4 sm:p-8">
+          <div className="space-y-6">
+            <p className="text-sm text-gray-400 leading-6">{t("inventory.dismantle_rack_warning")}</p>
+            <p className="text-sm font-medium text-gray-300">{t("inventory.dismantle_rack_confirm", { rack: displayRackNumber })}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => onConfirm()}
+                className="w-full py-4 rounded-2xl font-bold text-sm transition-all border bg-red-500 text-white border-red-500 hover:bg-red-600 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {loading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" aria-hidden />
+                ) : (
+                  <X className="w-4 h-4 shrink-0" aria-hidden />
+                )}
+                {loading ? t("inventory.dismantle_rack_loading") : t("inventory.dismantle_rack_confirm_button")}
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => onClose()}
+                className="w-full py-4 bg-gray-800/80 text-gray-300 rounded-2xl font-bold text-sm transition-all border border-gray-700 hover:bg-gray-700 disabled:opacity-50"
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 function SlotModal({ slot, inventory, onInstall, onRemove, onClose }) {
@@ -43,7 +177,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onClose }) {
             <h3 className="text-xl font-bold text-white">{machine ? t("inventory.modal.details_title") : t("inventory.modal.install_title")}</h3>
             <p className="text-xs font-bold text-gray-500 mt-1 uppercase tracking-widest">{t("inventory.modal.rack_slot", { rack: slot.visualRackNumber, slot: slot.slotInRack + 1 })}</p>
           </div>
-          <button onClick={onClose} aria-label={t("common.close", "Fechar")} className="w-10 h-10 rounded-xl bg-gray-800/50 text-gray-400 flex items-center justify-center hover:text-white transition-colors">
+          <button type="button" onClick={onClose} aria-label={t("common.close")} className="w-10 h-10 rounded-xl bg-gray-800/50 text-gray-400 flex items-center justify-center hover:text-white transition-colors">
             <Plus className="w-6 h-6 rotate-45" />
           </button>
         </div>
@@ -118,27 +252,32 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onClose }) {
   );
 }
 
-function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onRemoveRack }) {
+function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack, rackDismantleLoading }) {
   const { t } = useTranslation();
   const [dragOverId, setDragOverId] = useState(null);
   const [confirmingDismantle, setConfirmingDismantle] = useState(false);
 
-  const hasMachines = slots.some(slot => slot?.miner);
+  const hasMachines = slots.some((slot) => slot?.miner);
 
   return (
     <div className="bg-surface border border-gray-800/50 rounded-3xl overflow-hidden shadow-xl">
-      <div className="px-3 py-2.5 sm:px-6 sm:py-4 bg-gray-800/20 border-b border-gray-800/50 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-glow" />
-          <h3 className="text-sm font-bold text-gray-300">Rack {rackNumber}</h3>
+      <div className="px-3 py-2.5 sm:px-6 sm:py-4 bg-gray-800/20 border-b border-gray-800/50 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-glow shrink-0" />
+          <h3 className="text-sm font-bold text-gray-300 truncate">
+            {t("inventory.rack_heading", { rack: rackNumber })}
+          </h3>
         </div>
         {hasMachines && (
           <button
+            type="button"
             onClick={() => setConfirmingDismantle(true)}
+            disabled={rackDismantleLoading}
             title={t("inventory.dismantle_rack_tooltip")}
-            className="w-8 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center justify-center"
+            aria-label={t("inventory.dismantle_rack_aria")}
+            className="w-8 h-8 shrink-0 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none"
           >
-            <Trash2 className="w-4 h-4" />
+            <X className="w-4 h-4" strokeWidth={2.5} aria-hidden />
           </button>
         )}
       </div>
@@ -162,10 +301,22 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onRemoveRack }) 
               continue;
             }
 
+            const displayName = machine ? (machine.minerName || descriptor.name) : "";
+            const hashrateStr = machine ? formatHashrate(machine.hashRate) : "";
+            const occupiedAria = machine
+              ? t("inventory.rack_slot_machine_aria", {
+                  name: displayName,
+                  labelHashrate: t("inventory.modal.hashrate"),
+                  hashrate: hashrateStr,
+                  doubleSlot: machine.slotSize >= 2 ? ` ${t("inventory.double_slot_aria_suffix")}` : "",
+                })
+              : t("inventory.slot_empty_tooltip");
+
             rendered.push(
               <button
                 key={rack ? rack.id : i}
-                title={machine ? `${t("inventory.modal.details_title")} ${machine.slotSize >= 2 ? `• ${t("inventory.double_slot_tooltip")}` : ""}` : t("inventory.slot_tooltip")}
+                type="button"
+                aria-label={occupiedAria}
                 onClick={() => onSlotClick({ rack, miner: machine, visualRackNumber: rackNumber, slotInRack: i })}
                 style={isDoubleSlot ? { gridColumn: 'span 2' } : {}}
                 onDragOver={!isOccupied ? (e) => { e.preventDefault(); setDragOverId(slotKey); } : undefined}
@@ -181,7 +332,22 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onRemoveRack }) 
               >
                 {isOccupied ? (
                   <>
-                    <img src={descriptor.image} alt={descriptor.name} className="w-full h-full object-contain group-hover:scale-110 transition-transform pointer-events-none" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
+                    <div
+                      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-[min(100vw-2rem,14rem)] -translate-x-1/2 rounded-xl border border-gray-700/80 bg-gray-950/95 px-3 py-2 text-left shadow-xl opacity-0 shadow-black/40 backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
+                      aria-hidden="true"
+                      role="tooltip"
+                    >
+                      <p className="truncate text-xs font-bold text-white">{displayName}</p>
+                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                        {t("inventory.modal.hashrate")} {hashrateStr}
+                      </p>
+                      {machine.slotSize >= 2 && (
+                        <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-amber-400/90">
+                          {t("inventory.double_slot_tooltip")}
+                        </p>
+                      )}
+                    </div>
+                    <img src={descriptor.image} alt="" className="w-full h-full object-contain group-hover:scale-110 transition-transform pointer-events-none" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
                     <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary pointer-events-none" />
                     {isDoubleSlot && (
                       <div className="absolute bottom-1 left-1 bg-amber-500/80 text-black text-[7px] font-black px-1 rounded pointer-events-none leading-tight">2×</div>
@@ -199,43 +365,20 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onRemoveRack }) 
           return rendered;
         })()}
       </div>
-      {confirmingDismantle && createPortal(
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-surface border border-gray-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="px-4 pt-6 pb-4 sm:px-8 sm:pt-8 sm:pb-6 flex items-center justify-between border-b border-gray-800/50">
-              <div>
-                <h3 className="text-xl font-bold text-white">{t("inventory.dismantle_rack")}</h3>
-                <p className="text-xs font-bold text-gray-500 mt-1 uppercase tracking-widest">Rack {rackNumber}</p>
-              </div>
-              <button onClick={() => setConfirmingDismantle(false)} aria-label={t("common.close", "Close")} className="w-10 h-10 rounded-xl bg-gray-800/50 text-gray-400 flex items-center justify-center hover:text-white transition-colors">
-                <Plus className="w-6 h-6 rotate-45" />
-              </button>
-            </div>
-            <div className="p-4 sm:p-8">
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-400 leading-6">{t("inventory.dismantle_rack_warning")}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => { onRemoveRack(rackNumber); setConfirmingDismantle(false); }}
-                      className="w-full py-4 rounded-2xl font-bold text-sm transition-all border bg-red-500 text-white border-red-500 hover:bg-red-600 flex items-center justify-center gap-2">
-                      <Trash2 className="w-4 h-4" /> {t("inventory.dismantle_rack")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingDismantle(false)}
-                      className="w-full py-4 bg-gray-800/80 text-gray-300 rounded-2xl font-bold text-sm transition-all border border-gray-700 hover:bg-gray-700">
-                      {t("common.cancel")}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <RackDismantleModal
+        open={confirmingDismantle}
+        onClose={() => !rackDismantleLoading && setConfirmingDismantle(false)}
+        displayRackNumber={rackNumber}
+        loading={rackDismantleLoading}
+        onConfirm={async () => {
+          try {
+            await onDismantleRack(slots);
+            setConfirmingDismantle(false);
+          } catch {
+            /* Errors and toasts are handled in the parent handler */
+          }
+        }}
+      />
     </div>
   );
 }
@@ -247,6 +390,7 @@ export default function Inventory() {
   const [summary, setSummary] = useState({ totalRacks: 0, occupiedRacks: 0, freeRacks: 0 });
   const [loading, setLoading] = useState(true);
   const [buyingRoom, setBuyingRoom] = useState(false);
+  const [rackDismantleLoading, setRackDismantleLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [activeRoom, setActiveRoom] = useState(1);
 
@@ -295,28 +439,42 @@ export default function Inventory() {
     } catch (err) { toast.error(err?.response?.data?.message || t("common.error")); }
   };
 
-  const handleRemoveRack = async (rackNumber) => {
-    if (!currentRoom) return;
-    const rackIndex = rackNumber - 1; // rackNumber starts from 1
-    const visualRack = visualRacksOfCurrent.find(vr => vr.rackNumber === rackIndex + 1);
-    if (!visualRack) return;
+  /**
+   * Uninstalls every occupied slot in one visual rack (same API as single-slot removal).
+   * Uses slot rows from the current room payload so rack numbering stays correct across rooms.
+   *
+   * @param {Array<{ id?: number, miner?: object }>} slots Eight slot records for the visual rack.
+   * @returns {Promise<void>}
+   */
+  const handleRemoveRackSlots = useCallback(
+    async (slots) => {
+      const occupied = (slots || []).filter((s) => s?.miner && Number.isInteger(s.id));
+      if (occupied.length === 0) return;
 
-    const occupiedSlots = visualRack.slots.filter(slot => slot?.miner);
-    if (occupiedSlots.length === 0) return;
-
-    try {
-      // Remove all machines from this rack
-      for (const slot of occupiedSlots) {
-        if (slot.id) {
-          await api.post("/rooms/rack/uninstall", { rackId: slot.id });
+      setRackDismantleLoading(true);
+      try {
+        for (const slot of occupied) {
+          const res = await api.post("/rooms/rack/uninstall", { rackId: slot.id });
+          if (!res.data?.ok) {
+            toast.error(res.data?.message || t("common.error"));
+            await fetchData();
+            throw new Error("UNINSTALL_FAILED");
+          }
         }
+        toast.success(t("inventory.dismantle_rack_success"));
+        await fetchData();
+      } catch (err) {
+        if (err?.message !== "UNINSTALL_FAILED") {
+          toast.error(err?.response?.data?.message || t("common.error"));
+          await fetchData();
+        }
+        throw err;
+      } finally {
+        setRackDismantleLoading(false);
       }
-      toast.success(t("inventory.dismantle_rack_success"));
-      await fetchData();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || t("common.error"));
-    }
-  };
+    },
+    [t, fetchData]
+  );
 
   const groupedInventory = useMemo(() => {
     const groups = {};
@@ -382,7 +540,15 @@ export default function Inventory() {
             currentRoom.unlocked ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {visualRacksOfCurrent.map((vr) => (
-                  <RackCard key={vr.rackNumber} rackNumber={rackOffset + vr.rackNumber} slots={vr.slots} onSlotClick={setSelectedSlot} onSlotDrop={handleInstall} onRemoveRack={handleRemoveRack} />
+                  <RackCard
+                    key={vr.rackNumber}
+                    rackNumber={rackOffset + vr.rackNumber}
+                    slots={vr.slots}
+                    onSlotClick={setSelectedSlot}
+                    onSlotDrop={handleInstall}
+                    onDismantleRack={handleRemoveRackSlots}
+                    rackDismantleLoading={rackDismantleLoading}
+                  />
                 ))}
               </div>
             ) : (
