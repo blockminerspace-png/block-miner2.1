@@ -119,6 +119,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onClose }) {
 }
 
 function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop }) {
+  const { t } = useTranslation();
   const [dragOverId, setDragOverId] = useState(null);
   return (
     <div className="bg-surface border border-gray-800/50 rounded-3xl overflow-hidden shadow-xl">
