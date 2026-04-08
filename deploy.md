@@ -192,7 +192,14 @@ sudo certbot certonly --standalone -d blockminer.space -d www.blockminer.space -
 # depois copia o mesmo fullchain/privkey para nginx/certs/ como acima
 ```
 
-5. **Renovação:** o Let’s Encrypt expira ~90 dias. Testa `sudo certbot renew --dry-run` e configura um cron/systemd timer; após renovar, volta a **copiar** `fullchain.pem` / `privkey.pem` para `nginx/certs/` (ou usa um `--deploy-hook` que faça essa cópia + `docker compose exec nginx nginx -s reload`).
+5. **Renovação:** o Let’s Encrypt expira ~90 dias. Testa `sudo certbot renew --dry-run` e configura um cron/systemd timer. Após cada renovação, sincroniza para o Docker e recarrega o nginx:
+
+```bash
+cd /root/block-miner
+sudo DOMAIN=tests.blockminer.space bash scripts/sync-le-certs-to-nginx.sh
+```
+
+Ou usa `--deploy-hook` no certbot apontando para esse script (com `PROJECT_ROOT` e `DOMAIN` exportados).
 
 ---
 
