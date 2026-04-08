@@ -14,7 +14,9 @@ param(
     [string] $SshHost    = '37.27.38.21',
     [string] $SshUser    = 'root',
     [string] $RemotePath = '/root/block-miner',
-    [string] $PlinkExe   = 'C:\Program Files\PuTTY\plink.exe'
+    [string] $PlinkExe   = 'C:\Program Files\PuTTY\plink.exe',
+    [string] $ComposeService = 'app',
+    [switch] $RemoveOrphans
 )
 
 Set-StrictMode -Version Latest
@@ -71,8 +73,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "pscp falhou ao enviar .env.production" }
     }
 
-    # Por último faz o build e restart
-    $remoteBuildCmd = "set -e`ncd $RemotePath`ndocker compose up -d --build --no-deps app`ndocker compose exec -T nginx nginx -s reload || true`ncurl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true`n"
+    # Por último faz o build e restart (serviço típico: app → 127.0.0.1:3000)
+    $orph = if ($RemoveOrphans) { ' --remove-orphans' } else { '' }
+    $remoteBuildCmd = "set -e`ncd $RemotePath`ndocker compose up -d --build --no-deps$orph $ComposeService`ndocker compose exec -T nginx nginx -s reload || true`ncurl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true`n"
     Write-Host "==> docker compose build no VPS ($SshHost)..."
     & $PlinkExe -batch -ssh -pwfile $tmpPw "${SshUser}@${SshHost}" $remoteBuildCmd
     Write-Host '==> Feito.'
