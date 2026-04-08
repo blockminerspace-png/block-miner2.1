@@ -1,6 +1,6 @@
 import loggerLib from "../utils/logger.js";
 import { getBlkEconomyConfig, serializeBlkConfigPublic, updateBlkEconomyConfig } from "../models/blkEconomyModel.js";
-import { convertPolToBlk, estimatePolToBlk } from "../models/blkWalletModel.js";
+import { estimatePolToBlk } from "../models/blkWalletModel.js";
 
 const logger = loggerLib.child("BlkWalletController");
 
@@ -30,21 +30,11 @@ export async function getEstimate(req, res) {
 }
 
 export async function postConvert(req, res) {
-  try {
-    const { pol_amount: polAmountSnake, polAmount: polCamel } = req.body;
-    const raw = polAmountSnake ?? polCamel;
-    const result = await convertPolToBlk(req.user.id, raw);
-    res.json({
-      ok: true,
-      blkReceived: result.blkOut,
-      polFee: result.feePol,
-      polDeducted: result.polGross,
-      transactionId: result.transaction.id
-    });
-  } catch (e) {
-    logger.warn("postConvert", { userId: req.user?.id, error: e.message });
-    res.status(400).json({ ok: false, message: e.message || "Conversion failed." });
-  }
+  logger.warn("postConvert disabled", { userId: req.user?.id });
+  return res.status(410).json({
+    ok: false,
+    message: "POL to BLK conversion is no longer available."
+  });
 }
 
 /** Admin: full config row + serialized (admin panel) */
