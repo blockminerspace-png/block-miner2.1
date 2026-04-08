@@ -251,7 +251,12 @@
       "remove_warning": "This will send the machine back to inventory and free the rack.",
       "choose_machine": "Choose a machine to install in this slot:",
       "no_machines_avail": "No machines available."
-    }
+    },
+    "dismantle_rack": "Dismantle Rack",
+    "dismantle_rack_tooltip": "Remove all machines from this rack to inventory",
+    "dismantle_rack_confirm": "Do you want to dismantle rack {{rack}}?",
+    "dismantle_rack_warning": "This will remove all installed machines from this rack and send them back to your inventory.",
+    "dismantle_rack_success": "Rack dismantled successfully!"
   },
   "wallet": {
     "title": "Digital Wallet",

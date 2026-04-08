@@ -252,7 +252,12 @@
       "remove_warning": "Isso enviará a máquina de volta ao inventário e liberará o rack.",
       "choose_machine": "Escolha uma máquina para instalar neste slot:",
       "no_machines_avail": "Nenhuma máquina disponível."
-    }
+    },
+    "dismantle_rack": "Desmontar Rack",
+    "dismantle_rack_tooltip": "Remover todas as máquinas deste rack para o inventário",
+    "dismantle_rack_confirm": "Deseja desmontar o rack {{rack}}?",
+    "dismantle_rack_warning": "Isso removerá todas as máquinas instaladas neste rack e as enviará de volta ao seu inventário.",
+    "dismantle_rack_success": "Rack desmontado com sucesso!"
   },
   "wallet": {
     "title": "Carteira Digital",
