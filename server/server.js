@@ -76,6 +76,12 @@ const io = new Server(server, {
   }
 });
 
+function envFlag(name, defaultValue = false) {
+  const raw = String(process.env[name] ?? "").trim().toLowerCase();
+  if (!raw) return defaultValue;
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
 // 1. Initialize Mining Engine
 const engine = new MiningEngine();
 setMiningEngine(engine);
@@ -313,65 +319,72 @@ async function bootstrap() {
     // Ensure shortlink reward is correctly set up
     await ensureDefaultInternalReward().catch(err => logger.error("Failed to ensure shortlink reward", { error: err.message }));
 
-    // --- ONE-TIME SCRIPT: Reset all shortlinks on startup ---
-    try {
-      logger.info("Running one-time shortlink reset for all users...");
-      const { count } = await prisma.shortlinkCompletion.updateMany({
-        where: { dailyRuns: { gt: 0 } },
-        data: { dailyRuns: 0, resetAt: new Date() }
-      });
-      logger.info(`One-time reset completed for ${count} users.`);
-    } catch (e) {
-      logger.error("One-time shortlink reset failed", { error: e.message });
-    }
-    // --- END ONE-TIME SCRIPT ---
-
-    // --- MIGRATION GUARD: remove legacy BLK mining mode (POL-only) ---
-    try {
-      const { count } = await prisma.user.updateMany({
-        where: { miningPayoutMode: "blk" },
-        data: { miningPayoutMode: "pol" }
-      });
-      if (count > 0) {
-        logger.info(`Converted ${count} user(s) from BLK mining mode to POL.`);
+    if (envFlag("RUN_STARTUP_DATA_MIGRATIONS", false)) {
+      // --- ONE-TIME SCRIPT: Reset all shortlinks on startup ---
+      try {
+        logger.info("Running one-time shortlink reset for all users...");
+        const { count } = await prisma.shortlinkCompletion.updateMany({
+          where: { dailyRuns: { gt: 0 } },
+          data: { dailyRuns: 0, resetAt: new Date() }
+        });
+        logger.info(`One-time reset completed for ${count} users.`);
+      } catch (e) {
+        logger.error("One-time shortlink reset failed", { error: e.message });
       }
-    } catch (e) {
-      logger.error("BLK->POL mining mode migration failed", { error: e.message });
-    }
-    // --- END MIGRATION GUARD ---
+      // --- END ONE-TIME SCRIPT ---
 
-    // --- MIGRATION: Extend game/yt powers criados com 24h para GAME_POWER_DAYS ---
-    try {
-      const GAME_POWER_DAYS = Number(process.env.GAME_POWER_DAYS) || 7;
-      const YT_POWER_DAYS = Number(process.env.YT_POWER_DAYS) || 7;
-      const now = new Date();
-      // Pega apenas powers ativos criados nos últimos 3 dias que ainda expiram em < 2 dias (criados com expiry de 24h)
-      const cutoffCreated = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-      const shortExpiryThreshold = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
-
-      const oldGamePowers = await prisma.userPowerGame.findMany({
-        where: { playedAt: { gt: cutoffCreated }, expiresAt: { gt: now, lt: shortExpiryThreshold } },
-        select: { id: true, playedAt: true }
-      });
-      for (const p of oldGamePowers) {
-        const newExpiry = new Date(p.playedAt.getTime() + GAME_POWER_DAYS * 24 * 60 * 60 * 1000);
-        await prisma.userPowerGame.update({ where: { id: p.id }, data: { expiresAt: newExpiry } });
+      // --- MIGRATION GUARD: remove legacy BLK mining mode (POL-only) ---
+      try {
+        const { count } = await prisma.user.updateMany({
+          where: { miningPayoutMode: "blk" },
+          data: { miningPayoutMode: "pol" }
+        });
+        if (count > 0) {
+          logger.info(`Converted ${count} user(s) from BLK mining mode to POL.`);
+        }
+      } catch (e) {
+        logger.error("BLK->POL mining mode migration failed", { error: e.message });
       }
-      if (oldGamePowers.length > 0) logger.info(`Migrated ${oldGamePowers.length} game powers to ${GAME_POWER_DAYS}-day expiry.`);
+      // --- END MIGRATION GUARD ---
 
-      const oldYtPowers = await prisma.youtubeWatchPower.findMany({
-        where: { claimedAt: { gt: cutoffCreated }, expiresAt: { gt: now, lt: shortExpiryThreshold } },
-        select: { id: true, claimedAt: true }
-      });
-      for (const p of oldYtPowers) {
-        const newExpiry = new Date(p.claimedAt.getTime() + YT_POWER_DAYS * 24 * 60 * 60 * 1000);
-        await prisma.youtubeWatchPower.update({ where: { id: p.id }, data: { expiresAt: newExpiry } });
+      // --- MIGRATION: Extend game/yt powers created with 24h to GAME_POWER_DAYS ---
+      try {
+        const GAME_POWER_DAYS = Number(process.env.GAME_POWER_DAYS) || 7;
+        const YT_POWER_DAYS = Number(process.env.YT_POWER_DAYS) || 7;
+        const now = new Date();
+        const cutoffCreated = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+        const shortExpiryThreshold = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+
+        const oldGamePowers = await prisma.userPowerGame.findMany({
+          where: { playedAt: { gt: cutoffCreated }, expiresAt: { gt: now, lt: shortExpiryThreshold } },
+          select: { id: true, playedAt: true }
+        });
+        for (const p of oldGamePowers) {
+          const newExpiry = new Date(p.playedAt.getTime() + GAME_POWER_DAYS * 24 * 60 * 60 * 1000);
+          await prisma.userPowerGame.update({ where: { id: p.id }, data: { expiresAt: newExpiry } });
+        }
+        if (oldGamePowers.length > 0) {
+          logger.info(`Migrated ${oldGamePowers.length} game powers to ${GAME_POWER_DAYS}-day expiry.`);
+        }
+
+        const oldYtPowers = await prisma.youtubeWatchPower.findMany({
+          where: { claimedAt: { gt: cutoffCreated }, expiresAt: { gt: now, lt: shortExpiryThreshold } },
+          select: { id: true, claimedAt: true }
+        });
+        for (const p of oldYtPowers) {
+          const newExpiry = new Date(p.claimedAt.getTime() + YT_POWER_DAYS * 24 * 60 * 60 * 1000);
+          await prisma.youtubeWatchPower.update({ where: { id: p.id }, data: { expiresAt: newExpiry } });
+        }
+        if (oldYtPowers.length > 0) {
+          logger.info(`Migrated ${oldYtPowers.length} YT powers to ${YT_POWER_DAYS}-day expiry.`);
+        }
+      } catch (e) {
+        logger.error("Power expiry migration failed", { error: e.message });
       }
-      if (oldYtPowers.length > 0) logger.info(`Migrated ${oldYtPowers.length} YT powers to ${YT_POWER_DAYS}-day expiry.`);
-    } catch (e) {
-      logger.error("Power expiry migration failed", { error: e.message });
+      // --- END MIGRATION ---
+    } else {
+      logger.info("Startup data migrations disabled (RUN_STARTUP_DATA_MIGRATIONS=false).");
     }
-    // --- END MIGRATION ---
 
     server.listen(port, host, () => {
       logger.info(`Server running on ${host}:${port}`);
