@@ -55,3 +55,10 @@ Uma vez que o comando `up` for executado com sucesso:
   ```bash
   docker exec -it block_miner_backend npx prisma db push
   ```
+
+## Offer Events behavior
+
+- The Offers page intentionally lists both **live** and **upcoming** offer events.
+- Upcoming events render with a **Coming soon** status.
+- For upcoming events, the action button does not allow purchase and displays **Coming soon**.
+- Purchases are only enabled while the event is live, in stock, and within claim limits.

@@ -275,20 +275,26 @@ async function updateTransactionStatus(transactionId, status, txHash = null) {
 async function getPendingWithdrawals() {
   return prisma.transaction.findMany({
     where: { type: 'withdrawal', status: { in: ['pending', 'approved'] } },
+    include: {
+      user: { select: { id: true, username: true, email: true, walletAddress: true } }
+    },
+    orderBy: { createdAt: 'asc' }
+  });
+}
+
+/** Só saques já aprovados pelo admin — usado pelo cron de envio on-chain (opcional). */
+async function getApprovedWithdrawalsForAutoSend() {
+  return prisma.transaction.findMany({
+    where: { type: 'withdrawal', status: 'approved' },
     include: { user: { select: { username: true } } },
     orderBy: { createdAt: 'asc' }
   });
 }
 
 async function failAllPendingWithdrawals() {
-  const pending = await prisma.transaction.findMany({
-    where: { type: 'withdrawal', status: 'pending' }
-  });
-
-  for (const tx of pending) {
-    try { await updateTransactionStatus(tx.id, 'failed'); } catch { }
-  }
-  return { totalPending: pending.length };
+  // Safety guard: pending withdrawals must never be auto-cancelled on restart.
+  // This function is kept for backward compatibility but intentionally does nothing.
+  return { totalPending: 0, skipped: true };
 }
 
 const walletModel = {
@@ -300,6 +306,7 @@ const walletModel = {
   getTransactions,
   updateTransactionStatus,
   getPendingWithdrawals,
+  getApprovedWithdrawalsForAutoSend,
   failAllPendingWithdrawals
 };
 
@@ -313,5 +320,6 @@ export {
   getTransactions,
   updateTransactionStatus,
   getPendingWithdrawals,
+  getApprovedWithdrawalsForAutoSend,
   failAllPendingWithdrawals
 };

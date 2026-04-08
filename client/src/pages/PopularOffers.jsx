@@ -14,6 +14,12 @@ function fmtDate(iso) {
         + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function getEventState(now, event) {
+    const startsAt = event?.startsAt ? new Date(event.startsAt) : null;
+    if (!startsAt) return event?.isLive ? 'live' : 'upcoming';
+    return startsAt.getTime() > now.getTime() ? 'upcoming' : event?.isLive ? 'live' : 'ended';
+}
+
 export default function PopularOffers() {
     const { t } = useTranslation();
     const { fetchAll } = useGameStore();
@@ -23,6 +29,7 @@ export default function PopularOffers() {
     const [quantity, setQuantity] = useState(1);
     const [buying, setBuying] = useState(false);
     const MAX_QTY = 25;
+    const now = new Date();
 
     const load = useCallback(async () => {
         try {
@@ -86,15 +93,20 @@ export default function PopularOffers() {
                     {/* Cabeçalho do Evento */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-800">
                         <div className="flex items-center gap-3">
-                            {ev.isLive ? (
+                            {getEventState(now, ev) === 'live' ? (
                                 <span className="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[9px] font-black text-green-400 uppercase tracking-widest">
                                     <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                                    Ao Vivo
+                                    {t('offers.live')}
                                 </span>
-                            ) : (
+                            ) : getEventState(now, ev) === 'upcoming' ? (
                                 <span className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-[9px] font-black text-amber-400 uppercase tracking-widest">
                                     <Clock className="w-3 h-3" />
-                                    Em Breve
+                                    {t('offers.coming_soon')}
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-500/10 border border-gray-500/30 rounded-full text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                                    <Clock className="w-3 h-3" />
+                                    {t('offers.ended')}
                                 </span>
                             )}
                             <h2 className="text-xl font-black text-white uppercase italic tracking-tight">{ev.title}</h2>
@@ -102,12 +114,12 @@ export default function PopularOffers() {
                         <div className="flex flex-col sm:flex-row gap-3 text-xs text-gray-500">
                             <div className="flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5 text-gray-600" />
-                                <span className="font-semibold">Início:</span>
+                                <span className="font-semibold">{t('offers.start')}:</span>
                                 <span>{fmtDate(ev.startsAt)}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5 text-gray-600" />
-                                <span className="font-semibold">Fim:</span>
+                                <span className="font-semibold">{t('offers.end')}:</span>
                                 <span>{fmtDate(ev.endsAt)}</span>
                             </div>
                         </div>
@@ -122,7 +134,8 @@ export default function PopularOffers() {
                                 const remainingClaims = effectivelyFree && m.claimLimitPerUser > 0
                                     ? Math.max(0, m.claimLimitPerUser - (m.userClaimCount || 0))
                                     : null;
-                                const canCollect = ev.isLive && m.inStock && !alreadyClaimed;
+                                const eventState = getEventState(now, ev);
+                                const canCollect = eventState === 'live' && m.inStock && !alreadyClaimed;
                                 return (
                                 <div key={m.id} className={`bg-surface border rounded-[2.5rem] p-8 shadow-xl transition-all duration-500 group relative overflow-hidden ${
                                     effectivelyFree
@@ -136,17 +149,17 @@ export default function PopularOffers() {
                                                     ? 'bg-green-500/10 border-green-500/30 text-green-500'
                                                     : 'bg-gray-900 border-gray-800 text-gray-500 group-hover:text-primary'
                                             }`}>
-                                                {effectivelyFree ? 'Maquina Gratis' : 'Edicao Limitada'}
+                                                {effectivelyFree ? t('offers.free_machine') : t('offers.limited_edition')}
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 {effectivelyFree ? (
                                                     <span className="flex items-center gap-1 px-3 py-1 bg-green-500/15 border border-green-500/30 rounded-full text-[9px] font-black text-green-400 uppercase tracking-widest">
-                                                        GRATIS
+                                                        {t('offers.free')}
                                                     </span>
                                                 ) : (
                                                     <div className="flex items-center gap-1.5 text-amber-400">
                                                         <TrendingUp className="w-3.5 h-3.5" />
-                                                        <span className="text-[10px] font-bold uppercase tracking-widest">Evento</span>
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest">{t('offers.event')}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -156,16 +169,16 @@ export default function PopularOffers() {
                                         {effectivelyFree && (
                                             <div className="bg-green-500/5 border border-green-500/20 rounded-2xl px-4 py-3 space-y-2">
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-[9px] font-black text-green-500/70 uppercase tracking-widest">Limite por jogador</span>
+                                                    <span className="text-[9px] font-black text-green-500/70 uppercase tracking-widest">{t('offers.claim_limit_per_user')}</span>
                                                     <span className="text-xs font-black text-green-400">
-                                                        {m.claimLimitPerUser === 0 ? 'Ilimitado' : `${m.claimLimitPerUser}x`}
+                                                        {m.claimLimitPerUser === 0 ? t('offers.unlimited') : `${m.claimLimitPerUser}x`}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-[9px] font-black text-green-500/70 uppercase tracking-widest">Suas coletas</span>
+                                                    <span className="text-[9px] font-black text-green-500/70 uppercase tracking-widest">{t('offers.your_claims')}</span>
                                                     <span className={`text-xs font-black ${alreadyClaimed ? 'text-slate-400' : 'text-green-400'}`}>
                                                         {m.claimLimitPerUser === 0
-                                                            ? `${m.userClaimCount || 0} coletadas`
+                                                            ? t('offers.claimed_count', { count: m.userClaimCount || 0 })
                                                             : `${m.userClaimCount || 0} / ${m.claimLimitPerUser}`
                                                         }
                                                     </span>
@@ -173,7 +186,7 @@ export default function PopularOffers() {
                                                 {alreadyClaimed && (
                                                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                                                         <CheckCircle2 className="w-3 h-3" />
-                                                        Limite atingido
+                                                        {t('offers.claim_limit_reached')}
                                                     </div>
                                                 )}
                                             </div>
@@ -190,8 +203,8 @@ export default function PopularOffers() {
                                             }`}>
                                                 <Package className="w-3 h-3" />
                                                 {m.remaining === 0
-                                                    ? 'Esgotado'
-                                                    : `${m.remaining} restante${m.remaining === 1 ? '' : 's'}`
+                                                    ? t('offers.sold_out')
+                                                    : t('offers.remaining_count', { count: m.remaining })
                                                 }
                                             </div>
                                         )}
@@ -215,12 +228,12 @@ export default function PopularOffers() {
                                         <div className="bg-gray-900/40 rounded-2xl px-4 py-3 border border-gray-800/60 space-y-1.5">
                                             <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                                 <Clock className="w-3 h-3 shrink-0" />
-                                                <span className="font-bold text-gray-600">Inicio:</span>
+                                                <span className="font-bold text-gray-600">{t('offers.start')}:</span>
                                                 <span>{fmtDate(ev.startsAt)}</span>
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                                 <Clock className="w-3 h-3 shrink-0" />
-                                                <span className="font-bold text-gray-600">Fim:</span>
+                                                <span className="font-bold text-gray-600">{t('offers.end')}:</span>
                                                 <span>{fmtDate(ev.endsAt)}</span>
                                             </div>
                                         </div>
@@ -229,7 +242,7 @@ export default function PopularOffers() {
                                             <div className="flex flex-col">
                                                 <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">{effectivelyFree ? 'Custo' : t('shop.price')}</span>
                                                 {effectivelyFree ? (
-                                                    <span className="text-lg font-black text-green-400 italic">GRATIS</span>
+                                                    <span className="text-lg font-black text-green-400 italic">{t('offers.free')}</span>
                                                 ) : (
                                                     <span className="text-lg font-black text-white italic">
                                                         {Number(m.price).toFixed(6)}{' '}
@@ -239,7 +252,7 @@ export default function PopularOffers() {
                                             </div>
                                             <button
                                                 type="button"
-                                                disabled={!ev.isLive || !m.inStock || alreadyClaimed}
+                                                disabled={eventState !== 'live' || !m.inStock || alreadyClaimed}
                                                 onClick={() => canCollect && openModal(ev, m)}
                                                 className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
                                                     effectivelyFree
@@ -247,7 +260,17 @@ export default function PopularOffers() {
                                                         : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20'
                                                 }`}
                                             >
-                                                {!ev.isLive ? 'Em Breve' : alreadyClaimed ? 'Coletada' : !m.inStock ? t('offers.sold_out') : effectivelyFree ? 'Coletar' : t('offers.buy')}
+                                                {eventState === 'upcoming'
+                                                    ? t('offers.coming_soon')
+                                                    : eventState === 'ended'
+                                                    ? t('offers.ended')
+                                                    : alreadyClaimed
+                                                    ? t('offers.claimed')
+                                                    : !m.inStock
+                                                    ? t('offers.sold_out')
+                                                    : effectivelyFree
+                                                    ? t('offers.collect')
+                                                    : t('offers.buy')}
                                             </button>
                                         </div>
                                     </div>
@@ -284,12 +307,12 @@ export default function PopularOffers() {
                             </div>
                             <div className="space-y-2">
                                 <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">
-                                    {modal.miner.effectivelyFree ? 'Coletar Maquina Gratis' : 'Confirmar Compra'}
+                                    {modal.miner.effectivelyFree ? t('offers.collect_free_machine') : t('offers.confirm_title')}
                                 </h3>
                                 <p className="text-gray-500 font-medium">
                                     {modal.miner.effectivelyFree
-                                        ? 'Voce esta coletando esta maquina gratuitamente!'
-                                        : 'Voce esta prestes a adquirir um equipamento de evento limitado.'}
+                                        ? t('offers.collect_free_desc')
+                                        : t('offers.confirm_limited_desc')}
                                 </p>
                             </div>
                             <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-6 space-y-4">
@@ -306,13 +329,13 @@ export default function PopularOffers() {
                                             {formatHashrate(Number(modal.miner.hashRate) || 0)}
                                         </span>
                                         {modal.miner.effectivelyFree && (
-                                            <span className="text-[10px] font-black text-green-400 uppercase mt-1 block">GRATIS</span>
+                                            <span className="text-[10px] font-black text-green-400 uppercase mt-1 block">{t('offers.free')}</span>
                                         )}
                                     </div>
                                 </div>
                                 <div className="h-[1px] bg-gray-800 w-full" />
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Quantidade</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{t('offers.quantity')}</span>
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => setQuantity(q => Math.max(1, q - 1))}
@@ -341,10 +364,10 @@ export default function PopularOffers() {
                                 </div>
                                 <div className="h-[1px] bg-gray-800 w-full" />
                                 <div className="flex justify-between items-center">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{t('offers.total')}</span>
                                     <div className="text-right">
                                         {modal.miner.effectivelyFree ? (
-                                            <span className="text-xl font-black text-green-400 italic">GRATIS</span>
+                                            <span className="text-xl font-black text-green-400 italic">{t('offers.free')}</span>
                                         ) : (
                                             <>
                                                 <span className="text-xl font-black text-white italic">
@@ -369,7 +392,7 @@ export default function PopularOffers() {
                                 >
                                     {buying
                                         ? <Loader2 className="w-5 h-5 animate-spin" />
-                                        : <><CheckCircle2 className="w-5 h-5" /> {modal.miner.effectivelyFree ? 'Confirmar Coleta' : 'Confirmar Pagamento'}</>
+                                        : <><CheckCircle2 className="w-5 h-5" /> {modal.miner.effectivelyFree ? t('offers.confirm_collect') : t('offers.confirm_payment')}</>
                                     }
                                 </button>
                                 <button
@@ -383,7 +406,7 @@ export default function PopularOffers() {
                             {!modal.miner.effectivelyFree && (
                                 <div className="flex items-center justify-center gap-2 text-amber-500/50">
                                     <AlertTriangle className="w-3.5 h-3.5" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Esta acao e irreversivel</span>
+                                    <span className="text-[9px] font-black uppercase tracking-widest">{t('offers.irreversible')}</span>
                                 </div>
                             )}
                         </div>

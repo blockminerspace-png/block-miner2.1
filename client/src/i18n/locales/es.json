@@ -1,4 +1,4 @@
-﻿{
+{
   "landing": {
     "nav": {
       "login": "Iniciar sesión",
@@ -175,7 +175,9 @@
     "no_blocks": "Esperando el primer bloque de la red...",
     "account_status": "Estado de la Cuenta",
     "efficiency_msg": "Tu eficiencia minera es del 100%. Mantén tus máquinas activas.",
-    "real_time_earnings": "Ganancias en Tiempo Real"
+    "real_time_earnings": "Ganancias en Tiempo Real",
+    "mining_allocation_title": "Asignación de minería",
+    "mining_allocation_pol_only_prefix": "La minería ahora está fija en"
   },
   "shop": {
     "title": "Expande tu Operación",
@@ -403,8 +405,32 @@
     "title": "Ofertas populares",
     "subtitle": "Mineros exclusivos de evento. Paga con tu saldo — el equipo va al inventario.",
     "empty": "No hay ofertas activas. Vuelve pronto.",
+    "live": "En vivo",
+    "coming_soon": "Próximamente",
     "buy": "Comprar",
+    "collect": "Recolectar",
+    "claimed": "Recolectada",
     "sold_out": "Agotado",
+    "free": "Gratis",
+    "event": "Evento",
+    "start": "Inicio",
+    "end": "Fin",
+    "limited_edition": "Edición limitada",
+    "free_machine": "Máquina gratis",
+    "claim_limit_per_user": "Límite por jugador",
+    "your_claims": "Tus recolecciones",
+    "claim_limit_reached": "Límite alcanzado",
+    "unlimited": "Ilimitado",
+    "claimed_count": "{{count}} recolectadas",
+    "remaining_count": "{{count}} restante(s)",
+    "collect_free_machine": "Recolectar máquina gratis",
+    "collect_free_desc": "Estás recolectando esta máquina gratis.",
+    "confirm_limited_desc": "Estás a punto de adquirir una máquina de evento limitada.",
+    "quantity": "Cantidad",
+    "total": "Total",
+    "confirm_collect": "Confirmar recolección",
+    "confirm_payment": "Confirmar pago",
+    "irreversible": "Esta acción es irreversible",
     "confirm_title": "Confirmar compra",
     "miner": "Minero",
     "price": "Precio",

@@ -326,6 +326,20 @@ async function bootstrap() {
     }
     // --- END ONE-TIME SCRIPT ---
 
+    // --- MIGRATION GUARD: remove legacy BLK mining mode (POL-only) ---
+    try {
+      const { count } = await prisma.user.updateMany({
+        where: { miningPayoutMode: "blk" },
+        data: { miningPayoutMode: "pol" }
+      });
+      if (count > 0) {
+        logger.info(`Converted ${count} user(s) from BLK mining mode to POL.`);
+      }
+    } catch (e) {
+      logger.error("BLK->POL mining mode migration failed", { error: e.message });
+    }
+    // --- END MIGRATION GUARD ---
+
     // --- MIGRATION: Extend game/yt powers criados com 24h para GAME_POWER_DAYS ---
     try {
       const GAME_POWER_DAYS = Number(process.env.GAME_POWER_DAYS) || 7;

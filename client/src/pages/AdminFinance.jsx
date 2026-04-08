@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-    Wallet, CheckCircle2, XCircle, RefreshCw, ArrowUpCircle, ArrowDownCircle, Search
+    Wallet, CheckCircle2, XCircle, RefreshCw, ArrowUpCircle, ArrowDownCircle, Copy, ExternalLink
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -12,6 +12,14 @@ export default function AdminFinance() {
     const [activity, setActivity] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [tab, setTab] = useState('withdrawals'); // 'withdrawals', 'blk', 'activity'
+    const [completeModal, setCompleteModal] = useState(null);
+    const [completeTxHash, setCompleteTxHash] = useState('');
+
+    const copyText = (text, label = 'Copiado') => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        toast.success(label);
+    };
 
     const fetchData = useCallback(async () => {
         try {
@@ -80,14 +88,30 @@ export default function AdminFinance() {
         }
     };
 
-    const handleComplete = async (id) => {
-        const txHash = prompt("Insira o Hash da Transação (opcional):");
-        if (txHash === null) return; // Cancelled
+    const openCompleteModal = (w) => {
+        setCompleteTxHash('');
+        setCompleteModal({
+            id: w.id,
+            address: w.address,
+            amount: w.amount,
+            username: w.user?.username,
+            userId: w.userId,
+            status: w.status
+        });
+    };
 
+    const submitCompleteWithdrawal = async () => {
+        if (!completeModal) return;
+        const h = completeTxHash.trim();
+        if (!/^0x[a-fA-F0-9]{64}$/.test(h)) {
+            toast.error('txHash obrigatório: 0x + 64 caracteres hexadecimais');
+            return;
+        }
         try {
-            const res = await api.post(`/admin/withdrawals/${id}/complete`, { txHash });
+            const res = await api.post(`/admin/withdrawals/${completeModal.id}/complete`, { txHash: h });
             if (res.data.ok) {
-                toast.success('Saque marcado como concluído!');
+                toast.success('Saque concluído com txHash registado.');
+                setCompleteModal(null);
                 fetchData();
             }
         } catch (err) {
@@ -128,7 +152,9 @@ export default function AdminFinance() {
                     <h2 className="text-2xl font-black text-white flex items-center gap-3">
                         <Wallet className="w-6 h-6 text-emerald-500" /> Gestão Financeira
                     </h2>
-                    <p className="text-slate-500 text-sm font-medium mt-1">Aprovação de saques e visão geral do sistema.</p>
+                    <p className="text-slate-500 text-sm font-medium mt-1">
+                        Saques POL são manuais: copie o endereço de destino, envie da hot wallet e marque concluído com o hash da transação.
+                    </p>
                 </div>
                 <button
                     onClick={fetchData}
@@ -200,79 +226,175 @@ export default function AdminFinance() {
                         <table className="w-full text-left text-sm text-slate-400">
                             <thead className="bg-slate-800/30 text-[10px] uppercase font-bold tracking-widest text-slate-500">
                                 <tr>
-                                    <th className="px-8 py-4">Data</th>
-                                    <th className="px-8 py-4">Usuário</th>
-                                    <th className="px-8 py-4">Endereço (POLYGON)</th>
-                                    <th className="px-8 py-4">Valor</th>
-                                    <th className="px-8 py-4">Status</th>
-                                    <th className="px-8 py-4 text-right">Ação</th>
+                                    <th className="px-6 py-4">Data</th>
+                                    <th className="px-6 py-4">Usuário</th>
+                                    <th className="px-6 py-4">Destino do saque</th>
+                                    <th className="px-6 py-4">Carteira no perfil</th>
+                                    <th className="px-6 py-4">Valor</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4 text-right">Ação</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800 font-medium">
                                 {withdrawals.map((w) => (
                                     <tr key={w.id} className="hover:bg-slate-800/30 transition-colors group">
-                                        <td className="px-8 py-5 text-xs whitespace-nowrap">
+                                        <td className="px-6 py-5 text-xs whitespace-nowrap">
                                             {new Date(w.created_at || w.createdAt).toLocaleString()}
                                         </td>
-                                        <td className="px-8 py-5">
-                                            <span className="text-white font-bold text-xs">{w.user?.username || `User #${w.userId}`}</span>
+                                        <td className="px-6 py-5">
+                                            <span className="text-white font-bold text-xs block">{w.user?.username || `User #${w.userId}`}</span>
+                                            {w.user?.email && (
+                                                <span className="text-[10px] text-slate-500 block truncate max-w-[140px]" title={w.user.email}>{w.user.email}</span>
+                                            )}
                                         </td>
-                                        <td className="px-8 py-5">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-mono text-slate-300 bg-slate-950 px-2 py-1 rounded border border-slate-800">{w.address}</span>
-                                                <button onClick={() => { navigator.clipboard.writeText(w.address); toast.success('Endereço copiado!'); }} className="p-1 hover:text-white transition-colors">
-                                                    <RefreshCw className="w-3 h-3" />
-                                                </button>
+                                        <td className="px-6 py-5 max-w-[220px]">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-[10px] font-mono text-slate-300 bg-slate-950 px-2 py-1 rounded border border-slate-800 break-all">{w.address}</span>
+                                                    <button type="button" onClick={() => copyText(w.address, 'Destino copiado')} className="p-1.5 shrink-0 text-slate-500 hover:text-emerald-400 transition-colors" title="Copiar destino">
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <a
+                                                        href={`https://polygonscan.com/address/${encodeURIComponent(w.address)}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="p-1.5 shrink-0 text-slate-500 hover:text-sky-400 transition-colors"
+                                                        title="Polygonscan"
+                                                    >
+                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                    </a>
+                                                </div>
+                                                <span className="text-[9px] text-slate-600">Envie POL para este endereço</span>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-5">
+                                        <td className="px-6 py-5 max-w-[200px]">
+                                            {w.user?.walletAddress ? (
+                                                <div className="flex items-start gap-1">
+                                                    <span className="text-[10px] font-mono text-slate-400 bg-slate-950/80 px-2 py-1 rounded border border-slate-800/80 break-all">{w.user.walletAddress}</span>
+                                                    <button type="button" onClick={() => copyText(w.user.walletAddress, 'Carteira do perfil copiada')} className="p-1.5 shrink-0 text-slate-500 hover:text-emerald-400 transition-colors" title="Copiar">
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-600 italic">—</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-5">
                                             <span className="text-amber-500 font-black">{Number(w.amount).toFixed(4)} POL</span>
                                         </td>
-                                        <td className="px-8 py-5">
+                                        <td className="px-6 py-5">
                                             {w.status === 'pending' ? (
                                                 <span className="text-[9px] font-black uppercase px-2 py-1 bg-amber-500/10 text-amber-500 rounded">Pendente</span>
                                             ) : (
                                                 <span className="text-[9px] font-black uppercase px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded">Aprovado</span>
                                             )}
                                         </td>
-                                        <td className="px-8 py-5 text-right">
-                                            <div className="flex gap-2 justify-end">
-                                                {w.status === 'pending' ? (
+                                        <td className="px-6 py-5 text-right">
+                                            <div className="flex flex-wrap gap-2 justify-end">
+                                                {w.status === 'pending' && (
                                                     <>
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleApprove(w.id)}
                                                             className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
                                                         >
                                                             <CheckCircle2 className="w-3 h-3" /> Aprovar
                                                         </button>
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleReject(w.id)}
                                                             className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
                                                         >
                                                             <XCircle className="w-3 h-3" /> Rejeitar
                                                         </button>
                                                     </>
-                                                ) : (
+                                                )}
+                                                {w.status === 'approved' && (
                                                     <button
-                                                        onClick={() => handleComplete(w.id)}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-sky-500 border border-sky-400/20 hover:bg-sky-400 text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-500/20"
+                                                        type="button"
+                                                        onClick={() => handleReject(w.id)}
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
                                                     >
-                                                        <CheckCircle2 className="w-3 h-3" /> Marcar Enviado
+                                                        <XCircle className="w-3 h-3" /> Rejeitar
                                                     </button>
                                                 )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openCompleteModal(w)}
+                                                    className="flex items-center gap-2 px-3 py-1.5 bg-sky-500 border border-sky-400/20 hover:bg-sky-400 text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-500/20"
+                                                >
+                                                    <CheckCircle2 className="w-3 h-3" /> Concluir (tx)
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
                                 {withdrawals.length === 0 && (
                                     <tr>
-                                        <td colSpan="6" className="px-8 py-12 text-center text-slate-500 italic font-medium">
+                                        <td colSpan="7" className="px-8 py-12 text-center text-slate-500 italic font-medium">
                                             Não há saques POL pendentes.
                                         </td>
                                     </tr>
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {completeModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full shadow-2xl p-6 space-y-4">
+                        <h3 className="text-lg font-black text-white">Concluir saque manual</h3>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                            Depois de enviar <span className="text-amber-400 font-bold">{Number(completeModal.amount).toFixed(4)} POL</span> da hot wallet para o destino abaixo, cole o hash da transação (Polygon).
+                        </p>
+                        <div className="space-y-1">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Destino</span>
+                            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
+                                <code className="text-[11px] font-mono text-slate-300 break-all flex-1">{completeModal.address}</code>
+                                <button type="button" onClick={() => copyText(completeModal.address, 'Destino copiado')} className="p-2 text-slate-400 hover:text-white shrink-0">
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                        <label className="block space-y-2">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">txHash (obrigatório)</span>
+                            <input
+                                type="text"
+                                value={completeTxHash}
+                                onChange={(e) => setCompleteTxHash(e.target.value)}
+                                placeholder="0x..."
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono text-white placeholder:text-slate-600"
+                                autoComplete="off"
+                            />
+                        </label>
+                        {/^0x[a-fA-F0-9]{64}$/.test(completeTxHash.trim()) && (
+                            <a
+                                href={`https://polygonscan.com/tx/${completeTxHash.trim()}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
+                            >
+                                Ver no Polygonscan <ExternalLink className="w-3 h-3" />
+                            </a>
+                        )}
+                        <div className="flex gap-3 justify-end pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setCompleteModal(null)}
+                                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={submitCompleteWithdrawal}
+                                className="px-4 py-2 rounded-xl text-xs font-black uppercase bg-sky-600 hover:bg-sky-500 text-white"
+                            >
+                                Guardar concluído
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

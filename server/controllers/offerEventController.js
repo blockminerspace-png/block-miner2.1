@@ -2,6 +2,15 @@ import prisma from "../src/db/prisma.js";
 import { isOfferEventActiveForPublic, hasEventMinerStock } from "../services/offerEventHelpers.js";
 import { purchaseEventMinerForUser } from "../services/offerEventPurchaseService.js";
 
+export function buildPublicOfferEventsWhere(now) {
+  return {
+    deletedAt: null,
+    isActive: true,
+    // Keep current live events and future scheduled ones visible in Offers.
+    endsAt: { gte: now }
+  };
+}
+
 function serializeMinerPublic(m, claimMap = {}) {
   const remaining =
     m.stockUnlimited || m.stockCount == null ? null : Math.max(0, (m.stockCount || 0) - (m.soldCount || 0));
@@ -41,18 +50,14 @@ export async function listActiveOfferEvents(req, res) {
     const userId = req.user?.id;
     const now = new Date();
     const events = await prisma.offerEvent.findMany({
-      where: {
-        deletedAt: null,
-        isActive: true,
-        endsAt: { gte: now }
-      },
+      where: buildPublicOfferEventsWhere(now),
       include: {
         miners: {
           where: { isActive: true },
           orderBy: { id: "asc" }
         }
       },
-      orderBy: { endsAt: "asc" }
+      orderBy: [{ startsAt: "asc" }, { endsAt: "asc" }]
     });
 
     let claimMap = {};

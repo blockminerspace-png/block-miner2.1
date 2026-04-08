@@ -244,12 +244,26 @@ export async function listPendingWithdrawals(_req, res) {
   }
 }
 
+function isValidPolygonTxHash(h) {
+  return typeof h === "string" && /^0x[a-fA-F0-9]{64}$/.test(h.trim());
+}
+
 export async function approveWithdrawal(req, res) {
   try {
-    const { withdrawalId } = req.params;
+    const id = Number(req.params.withdrawalId);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, message: "Invalid withdrawal id" });
+    }
+    const row = await prisma.transaction.findUnique({ where: { id } });
+    if (!row || row.type !== "withdrawal") {
+      return res.status(404).json({ ok: false, message: "Withdrawal not found" });
+    }
+    if (row.status !== "pending") {
+      return res.status(400).json({ ok: false, message: "Only pending withdrawals can be approved" });
+    }
     await prisma.transaction.update({
-      where: { id: Number(withdrawalId) },
-      data: { status: 'approved', updatedAt: new Date() }
+      where: { id },
+      data: { status: "approved", updatedAt: new Date() }
     });
     res.json({ ok: true, message: "Withdrawal approved" });
   } catch (error) {
@@ -259,8 +273,18 @@ export async function approveWithdrawal(req, res) {
 
 export async function rejectWithdrawal(req, res) {
   try {
-    const { withdrawalId } = req.params;
-    await walletModel.updateTransactionStatus(Number(withdrawalId), "failed");
+    const id = Number(req.params.withdrawalId);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, message: "Invalid withdrawal id" });
+    }
+    const row = await prisma.transaction.findUnique({ where: { id } });
+    if (!row || row.type !== "withdrawal") {
+      return res.status(404).json({ ok: false, message: "Withdrawal not found" });
+    }
+    if (!["pending", "approved"].includes(row.status)) {
+      return res.status(400).json({ ok: false, message: "Cannot reject this withdrawal" });
+    }
+    await walletModel.updateTransactionStatus(id, "failed");
     res.json({ ok: true, message: "Withdrawal rejected" });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Rejection failed" });
@@ -269,9 +293,29 @@ export async function rejectWithdrawal(req, res) {
 
 export async function completeWithdrawal(req, res) {
   try {
-    const { withdrawalId } = req.params;
-    const { txHash } = req.body;
-    await walletModel.updateTransactionStatus(Number(withdrawalId), "completed", txHash);
+    const id = Number(req.params.withdrawalId);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, message: "Invalid withdrawal id" });
+    }
+    const rawHash = req.body?.txHash;
+    if (!isValidPolygonTxHash(rawHash)) {
+      return res.status(400).json({
+        ok: false,
+        message: "txHash required (0x + 64 hex characters)"
+      });
+    }
+    const txHash = rawHash.trim();
+    const row = await prisma.transaction.findUnique({ where: { id } });
+    if (!row || row.type !== "withdrawal") {
+      return res.status(404).json({ ok: false, message: "Withdrawal not found" });
+    }
+    if (row.status === "completed") {
+      return res.status(400).json({ ok: false, message: "Withdrawal already completed" });
+    }
+    if (!["pending", "approved"].includes(row.status)) {
+      return res.status(400).json({ ok: false, message: "Cannot complete this withdrawal" });
+    }
+    await walletModel.updateTransactionStatus(id, "completed", txHash);
     res.json({ ok: true, message: "Withdrawal marked as completed" });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Marking as completed failed" });

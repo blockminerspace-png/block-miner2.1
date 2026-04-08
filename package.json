@@ -14,7 +14,7 @@
     "db:push": "prisma db push --schema=server/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema=server/prisma/schema.prisma",
     "test": "JWT_SECRET=testsecret node --test --experimental-test-coverage",
-    "test:offer-events": "node --test tests/offerEvents.helpers.test.mjs tests/offerEvents.listQuery.test.mjs",
+    "test:offer-events": "node --test tests/offerEvents.helpers.test.mjs tests/offerEvents.listQuery.test.mjs tests/offerEvents.publicList.test.mjs",
     "lint": "eslint . --ext .js",
     "format": "prettier --check .",
     "format:write": "prettier --write .",

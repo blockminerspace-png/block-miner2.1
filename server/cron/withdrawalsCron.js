@@ -6,70 +6,91 @@ import cron from "node-cron";
 const logger = loggerLib.child("WithdrawalsCron");
 
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://polygon-bor-rpc.publicnode.com";
-const privateKey = process.env.WITHDRAWAL_PRIVATE_KEY;
-const MOCK_RPC_URL = process.env.NODE_ENV === 'test' ? null : null; // Avoid conflicts
 
+function withdrawalAutoSendEnabled() {
+  const v = String(process.env.WITHDRAWAL_AUTO_SEND || "").toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
+function loadHotWallet(provider) {
+  const mnemonic = String(process.env.WITHDRAWAL_MNEMONIC || "").trim();
+  const rawPk = String(process.env.WITHDRAWAL_PRIVATE_KEY || "").trim();
+  if (rawPk && rawPk !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
+    const key = rawPk.startsWith("0x") ? rawPk : `0x${rawPk}`;
+    try {
+      return new ethers.Wallet(key, provider);
+    } catch (e) {
+      logger.error("Invalid WITHDRAWAL_PRIVATE_KEY", { error: e.message });
+      return null;
+    }
+  }
+  if (mnemonic) {
+    try {
+      return ethers.Wallet.fromPhrase(String(mnemonic).trim()).connect(provider);
+    } catch (e) {
+      logger.error("Invalid WITHDRAWAL_MNEMONIC", { error: e.message });
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Por defeito o envio é MANUAL (admin copia destino, envia POL, marca concluído com txHash).
+ * Só corre envio on-chain se WITHDRAWAL_AUTO_SEND=true — e apenas para saques já **approved**.
+ * Isto evita marcar saques `pending` como `failed` por falha de RPC/saldo.
+ */
 export async function processPendingWithdrawals() {
-  if (process.env.NODE_ENV === 'test' && !process.env.REAL_RPC_TEST) {
-    return; // Do not run real cron in tests
+  if (process.env.NODE_ENV === "test" && !process.env.REAL_RPC_TEST) {
+    return;
+  }
+
+  if (!withdrawalAutoSendEnabled()) {
+    return;
   }
 
   try {
-    const pending = await walletModel.getPendingWithdrawals();
-    if (!pending || pending.length === 0) return;
+    const approved = await walletModel.getApprovedWithdrawalsForAutoSend();
+    if (!approved?.length) return;
 
-    if (!privateKey || privateKey === "0x0000000000000000000000000000000000000000000000000000000000000000") {
-      logger.warn("No valid WITHDRAWAL_PRIVATE_KEY found. Skipping withdrawals processing.");
+    const wallet = loadHotWallet(new ethers.JsonRpcProvider(POLYGON_RPC_URL));
+    if (!wallet) {
+      logger.warn("WITHDRAWAL_AUTO_SEND=1 but no valid WITHDRAWAL_PRIVATE_KEY / WITHDRAWAL_MNEMONIC — skip.");
       return;
     }
 
-    const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL);
-    let wallet;
-    try {
-      wallet = new ethers.Wallet(privateKey, provider);
-    } catch (e) {
-      logger.error("Failed to initialize wallet from private key", { error: e.message });
-      return;
-    }
+    logger.info(`Auto-send: ${approved.length} approved withdrawal(s)`);
 
-    logger.info(`Processing ${pending.length} pending withdrawals...`);
-
-    for (const tx of pending) {
+    for (const tx of approved) {
       try {
-        logger.info(`Sending ${tx.amount} POL to ${tx.address} for withdrawal ID ${tx.id}`);
-
-        // Convert amount to Wei
+        if (!tx.address) {
+          logger.error(`Withdrawal ${tx.id} missing address`);
+          continue;
+        }
+        logger.info(`Sending ${tx.amount} POL to ${tx.address} (withdrawal ${tx.id})`);
         const amountWei = ethers.parseEther(tx.amount.toString());
-
-        // Prepare transaction
-        const txRequest = {
+        const transactionResponse = await wallet.sendTransaction({
           to: tx.address,
           value: amountWei
-        };
-
-        // Send transaction
-        const transactionResponse = await wallet.sendTransaction(txRequest);
-
-        // Update DB directly to 'completed' with txHash
-        await walletModel.updateTransactionStatus(tx.id, 'completed', transactionResponse.hash);
-
+        });
+        await walletModel.updateTransactionStatus(tx.id, "completed", transactionResponse.hash);
         logger.info(`Withdrawal ${tx.id} completed. TxHash: ${transactionResponse.hash}`);
-
-        // Optional: wait for it to be mined
-        // await transactionResponse.wait(); 
       } catch (err) {
-        logger.error(`Error processing withdrawal ${tx.id}`, { error: err.message, txHash: err.transaction?.hash });
-        // Update status to failed so it returns to user balances if configured correctly
-        await walletModel.updateTransactionStatus(tx.id, 'failed');
+        logger.error(`Auto-send failed for withdrawal ${tx.id}`, {
+          error: err.message,
+          txHash: err.transaction?.hash
+        });
+        // Não marcar failed automaticamente — admin pode concluir manualmente ou corrigir hot wallet
       }
     }
   } catch (error) {
-    logger.error("Error in processPendingWithdrawals", { error: error.message });
+    logger.error("processPendingWithdrawals", { error: error.message });
   }
 }
 
 export function startWithdrawalMonitoring() {
-  logger.info("Withdrawal monitoring started -> Cron scheduled every 2 minutes");
-  const task = cron.schedule('*/2 * * * *', processPendingWithdrawals);
+  const mode = withdrawalAutoSendEnabled() ? "AUTO (approved only)" : "manual only (WITHDRAWAL_AUTO_SEND off)";
+  logger.info(`Withdrawal cron every 2m — ${mode}`);
+  const task = cron.schedule("*/2 * * * *", processPendingWithdrawals);
   return [task];
 }

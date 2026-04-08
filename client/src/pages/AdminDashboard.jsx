@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
     Users, 
@@ -69,6 +70,7 @@ export default function AdminDashboard() {
     };
 
     const handleApproveWithdrawal = async (id) => {
+        if (!confirm('Aprovar este saque?')) return;
         try {
             const res = await api.post(`/admin/withdrawals/${id}/approve`);
             if (res.data.ok) {
@@ -76,8 +78,27 @@ export default function AdminDashboard() {
                 fetchData();
             }
         } catch (err) {
-            toast.error('Erro ao aprovar saque.');
+            toast.error(err.response?.data?.message || 'Erro ao aprovar saque.');
         }
+    };
+
+    const handleRejectWithdrawal = async (id) => {
+        if (!confirm('Rejeitar este saque? O saldo será devolvido ao utilizador.')) return;
+        try {
+            const res = await api.post(`/admin/withdrawals/${id}/reject`);
+            if (res.data.ok) {
+                toast.success('Saque rejeitado.');
+                fetchData();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao rejeitar.');
+        }
+    };
+
+    const copyAddr = (addr) => {
+        if (!addr) return;
+        navigator.clipboard.writeText(addr);
+        toast.success('Endereço copiado');
     };
 
     if (isLoading && !stats) return <div className="p-8 text-slate-400 font-bold uppercase tracking-widest animate-pulse text-center py-40">Carregando painel administrativo...</div>;
@@ -137,15 +158,23 @@ export default function AdminDashboard() {
                         <h2 className="text-lg font-bold text-white flex items-center gap-3">
                             <Wallet className="w-5 h-5 text-amber-500" /> Saques Pendentes
                         </h2>
-                        <span className="bg-amber-500/10 text-amber-500 text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">
-                            {withdrawals.length} Aguardando
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <Link
+                                to="/admin/finance"
+                                className="text-[10px] font-black uppercase tracking-widest text-sky-400 hover:text-sky-300"
+                            >
+                                Financeiro →
+                            </Link>
+                            <span className="bg-amber-500/10 text-amber-500 text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">
+                                {withdrawals.length} fila
+                            </span>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-slate-400">
                             <thead className="bg-slate-800/30 text-[10px] uppercase font-bold tracking-widest text-slate-500">
                                 <tr>
-                                    <th className="px-8 py-4">Usuário</th>
+                                    <th className="px-8 py-4">Usuário / destino</th>
                                     <th className="px-8 py-4">Valor</th>
                                     <th className="px-8 py-4">Ação</th>
                                 </tr>
@@ -154,25 +183,67 @@ export default function AdminDashboard() {
                                 {withdrawals.map((w) => (
                                     <tr key={w.id} className="hover:bg-slate-800/30 transition-colors group">
                                         <td className="px-8 py-5">
-                                            <div className="flex flex-col">
-                                                <span className="text-white font-bold text-xs">ID #{w.user_id}</span>
-                                                <span className="text-[10px] font-mono text-slate-500 truncate w-32">{w.address}</span>
+                                            <div className="flex flex-col gap-1 max-w-[200px]">
+                                                <span className="text-white font-bold text-xs">
+                                                    {w.user?.username || `User #${w.userId}`}
+                                                </span>
+                                                {w.user?.email && (
+                                                    <span className="text-[9px] text-slate-500 truncate" title={w.user.email}>{w.user.email}</span>
+                                                )}
+                                                <div className="flex items-center gap-1 mt-1">
+                                                    <span className="text-[9px] font-mono text-slate-400 break-all leading-tight">{w.address}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => copyAddr(w.address)}
+                                                        className="p-1 text-slate-500 hover:text-emerald-400 shrink-0"
+                                                        title="Copiar destino do saque"
+                                                    >
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <a
+                                                        href={`https://polygonscan.com/address/${encodeURIComponent(w.address)}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="p-1 text-slate-500 hover:text-sky-400 shrink-0"
+                                                    >
+                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                    </a>
+                                                </div>
+                                                {w.status === 'approved' && (
+                                                    <span className="text-[8px] font-black uppercase text-emerald-500/90">Aprovado — concluir no Financeiro</span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-8 py-5">
                                             <span className="text-amber-500 font-black">{Number(w.amount).toFixed(4)} <span className="text-[10px] font-normal opacity-60">POL</span></span>
                                         </td>
                                         <td className="px-8 py-5">
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => handleApproveWithdrawal(w.id)}
-                                                    className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg transition-all"
+                                            <div className="flex flex-wrap gap-2">
+                                                {w.status === 'pending' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleApproveWithdrawal(w.id)}
+                                                        className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg transition-all"
+                                                        title="Aprovar"
+                                                    >
+                                                        <CheckCircle2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRejectWithdrawal(w.id)}
+                                                    className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all"
+                                                    title="Rejeitar"
                                                 >
-                                                    <CheckCircle2 className="w-4 h-4" />
-                                                </button>
-                                                <button className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all">
                                                     <XCircle className="w-4 h-4" />
                                                 </button>
+                                                <Link
+                                                    to="/admin/finance"
+                                                    className="p-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 rounded-lg transition-all inline-flex items-center justify-center"
+                                                    title="Financeiro: concluir com txHash"
+                                                >
+                                                    <Wallet className="w-4 h-4" />
+                                                </Link>
                                             </div>
                                         </td>
                                     </tr>

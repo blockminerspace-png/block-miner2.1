@@ -18,8 +18,6 @@ export default function Dashboard() {
     const [refInput, setRefInput] = useState('');
     const [linkingRef, setLinkingRef] = useState(false);
     const [blkBalance, setBlkBalance] = useState(null);
-    const [miningPayoutMode, setMiningPayoutMode] = useState('pol');
-    const [savingMiningMode, setSavingMiningMode] = useState(false);
 
     useEffect(() => {
         initSocket();
@@ -33,10 +31,6 @@ export default function Dashboard() {
                 if (res.data.ok && res.data.balance !== undefined) {
                     const dbBalance = Number(res.data.balance);
                     setBlkBalance(Number(res.data.blkBalance ?? 0));
-                    if (res.data.miningPayoutMode) {
-                        const m = String(res.data.miningPayoutMode);
-                        setMiningPayoutMode(m === 'blk' ? 'blk' : 'pol');
-                    }
                     useGameStore.setState(state => {
                         if (!state.stats?.miner) return {};
                         const engineBalance = state.stats.miner.balance;
@@ -50,23 +44,6 @@ export default function Dashboard() {
         const interval = setInterval(syncBalance, 60000);
         return () => clearInterval(interval);
     }, []);
-
-    const changeMiningPayoutMode = async (mode) => {
-        if (savingMiningMode || mode === miningPayoutMode) return;
-        setSavingMiningMode(true);
-        try {
-            const res = await api.put('/wallet/mining-payout-mode', { mode });
-            if (res.data.ok) {
-                const m = String(res.data.miningPayoutMode);
-                setMiningPayoutMode(m === 'blk' ? 'blk' : 'pol');
-                toast.success('Alocação de mineração atualizada (100% ' + (m === 'blk' ? 'BLK' : 'POL') + ').');
-            }
-        } catch (err) {
-            toast.error(err?.response?.data?.message || 'Erro ao guardar preferência.');
-        } finally {
-            setSavingMiningMode(false);
-        }
-    };
 
     const miner = stats?.miner;
     const blockHistory = stats?.blockHistory || [];
@@ -130,34 +107,15 @@ export default function Dashboard() {
                     <div>
                         <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
                             <Coins className="w-4 h-4 text-amber-400" />
-                            Alocação de mineração (100%)
+                            {t('dashboard.mining_allocation_title')}
                         </h3>
                         <p className="text-[11px] text-gray-500 mt-1 max-w-xl">
-                            O teu <strong className="text-gray-400">poder de mineração inteiro</strong> vai para um dos modos — não acumula os dois ao mesmo tempo.
-                            <strong className="text-gray-400"> POL</strong> — quota nos blocos da rede simulada (sacável como POL).
-                            <strong className="text-gray-400"> BLK</strong> — pool por tempo, proporcional ao hashrate (BLK interno, não sacável).
+                            {t('dashboard.mining_allocation_pol_only_prefix')} <strong className="text-gray-400">100% POL</strong>.
                         </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        {[
-                            { id: 'pol', label: '100% POL' },
-                            { id: 'blk', label: '100% BLK' }
-                        ].map(({ id, label }) => (
-                            <button
-                                key={id}
-                                type="button"
-                                disabled={savingMiningMode}
-                                onClick={() => changeMiningPayoutMode(id)}
-                                className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                                    miningPayoutMode === id
-                                        ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-600/20'
-                                        : 'bg-gray-900/60 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-200'
-                                } ${savingMiningMode ? 'opacity-60 cursor-wait' : ''}`}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
+                    <span className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-indigo-600 border border-indigo-400 text-white shadow-lg shadow-indigo-600/20">
+                        100% POL
+                    </span>
                 </div>
             </div>
 
