@@ -13,7 +13,6 @@ import {
     AlertCircle,
     CheckCircle2,
     XCircle,
-    Info,
     Smartphone,
     TrendingUp,
     ChevronRight,
@@ -27,7 +26,6 @@ import {
 import { api } from '../store/auth';
 import { parseEther, isAddress } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
-import { QRCodeSVG } from 'qrcode.react';
 import { useGameStore } from '../store/game';
 
 export default function Wallet() {
@@ -60,11 +58,7 @@ export default function Wallet() {
         address: '',
         amount: ''
     });
-    const [depositForm, setDepositForm] = useState({
-        amount: '',
-        txHash: ''
-    });
-    const [showManualForm, setShowManualForm] = useState(false);
+    const [depositForm, setDepositForm] = useState({ amount: '' });
     const [polPrice, setPolPrice] = useState(0);
     const [minDepositPol, setMinDepositPol] = useState(0.01);
     const [blockConfirmations, setBlockConfirmations] = useState(3);
@@ -249,7 +243,7 @@ export default function Wallet() {
                     return val;
                 }
                 throw new Error(
-                    `${label} inválido da rede. Troque de RPC na carteira ou tente “Transferência manual”.`
+                    `${label} inválido da rede. Troque de RPC na carteira ou tente novamente.`
                 );
             };
 
@@ -280,7 +274,7 @@ export default function Wallet() {
 
             if (res.data.ok) {
                 toast.success('Depósito registrado! O sistema verifica na blockchain em segundo plano — você pode fechar esta página com segurança.');
-                setDepositForm({ amount: '', txHash: '' });
+                setDepositForm({ amount: '' });
                 fetchPendingDeposits();
                 startPendingPoll();
             } else {
@@ -296,58 +290,6 @@ export default function Wallet() {
             } else {
                 toast.error(error.reason || error.message || 'Transaction failed');
             }
-        } finally {
-            setIsActionLoading(false);
-        }
-    };
-
-    const handleManualDeposit = async () => {
-        setIsActionLoading(true);
-        try {
-            const txHash = depositForm.txHash.trim();
-
-            if (!txHash) {
-                toast.error('Informe o hash da transação.');
-                return;
-            }
-
-            if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
-                toast.error('Hash inválido. Formato: 0x seguido de 64 caracteres hexadecimais.');
-                return;
-            }
-
-            const claimedAmount = parseFloat(depositForm.amount) || 0;
-
-            if (claimedAmount > 0 && claimedAmount < minDepositPol) {
-                toast.error(t('wallet.min_deposit_error', { min: minDepositPol }));
-                return;
-            }
-
-            const res = await api.post('/wallet/deposit/submit', {
-                txHash,
-                claimedAmount: claimedAmount > 0 ? claimedAmount : undefined
-            });
-
-            if (res.data.ok) {
-                toast.success('Depósito registrado! Verificando na blockchain em segundo plano. Pode fechar esta página com segurança.');
-                setDepositForm({ amount: '', txHash: '' });
-                setShowManualForm(false);
-                fetchPendingDeposits();
-                startPendingPoll();
-            } else {
-                const code = res.data.code;
-                if (code === 'ALREADY_CREDITED') {
-                    toast.info('Esta transação já foi processada e creditada.');
-                    fetchWalletData();
-                } else if (code === 'ALREADY_PENDING') {
-                    toast.info('Este depósito já está em verificação.');
-                } else {
-                    toast.error(res.data.message || 'Erro ao registrar depósito');
-                }
-            }
-        } catch (error) {
-            console.error("Manual deposit error", error);
-            toast.error(error.response?.data?.message || error.message || 'Erro ao registrar depósito');
         } finally {
             setIsActionLoading(false);
         }
@@ -475,28 +417,19 @@ export default function Wallet() {
                             </button>
                         </div>
                     ) : (
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={connect}
-                                disabled={isConnecting}
-                                className="px-5 py-3 bg-white text-slate-900 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2"
-                            >
-                                <Smartphone className="w-4 h-4" />
-                                {isConnecting ? t('wallet.web3_deposit.connecting') : t('wallet.web3_deposit.connect_browser')}
-                            </button>
-                            {walletConnectConfigured ? (
-                                <button
-                                    type="button"
-                                    onClick={connectWalletConnect}
-                                    disabled={isConnecting}
-                                    className="px-5 py-3 bg-indigo-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/30"
-                                >
-                                    <QrCode className="w-4 h-4" />
-                                    {isConnecting ? t('wallet.web3_deposit.connecting') : t('wallet.web3_deposit.connect_wc')}
-                                </button>
-                            ) : null}
-                        </div>
+                        <button
+                            type="button"
+                            onClick={connect}
+                            disabled={isConnecting}
+                            className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/30 shadow-lg shadow-indigo-900/20"
+                        >
+                            <Smartphone className="w-4 h-4" />
+                            {isConnecting
+                                ? t('wallet.web3_deposit.connecting')
+                                : walletConnectConfigured
+                                    ? t('wallet.web3_deposit.connect_wc')
+                                    : t('wallet.web3_deposit.connect_browser')}
+                        </button>
                     )}
 
                     <button
@@ -690,25 +623,25 @@ export default function Wallet() {
                             )}
 
                             {activeTab === 'deposit' && (
-                                <form onSubmit={(e) => e.preventDefault()} className="space-y-4 sm:space-y-8">
-                                    <div className="p-5 sm:p-6 rounded-3xl border border-indigo-500/25 bg-indigo-950/20 space-y-4">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300">
-                                                    {t('wallet.web3_deposit.title')}
-                                                </h4>
-                                                <p className="text-[9px] text-slate-500 mt-1 font-bold leading-relaxed">
-                                                    {t('wallet.web3_deposit.hint')}
+                                <form onSubmit={(e) => e.preventDefault()} className="space-y-6 sm:space-y-8">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
+                                        <div className="p-5 sm:p-6 rounded-3xl border border-indigo-500/25 bg-indigo-950/20 flex flex-col gap-4 min-h-[280px]">
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300">
+                                                {t('wallet.web3_deposit.title')}
+                                            </h4>
+                                            <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                                                {t('wallet.web3_deposit.hint')}
+                                            </p>
+                                            {!walletConnectConfigured ? (
+                                                <p className="text-[9px] text-amber-300/90 font-bold leading-relaxed">
+                                                    {t('wallet.web3_deposit.wc_missing_build')}
                                                 </p>
-                                            </div>
-                                            <QrCode className="w-6 h-6 text-indigo-400 shrink-0" />
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row gap-2">
+                                            ) : null}
                                             <button
                                                 type="button"
                                                 onClick={connect}
                                                 disabled={isConnecting}
-                                                className="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 transition-opacity"
+                                                className="w-full py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 transition-opacity disabled:opacity-50"
                                             >
                                                 {isConnecting
                                                     ? t('wallet.web3_deposit.connecting')
@@ -716,135 +649,68 @@ export default function Wallet() {
                                                         ? t('wallet.web3_deposit.connect_wc')
                                                         : t('wallet.web3_deposit.connect_browser')}
                                             </button>
+                                            {isConnected && account ? (
+                                                <p className="text-[10px] text-emerald-300/90 font-mono font-bold break-all">
+                                                    {t('wallet.web3_deposit.linked_label')}: {account}
+                                                </p>
+                                            ) : (
+                                                <p className="text-[9px] text-slate-600 font-bold">
+                                                    {t('wallet.web3_deposit.link_prompt')}
+                                                </p>
+                                            )}
+                                            <p className="text-[9px] text-slate-500 font-bold mt-auto">
+                                                {t('wallet.web3_deposit.min_deposit', { min: minDepositPol })}
+                                            </p>
                                         </div>
-                                        {isConnected && account ? (
-                                            <p className="text-[10px] text-emerald-300/90 font-mono font-bold text-center break-all">
-                                                {t('wallet.web3_deposit.linked_label')}: {account}
-                                            </p>
-                                        ) : (
-                                            <p className="text-[9px] text-slate-600 font-bold text-center">
-                                                {t('wallet.web3_deposit.link_prompt')}
-                                            </p>
-                                        )}
-                                        <p className="text-[9px] text-slate-500 font-bold text-center">
-                                            {t('wallet.web3_deposit.min_deposit', { min: minDepositPol })}
-                                        </p>
-                                        {systemDepositAddress ? (
-                                            <div className="flex flex-col sm:flex-row gap-6 items-center justify-center pt-2">
-                                                <div className="bg-white p-3 rounded-2xl shrink-0">
-                                                    <QRCodeSVG value={systemDepositAddress} size={140} level="M" />
-                                                </div>
-                                                <div className="flex-1 w-full space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                                        {t('wallet.web3_deposit.treasury_label')}
-                                                    </label>
-                                                    <div className="relative">
-                                                        <input
-                                                            type="text"
-                                                            readOnly
-                                                            value={systemDepositAddress}
-                                                            className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-4 pl-4 pr-12 text-slate-200 text-xs font-mono"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => copyToClipboard(systemDepositAddress)}
-                                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-indigo-400"
-                                                        >
-                                                            <Copy className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                    <p className="text-[9px] text-slate-600 font-bold">
-                                                        {t('wallet.web3_deposit.waiting_hint')}
-                                                    </p>
-                                                </div>
+
+                                        <div className="p-5 sm:p-6 rounded-3xl border border-slate-800/80 bg-slate-950/50 flex flex-col gap-4 min-h-[280px]">
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-200">
+                                                {t('wallet.express_deposit')}
+                                            </h4>
+                                            <div className="flex gap-3">
+                                                <AlertCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+                                                <p className="text-[9px] text-slate-500 leading-relaxed font-bold">
+                                                    {t('wallet.express_mode_note', { n: blockConfirmations })}
+                                                </p>
                                             </div>
-                                        ) : (
-                                            <p className="text-[10px] text-amber-300 font-bold text-center">
-                                                {t('wallet.web3_deposit.no_treasury')}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
-                                        <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.deposit_address_label')}</label>
-                                            <div className="relative group">
-                                                <input
-                                                    type="text"
-                                                    readOnly
-                                                    value={systemDepositAddress || 'Loading...'}
-                                                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-5 pl-5 pr-12 text-slate-400 text-xs font-mono transition-all outline-none"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => copyToClipboard(systemDepositAddress)}
-                                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-indigo-400 hover:text-white transition-colors"
-                                                >
-                                                    <Copy className="w-5 h-5" />
-                                                </button>
+                                            <div className="flex gap-3">
+                                                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                                                <p className="text-[9px] text-slate-500 leading-relaxed font-bold">
+                                                    {t('wallet.web3_deposit.express_safety')}
+                                                </p>
                                             </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.amount_to_add')}</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={depositForm.amount}
-                                                onChange={(e) => setDepositForm(prev => ({ ...prev, amount: e.target.value }))}
-                                                placeholder="0.00"
-                                                className="w-full bg-slate-900 border border-slate-800 group-hover:border-slate-700 focus:border-indigo-500 rounded-2xl py-5 px-5 text-slate-200 text-sm font-black transition-all outline-none"
-                                            />
-                                            <p className="text-[9px] text-slate-600 font-bold ml-2">{t('wallet.min_deposit_hint', { min: minDepositPol })}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col md:flex-row gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={handleAutoDeposit}
-                                            disabled={isActionLoading || !systemDepositAddress}
-                                            className={`flex-[2] py-4 sm:py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-[10px] sm:text-sm uppercase tracking-tight sm:tracking-[0.1em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 ${showManualForm ? 'opacity-50' : ''}`}
-                                        >
-                                            <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                                            {t('wallet.express_deposit')}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className={`flex-1 py-4 sm:py-5 rounded-3xl font-bold text-[9px] sm:text-xs uppercase tracking-tight sm:tracking-widest transition-all border flex items-center justify-center gap-2 ${showManualForm ? 'bg-primary text-white border-primary shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/50'}`}
-                                            onClick={() => setShowManualForm(!showManualForm)}
-                                        >
-                                            {showManualForm ? <XCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                                            {showManualForm ? t('wallet.cancel_manual') : t('wallet.manual_transfer')}
-                                        </button>
-                                    </div>
-
-                                    {showManualForm && (
-                                        <div className="p-6 bg-slate-900/80 border border-primary/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-500">
-                                            <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">{t('wallet.tx_hash_label')}</label>
+                                            <div className="space-y-2">
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                                                    {t('wallet.amount_to_add')}
+                                                </label>
                                                 <input
-                                                    type="text"
-                                                    value={depositForm.txHash}
-                                                    onChange={(e) => setDepositForm(prev => ({ ...prev, txHash: e.target.value }))}
-                                                    placeholder="0x..."
-                                                    className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={depositForm.amount}
+                                                    onChange={(e) => setDepositForm({ amount: e.target.value })}
+                                                    placeholder="0.00"
+                                                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-2xl py-4 px-4 text-slate-200 text-sm font-black transition-all outline-none"
                                                 />
+                                                <p className="text-[9px] text-slate-600 font-bold ml-1">
+                                                    {t('wallet.min_deposit_hint', { min: minDepositPol })}
+                                                </p>
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={handleManualDeposit}
-                                                disabled={isActionLoading}
-                                                className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
+                                                onClick={handleAutoDeposit}
+                                                disabled={isActionLoading || !systemDepositAddress}
+                                                className="w-full mt-auto py-4 sm:py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-tight sm:tracking-[0.1em] transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
                                             >
-                                                {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : null}
-                                                {isActionLoading ? t('wallet.registering') : t('wallet.register_deposit')}
+                                                <Send className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                                                {t('wallet.express_deposit')}
                                             </button>
-                                            <p className="text-[9px] text-slate-500 font-bold italic text-center">
-                                                {t('wallet.deposit_verify_msg')}
-                                            </p>
+                                            {!systemDepositAddress ? (
+                                                <p className="text-[10px] text-amber-300 font-bold text-center">
+                                                    {t('wallet.web3_deposit.no_treasury')}
+                                                </p>
+                                            ) : null}
                                         </div>
-                                    )}
+                                    </div>
 
                                     {/* Painel de depósitos em verificação */}
                                     {pendingDeposits.length > 0 && (
@@ -930,35 +796,6 @@ export default function Wallet() {
                                             </div>
                                         </div>
                                     )}
-
-                                    <div className="flex flex-col lg:flex-row gap-4 sm:gap-8 items-center bg-indigo-500/5 border border-indigo-500/10 rounded-3xl p-4 sm:p-6">
-                                        <div className="bg-white p-4 rounded-2xl shadow-2xl shadow-indigo-500/20">
-                                            {systemDepositAddress ? (
-                                                <QRCodeSVG
-                                                    value={systemDepositAddress}
-                                                    size={120}
-                                                    includeMargin={false}
-                                                    level="H"
-                                                />
-                                            ) : (
-                                                <div className="w-[120px] h-[120px] bg-slate-100 animate-pulse rounded-lg" />
-                                            )}
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex gap-4">
-                                                <AlertCircle className="w-6 h-6 text-indigo-400 shrink-0" />
-                                                <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
-                                                    {t('wallet.express_mode_note', { n: blockConfirmations })}
-                                                </p>
-                                            </div>
-                                            <div className="flex gap-4">
-                                                <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
-                                                <p className="text-[10px] text-slate-500 leading-relaxed font-bold uppercase tracking-tight">
-                                                    Your funds are safe. Scan the QR code or manually send POL to the address above. Do not send other assets.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </form>
                             )}
 

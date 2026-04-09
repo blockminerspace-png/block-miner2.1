@@ -47,11 +47,6 @@ async function switchNetworkFor(provider) {
     }
 }
 
-function isLikelyTouchMobile() {
-    if (typeof navigator === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-}
-
 function normalizeChainNum(chainId) {
     if (chainId == null) return null;
     if (typeof chainId === 'number' && Number.isFinite(chainId)) return chainId;
@@ -198,43 +193,35 @@ export function useWallet() {
         [kitConnected, disconnectAsync, verifyWithServer]
     );
 
-    const connect = useCallback(async () => {
-        if (walletConnectConfigured) {
-            const injected = getInjectedProvider();
-            if (injected && !isLikelyTouchMobile()) {
-                await connectInjectedAndVerify();
-                return;
-            }
-            setIsConnecting(true);
-            try {
-                await open();
-            } catch (e) {
-                console.error(e);
-                toast.error(e?.message || 'Could not open wallet modal.');
-            } finally {
-                setIsConnecting(false);
-            }
-            return;
-        }
-
-        await connectInjectedAndVerify();
-    }, [walletConnectConfigured, open, connectInjectedAndVerify]);
-
-    const connectWalletConnect = useCallback(async () => {
-        if (!walletConnectConfigured) {
-            toast.error('WalletConnect is not configured (missing VITE_WALLETCONNECT_PROJECT_ID).');
-            return;
-        }
+    const openConnectModal = useCallback(async () => {
         setIsConnecting(true);
         try {
-            await open();
+            await open({ view: 'Connect' });
         } catch (e) {
             console.error(e);
             toast.error(e?.message || 'Could not open wallet modal.');
         } finally {
             setIsConnecting(false);
         }
-    }, [walletConnectConfigured, open]);
+    }, [open]);
+
+    const connect = useCallback(async () => {
+        if (walletConnectConfigured) {
+            await openConnectModal();
+            return;
+        }
+        await connectInjectedAndVerify();
+    }, [walletConnectConfigured, openConnectModal, connectInjectedAndVerify]);
+
+    const connectWalletConnect = useCallback(async () => {
+        if (!walletConnectConfigured) {
+            toast.error(
+                'WalletConnect não está configurado. Define VITE_WALLETCONNECT_PROJECT_ID no build (.env.production) e faz redeploy.'
+            );
+            return;
+        }
+        await openConnectModal();
+    }, [walletConnectConfigured, openConnectModal]);
 
     const switchNetwork = useCallback(async () => {
         if (walletConnectConfigured && kitConnected) {

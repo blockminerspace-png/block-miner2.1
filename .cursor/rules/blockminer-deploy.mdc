@@ -1,0 +1,18 @@
+---
+description: Deploy Block Miner to the production VPS and keep env/build aligned (Docker, WalletConnect).
+globs: deploy.py,scripts/deploy*.ps1,docker-compose.yml,Dockerfile,.env.production.example
+alwaysApply: false
+---
+
+# Block Miner — deploy na VM
+
+Quando o utilizador pedir **deploy**, **subir para produção**, ou **configurar a VM**:
+
+1. **Nunca** fazer commit de segredos: `deploy.py`, `deploy.secrets.local`, `.env.production`, `.env.production.vm-backup` estão no `.gitignore`.
+2. **Push** das alterações para os remotos que a VPS usa (`origin` → `block-miner-v3`, e `block-miner21` se aplicável).
+3. **Windows:** na raiz do repo, `python deploy.py` (ou `python deploy.py --no-cache` para rebuild completo). Isto corre `scripts/deploy-vps-windows.ps1` (PuTTY `plink`/`pscp`).
+4. Garantir **`.env.production.vm-backup`** local com o mesmo conteúdo que a VM precisa; o script envia-o para `/root/block-miner/.env.production`.
+5. Para **WalletConnect / Reown AppKit** no cliente, o build Docker precisa de `VITE_WALLETCONNECT_PROJECT_ID` e idealmente `VITE_PUBLIC_WALLET_APP_URL` (https do site) nesse `.env.production` — o `docker-compose` passa-os como build args.
+6. Após deploy, verificar logs se algo falhar: na VM, `docker compose ps`, `docker compose logs nginx --tail 80`, `curl -sS http://127.0.0.1:3000/health`.
+
+Não alterar migrações Prisma na VPS sem pedido explícito do utilizador.

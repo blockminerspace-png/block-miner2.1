@@ -352,7 +352,9 @@
     "ticket_status_approved": "Aprobado",
     "web3_deposit": {
       "title": "Depósito POL (Polygon)",
-      "hint": "Conecta con una cartera del navegador o WalletConnect (Polygon, cadena 137). Envía POL a la dirección de tesorería y registra la transacción si hace falta. El servidor acredita tras suficientes confirmaciones on-chain.",
+      "hint": "Abre el selector de carteras (WalletConnect en el móvil o extensión en PC), red Polygon (137). Luego usa «Depósito express» para firmar el envío de POL — el servidor acredita tras confirmaciones on-chain.",
+      "express_safety": "Firmas el envío en tu cartera hacia la dirección de la plataforma. Envía solo POL en Polygon; otros activos pueden perderse.",
+      "wc_missing_build": "Este build no tiene VITE_WALLETCONNECT_PROJECT_ID — el modal WalletConnect no abrirá en el móvil. Configura el ID en .env.production, rebuild y redeploy.",
       "connect_browser": "Conectar cartera",
       "connect_wc": "WalletConnect",
       "connecting": "Conectando…",

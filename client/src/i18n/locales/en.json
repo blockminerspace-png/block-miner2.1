@@ -354,7 +354,9 @@
     "ticket_status_approved": "Approved",
     "web3_deposit": {
       "title": "Polygon POL deposit",
-      "hint": "Connect with a browser wallet or WalletConnect (Polygon, chain 137). Send POL to the treasury address below, then register the transaction if needed. The server credits your balance after enough on-chain confirmations.",
+      "hint": "Open the wallet picker (WalletConnect on mobile or extension on desktop), stay on Polygon (137). Then use Express deposit to sign sending POL — the server credits after on-chain confirmations.",
+      "express_safety": "You sign the transfer in your wallet to the platform address. Send only POL on Polygon; other assets may be lost.",
+      "wc_missing_build": "This build has no VITE_WALLETCONNECT_PROJECT_ID — the WalletConnect modal will not open on phones. Set the ID in .env.production, rebuild, and redeploy.",
       "connect_browser": "Connect wallet",
       "connect_wc": "WalletConnect",
       "connecting": "Connecting…",
