@@ -18,6 +18,12 @@ walletRouter.get(
   walletLimiter,
   walletController.getCcpaymentWalletDepositAddress
 );
+walletRouter.get(
+  "/ccpayment/status",
+  requireAuth,
+  walletLimiter,
+  walletController.getCcpaymentWalletStatus
+);
 walletRouter.post("/deposit", requireAuth, walletLimiter, walletController.requestDeposit);
 walletRouter.post("/deposit/submit", requireAuth, walletLimiter, walletController.submitDeposit);
 walletRouter.get("/deposit/pending", requireAuth, walletLimiter, walletController.getPendingDeposits);

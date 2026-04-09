@@ -137,11 +137,19 @@ export default function Wallet() {
             if (res.data?.ok) {
                 setCcpaymentInfo(res.data);
             } else {
-                setCcpaymentError(res.data?.message || t('wallet.ccpayment.error_load'));
+                const code = res.data?.code;
+                if (code === 'DISABLED') setCcpaymentError(t('wallet.ccpayment.error_disabled'));
+                else if (code === 'NOT_CONFIGURED') setCcpaymentError(t('wallet.ccpayment.error_not_configured'));
+                else setCcpaymentError(res.data?.message || t('wallet.ccpayment.error_load'));
             }
         } catch (e) {
-            const msg = e.response?.data?.message || e.message;
-            setCcpaymentError(msg || t('wallet.ccpayment.error_load'));
+            const code = e.response?.data?.code;
+            if (code === 'DISABLED') setCcpaymentError(t('wallet.ccpayment.error_disabled'));
+            else if (code === 'NOT_CONFIGURED') setCcpaymentError(t('wallet.ccpayment.error_not_configured'));
+            else {
+                const msg = e.response?.data?.message || e.message;
+                setCcpaymentError(msg || t('wallet.ccpayment.error_load'));
+            }
         } finally {
             setCcpaymentLoading(false);
         }

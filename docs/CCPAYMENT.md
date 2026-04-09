@@ -49,7 +49,7 @@ Configure your checkout / API deposit flow so `merchant_order_id` uses one of th
 | `CCPAYMENT_APP_ID` or `CCPAYMENT_API_KEY` | Yes | App ID from CCPayment Developer page |
 | `CCPAYMENT_APP_SECRET` or `CCPAYMENT_SECRET_KEY` or `CCPAYMENT_WEBHOOK_SECRET` | Yes | App Secret (keep in secrets manager / env only) |
 | `CCPAYMENT_API_BASE_URL` | Yes* | Outbound API base (e.g. `https://admin.ccpayment.com/ccpayment/v1`) |
-| `CCPAYMENT_ENABLED` | Yes | Must be `true` for wallet address endpoint and webhook processing |
+| `CCPAYMENT_ENABLED` | Recommended | `true`, `1`, `yes`, `on`, or `enabled` = on; `false`, `0`, `no`, `off`, `disabled` = off. If **unset** and both App ID + App Secret are set, the integration is treated as **enabled** (fixes production configs that only set credentials). |
 | `CCPAYMENT_MERCHANT_ID` | No | Optional; for your own logging / support |
 | `CCPAYMENT_ALLOWED_IPS` | No | Extra comma-separated IPs **unioned** with default CCPayment egress IPs (never replaces them) |
 | `CCPAYMENT_PAYMENT_ADDRESS_PATH` | No | Default `/payment/address/get` ([permanent address API](https://docs.ccpayment.com/ccpayment-v1.0-api/wallet-api-ccpayment/get-permanent-deposit-address-for-users)) |
@@ -74,6 +74,7 @@ Set `TRUST_PROXY=1` behind nginx so the allowlist reads the client IP from `X-Fo
 
 ## User wallet API
 
+- `GET /api/wallet/ccpayment/status` (authenticated) — `{ enabled, integrationEnabled, credentialsConfigured, mode }` for support (no secrets).
 - `GET /api/wallet/ccpayment/deposit-address` (authenticated) — returns permanent Polygon address + QR-friendly `address` string; uses stable `user_id` `BM{userId}-bm` for CCPayment.
 
 ## Website verification file

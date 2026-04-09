@@ -10,6 +10,10 @@ import {
   isCcpaymentClientConfigured,
   ccpaymentMerchantUserId
 } from "../services/ccpayment/ccpaymentApiClient.js";
+import {
+  isCcpaymentIntegrationEnabled,
+  getCcpaymentIntegrationStatus
+} from "../services/ccpayment/ccpaymentEnv.js";
 
 /** Minimum POL for a deposit request. */
 export const DEPOSIT_MIN_POL = 1;
@@ -319,10 +323,7 @@ const VALID_MINING_PAYOUT_MODES = new Set(["pol"]);
  */
 export async function getCcpaymentWalletDepositAddress(req, res) {
   try {
-    const enabled = String(process.env.CCPAYMENT_ENABLED || "")
-      .trim()
-      .toLowerCase();
-    if (enabled !== "true") {
+    if (!isCcpaymentIntegrationEnabled()) {
       return res.status(503).json({ ok: false, code: "DISABLED", message: "CCPayment is disabled." });
     }
     if (!isCcpaymentClientConfigured()) {
@@ -348,6 +349,26 @@ export async function getCcpaymentWalletDepositAddress(req, res) {
       code: "CCPAYMENT_ERROR",
       message: "Unable to reach CCPayment. Try again later."
     });
+  }
+}
+
+/**
+ * GET /api/wallet/ccpayment/status
+ * Lightweight diagnostics for the wallet UI (no secrets).
+ */
+export async function getCcpaymentWalletStatus(req, res) {
+  try {
+    const st = getCcpaymentIntegrationStatus();
+    return res.json({
+      ok: true,
+      enabled: st.enabled && st.configured,
+      integrationEnabled: st.enabled,
+      credentialsConfigured: st.configured,
+      mode: st.mode
+    });
+  } catch (err) {
+    logger.error("getCcpaymentWalletStatus error", { message: err.message });
+    return res.status(500).json({ ok: false, message: "Status unavailable." });
   }
 }
 

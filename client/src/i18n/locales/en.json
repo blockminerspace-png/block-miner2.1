@@ -359,6 +359,8 @@
       "open_button": "Deposit via CCPayment",
       "loading": "Contacting CCPayment…",
       "error_load": "Could not load CCPayment deposit address.",
+      "error_disabled": "CCPayment is turned off on the server, or the flag is set to disable it. Ask the operator to set CCPAYMENT_ENABLED=true (or 1/yes) and valid API credentials in production environment.",
+      "error_not_configured": "CCPayment App ID or App Secret is missing on the server. Configure CCPAYMENT_APP_ID and CCPAYMENT_APP_SECRET in the production environment and restart the app.",
       "min_deposit": "Minimum deposit: {{min}} POL (set by server).",
       "address_label": "Deposit address",
       "memo_label": "Memo",

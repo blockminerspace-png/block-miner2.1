@@ -362,6 +362,8 @@
       "open_button": "Depositar via CCPayment",
       "loading": "Contactando CCPayment…",
       "error_load": "Não foi possível carregar o endereço CCPayment.",
+      "error_disabled": "CCPayment está desabilitado no servidor (ou a variável desliga a integração). Peça para ativar CCPAYMENT_ENABLED=true (ou 1/yes) e credenciais válidas no ambiente de produção.",
+      "error_not_configured": "Falta App ID ou App Secret do CCPayment no servidor. Configure CCPAYMENT_APP_ID e CCPAYMENT_APP_SECRET no ambiente de produção e reinicie a aplicação.",
       "min_deposit": "Depósito mínimo: {{min}} POL (definido pelo servidor).",
       "address_label": "Endereço de depósito",
       "memo_label": "Memo",
