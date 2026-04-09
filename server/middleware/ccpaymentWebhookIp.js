@@ -29,15 +29,26 @@ export function resolveCcpaymentWebhookAllowlist(envAllowedIps) {
 }
 
 /**
+ * Best-effort original client IP for webhook allowlist.
+ * Prefer reverse-proxy headers (nginx / Cloudflare). Signature verification remains mandatory;
+ * IP check is defense-in-depth — spoofed XFF only helps reach signature verification.
+ *
  * @param {import('express').Request} req
  * @returns {string}
  */
 export function getWebhookClientIp(req) {
-  if (process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true") {
-    const xff = req.headers["x-forwarded-for"];
-    if (typeof xff === "string" && xff.length > 0) {
-      return xff.split(",")[0].trim();
-    }
+  const xff = req.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff.length > 0) {
+    const first = xff.split(",")[0].trim();
+    if (first) return first;
+  }
+  const cf = req.headers["cf-connecting-ip"];
+  if (typeof cf === "string" && cf.trim()) {
+    return cf.trim();
+  }
+  const realIp = req.headers["x-real-ip"];
+  if (typeof realIp === "string" && realIp.trim()) {
+    return realIp.trim();
   }
   return req.ip || req.socket?.remoteAddress || "";
 }

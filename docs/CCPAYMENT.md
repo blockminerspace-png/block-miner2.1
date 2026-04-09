@@ -75,7 +75,7 @@ Default webhook source IPs (always included; `CCPAYMENT_ALLOWED_IPS` adds more):
 - `35.72.150.75`
 - `18.176.186.244`
 
-Set `TRUST_PROXY=1` behind nginx so the allowlist reads the client IP from `X-Forwarded-For`.
+The webhook handler resolves the client IP from `X-Forwarded-For` (first hop), then `CF-Connecting-IP` (Cloudflare), then `X-Real-IP`, then the socket — so Docker/nginx and Cloudflare typically expose the real CCPayment egress IP without extra env. `TRUST_PROXY` still matters for other routes that use `req.ip`.
 
 ## User wallet API
 
