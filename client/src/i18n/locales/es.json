@@ -271,6 +271,7 @@
     "double_slot_aria_suffix": "Usa dos espacios del rack.",
     "rack_slot_machine_aria": "{{name}}. Potencia: {{power}}. Espacios: {{slots}}.",
     "rack_machine_tooltip": {
+      "machine_name_label": "Nombre de la máquina",
       "power": "Potencia: {{value}}",
       "slots_occupied": "Espacios: {{count}}"
     }

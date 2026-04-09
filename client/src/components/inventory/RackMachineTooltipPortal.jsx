@@ -109,7 +109,10 @@ export default function RackMachineTooltipPortal({ open, anchorEl, displayName, 
       style={{ top: coords.top, left: coords.left }}
       aria-hidden="true"
     >
-      <p className="truncate text-xs font-bold text-white">{displayName}</p>
+      <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">
+        {t("inventory.rack_machine_tooltip.machine_name_label")}
+      </p>
+      <p className="truncate text-xs font-bold text-white -mt-0.5">{displayName}</p>
       <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
         {t("inventory.rack_machine_tooltip.power", { value: hashrateStr })}
       </p>

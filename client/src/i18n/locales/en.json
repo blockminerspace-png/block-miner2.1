@@ -273,6 +273,7 @@
     "double_slot_aria_suffix": "Uses two rack slots.",
     "rack_slot_machine_aria": "{{name}}. Power: {{power}}. Slots: {{slots}}.",
     "rack_machine_tooltip": {
+      "machine_name_label": "Machine name",
       "power": "Power: {{value}}",
       "slots_occupied": "Slots: {{count}}"
     }
