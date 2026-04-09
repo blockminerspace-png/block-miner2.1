@@ -1,6 +1,6 @@
 /**
  * Optional IP allowlist for CCPayment webhook source addresses.
- * Set CCPAYMENT_ALLOWED_IPS (comma-separated). When empty, only default CCPayment IPs apply if provided via env.
+ * Set CCPAYMENT_ALLOWED_IPS (comma-separated) to add IPs; official CCPayment egress IPs are always included.
  */
 
 const DEFAULT_CC_IPS = ["54.150.123.157", "35.72.150.75", "18.176.186.244"];
@@ -11,6 +11,21 @@ function parseIpList(raw) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/**
+ * Official CCPayment egress IPs plus any extra IPs from CCPAYMENT_ALLOWED_IPS (deduped).
+ * Extra IPs cover proxies, staging hooks, or merchant allowlist rows without dropping CCPayment.
+ *
+ * @param {string | undefined} envAllowedIps
+ * @returns {string[]}
+ */
+export function resolveCcpaymentWebhookAllowlist(envAllowedIps) {
+  const extra = parseIpList(envAllowedIps);
+  if (extra && extra.length > 0) {
+    return [...new Set([...DEFAULT_CC_IPS, ...extra])];
+  }
+  return [...DEFAULT_CC_IPS];
 }
 
 /**
@@ -37,8 +52,7 @@ export function ccpaymentWebhookIpWhitelist(req, res, next) {
     return;
   }
 
-  const envList = parseIpList(process.env.CCPAYMENT_ALLOWED_IPS);
-  const allow = envList && envList.length > 0 ? envList : DEFAULT_CC_IPS;
+  const allow = resolveCcpaymentWebhookAllowlist(process.env.CCPAYMENT_ALLOWED_IPS);
 
   const ip = getWebhookClientIp(req).replace(/^::ffff:/, "");
   const ok = allow.some((a) => a === ip);

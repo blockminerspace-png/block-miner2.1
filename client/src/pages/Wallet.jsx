@@ -59,6 +59,10 @@ export default function Wallet() {
     const [showManualForm, setShowManualForm] = useState(false);
     const [polPrice, setPolPrice] = useState(0);
 
+    const [ccpaymentInfo, setCcpaymentInfo] = useState(null);
+    const [ccpaymentLoading, setCcpaymentLoading] = useState(false);
+    const [ccpaymentError, setCcpaymentError] = useState(null);
+
     // Depósitos assíncronos pendentes
     const [pendingDeposits, setPendingDeposits] = useState([]);
     const pendingPollRef = useRef(null);
@@ -125,6 +129,24 @@ export default function Wallet() {
         } catch {}
     }, []);
 
+    const loadCcpaymentAddress = useCallback(async () => {
+        setCcpaymentLoading(true);
+        setCcpaymentError(null);
+        try {
+            const res = await api.get('/wallet/ccpayment/deposit-address');
+            if (res.data?.ok) {
+                setCcpaymentInfo(res.data);
+            } else {
+                setCcpaymentError(res.data?.message || t('wallet.ccpayment.error_load'));
+            }
+        } catch (e) {
+            const msg = e.response?.data?.message || e.message;
+            setCcpaymentError(msg || t('wallet.ccpayment.error_load'));
+        } finally {
+            setCcpaymentLoading(false);
+        }
+    }, [t]);
+
     const startPendingPoll = useCallback(() => {
         if (pendingPollRef.current) return;
         fetchPendingDeposits();
@@ -161,17 +183,25 @@ export default function Wallet() {
         }
     }, [pendingDeposits, startPendingPoll, stopPendingPoll]);
 
+    useEffect(() => {
+        if (!ccpaymentInfo) return undefined;
+        const id = setInterval(() => {
+            fetchWalletData();
+        }, 8000);
+        return () => clearInterval(id);
+    }, [ccpaymentInfo, fetchWalletData]);
+
     // Socket: ouve confirmação de depósito em tempo real
     useEffect(() => {
         if (!socket) return;
-        const handler = ({ amount, txHash }) => {
-            toast.success(`Depósito de ${Number(amount).toFixed(4)} POL confirmado!`);
+        const handler = ({ amount }) => {
+            toast.success(t('wallet.ccpayment.toast_credited', { amount: Number(amount).toFixed(4) }));
             fetchWalletData();
             fetchPendingDeposits();
         };
         socket.on('wallet:deposit_confirmed', handler);
         return () => socket.off('wallet:deposit_confirmed', handler);
-    }, [socket, fetchWalletData, fetchPendingDeposits]);
+    }, [socket, fetchWalletData, fetchPendingDeposits, t]);
 
     // Auto-fill withdrawal address when wallet connects
     useEffect(() => {
@@ -660,6 +690,78 @@ export default function Wallet() {
 
                             {activeTab === 'deposit' && (
                                 <form onSubmit={(e) => e.preventDefault()} className="space-y-4 sm:space-y-8">
+                                    <div className="p-5 sm:p-6 rounded-3xl border border-indigo-500/25 bg-indigo-950/20 space-y-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300">
+                                                    {t('wallet.ccpayment.title')}
+                                                </h4>
+                                                <p className="text-[9px] text-slate-500 mt-1 font-bold leading-relaxed">
+                                                    {t('wallet.ccpayment.deposit_panel_hint')}
+                                                </p>
+                                            </div>
+                                            <QrCode className="w-6 h-6 text-indigo-400 shrink-0" />
+                                        </div>
+                                        {!ccpaymentInfo && !ccpaymentLoading && (
+                                            <button
+                                                type="button"
+                                                onClick={loadCcpaymentAddress}
+                                                className="w-full py-3.5 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 transition-opacity"
+                                            >
+                                                {t('wallet.ccpayment.open_button')}
+                                            </button>
+                                        )}
+                                        {ccpaymentLoading && (
+                                            <div className="flex items-center justify-center gap-2 py-6 text-slate-400 text-xs font-bold">
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                                {t('wallet.ccpayment.loading')}
+                                            </div>
+                                        )}
+                                        {ccpaymentError && (
+                                            <p className="text-[10px] text-red-400 font-bold text-center">{ccpaymentError}</p>
+                                        )}
+                                        {ccpaymentInfo && (
+                                            <div className="space-y-4">
+                                                <p className="text-[9px] text-slate-500 font-bold text-center">
+                                                    {t('wallet.ccpayment.min_deposit', { min: ccpaymentInfo.minDepositPol ?? 0.01 })}
+                                                </p>
+                                                <div className="flex flex-col sm:flex-row gap-6 items-center justify-center">
+                                                    <div className="bg-white p-3 rounded-2xl shrink-0">
+                                                        <QRCodeSVG value={ccpaymentInfo.address} size={140} level="M" />
+                                                    </div>
+                                                    <div className="flex-1 w-full space-y-2">
+                                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                                            {t('wallet.ccpayment.address_label')}
+                                                        </label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                readOnly
+                                                                value={ccpaymentInfo.address}
+                                                                className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-4 pl-4 pr-12 text-slate-200 text-xs font-mono"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyToClipboard(ccpaymentInfo.address)}
+                                                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-indigo-400"
+                                                            >
+                                                                <Copy className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
+                                                        {ccpaymentInfo.memo ? (
+                                                            <p className="text-[10px] text-amber-200/90 font-bold">
+                                                                {t('wallet.ccpayment.memo_label')}: {ccpaymentInfo.memo}
+                                                            </p>
+                                                        ) : null}
+                                                        <p className="text-[9px] text-slate-600 font-bold">
+                                                            {t('wallet.ccpayment.waiting_hint')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
                                         <div className="space-y-3">
                                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.deposit_address_label')}</label>

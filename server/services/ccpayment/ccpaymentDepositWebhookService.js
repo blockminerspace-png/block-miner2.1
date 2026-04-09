@@ -54,8 +54,11 @@ function parseCryptoList() {
 }
 
 function getMinDeposit() {
-  const v = parseFloat(String(process.env.MIN_DEPOSIT_AMOUNT || "1"));
-  return Number.isFinite(v) && v > 0 ? v : 1;
+  const ccp = parseFloat(String(process.env.CCPAYMENT_MIN_DEPOSIT_POL ?? "").trim());
+  if (Number.isFinite(ccp) && ccp > 0) {
+    return ccp;
+  }
+  return 0.01;
 }
 
 function getMaxDeposit() {
@@ -186,6 +189,8 @@ export async function processCcpaymentDepositBody(body, meta = {}) {
     decision = { kind: "credit", userId: parsedUserId, amount };
   }
 
+  let creditedDepositTxId = null;
+
   try {
     await prisma.$transaction(async (tx) => {
       const row = await tx.ccpaymentDepositEvent.findUnique({ where: { recordId } });
@@ -266,7 +271,7 @@ export async function processCcpaymentDepositBody(body, meta = {}) {
         }
       });
 
-      await tx.transaction.create({
+      const depositRow = await tx.transaction.create({
         data: {
           userId: decision.userId,
           type: "deposit",
@@ -283,6 +288,7 @@ export async function processCcpaymentDepositBody(body, meta = {}) {
           })
         }
       });
+      creditedDepositTxId = depositRow.id;
 
       await tx.user.update({
         where: { id: decision.userId },
@@ -345,6 +351,13 @@ export async function processCcpaymentDepositBody(body, meta = {}) {
       type: "success",
       io: engine?.io
     });
+    if (engine?.io && creditedDepositTxId != null) {
+      engine.io.to(`user:${userId}`).emit("wallet:deposit_confirmed", {
+        amount: creditedAmount,
+        txHash: after.txHash || "",
+        txId: creditedDepositTxId
+      });
+    }
     await engine?.reloadMinerProfile(userId).catch(() => {});
   } catch (notifyErr) {
     logger.warn("Post-deposit notify failed", { message: notifyErr?.message });

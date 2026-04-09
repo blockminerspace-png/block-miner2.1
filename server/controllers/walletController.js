@@ -5,6 +5,11 @@ import loggerLib from "../utils/logger.js";
 import { runDepositVerifier } from "../services/depositVerifier.js";
 import { wakeUpScanner } from "../cron/depositsCron.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
+import {
+  getPermanentDepositAddress,
+  isCcpaymentClientConfigured,
+  ccpaymentMerchantUserId
+} from "../services/ccpayment/ccpaymentApiClient.js";
 
 /** Minimum POL for a deposit request. */
 export const DEPOSIT_MIN_POL = 1;
@@ -307,6 +312,44 @@ export async function getPendingDeposits(req, res) {
 }
 
 const VALID_MINING_PAYOUT_MODES = new Set(["pol"]);
+
+/**
+ * GET /api/wallet/ccpayment/deposit-address
+ * Returns the user’s permanent Polygon deposit address from CCPayment (stable per user_id).
+ */
+export async function getCcpaymentWalletDepositAddress(req, res) {
+  try {
+    const enabled = String(process.env.CCPAYMENT_ENABLED || "")
+      .trim()
+      .toLowerCase();
+    if (enabled !== "true") {
+      return res.status(503).json({ ok: false, code: "DISABLED", message: "CCPayment is disabled." });
+    }
+    if (!isCcpaymentClientConfigured()) {
+      return res
+        .status(503)
+        .json({ ok: false, code: "NOT_CONFIGURED", message: "CCPayment credentials are missing." });
+    }
+    const { address, memo } = await getPermanentDepositAddress({ userId: req.user.id });
+    const minRaw = parseFloat(String(process.env.CCPAYMENT_MIN_DEPOSIT_POL || "0.01"));
+    const minDepositPol = Number.isFinite(minRaw) && minRaw > 0 ? minRaw : 0.01;
+    return res.json({
+      ok: true,
+      address,
+      memo,
+      merchantUserId: ccpaymentMerchantUserId(req.user.id),
+      minDepositPol,
+      chain: String(process.env.CCPAYMENT_CHAIN || "POLYGON")
+    });
+  } catch (err) {
+    logger.error("getCcpaymentWalletDepositAddress error", { message: err.message });
+    return res.status(502).json({
+      ok: false,
+      code: "CCPAYMENT_ERROR",
+      message: "Unable to reach CCPayment. Try again later."
+    });
+  }
+}
 
 /** Mining payout is POL-only. BLK mining mode was removed. */
 export async function setMiningPayoutMode(req, res) {

@@ -12,6 +12,12 @@ const blkConvertLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
 walletRouter.get("/balance", requireAuth, walletLimiter, walletController.getBalance);
 walletRouter.get("/transactions", requireAuth, walletLimiter, walletController.getTransactions);
 walletRouter.get("/deposits", requireAuth, walletLimiter, walletController.getDeposits);
+walletRouter.get(
+  "/ccpayment/deposit-address",
+  requireAuth,
+  walletLimiter,
+  walletController.getCcpaymentWalletDepositAddress
+);
 walletRouter.post("/deposit", requireAuth, walletLimiter, walletController.requestDeposit);
 walletRouter.post("/deposit/submit", requireAuth, walletLimiter, walletController.submitDeposit);
 walletRouter.get("/deposit/pending", requireAuth, walletLimiter, walletController.getPendingDeposits);

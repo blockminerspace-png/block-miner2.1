@@ -82,6 +82,10 @@ test("parseUserIdFromMerchantOrderId supports BM{userId}-nonce", () => {
   assert.equal(parseUserIdFromMerchantOrderId("bm7-xyz"), 7);
 });
 
+test("parseUserIdFromMerchantOrderId supports stable BM{userId}-bm merchant id", () => {
+  assert.equal(parseUserIdFromMerchantOrderId("BM99-bm"), 99);
+});
+
 test("parseUserIdFromMerchantOrderId supports plain numeric string", () => {
   assert.equal(parseUserIdFromMerchantOrderId("123"), 123);
 });

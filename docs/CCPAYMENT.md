@@ -7,9 +7,9 @@ This project accepts **API Deposit** callbacks from [CCPayment](https://docs.ccp
 - [API Deposit Webhook Notification](https://docs.ccpayment.com/ccpayment-v1.0-api/webhook-notification/api-deposit-webhook-notification)
 - [Signature (SHA-256)](https://docs.ccpayment.com/ccpayment-v1.0-api/to-get-started/signature)
 
-## Important: signature algorithm
+## Important: signature algorithm (not HMAC)
 
-CCPayment signs the **raw JSON body** with:
+Official CCPayment signing is a **plain SHA-256** over UTF-8 concatenation (not HMAC-SHA256 over the body alone):
 
 ```text
 Sign = lowercase_hex( SHA256( UTF8( appId + appSecret + timestamp + rawBody ) ) )
@@ -48,22 +48,33 @@ Configure your checkout / API deposit flow so `merchant_order_id` uses one of th
 |----------|----------|-------------|
 | `CCPAYMENT_APP_ID` or `CCPAYMENT_API_KEY` | Yes | App ID from CCPayment Developer page |
 | `CCPAYMENT_APP_SECRET` or `CCPAYMENT_SECRET_KEY` or `CCPAYMENT_WEBHOOK_SECRET` | Yes | App Secret (keep in secrets manager / env only) |
+| `CCPAYMENT_API_BASE_URL` | Yes* | Outbound API base (e.g. `https://admin.ccpayment.com/ccpayment/v1`) |
+| `CCPAYMENT_ENABLED` | Yes | Must be `true` for wallet address endpoint and webhook processing |
 | `CCPAYMENT_MERCHANT_ID` | No | Optional; for your own logging / support |
-| `CCPAYMENT_ALLOWED_IPS` | No | Comma-separated IPs; if unset, defaults to CCPayment IPs below |
+| `CCPAYMENT_ALLOWED_IPS` | No | Extra comma-separated IPs **unioned** with default CCPayment egress IPs (never replaces them) |
+| `CCPAYMENT_PAYMENT_ADDRESS_PATH` | No | Default `/payment/address/get` ([permanent address API](https://docs.ccpayment.com/ccpayment-v1.0-api/wallet-api-ccpayment/get-permanent-deposit-address-for-users)) |
+| `CCPAYMENT_NOTIFY_URL` or `CCPAYMENT_WEBHOOK_URL` | No | Optional `notify_url` when requesting a deposit address |
+| `CCPAYMENT_MIN_DEPOSIT_POL` | No | Minimum POL amount to accept from webhook (default `0.01`) |
 | `CCPAYMENT_SKIP_IP_CHECK` | No | Set to `1` or `true` only for local testing (**not production**) |
 | `CCPAYMENT_ALLOWED_CHAINS` | No | Default: `Polygon,MATIC,polygon` |
 | `CCPAYMENT_ALLOWED_CRYPTOS` | No | Default: `POL,MATIC,WPOL` |
-| `MIN_DEPOSIT_AMOUNT` | No | Default `1` (POL) |
+| `MIN_DEPOSIT_AMOUNT` | No | Legacy manual deposit UI only (default `1` POL); not used for CCPayment webhook minimum |
 | `MAX_DEPOSIT_AMOUNT` | No | Default `100000` (POL) |
 | `CCPAYMENT_VERIFY_TOKEN` | No | If set, serves `GET /ccpayment{token}.txt` for domain verification |
 | `CCPAYMENT_VERIFY_FILE_BODY` | No | Plain-text body for verification file |
 | `TRUST_PROXY` | No | Set `1` if behind a reverse proxy so IP allowlist uses `X-Forwarded-For` |
 
-Default webhook source IPs (when `CCPAYMENT_ALLOWED_IPS` is empty):
+Default webhook source IPs (always included; `CCPAYMENT_ALLOWED_IPS` adds more):
 
 - `54.150.123.157`
 - `35.72.150.75`
 - `18.176.186.244`
+
+Set `TRUST_PROXY=1` behind nginx so the allowlist reads the client IP from `X-Forwarded-For`.
+
+## User wallet API
+
+- `GET /api/wallet/ccpayment/deposit-address` (authenticated) — returns permanent Polygon address + QR-friendly `address` string; uses stable `user_id` `BM{userId}-bm` for CCPayment.
 
 ## Website verification file
 
@@ -106,7 +117,7 @@ Rejected webhooks (invalid user, limits, duplicate on-chain tx hash, etc.) still
 ## Tests
 
 ```bash
-node --test tests/ccpayment.webhook.test.js
+node --test tests/ccpayment.webhook.test.js tests/ccpayment.allowlist.test.js
 ```
 
 ## Database
