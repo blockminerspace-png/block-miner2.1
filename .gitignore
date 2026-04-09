@@ -8,6 +8,8 @@ server/node_modules/
 deploy.md
 # Ficheiro único de deploy (host/user/password) — ler deploy.secrets.example
 deploy.secrets.local
+# Credenciais + wrapper de deploy na raiz (nunca commitar)
+deploy.py
 scripts/vm_config_secret.py
 scripts/deploy_credentials.local.py
 .deploy-pw.txt

@@ -18,7 +18,8 @@ param(
     [string] $PlinkExe   = 'C:\Program Files\PuTTY\plink.exe',
     [string] $ComposeService = 'app',
     [switch] $RemoveOrphans,
-    [string] $LetsEncryptDomain = ''
+    [string] $LetsEncryptDomain = '',
+    [switch] $NoDockerCache
 )
 
 Set-StrictMode -Version Latest
@@ -55,9 +56,10 @@ if (-not $PSBoundParameters.ContainsKey('LetsEncryptDomain') -and $deploySecrets
     $LetsEncryptDomain = $deploySecrets['LE_SYNC_DOMAIN']
 }
 
-$SshPassword = $deploySecrets['SSH_PASSWORD']
-if (-not $SshPassword) { $SshPassword = $env:BLOCKMINER_VPS_PW }
-if (-not $SshPassword) { throw "Defina SSH_PASSWORD em deploy.secrets.local ou `$env:BLOCKMINER_VPS_PW" }
+# Env (ex.: python deploy.py) ganha sobre ficheiro — deploy.py e a fonte quando usas npm run deploy
+$SshPassword = $env:BLOCKMINER_VPS_PW
+if (-not $SshPassword) { $SshPassword = $deploySecrets['SSH_PASSWORD'] }
+if (-not $SshPassword) { throw "Defina credenciais em deploy.py (docstring) ou SSH_PASSWORD em deploy.secrets.local ou `$env:BLOCKMINER_VPS_PW" }
 
 if (-not (Test-Path -LiteralPath $PlinkExe)) { throw "plink nao encontrado: $PlinkExe (instale PuTTY)." }
 
@@ -152,7 +154,12 @@ fi
 
     # Por último faz o build e restart (serviço típico: app → 127.0.0.1:3000)
     $orph = if ($RemoveOrphans) { ' --remove-orphans' } else { '' }
-    $remoteBuildCmd = "set -e`ncd $RemotePath`ndocker compose up -d --build --no-deps$orph $ComposeService`ndocker compose exec -T nginx nginx -s reload || true`ncurl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true`n"
+    $buildStep = if ($NoDockerCache) {
+        "docker compose build --no-cache $ComposeService && docker compose up -d --no-deps$orph $ComposeService"
+    } else {
+        "docker compose up -d --build --no-deps$orph $ComposeService"
+    }
+    $remoteBuildCmd = "set -e`ncd $RemotePath`n$buildStep`ndocker compose exec -T nginx nginx -s reload || true`ncurl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true`n"
     Write-Host "==> docker compose build no VPS ($SshHost)..."
     & $PlinkExe -batch -ssh @plinkHostKeyArgs -pwfile $tmpPw "${SshUser}@${SshHost}" $remoteBuildCmd
     Write-Host '==> Feito.'
