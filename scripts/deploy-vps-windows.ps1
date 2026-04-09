@@ -165,6 +165,17 @@ fi
 
     $runMigrate = $deploySecrets['DEPLOY_PRISMA_MIGRATE_DEPLOY']
     if ($runMigrate -eq '1' -or ($runMigrate -and $runMigrate.ToLower() -eq 'true')) {
+        $resolveRbRaw = $deploySecrets['DEPLOY_PRISMA_MIGRATE_RESOLVE_ROLLED_BACK']
+        $resolveRb = if ($resolveRbRaw) { $resolveRbRaw.Trim() } else { '' }
+        if ($resolveRb) {
+            Write-Host "==> prisma migrate resolve --rolled-back $resolveRb ..."
+            $resolveRemote = @"
+set -e
+cd $RemotePath
+docker compose exec -T $ComposeService npx prisma migrate resolve --rolled-back $resolveRb --schema=server/prisma/schema.prisma
+"@
+            & $PlinkExe -batch -ssh @plinkHostKeyArgs -pwfile $tmpPw "${SshUser}@${SshHost}" $resolveRemote
+        }
         Write-Host "==> prisma migrate deploy no contentor ($ComposeService)..."
         $migrateRemote = @"
 set -e

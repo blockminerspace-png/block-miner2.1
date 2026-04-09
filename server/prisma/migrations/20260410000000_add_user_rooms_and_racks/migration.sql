@@ -1,5 +1,5 @@
--- CreateTable
-CREATE TABLE "user_rooms" (
+-- Idempotent: production may already have these tables from `db push` / manual sync.
+CREATE TABLE IF NOT EXISTS "user_rooms" (
     "id" SERIAL NOT NULL,
     "user_id" INTEGER NOT NULL,
     "room_number" INTEGER NOT NULL,
@@ -9,8 +9,7 @@ CREATE TABLE "user_rooms" (
     CONSTRAINT "user_rooms_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "user_racks" (
+CREATE TABLE IF NOT EXISTS "user_racks" (
     "id" SERIAL NOT NULL,
     "user_id" INTEGER NOT NULL,
     "room_id" INTEGER NOT NULL,
@@ -22,29 +21,36 @@ CREATE TABLE "user_racks" (
     CONSTRAINT "user_racks_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "user_rooms_user_id_idx" ON "user_rooms"("user_id");
+CREATE INDEX IF NOT EXISTS "user_rooms_user_id_idx" ON "user_rooms"("user_id");
 
--- CreateIndex
-CREATE UNIQUE INDEX "user_rooms_user_id_room_number_key" ON "user_rooms"("user_id", "room_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_rooms_user_id_room_number_key" ON "user_rooms"("user_id", "room_number");
 
--- CreateIndex
-CREATE UNIQUE INDEX "user_racks_user_miner_id_key" ON "user_racks"("user_miner_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_racks_user_miner_id_key" ON "user_racks"("user_miner_id");
 
--- CreateIndex
-CREATE INDEX "user_racks_user_id_idx" ON "user_racks"("user_id");
+CREATE INDEX IF NOT EXISTS "user_racks_user_id_idx" ON "user_racks"("user_id");
 
--- CreateIndex
-CREATE UNIQUE INDEX "user_racks_room_id_position_key" ON "user_racks"("room_id", "position");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_racks_room_id_position_key" ON "user_racks"("room_id", "position");
 
--- AddForeignKey
-ALTER TABLE "user_rooms" ADD CONSTRAINT "user_rooms_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "user_rooms" ADD CONSTRAINT "user_rooms_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "user_racks" ADD CONSTRAINT "user_racks_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "user_racks" ADD CONSTRAINT "user_racks_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "user_racks" ADD CONSTRAINT "user_racks_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "user_rooms"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "user_racks" ADD CONSTRAINT "user_racks_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "user_rooms"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "user_racks" ADD CONSTRAINT "user_racks_user_miner_id_fkey" FOREIGN KEY ("user_miner_id") REFERENCES "user_miners"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "user_racks" ADD CONSTRAINT "user_racks_user_miner_id_fkey" FOREIGN KEY ("user_miner_id") REFERENCES "user_miners"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
