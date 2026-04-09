@@ -269,7 +269,11 @@
     "slot_empty_tooltip": "Espacio libre — ábrelo para instalar una máquina del inventario",
     "double_slot_tooltip": "Usa dos espacios del rack",
     "double_slot_aria_suffix": "Usa dos espacios del rack.",
-    "rack_slot_machine_aria": "{{name}}. {{labelHashrate}} {{hashrate}}{{doubleSlot}}"
+    "rack_slot_machine_aria": "{{name}}. Potencia: {{power}}. Espacios: {{slots}}.",
+    "rack_machine_tooltip": {
+      "power": "Potencia: {{value}}",
+      "slots_occupied": "Espacios: {{count}}"
+    }
   },
   "wallet": {
     "title": "Billetera Digital",

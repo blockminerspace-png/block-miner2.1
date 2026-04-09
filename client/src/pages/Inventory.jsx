@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next";
 import { Lock, Plus, Zap, Trash2, Box, AlertCircle, X } from "lucide-react";
 import { api } from "../store/auth";
 import { formatHashrate, DEFAULT_MINER_IMAGE_URL, getMachineDescriptor } from "../utils/machine";
+import RackMachineTooltipPortal from "../components/inventory/RackMachineTooltipPortal.jsx";
+
+const RACK_TOOLTIP_SHOW_MS = 120;
+const RACK_TOOLTIP_HIDE_MS = 80;
 
 const SLOTS_PER_VISUAL_RACK = 8;
 
@@ -256,6 +260,73 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
   const { t } = useTranslation();
   const [dragOverId, setDragOverId] = useState(null);
   const [confirmingDismantle, setConfirmingDismantle] = useState(false);
+  const [machineTip, setMachineTip] = useState(null);
+  const [hoverFinePointer, setHoverFinePointer] = useState(false);
+  const showTimerRef = useRef(null);
+  const hideTimerRef = useRef(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const sync = () => setHoverFinePointer(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const clearShowTimer = useCallback(() => {
+    if (showTimerRef.current != null) {
+      clearTimeout(showTimerRef.current);
+      showTimerRef.current = null;
+    }
+  }, []);
+
+  const clearHideTimer = useCallback(() => {
+    if (hideTimerRef.current != null) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+  }, []);
+
+  const cancelScheduledHide = useCallback(() => {
+    clearHideTimer();
+  }, [clearHideTimer]);
+
+  const scheduleHideTip = useCallback(() => {
+    clearHideTimer();
+    hideTimerRef.current = window.setTimeout(() => {
+      hideTimerRef.current = null;
+      setMachineTip(null);
+    }, RACK_TOOLTIP_HIDE_MS);
+  }, [clearHideTimer]);
+
+  const showMachineTipNow = useCallback(
+    (anchorEl, payload) => {
+      clearShowTimer();
+      cancelScheduledHide();
+      setMachineTip({ anchorEl, ...payload });
+    },
+    [clearShowTimer, cancelScheduledHide]
+  );
+
+  const scheduleShowMachineTip = useCallback(
+    (anchorEl, payload) => {
+      clearShowTimer();
+      cancelScheduledHide();
+      showTimerRef.current = window.setTimeout(() => {
+        showTimerRef.current = null;
+        setMachineTip({ anchorEl, ...payload });
+      }, RACK_TOOLTIP_SHOW_MS);
+    },
+    [clearShowTimer, cancelScheduledHide]
+  );
+
+  useEffect(
+    () => () => {
+      clearShowTimer();
+      clearHideTimer();
+    },
+    [clearShowTimer, clearHideTimer]
+  );
 
   const hasMachines = slots.some((slot) => slot?.miner);
 
@@ -295,7 +366,7 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
             const slotKey = rack?.id ?? i;
             const isDragTarget = dragOverId === slotKey;
 
-            // Se é slot bloqueado por miner de 2 slots, pula (já foi renderizado com col-span-2)
+            // Skip cells blocked by a two-slot miner (rendered as col-span-2 on the primary cell)
             if (isBlocked) {
               i++;
               continue;
@@ -303,14 +374,22 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
 
             const displayName = machine ? (machine.minerName || descriptor.name) : "";
             const hashrateStr = machine ? formatHashrate(machine.hashRate) : "";
+            const slotSizeNum = machine ? Math.max(1, Number(machine.slotSize) || 1) : 1;
+            const stableSlotKey = rack?.id ?? i;
             const occupiedAria = machine
               ? t("inventory.rack_slot_machine_aria", {
                   name: displayName,
-                  labelHashrate: t("inventory.modal.hashrate"),
-                  hashrate: hashrateStr,
-                  doubleSlot: machine.slotSize >= 2 ? ` ${t("inventory.double_slot_aria_suffix")}` : "",
+                  power: hashrateStr,
+                  slots: slotSizeNum,
                 })
               : t("inventory.slot_empty_tooltip");
+
+            const machineTipPayload = {
+              slotKey: stableSlotKey,
+              displayName,
+              hashrateStr,
+              slotSize: slotSizeNum,
+            };
 
             rendered.push(
               <button
@@ -322,6 +401,39 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
                 onDragOver={!isOccupied ? (e) => { e.preventDefault(); setDragOverId(slotKey); } : undefined}
                 onDragLeave={!isOccupied ? () => setDragOverId(null) : undefined}
                 onDrop={!isOccupied ? (e) => { e.preventDefault(); setDragOverId(null); const id = parseInt(e.dataTransfer.getData('inventoryId'), 10); if (id && rack?.id) onSlotDrop(rack.id, id); } : undefined}
+                onMouseEnter={
+                  isOccupied && hoverFinePointer
+                    ? (e) => {
+                        cancelScheduledHide();
+                        clearShowTimer();
+                        const anchor = e.currentTarget;
+                        if (machineTip) {
+                          showMachineTipNow(anchor, machineTipPayload);
+                        } else {
+                          scheduleShowMachineTip(anchor, machineTipPayload);
+                        }
+                      }
+                    : undefined
+                }
+                onMouseLeave={isOccupied && hoverFinePointer ? () => scheduleHideTip() : undefined}
+                onFocus={
+                  isOccupied
+                    ? (e) => {
+                        clearShowTimer();
+                        cancelScheduledHide();
+                        showMachineTipNow(e.currentTarget, machineTipPayload);
+                      }
+                    : undefined
+                }
+                onBlur={
+                  isOccupied
+                    ? () => {
+                        clearShowTimer();
+                        clearHideTimer();
+                        setMachineTip(null);
+                      }
+                    : undefined
+                }
                 className={`relative rounded-2xl border ${
                   isOccupied
                     ? "border-primary/30 bg-primary/5"
@@ -332,21 +444,6 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
               >
                 {isOccupied ? (
                   <>
-                    <div
-                      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-[min(100vw-2rem,14rem)] -translate-x-1/2 rounded-xl border border-gray-700/80 bg-gray-950/95 px-3 py-2 text-left shadow-xl opacity-0 shadow-black/40 backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
-                      aria-hidden="true"
-                      role="tooltip"
-                    >
-                      <p className="truncate text-xs font-bold text-white">{displayName}</p>
-                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-                        {t("inventory.modal.hashrate")} {hashrateStr}
-                      </p>
-                      {machine.slotSize >= 2 && (
-                        <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-amber-400/90">
-                          {t("inventory.double_slot_tooltip")}
-                        </p>
-                      )}
-                    </div>
                     <img src={descriptor.image} alt="" className="w-full h-full object-contain group-hover:scale-110 transition-transform pointer-events-none" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
                     <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary pointer-events-none" />
                     {isDoubleSlot && (
@@ -365,6 +462,13 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
           return rendered;
         })()}
       </div>
+      <RackMachineTooltipPortal
+        open={Boolean(machineTip)}
+        anchorEl={machineTip?.anchorEl ?? null}
+        displayName={machineTip?.displayName ?? ""}
+        hashrateStr={machineTip?.hashrateStr ?? ""}
+        slotSize={machineTip?.slotSize ?? 1}
+      />
       <RackDismantleModal
         open={confirmingDismantle}
         onClose={() => !rackDismantleLoading && setConfirmingDismantle(false)}

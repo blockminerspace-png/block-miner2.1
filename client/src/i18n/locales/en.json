@@ -271,7 +271,11 @@
     "slot_empty_tooltip": "Empty slot — open to install a machine from inventory",
     "double_slot_tooltip": "Uses two rack slots",
     "double_slot_aria_suffix": "Uses two rack slots.",
-    "rack_slot_machine_aria": "{{name}}. {{labelHashrate}} {{hashrate}}{{doubleSlot}}"
+    "rack_slot_machine_aria": "{{name}}. Power: {{power}}. Slots: {{slots}}.",
+    "rack_machine_tooltip": {
+      "power": "Power: {{value}}",
+      "slots_occupied": "Slots: {{count}}"
+    }
   },
   "wallet": {
     "title": "Digital Wallet",
