@@ -1,5 +1,7 @@
 import prisma from '../src/db/prisma.js';
 import loggerLib from "../utils/logger.js";
+import { cleanupStaleAutoMiningV2Impressions } from "../services/autoMiningV2/autoMiningV2Service.js";
+
 const logger = loggerLib.child("GamePowerCleanup");
 
 export function startGamePowerCleanup({ engine }) {
@@ -34,6 +36,18 @@ export function startGamePowerCleanup({ engine }) {
 
       if (expiredYtPowers.count > 0) {
         logger.info(`Cleaned up ${expiredYtPowers.count} expired YouTube powers.`);
+      }
+
+      const staleAmV2Imp = await cleanupStaleAutoMiningV2Impressions();
+      if (staleAmV2Imp > 0) {
+        logger.info(`Cleaned up ${staleAmV2Imp} stale Auto Mining v2 banner impressions.`);
+      }
+
+      const expiredAmV2Grants = await prisma.autoMiningV2PowerGrant.deleteMany({
+        where: { expiresAt: { lt: now } }
+      });
+      if (expiredAmV2Grants.count > 0) {
+        logger.info(`Cleaned up ${expiredAmV2Grants.count} expired Auto Mining v2 power grants.`);
       }
 
     } catch (error) {

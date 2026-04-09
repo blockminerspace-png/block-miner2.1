@@ -28,7 +28,9 @@ export function aggregateUserHashrates(user, opts = {}) {
   }
 
   const ytHr = (user.ytPowers || []).reduce((s, y) => s + (Number(y.hashRate) || 0), 0);
-  const gpuHr = (user.gpuAccess || []).reduce((s, p) => s + (Number(p.gpuHashRate) || 0), 0);
+  const legacyGpuHr = (user.gpuAccess || []).reduce((s, p) => s + (Number(p.gpuHashRate) || 0), 0);
+  const v2GpuHr = (user.autoMiningV2Grants || []).reduce((s, g) => s + (Number(g.hashRate) || 0), 0);
+  const gpuHr = legacyGpuHr + v2GpuHr;
 
   const temporaryHr = gameMinigameHr + gameCheckinHr + ytHr + gpuHr;
   const totalHr = machineHr + temporaryHr;
@@ -70,6 +72,10 @@ export function rankingUserSelect(now) {
     gpuAccess: {
       where: { isClaimed: true, expiresAt: { gt: now } },
       select: { gpuHashRate: true }
+    },
+    autoMiningV2Grants: {
+      where: { expiresAt: { gt: now } },
+      select: { hashRate: true }
     }
   };
 }

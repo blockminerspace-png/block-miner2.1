@@ -52,6 +52,8 @@ import userRouter from "./routes/user.js";
 import * as healthController from "./controllers/healthController.js";
 import * as bannerController from "./controllers/bannerController.js";
 import * as transparencyController from "./controllers/transparencyController.js";
+import { handleCcpaymentDepositWebhook } from "./controllers/ccpaymentWebhookController.js";
+import { ccpaymentWebhookIpWhitelist } from "./middleware/ccpaymentWebhookIp.js";
 
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
@@ -200,6 +202,35 @@ app.use(cors({
   origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",") : "*",
   credentials: true
 }));
+
+const ccpaymentWebhookLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 200,
+  keyGenerator: (req) => `ccpayment:wh:${req.ip || "unknown"}`
+});
+
+// CCPayment domain verification — must be plain text (not SPA index.html).
+const ccpaymentVerifyBody =
+  process.env.CCPAYMENT_VERIFY_FILE_BODY?.trim() ||
+  "ccpayment-site-verification:ccpayment381a4c3e139cd966cef9407ab2419a9a.txt";
+const ccpaymentVerifyToken = process.env.CCPAYMENT_VERIFY_TOKEN?.trim();
+const ccpaymentVerifyPath = ccpaymentVerifyToken
+  ? `/ccpayment${ccpaymentVerifyToken}.txt`
+  : "/ccpayment381a4c3e139cd966cef9407ab2419a9a.txt";
+app.get(ccpaymentVerifyPath, (_req, res) => {
+  res.type("text/plain").send(ccpaymentVerifyBody);
+});
+
+app.post(
+  "/api/wallet/ccpayment/deposit-webhook",
+  ccpaymentWebhookLimiter,
+  ccpaymentWebhookIpWhitelist,
+  express.raw({ limit: "512kb" }),
+  (req, res, next) => {
+    handleCcpaymentDepositWebhook(req, res).catch(next);
+  }
+);
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 // app.use(createCsrfMiddleware());

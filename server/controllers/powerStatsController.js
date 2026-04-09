@@ -130,6 +130,18 @@ export async function getPowerStats(req, res) {
       })
     ]);
 
+    const gpuV2Powers = await prisma.autoMiningV2PowerGrant.findMany({
+      where: { userId, expiresAt: { gt: now } },
+      orderBy: { expiresAt: "asc" },
+      select: {
+        id: true,
+        hashRate: true,
+        earnedAt: true,
+        expiresAt: true,
+        mode: true
+      }
+    });
+
     if (!userRow) {
       return res.status(404).json({ ok: false, message: "User not found." });
     }
@@ -155,7 +167,8 @@ export async function getPowerStats(req, res) {
         miners: allMiners.filter((m) => m.isActive),
         gamePowers,
         ytPowers,
-        gpuAccess: gpuPowers
+        gpuAccess: gpuPowers,
+        autoMiningV2Grants: gpuV2Powers
       },
       { onlyActiveMiners: true }
     );
@@ -194,6 +207,16 @@ export async function getPowerStats(req, res) {
         hashRate: Number(p.gpuHashRate) || 0,
         expiresAt: iso(p.expiresAt),
         playedAt: iso(p.claimedAt)
+      });
+    }
+    for (const p of gpuV2Powers) {
+      expirations.push({
+        source: "auto_mining_v2",
+        slug: p.mode || null,
+        name: "Auto Mining GPU (session)",
+        hashRate: Number(p.hashRate) || 0,
+        expiresAt: iso(p.expiresAt),
+        playedAt: iso(p.earnedAt)
       });
     }
     expirations.sort((a, b) => String(a.expiresAt).localeCompare(String(b.expiresAt)));

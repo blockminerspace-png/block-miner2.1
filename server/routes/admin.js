@@ -6,6 +6,7 @@ import * as depositTicketController from "../controllers/depositTicketController
 import * as bannerController from "../controllers/bannerController.js";
 import * as creatorController from "../controllers/creatorController.js";
 import * as transparencyController from "../controllers/transparencyController.js";
+import * as adminCcpaymentController from "../controllers/adminCcpaymentController.js";
 import { adminOfferEventsRouter } from "./admin-offer-events.js";
 import { adminLogsRouter } from "./admin-logs.js";
 import { requireAdminAuth } from "../middleware/adminAuth.js";
@@ -774,6 +775,7 @@ adminRouter.get("/support/:id", adminSupportController.getMessage);
 adminRouter.post("/support/:id/reply", adminSupportController.replyToMessage);
 
 // Deposit Tickets
+adminRouter.get("/ccpayment/deposits", requireAdminAuth, adminCcpaymentController.adminListCcpaymentDeposits);
 adminRouter.get("/deposit-tickets", depositTicketController.adminListTickets);
 adminRouter.get("/deposit-tickets/:id", depositTicketController.adminGetTicket);
 adminRouter.post("/deposit-tickets/:id/approve", depositTicketController.adminApproveTicket);

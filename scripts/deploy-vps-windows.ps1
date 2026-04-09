@@ -5,6 +5,7 @@
 
 .DESCRIPTION
   Credenciais em deploy.secrets.local (SSH_HOST, SSH_USER, SSH_PASSWORD, REMOTE_PATH).
+  Opcional: SSH_HOSTKEY=SHA256:... quando o PuTTY recusa o IP (host key mudou / IP reutilizado).
   Requer PuTTY (plink.exe) em "C:\Program Files\PuTTY\".
 
 .EXAMPLE
@@ -40,16 +41,32 @@ if (Test-Path -LiteralPath $deploySecretsPath) {
         if ($k) { $deploySecrets[$k] = $v }
     }
 }
-if ($deploySecrets['SSH_HOST'])    { $SshHost    = $deploySecrets['SSH_HOST'] }
-if ($deploySecrets['SSH_USER'])    { $SshUser    = $deploySecrets['SSH_USER'] }
-if ($deploySecrets['REMOTE_PATH']) { $RemotePath = $deploySecrets['REMOTE_PATH'] }
-if ($deploySecrets['LE_SYNC_DOMAIN']) { $LetsEncryptDomain = $deploySecrets['LE_SYNC_DOMAIN'] }
+# Parâmetros passados na linha de comando ganham sobre deploy.secrets.local
+if (-not $PSBoundParameters.ContainsKey('SshHost') -and $deploySecrets['SSH_HOST']) {
+    $SshHost = $deploySecrets['SSH_HOST']
+}
+if (-not $PSBoundParameters.ContainsKey('SshUser') -and $deploySecrets['SSH_USER']) {
+    $SshUser = $deploySecrets['SSH_USER']
+}
+if (-not $PSBoundParameters.ContainsKey('RemotePath') -and $deploySecrets['REMOTE_PATH']) {
+    $RemotePath = $deploySecrets['REMOTE_PATH']
+}
+if (-not $PSBoundParameters.ContainsKey('LetsEncryptDomain') -and $deploySecrets['LE_SYNC_DOMAIN']) {
+    $LetsEncryptDomain = $deploySecrets['LE_SYNC_DOMAIN']
+}
 
 $SshPassword = $deploySecrets['SSH_PASSWORD']
 if (-not $SshPassword) { $SshPassword = $env:BLOCKMINER_VPS_PW }
 if (-not $SshPassword) { throw "Defina SSH_PASSWORD em deploy.secrets.local ou `$env:BLOCKMINER_VPS_PW" }
 
 if (-not (Test-Path -LiteralPath $PlinkExe)) { throw "plink nao encontrado: $PlinkExe (instale PuTTY)." }
+
+$plinkHostKeyArgs = @()
+$sshHostKey = $deploySecrets['SSH_HOSTKEY']
+if ($sshHostKey) {
+    $sshHostKey = $sshHostKey.Trim()
+    if ($sshHostKey) { $plinkHostKeyArgs = @('-hostkey', $sshHostKey) }
+}
 
 # Grava senha em temp file (sem CRLF)
 $tmpPw = Join-Path ([System.IO.Path]::GetTempPath()) ("bm_pw_{0}.txt" -f [Guid]::NewGuid().ToString('N'))
@@ -65,13 +82,13 @@ try {
     # Primeiro faz git reset no VPS
     $remoteGitCmd = "set -e`ncd $RemotePath`ngit fetch origin`ngit reset --hard origin/main`n"
     Write-Host "==> git reset no VPS ($SshHost)..."
-    & $PlinkExe -batch -ssh -pwfile $tmpPw "${SshUser}@${SshHost}" $remoteGitCmd
+    & $PlinkExe -batch -ssh @plinkHostKeyArgs -pwfile $tmpPw "${SshUser}@${SshHost}" $remoteGitCmd
 
     # Depois sobe o .env.production real (sobrescreve qualquer template que possa ter voltado)
     if (Test-Path -LiteralPath $envBackupPath) {
         Write-Host "==> Uploading .env.production to VPS..."
         $pscpExe = Join-Path (Split-Path $PlinkExe) 'pscp.exe'
-        & $pscpExe -batch -pw $SshPassword $envBackupPath "${SshUser}@${SshHost}:${RemotePath}/.env.production"
+        & $pscpExe -batch @plinkHostKeyArgs -pw $SshPassword $envBackupPath "${SshUser}@${SshHost}:${RemotePath}/.env.production"
         if ($LASTEXITCODE -ne 0) { throw "pscp falhou ao enviar .env.production" }
     }
 
@@ -94,14 +111,14 @@ else
   echo "WARNING: LE_SYNC_DOMAIN=$le but /etc/letsencrypt/live/$le missing — HTTPS pode falhar"
 fi
 "@
-        & $PlinkExe -batch -ssh -pwfile $tmpPw "${SshUser}@${SshHost}" $syncCmd
+        & $PlinkExe -batch -ssh @plinkHostKeyArgs -pwfile $tmpPw "${SshUser}@${SshHost}" $syncCmd
     }
 
     # Por último faz o build e restart (serviço típico: app → 127.0.0.1:3000)
     $orph = if ($RemoveOrphans) { ' --remove-orphans' } else { '' }
     $remoteBuildCmd = "set -e`ncd $RemotePath`ndocker compose up -d --build --no-deps$orph $ComposeService`ndocker compose exec -T nginx nginx -s reload || true`ncurl -sS -o /dev/null -w 'health_http:%{http_code}\n' http://127.0.0.1:3000/health || true`n"
     Write-Host "==> docker compose build no VPS ($SshHost)..."
-    & $PlinkExe -batch -ssh -pwfile $tmpPw "${SshUser}@${SshHost}" $remoteBuildCmd
+    & $PlinkExe -batch -ssh @plinkHostKeyArgs -pwfile $tmpPw "${SshUser}@${SshHost}" $remoteBuildCmd
     Write-Host '==> Feito.'
 }
 finally {

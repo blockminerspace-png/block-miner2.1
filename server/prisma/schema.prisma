@@ -92,6 +92,10 @@ model User {
   broadcastViews         BroadcastMessageView[]
   blkRewardLogs          BlkRewardLog[]
   checkinStreakRewards   UserCheckinStreakReward[]
+  autoMiningV2Sessions           AutoMiningV2Session[]
+  autoMiningV2Grants             AutoMiningV2PowerGrant[]
+  autoMiningV2BannerImpressions  AutoMiningV2BannerImpression[]
+  ccpaymentDepositEvents         CcpaymentDepositEvent[]
 
   @@map("users")
 }
@@ -253,6 +257,27 @@ model Transaction {
   @@index([status])
   @@index([txHash])
   @@map("transactions")
+}
+
+/** CCPayment API deposit webhook deliveries (idempotent by record_id). */
+model CcpaymentDepositEvent {
+  id             Int      @id @default(autoincrement())
+  recordId       String   @unique @map("record_id")
+  orderId        String?  @map("order_id")
+  userId         Int?     @map("user_id")
+  amountPol      Decimal? @map("amount_pol") @db.Decimal(20, 8)
+  txHash         String?  @map("tx_hash")
+  payStatus      String   @map("pay_status")
+  credited       Boolean  @default(false) @map("credited")
+  rejectReason   String?  @map("reject_reason")
+  rawPayloadJson String?  @map("raw_payload_json") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([credited])
+  @@map("ccpayment_deposit_events")
 }
 
 // Singleton (id=1): POL→BLK rate, fees, limits. Treat BLK as USD-pegged (1 BLK ≈ 1 USD).
@@ -698,6 +723,61 @@ model AutoMiningGpuLog {
 
   @@index([userId])
   @@map("auto_mining_gpu_logs")
+}
+
+model AutoMiningV2Session {
+  id          String   @id @default(uuid())
+  userId      Int      @map("user_id")
+  mode        String
+  nextClaimAt DateTime @map("next_claim_at")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user         User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grants       AutoMiningV2PowerGrant[]
+  impressions  AutoMiningV2BannerImpression[]
+
+  @@index([userId, isActive])
+  @@map("auto_mining_v2_sessions")
+}
+
+model AutoMiningV2PowerGrant {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  sessionId String   @map("session_id")
+  hashRate  Float    @map("hash_rate")
+  mode      String
+  earnedAt  DateTime @map("earned_at")
+  expiresAt DateTime @map("expires_at")
+
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session AutoMiningV2Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  impression AutoMiningV2BannerImpression?
+
+  @@index([userId, earnedAt])
+  @@index([userId, expiresAt])
+  @@map("auto_mining_v2_power_grants")
+}
+
+model AutoMiningV2BannerImpression {
+  id        String    @id @default(uuid())
+  userId    Int       @map("user_id")
+  sessionId String    @map("session_id")
+  bannerKey String    @map("banner_key")
+  targetUrl String    @map("target_url")
+  title     String    @default("")
+  imageUrl  String?   @map("image_url")
+  createdAt DateTime  @default(now()) @map("created_at")
+  clickedAt DateTime? @map("clicked_at")
+  grantId   Int?      @unique @map("grant_id")
+
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session AutoMiningV2Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  grant   AutoMiningV2PowerGrant? @relation(fields: [grantId], references: [id], onDelete: SetNull)
+
+  @@index([userId, sessionId])
+  @@map("auto_mining_v2_banner_impressions")
 }
 
 model CallbackQueue {

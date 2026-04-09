@@ -31,6 +31,25 @@ export async function getBalance(req, res) {
   }
 }
 
+export async function getDeposits(req, res) {
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: req.user.id, type: "deposit" },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+    const normalized = transactions.map((tx) => ({
+      ...tx,
+      amount: Number(tx.amount),
+      fee: tx.fee != null ? Number(tx.fee) : null
+    }));
+    res.json({ ok: true, deposits: normalized });
+  } catch (error) {
+    logger.error("Error getting deposits", { error: error.message });
+    res.status(500).json({ ok: false, message: "Unable to get deposits." });
+  }
+}
+
 export async function getTransactions(req, res) {
   try {
     const transactions = await walletModel.getTransactions(req.user.id);
