@@ -77,10 +77,9 @@ export default function Wallet() {
 
     const fetchPrice = async () => {
         try {
-            const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd');
-            const data = await res.json();
-            if (data['matic-network']) {
-                setPolPrice(data['matic-network'].usd);
+            const res = await api.get('/wallet/pol-usd');
+            if (res.data?.ok && typeof res.data.priceUsd === 'number') {
+                setPolPrice(res.data.priceUsd);
             }
         } catch (err) {
             console.error("Error fetching price", err);
@@ -137,12 +136,14 @@ export default function Wallet() {
             if (res.data?.ok) {
                 setCcpaymentInfo(res.data);
             } else {
+                setCcpaymentInfo(null);
                 const code = res.data?.code;
                 if (code === 'DISABLED') setCcpaymentError(t('wallet.ccpayment.error_disabled'));
                 else if (code === 'NOT_CONFIGURED') setCcpaymentError(t('wallet.ccpayment.error_not_configured'));
                 else setCcpaymentError(res.data?.message || t('wallet.ccpayment.error_load'));
             }
         } catch (e) {
+            setCcpaymentInfo(null);
             const code = e.response?.data?.code;
             if (code === 'DISABLED') setCcpaymentError(t('wallet.ccpayment.error_disabled'));
             else if (code === 'NOT_CONFIGURED') setCcpaymentError(t('wallet.ccpayment.error_not_configured'));

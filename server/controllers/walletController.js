@@ -14,6 +14,7 @@ import {
   isCcpaymentIntegrationEnabled,
   getCcpaymentIntegrationStatus
 } from "../services/ccpayment/ccpaymentEnv.js";
+import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 
 /** Minimum POL for a deposit request. */
 export const DEPOSIT_MIN_POL = 1;
@@ -321,15 +322,32 @@ const VALID_MINING_PAYOUT_MODES = new Set(["pol"]);
  * GET /api/wallet/ccpayment/deposit-address
  * Returns the user’s permanent Polygon deposit address from CCPayment (stable per user_id).
  */
+/** GET /api/wallet/pol-usd — server-side CoinGecko (avoids browser CORS). */
+export async function getWalletPolUsdPrice(req, res) {
+  try {
+    const priceUsd = await getPolUsdPrice();
+    return res.json({ ok: true, priceUsd });
+  } catch (err) {
+    logger.warn("getWalletPolUsdPrice", { message: err.message });
+    return res.json({ ok: false, priceUsd: null });
+  }
+}
+
 export async function getCcpaymentWalletDepositAddress(req, res) {
   try {
     if (!isCcpaymentClientConfigured()) {
-      return res
-        .status(503)
-        .json({ ok: false, code: "NOT_CONFIGURED", message: "CCPayment credentials are missing." });
+      return res.status(200).json({
+        ok: false,
+        code: "NOT_CONFIGURED",
+        message: "CCPayment credentials are missing."
+      });
     }
     if (!isCcpaymentIntegrationEnabled()) {
-      return res.status(503).json({ ok: false, code: "DISABLED", message: "CCPayment is disabled." });
+      return res.status(200).json({
+        ok: false,
+        code: "DISABLED",
+        message: "CCPayment is disabled."
+      });
     }
     const { address, memo } = await getPermanentDepositAddress({ userId: req.user.id });
     const minRaw = parseFloat(String(process.env.CCPAYMENT_MIN_DEPOSIT_POL || "0.01"));

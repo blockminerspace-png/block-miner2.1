@@ -27,6 +27,9 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
+    // i18next v25+ logs a Locize promo to console unless this is false
+    showSupportNotice: false,
+    debug: false,
     fallbackLng: 'en', // Default language if browser language is not available
     supportedLngs: ['en', 'pt-BR', 'es', 'es-ES'],
     interpolation: {
