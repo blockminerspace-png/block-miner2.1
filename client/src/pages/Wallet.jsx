@@ -38,7 +38,6 @@ export default function Wallet() {
         isConnecting,
         isCorrectNetwork,
         connect,
-        connectWalletConnect,
         switchNetwork,
         getActiveEip1193,
         walletConnectConfigured
@@ -709,20 +708,14 @@ export default function Wallet() {
                                                 type="button"
                                                 onClick={connect}
                                                 disabled={isConnecting}
-                                                className="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 transition-colors"
+                                                className="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 transition-opacity"
                                             >
-                                                {t('wallet.web3_deposit.connect_browser')}
+                                                {isConnecting
+                                                    ? t('wallet.web3_deposit.connecting')
+                                                    : walletConnectConfigured
+                                                        ? t('wallet.web3_deposit.connect_wc')
+                                                        : t('wallet.web3_deposit.connect_browser')}
                                             </button>
-                                            {walletConnectConfigured ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={connectWalletConnect}
-                                                    disabled={isConnecting}
-                                                    className="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 transition-opacity"
-                                                >
-                                                    {t('wallet.web3_deposit.connect_wc')}
-                                                </button>
-                                            ) : null}
                                         </div>
                                         {isConnected && account ? (
                                             <p className="text-[10px] text-emerald-300/90 font-mono font-bold text-center break-all">
