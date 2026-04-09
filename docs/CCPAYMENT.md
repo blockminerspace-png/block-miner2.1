@@ -49,7 +49,7 @@ Configure your checkout / API deposit flow so `merchant_order_id` uses one of th
 | `CCPAYMENT_APP_ID` or `CCPAYMENT_API_KEY` | Yes | App ID from CCPayment Developer page |
 | `CCPAYMENT_APP_SECRET` or `CCPAYMENT_SECRET_KEY` or `CCPAYMENT_WEBHOOK_SECRET` | Yes | App Secret (keep in secrets manager / env only) |
 | `CCPAYMENT_API_BASE_URL` | Yes* | Outbound API base (e.g. `https://admin.ccpayment.com/ccpayment/v1`) |
-| `CCPAYMENT_OUTBOUND_API_VERSION` | No | `1` (default): legacy SHA-256 + `POST` body with `user_id`. `2`: HMAC-SHA256 + `GET` with `referenceId` + `Api-Version: 2` header — required for merchants that return error **225213** / “only call api of version 2”. |
+| `CCPAYMENT_OUTBOUND_API_VERSION` | No | `1` (default): legacy SHA-256 + `POST` (`user_id`, `chain`, optional `notify_url`). `2`: same `POST` URL/body + **HMAC-SHA256** sign + `Api-Version: 2` — required when CCPayment returns **225213** (“only call api of version 2”). |
 | `CCPAYMENT_ENABLED` | Recommended | `true`, `1`, `yes`, `on`, or `enabled` = on; `false`, `0`, `no`, `off`, `disabled` = off. If **unset** and both App ID + App Secret are set, the integration is treated as **enabled** (fixes production configs that only set credentials). |
 | `CCPAYMENT_MERCHANT_ID` | No | Optional; for your own logging / support |
 | `CCPAYMENT_ALLOWED_IPS` | No | Extra comma-separated IPs **unioned** with default CCPayment egress IPs (never replaces them) |

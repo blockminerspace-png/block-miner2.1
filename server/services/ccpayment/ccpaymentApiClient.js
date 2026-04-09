@@ -10,8 +10,8 @@ import { computeCcPaymentSign, computeCcPaymentOutboundSignV2 } from "./ccpaymen
 import { normalizeEnvString } from "./ccpaymentEnv.js";
 
 /**
- * Outbound wallet API: "1" = legacy SHA-256 + POST (v1 doc); "2" = HMAC + GET + Api-Version header.
- * New merchant accounts often require version 2 (error 225213 on v1-only calls).
+ * Outbound wallet API: "1" = legacy SHA-256 + POST; "2" = same POST path/body + HMAC sign + Api-Version: 2.
+ * v2 is required for merchants that return error 225213. (GET on /payment/address/get returns HTTP 404.)
  */
 function outboundWalletApiVersion() {
   return normalizeEnvString(process.env.CCPAYMENT_OUTBOUND_API_VERSION || "1").toLowerCase();
@@ -122,33 +122,35 @@ export async function getPermanentDepositAddress({ userId }) {
   const notifyUrl = String(process.env.CCPAYMENT_NOTIFY_URL || process.env.CCPAYMENT_WEBHOOK_URL || "").trim();
   const referenceId = ccpaymentMerchantUserId(userId);
 
+  const payload = {
+    user_id: referenceId,
+    chain
+  };
+  if (notifyUrl) {
+    payload.notify_url = notifyUrl;
+  }
+
   if (outboundWalletApiVersion() === "2") {
     const appId = getAppId();
     const appSecret = getAppSecret();
     if (!appId || !appSecret) {
       throw new Error("CCPayment credentials not configured");
     }
-    const params = new URLSearchParams();
-    params.set("referenceId", referenceId);
-    params.set("chain", chain);
-    if (notifyUrl) {
-      params.set("notify_url", notifyUrl);
-    }
-    const path = addressPath();
-    const qs = params.toString();
-    const url = `${baseUrl()}${path}?${qs}`;
+    const body = JSON.stringify(payload);
     const timestamp = String(Math.floor(Date.now() / 1000));
-    const rawBody = "";
-    const sign = computeCcPaymentOutboundSignV2(appId, appSecret, timestamp, rawBody);
+    const sign = computeCcPaymentOutboundSignV2(appId, appSecret, timestamp, body);
+    const url = `${baseUrl()}${addressPath()}`;
 
     const res = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
+        "Content-Type": "application/json; charset=utf-8",
         Appid: appId,
         Timestamp: timestamp,
         Sign: sign,
         "Api-Version": "2"
       },
+      body,
       signal: AbortSignal.timeout(timeoutMs())
     });
 
@@ -181,14 +183,6 @@ export async function getPermanentDepositAddress({ userId }) {
       address,
       memo: data.memo != null ? String(data.memo).trim() : ""
     };
-  }
-
-  const payload = {
-    user_id: referenceId,
-    chain
-  };
-  if (notifyUrl) {
-    payload.notify_url = notifyUrl;
   }
 
   const data = await ccpaymentPostSignedJson(addressPath(), payload);
