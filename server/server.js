@@ -226,6 +226,16 @@ app.get(ccpaymentVerifyPath, (_req, res) => {
   res.type("text/plain").send(ccpaymentVerifyBody);
 });
 
+// GET: health probe only (browsers / merchants). CCPayment sends POST with signed JSON.
+app.get("/api/wallet/ccpayment/deposit-webhook", (_req, res) => {
+  res
+    .status(200)
+    .type("text/plain; charset=utf-8")
+    .send(
+      "BlockMiner CCPayment deposit webhook: OK (reachable). Deposits: HTTP POST application/json with Appid, Timestamp, Sign headers. This URL is not meant for browser use."
+    );
+});
+
 app.post(
   "/api/wallet/ccpayment/deposit-webhook",
   ccpaymentWebhookLimiter,
@@ -341,6 +351,10 @@ app.use(express.static(publicPath, { index: false })); // Don't serve index.html
 
 // Express 5 / path-to-regexp 8+ catch-all syntax
 app.get("/{*all}", async (req, res) => {
+  if (req.path.startsWith("/api")) {
+    res.status(404).type("text/plain").send("Not found");
+    return;
+  }
   try {
     const indexPath = path.join(publicPath, "index.html");
     let html = await fs.readFile(indexPath, "utf8");
