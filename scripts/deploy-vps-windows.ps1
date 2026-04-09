@@ -117,6 +117,10 @@ try {
                 Write-Warning "Skip .env.production upload: .env.production.vm-backup nao tem CCPAYMENT_APP_ID preenchido (evita desligar CCPayment na VPS). Corrige o backup ou define DEPLOY_UPLOAD_ENV_DESPITE_MISSING_CCPAYMENT=1 em deploy.secrets.local."
             }
         } else {
+            $rawEnv = Get-Content -LiteralPath $envBackupPath -Raw -Encoding UTF8
+            if ($rawEnv -match '(?im)^\s*CCPAYMENT_ENABLED\s*=\s*(false|0|no|off|disabled)\s*$') {
+                Write-Warning "O teu .env.production.vm-backup desliga CCPayment (CCPAYMENT_ENABLED=false/0/...). A carteira mostra 'desligado'. Usa true/1 ou apaga a linha se tiveres APP_ID+SECRET."
+            }
             Write-Host "==> Uploading .env.production to VPS..."
             $pscpExe = Join-Path (Split-Path $PlinkExe) 'pscp.exe'
             & $pscpExe -batch @plinkHostKeyArgs -pw $SshPassword $envBackupPath "${SshUser}@${SshHost}:${RemotePath}/.env.production"
