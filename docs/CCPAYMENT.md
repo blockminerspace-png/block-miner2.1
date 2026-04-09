@@ -118,7 +118,7 @@ Rejected webhooks (invalid user, limits, duplicate on-chain tx hash, etc.) still
 ## Tests
 
 ```bash
-node --test tests/ccpayment.webhook.test.js tests/ccpayment.allowlist.test.js
+node --test tests/ccpayment.webhook.test.js tests/ccpayment.allowlist.test.js tests/ccpayment.env.test.js
 ```
 
 ## Database
