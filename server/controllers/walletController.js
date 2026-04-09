@@ -2,22 +2,12 @@ import { verifyMessage } from "ethers";
 import walletModel from "../models/walletModel.js";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
-import { runDepositVerifier } from "../services/depositVerifier.js";
+import { runDepositVerifier, DEPOSIT_VERIFY_MAX_ATTEMPTS } from "../services/depositVerifier.js";
 import { wakeUpScanner } from "../cron/depositsCron.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
-import {
-  getPermanentDepositAddress,
-  isCcpaymentClientConfigured,
-  ccpaymentMerchantUserId
-} from "../services/ccpayment/ccpaymentApiClient.js";
-import {
-  isCcpaymentIntegrationEnabled,
-  getCcpaymentIntegrationStatus
-} from "../services/ccpayment/ccpaymentEnv.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
-
-/** Minimum POL for a deposit request. */
-export const DEPOSIT_MIN_POL = 1;
+import { getMinDepositPol, getRequiredBlockConfirmations } from "../services/polygonDepositConfig.js";
+import { getSharedPolygonProvider } from "../services/polygonProvider.js";
 
 /** Minimum POL for a withdrawal request. */
 export const WITHDRAW_MIN_POL = 10;
@@ -34,7 +24,14 @@ export async function getBalance(req, res) {
   try {
     const balance = await walletModel.getUserBalance(req.user.id);
     const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS || null;
-    res.json({ ok: true, ...balance, depositAddress });
+    res.json({
+      ok: true,
+      ...balance,
+      depositAddress,
+      minDepositPol: getMinDepositPol(),
+      blockConfirmations: getRequiredBlockConfirmations(),
+      depositVerifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS
+    });
   } catch (error) {
     logger.error("Error getting balance", { error: error.message });
     res.status(500).json({ ok: false, message: "Unable to get balance." });
@@ -83,10 +80,11 @@ export async function requestDeposit(req, res) {
       return res.status(400).json({ ok: false, message: "Amount and TX Hash required." });
     }
     const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount < DEPOSIT_MIN_POL) {
+    const minD = getMinDepositPol();
+    if (isNaN(parsedAmount) || parsedAmount < minD) {
       return res.status(400).json({
         ok: false,
-        message: `Minimum deposit is ${DEPOSIT_MIN_POL} POL.`
+        message: `Minimum deposit is ${minD} POL.`
       });
     }
     await walletModel.createDepositRequest(req.user.id, amount, txHash);
@@ -183,10 +181,11 @@ export async function submitDeposit(req, res) {
       if (isNaN(parsedClaimed) || parsedClaimed < 0) {
         return res.status(400).json({ ok: false, message: "Valor inválido." });
       }
-      if (parsedClaimed > 0 && parsedClaimed < DEPOSIT_MIN_POL) {
+      const minD = getMinDepositPol();
+      if (parsedClaimed > 0 && parsedClaimed < minD) {
         return res.status(400).json({
           ok: false,
-          message: `Depósito mínimo é ${DEPOSIT_MIN_POL} POL.`
+          message: `Depósito mínimo é ${minD} POL.`
         });
       }
     }
@@ -295,21 +294,70 @@ export async function getPendingDeposits(req, res) {
       }
     });
 
-    return res.json({
-      ok: true,
-      deposits: deposits.map(d => ({
-        id: d.id,
-        txHash: d.txHash,
-        amount: Number(d.amount),
-        status: d.status,
-        verifyAttempts: d.verifyAttempts,
-        createdAt: d.createdAt,
-        completedAt: d.completedAt,
-        failReason: d.status === "failed" && d.rawTx
-          ? (() => { try { return JSON.parse(d.rawTx).error; } catch { return null; } })()
-          : null
-      }))
-    });
+    const requiredConfs = getRequiredBlockConfirmations();
+    const provider = getSharedPolygonProvider();
+    let latestBlock = null;
+    try {
+      latestBlock = await provider.getBlockNumber();
+    } catch {
+      latestBlock = null;
+    }
+
+    const mapped = await Promise.all(
+      deposits.map(async (d) => {
+        const failReason =
+          d.status === "failed" && d.rawTx
+            ? (() => {
+                try {
+                  return JSON.parse(d.rawTx).error;
+                } catch {
+                  return null;
+                }
+              })()
+            : null;
+
+        let confirmationsCurrent = null;
+        let txMined = null;
+        let txReverted = null;
+        if (d.status === "pending_verification" && d.txHash && latestBlock != null) {
+          try {
+            const receipt = await provider.getTransactionReceipt(d.txHash);
+            if (!receipt) {
+              confirmationsCurrent = 0;
+              txMined = false;
+            } else if (receipt.status !== 1) {
+              confirmationsCurrent = 0;
+              txMined = true;
+              txReverted = true;
+            } else {
+              txMined = true;
+              txReverted = false;
+              confirmationsCurrent = Math.max(0, latestBlock - Number(receipt.blockNumber) + 1);
+            }
+          } catch {
+            confirmationsCurrent = null;
+          }
+        }
+
+        return {
+          id: d.id,
+          txHash: d.txHash,
+          amount: Number(d.amount),
+          status: d.status,
+          verifyAttempts: d.verifyAttempts,
+          createdAt: d.createdAt,
+          completedAt: d.completedAt,
+          failReason,
+          confirmationsCurrent,
+          confirmationsRequired: requiredConfs,
+          txMined,
+          txReverted,
+          verifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS
+        };
+      })
+    );
+
+    return res.json({ ok: true, deposits: mapped });
   } catch (err) {
     logger.error("getPendingDeposits error", { error: err.message });
     return res.status(500).json({ ok: false, message: "Erro ao buscar depósitos." });
@@ -318,10 +366,6 @@ export async function getPendingDeposits(req, res) {
 
 const VALID_MINING_PAYOUT_MODES = new Set(["pol"]);
 
-/**
- * GET /api/wallet/ccpayment/deposit-address
- * Returns the user’s permanent Polygon deposit address from CCPayment (stable per user_id).
- */
 /** GET /api/wallet/pol-usd — server-side CoinGecko (avoids browser CORS). */
 export async function getWalletPolUsdPrice(req, res) {
   try {
@@ -330,64 +374,6 @@ export async function getWalletPolUsdPrice(req, res) {
   } catch (err) {
     logger.warn("getWalletPolUsdPrice", { message: err.message });
     return res.json({ ok: false, priceUsd: null });
-  }
-}
-
-export async function getCcpaymentWalletDepositAddress(req, res) {
-  try {
-    if (!isCcpaymentClientConfigured()) {
-      return res.status(200).json({
-        ok: false,
-        code: "NOT_CONFIGURED",
-        message: "CCPayment credentials are missing."
-      });
-    }
-    if (!isCcpaymentIntegrationEnabled()) {
-      return res.status(200).json({
-        ok: false,
-        code: "DISABLED",
-        message: "CCPayment is disabled."
-      });
-    }
-    const { address, memo } = await getPermanentDepositAddress({ userId: req.user.id });
-    const minRaw = parseFloat(String(process.env.CCPAYMENT_MIN_DEPOSIT_POL || "0.01"));
-    const minDepositPol = Number.isFinite(minRaw) && minRaw > 0 ? minRaw : 0.01;
-    return res.json({
-      ok: true,
-      address,
-      memo,
-      merchantUserId: ccpaymentMerchantUserId(req.user.id),
-      minDepositPol,
-      chain: String(process.env.CCPAYMENT_CHAIN || "POLYGON")
-    });
-  } catch (err) {
-    logger.error("getCcpaymentWalletDepositAddress error", { message: err.message });
-    // 200 so axios does not surface a "failed request" in DevTools; UI uses ok/code/message.
-    return res.status(200).json({
-      ok: false,
-      code: "CCPAYMENT_ERROR",
-      message: "Unable to reach CCPayment. Try again later."
-    });
-  }
-}
-
-/**
- * GET /api/wallet/ccpayment/status
- * Lightweight diagnostics for the wallet UI (no secrets).
- */
-export async function getCcpaymentWalletStatus(req, res) {
-  try {
-    const st = getCcpaymentIntegrationStatus();
-    return res.json({
-      ok: true,
-      enabled: st.enabled && st.configured,
-      integrationEnabled: st.enabled,
-      credentialsConfigured: st.configured,
-      mode: st.mode
-    });
-  } catch (err) {
-    logger.error("getCcpaymentWalletStatus error", { message: err.message });
-    return res.status(500).json({ ok: false, message: "Status unavailable." });
   }
 }
 

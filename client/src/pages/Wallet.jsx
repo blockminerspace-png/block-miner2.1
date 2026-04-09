@@ -25,15 +25,24 @@ import {
     Banknote
 } from 'lucide-react';
 import { api } from '../store/auth';
-import { parseEther, formatEther, isAddress } from 'ethers';
+import { parseEther, isAddress } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
-import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGameStore } from '../store/game';
 
 export default function Wallet() {
     const { t } = useTranslation();
-    const { account, isConnected, isConnecting, isCorrectNetwork, connect, switchNetwork } = useWallet();
+    const {
+        account,
+        isConnected,
+        isConnecting,
+        isCorrectNetwork,
+        connect,
+        connectWalletConnect,
+        switchNetwork,
+        getActiveEip1193,
+        walletConnectConfigured
+    } = useWallet();
 
     const [balance, setBalance] = useState({
         amount: 0,
@@ -58,10 +67,9 @@ export default function Wallet() {
     });
     const [showManualForm, setShowManualForm] = useState(false);
     const [polPrice, setPolPrice] = useState(0);
-
-    const [ccpaymentInfo, setCcpaymentInfo] = useState(null);
-    const [ccpaymentLoading, setCcpaymentLoading] = useState(false);
-    const [ccpaymentError, setCcpaymentError] = useState(null);
+    const [minDepositPol, setMinDepositPol] = useState(0.01);
+    const [blockConfirmations, setBlockConfirmations] = useState(3);
+    const [depositVerifyMaxAttempts, setDepositVerifyMaxAttempts] = useState(96);
 
     // Depósitos assíncronos pendentes
     const [pendingDeposits, setPendingDeposits] = useState([]);
@@ -102,6 +110,15 @@ export default function Wallet() {
                     totalWithdrawn: Number(balanceRes.data.totalWithdrawn || 0)
                 });
                 setSystemDepositAddress(balanceRes.data.depositAddress || null);
+                if (typeof balanceRes.data.minDepositPol === 'number' && Number.isFinite(balanceRes.data.minDepositPol)) {
+                    setMinDepositPol(balanceRes.data.minDepositPol);
+                }
+                if (typeof balanceRes.data.blockConfirmations === 'number' && balanceRes.data.blockConfirmations >= 1) {
+                    setBlockConfirmations(balanceRes.data.blockConfirmations);
+                }
+                if (typeof balanceRes.data.depositVerifyMaxAttempts === 'number' && balanceRes.data.depositVerifyMaxAttempts >= 1) {
+                    setDepositVerifyMaxAttempts(balanceRes.data.depositVerifyMaxAttempts);
+                }
 
                 // If user has a saved address but not connected, pre-fill it for convenience
                 if (!withdrawForm.address && balanceRes.data.walletAddress) {
@@ -127,34 +144,6 @@ export default function Wallet() {
             }
         } catch {}
     }, []);
-
-    const loadCcpaymentAddress = useCallback(async () => {
-        setCcpaymentLoading(true);
-        setCcpaymentError(null);
-        try {
-            const res = await api.get('/wallet/ccpayment/deposit-address');
-            if (res.data?.ok) {
-                setCcpaymentInfo(res.data);
-            } else {
-                setCcpaymentInfo(null);
-                const code = res.data?.code;
-                if (code === 'DISABLED') setCcpaymentError(t('wallet.ccpayment.error_disabled'));
-                else if (code === 'NOT_CONFIGURED') setCcpaymentError(t('wallet.ccpayment.error_not_configured'));
-                else setCcpaymentError(res.data?.message || t('wallet.ccpayment.error_load'));
-            }
-        } catch (e) {
-            setCcpaymentInfo(null);
-            const code = e.response?.data?.code;
-            if (code === 'DISABLED') setCcpaymentError(t('wallet.ccpayment.error_disabled'));
-            else if (code === 'NOT_CONFIGURED') setCcpaymentError(t('wallet.ccpayment.error_not_configured'));
-            else {
-                const msg = e.response?.data?.message || e.message;
-                setCcpaymentError(msg || t('wallet.ccpayment.error_load'));
-            }
-        } finally {
-            setCcpaymentLoading(false);
-        }
-    }, [t]);
 
     const startPendingPoll = useCallback(() => {
         if (pendingPollRef.current) return;
@@ -192,19 +181,11 @@ export default function Wallet() {
         }
     }, [pendingDeposits, startPendingPoll, stopPendingPoll]);
 
-    useEffect(() => {
-        if (!ccpaymentInfo) return undefined;
-        const id = setInterval(() => {
-            fetchWalletData();
-        }, 8000);
-        return () => clearInterval(id);
-    }, [ccpaymentInfo, fetchWalletData]);
-
     // Socket: ouve confirmação de depósito em tempo real
     useEffect(() => {
         if (!socket) return;
         const handler = ({ amount }) => {
-            toast.success(t('wallet.ccpayment.toast_credited', { amount: Number(amount).toFixed(4) }));
+            toast.success(t('wallet.web3_deposit.toast_credited', { amount: Number(amount).toFixed(4) }));
             fetchWalletData();
             fetchPendingDeposits();
         };
@@ -236,8 +217,8 @@ export default function Wallet() {
             }
 
             const amount = parseFloat(depositForm.amount);
-            if (isNaN(amount) || amount < 1) {
-                toast.error(t('wallet.min_deposit_error', { min: 1 }));
+            if (isNaN(amount) || amount < minDepositPol) {
+                toast.error(t('wallet.min_deposit_error', { min: minDepositPol }));
                 return;
             }
 
@@ -251,11 +232,9 @@ export default function Wallet() {
                 return;
             }
 
-            const eip1193 = getBrowserEthereumProvider();
+            const eip1193 = getActiveEip1193();
             if (!eip1193) {
-                toast.error(
-                    'Web3 wallet not detected. Open Trust Wallet (or your browser wallet) for this site, or disable extensions that block injection.'
-                );
+                toast.error(t('wallet.web3_deposit.no_wallet_for_send'));
                 return;
             }
             const accounts = await eip1193.request({ method: 'eth_accounts' });
@@ -340,8 +319,8 @@ export default function Wallet() {
 
             const claimedAmount = parseFloat(depositForm.amount) || 0;
 
-            if (claimedAmount > 0 && claimedAmount < 1) {
-                toast.error(t('wallet.min_deposit_error', { min: 1 }));
+            if (claimedAmount > 0 && claimedAmount < minDepositPol) {
+                toast.error(t('wallet.min_deposit_error', { min: minDepositPol }));
                 return;
             }
 
@@ -497,14 +476,28 @@ export default function Wallet() {
                             </button>
                         </div>
                     ) : (
-                        <button
-                            onClick={connect}
-                            disabled={isConnecting}
-                            className="px-6 py-3 bg-white text-slate-900 font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/5 flex items-center gap-2"
-                        >
-                            <Smartphone className="w-4 h-4" />
-                            {isConnecting ? 'Authenticating...' : 'Connect Wallet'}
-                        </button>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={connect}
+                                disabled={isConnecting}
+                                className="px-5 py-3 bg-white text-slate-900 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2"
+                            >
+                                <Smartphone className="w-4 h-4" />
+                                {isConnecting ? t('wallet.web3_deposit.connecting') : t('wallet.web3_deposit.connect_browser')}
+                            </button>
+                            {walletConnectConfigured ? (
+                                <button
+                                    type="button"
+                                    onClick={connectWalletConnect}
+                                    disabled={isConnecting}
+                                    className="px-5 py-3 bg-indigo-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/30"
+                                >
+                                    <QrCode className="w-4 h-4" />
+                                    {isConnecting ? t('wallet.web3_deposit.connecting') : t('wallet.web3_deposit.connect_wc')}
+                                </button>
+                            ) : null}
+                        </div>
                     )}
 
                     <button
@@ -703,71 +696,79 @@ export default function Wallet() {
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300">
-                                                    {t('wallet.ccpayment.title')}
+                                                    {t('wallet.web3_deposit.title')}
                                                 </h4>
                                                 <p className="text-[9px] text-slate-500 mt-1 font-bold leading-relaxed">
-                                                    {t('wallet.ccpayment.deposit_panel_hint')}
+                                                    {t('wallet.web3_deposit.hint')}
                                                 </p>
                                             </div>
                                             <QrCode className="w-6 h-6 text-indigo-400 shrink-0" />
                                         </div>
-                                        {!ccpaymentInfo && !ccpaymentLoading && (
+                                        <div className="flex flex-col sm:flex-row gap-2">
                                             <button
                                                 type="button"
-                                                onClick={loadCcpaymentAddress}
-                                                className="w-full py-3.5 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 transition-opacity"
+                                                onClick={connect}
+                                                disabled={isConnecting}
+                                                className="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 transition-colors"
                                             >
-                                                {t('wallet.ccpayment.open_button')}
+                                                {t('wallet.web3_deposit.connect_browser')}
                                             </button>
+                                            {walletConnectConfigured ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={connectWalletConnect}
+                                                    disabled={isConnecting}
+                                                    className="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 transition-opacity"
+                                                >
+                                                    {t('wallet.web3_deposit.connect_wc')}
+                                                </button>
+                                            ) : null}
+                                        </div>
+                                        {isConnected && account ? (
+                                            <p className="text-[10px] text-emerald-300/90 font-mono font-bold text-center break-all">
+                                                {t('wallet.web3_deposit.linked_label')}: {account}
+                                            </p>
+                                        ) : (
+                                            <p className="text-[9px] text-slate-600 font-bold text-center">
+                                                {t('wallet.web3_deposit.link_prompt')}
+                                            </p>
                                         )}
-                                        {ccpaymentLoading && (
-                                            <div className="flex items-center justify-center gap-2 py-6 text-slate-400 text-xs font-bold">
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                                {t('wallet.ccpayment.loading')}
-                                            </div>
-                                        )}
-                                        {ccpaymentError && (
-                                            <p className="text-[10px] text-red-400 font-bold text-center">{ccpaymentError}</p>
-                                        )}
-                                        {ccpaymentInfo && (
-                                            <div className="space-y-4">
-                                                <p className="text-[9px] text-slate-500 font-bold text-center">
-                                                    {t('wallet.ccpayment.min_deposit', { min: ccpaymentInfo.minDepositPol ?? 0.01 })}
-                                                </p>
-                                                <div className="flex flex-col sm:flex-row gap-6 items-center justify-center">
-                                                    <div className="bg-white p-3 rounded-2xl shrink-0">
-                                                        <QRCodeSVG value={ccpaymentInfo.address} size={140} level="M" />
+                                        <p className="text-[9px] text-slate-500 font-bold text-center">
+                                            {t('wallet.web3_deposit.min_deposit', { min: minDepositPol })}
+                                        </p>
+                                        {systemDepositAddress ? (
+                                            <div className="flex flex-col sm:flex-row gap-6 items-center justify-center pt-2">
+                                                <div className="bg-white p-3 rounded-2xl shrink-0">
+                                                    <QRCodeSVG value={systemDepositAddress} size={140} level="M" />
+                                                </div>
+                                                <div className="flex-1 w-full space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                                        {t('wallet.web3_deposit.treasury_label')}
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            value={systemDepositAddress}
+                                                            className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-4 pl-4 pr-12 text-slate-200 text-xs font-mono"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyToClipboard(systemDepositAddress)}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-indigo-400"
+                                                        >
+                                                            <Copy className="w-5 h-5" />
+                                                        </button>
                                                     </div>
-                                                    <div className="flex-1 w-full space-y-2">
-                                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                                            {t('wallet.ccpayment.address_label')}
-                                                        </label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="text"
-                                                                readOnly
-                                                                value={ccpaymentInfo.address}
-                                                                className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-4 pl-4 pr-12 text-slate-200 text-xs font-mono"
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => copyToClipboard(ccpaymentInfo.address)}
-                                                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-indigo-400"
-                                                            >
-                                                                <Copy className="w-5 h-5" />
-                                                            </button>
-                                                        </div>
-                                                        {ccpaymentInfo.memo ? (
-                                                            <p className="text-[10px] text-amber-200/90 font-bold">
-                                                                {t('wallet.ccpayment.memo_label')}: {ccpaymentInfo.memo}
-                                                            </p>
-                                                        ) : null}
-                                                        <p className="text-[9px] text-slate-600 font-bold">
-                                                            {t('wallet.ccpayment.waiting_hint')}
-                                                        </p>
-                                                    </div>
+                                                    <p className="text-[9px] text-slate-600 font-bold">
+                                                        {t('wallet.web3_deposit.waiting_hint')}
+                                                    </p>
                                                 </div>
                                             </div>
+                                        ) : (
+                                            <p className="text-[10px] text-amber-300 font-bold text-center">
+                                                {t('wallet.web3_deposit.no_treasury')}
+                                            </p>
                                         )}
                                     </div>
 
@@ -801,7 +802,7 @@ export default function Wallet() {
                                                 placeholder="0.00"
                                                 className="w-full bg-slate-900 border border-slate-800 group-hover:border-slate-700 focus:border-indigo-500 rounded-2xl py-5 px-5 text-slate-200 text-sm font-black transition-all outline-none"
                                             />
-                                            <p className="text-[9px] text-slate-600 font-bold ml-2">{t('wallet.min_deposit_hint', { min: 1 })}</p>
+                                            <p className="text-[9px] text-slate-600 font-bold ml-2">{t('wallet.min_deposit_hint', { min: minDepositPol })}</p>
                                         </div>
                                     </div>
 
@@ -881,9 +882,33 @@ export default function Wallet() {
                                                                         {dep.txHash ? `${dep.txHash.slice(0,10)}...${dep.txHash.slice(-6)}` : 'N/A'}
                                                                     </p>
                                                                     <p className="text-[9px] text-slate-600">
-                                                                        {isPending ? t('wallet.verifying_attempt', { current: dep.verifyAttempts, max: 20 }) :
-                                                                         isOk ? `+${Number(dep.amount).toFixed(4)} POL` :
-                                                                         dep.failReason || t('wallet.status_failed')}
+                                                                        {isPending ? (
+                                                                            <>
+                                                                                {t('wallet.verifying_attempt', {
+                                                                                    current: dep.verifyAttempts,
+                                                                                    max: dep.verifyMaxAttempts ?? depositVerifyMaxAttempts
+                                                                                })}
+                                                                                {typeof dep.confirmationsCurrent === 'number' && dep.confirmationsRequired ? (
+                                                                                    <span className="block mt-0.5 text-indigo-300/90">
+                                                                                        {dep.txReverted
+                                                                                            ? t('wallet.web3_deposit.tx_reverted_hint')
+                                                                                            : dep.txMined === false
+                                                                                                ? t('wallet.web3_deposit.tx_pending_mined')
+                                                                                                : t('wallet.web3_deposit.confirmations', {
+                                                                                                      current: Math.min(
+                                                                                                          dep.confirmationsCurrent,
+                                                                                                          dep.confirmationsRequired
+                                                                                                      ),
+                                                                                                      required: dep.confirmationsRequired
+                                                                                                  })}
+                                                                                    </span>
+                                                                                ) : null}
+                                                                            </>
+                                                                        ) : isOk ? (
+                                                                            `+${Number(dep.amount).toFixed(4)} POL`
+                                                                        ) : (
+                                                                            dep.failReason || t('wallet.status_failed')
+                                                                        )}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -930,7 +955,7 @@ export default function Wallet() {
                                             <div className="flex gap-4">
                                                 <AlertCircle className="w-6 h-6 text-indigo-400 shrink-0" />
                                                 <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
-                                                    EXPRESS MODE: Connect your wallet to automatically sign and verify transactions on the Polygon Network. Funds will be available after 1 block confirmation.
+                                                    {t('wallet.express_mode_note', { n: blockConfirmations })}
                                                 </p>
                                             </div>
                                             <div className="flex gap-4">

@@ -13,18 +13,6 @@ walletRouter.get("/balance", requireAuth, walletLimiter, walletController.getBal
 walletRouter.get("/pol-usd", requireAuth, walletLimiter, walletController.getWalletPolUsdPrice);
 walletRouter.get("/transactions", requireAuth, walletLimiter, walletController.getTransactions);
 walletRouter.get("/deposits", requireAuth, walletLimiter, walletController.getDeposits);
-walletRouter.get(
-  "/ccpayment/deposit-address",
-  requireAuth,
-  walletLimiter,
-  walletController.getCcpaymentWalletDepositAddress
-);
-walletRouter.get(
-  "/ccpayment/status",
-  requireAuth,
-  walletLimiter,
-  walletController.getCcpaymentWalletStatus
-);
 walletRouter.post("/deposit", requireAuth, walletLimiter, walletController.requestDeposit);
 walletRouter.post("/deposit/submit", requireAuth, walletLimiter, walletController.submitDeposit);
 walletRouter.get("/deposit/pending", requireAuth, walletLimiter, walletController.getPendingDeposits);

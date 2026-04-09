@@ -12,12 +12,6 @@ import prisma from "./src/db/prisma.js";
 import { MiningEngine } from "./src/miningEngine.js";
 import { setMiningEngine } from "./src/miningEngineInstance.js";
 import loggerLib from "./utils/logger.js";
-import {
-  getCcpaymentIntegrationStatus,
-  isCcpaymentIntegrationEnabled
-} from "./services/ccpayment/ccpaymentEnv.js";
-import { isCcpaymentClientConfigured } from "./services/ccpayment/ccpaymentApiClient.js";
-
 // Middlewares
 import { createRateLimiter } from "./middleware/rateLimit.js";
 import { createCspMiddleware } from "./middleware/csp.js";
@@ -57,9 +51,6 @@ import userRouter from "./routes/user.js";
 import * as healthController from "./controllers/healthController.js";
 import * as bannerController from "./controllers/bannerController.js";
 import * as transparencyController from "./controllers/transparencyController.js";
-import { handleCcpaymentDepositWebhook } from "./controllers/ccpaymentWebhookController.js";
-import { ccpaymentWebhookIpWhitelist } from "./middleware/ccpaymentWebhookIp.js";
-
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
 import { startDepositVerifier } from "./services/depositVerifier.js";
@@ -207,44 +198,6 @@ app.use(cors({
   origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",") : "*",
   credentials: true
 }));
-
-const ccpaymentWebhookLimiter = createRateLimiter({
-  windowMs: 60_000,
-  max: 200,
-  keyGenerator: (req) => `ccpayment:wh:${req.ip || "unknown"}`
-});
-
-// CCPayment domain verification — must be plain text (not SPA index.html).
-const ccpaymentVerifyBody =
-  process.env.CCPAYMENT_VERIFY_FILE_BODY?.trim() ||
-  "ccpayment-site-verification:ccpayment381a4c3e139cd966cef9407ab2419a9a.txt";
-const ccpaymentVerifyToken = process.env.CCPAYMENT_VERIFY_TOKEN?.trim();
-const ccpaymentVerifyPath = ccpaymentVerifyToken
-  ? `/ccpayment${ccpaymentVerifyToken}.txt`
-  : "/ccpayment381a4c3e139cd966cef9407ab2419a9a.txt";
-app.get(ccpaymentVerifyPath, (_req, res) => {
-  res.type("text/plain").send(ccpaymentVerifyBody);
-});
-
-// GET: health probe only (browsers / merchants). CCPayment sends POST with signed JSON.
-app.get("/api/wallet/ccpayment/deposit-webhook", (_req, res) => {
-  res
-    .status(200)
-    .type("text/plain; charset=utf-8")
-    .send(
-      "BlockMiner CCPayment deposit webhook: OK (reachable). Deposits: HTTP POST application/json with Appid, Timestamp, Sign headers. This URL is not meant for browser use."
-    );
-});
-
-app.post(
-  "/api/wallet/ccpayment/deposit-webhook",
-  ccpaymentWebhookLimiter,
-  ccpaymentWebhookIpWhitelist,
-  express.raw({ limit: "512kb" }),
-  (req, res, next) => {
-    handleCcpaymentDepositWebhook(req, res).catch(next);
-  }
-);
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -445,16 +398,6 @@ async function bootstrap() {
     } else {
       logger.info("Startup data migrations disabled (RUN_STARTUP_DATA_MIGRATIONS=false).");
     }
-
-    const ccpSt = getCcpaymentIntegrationStatus();
-    const ccpWalletReady =
-      isCcpaymentIntegrationEnabled() && isCcpaymentClientConfigured();
-    logger.info("CCPayment wallet deposit endpoint", {
-      mode: ccpSt.mode,
-      integrationOn: isCcpaymentIntegrationEnabled(),
-      credentialsPresent: ccpSt.configured,
-      depositAddressReady: ccpWalletReady
-    });
 
     server.listen(port, host, () => {
       logger.info(`Server running on ${host}:${port}`);

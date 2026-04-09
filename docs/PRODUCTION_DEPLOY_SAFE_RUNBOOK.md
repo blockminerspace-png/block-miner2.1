@@ -32,9 +32,10 @@ Deployments from CI/Cursor to your VPS require **your** network path, **SSH keys
    - `NODE_ENV=production`
    - `DATABASE_URL`
    - `JWT_SECRET`
-   - `CCPAYMENT_APP_ID` / `CCPAYMENT_API_KEY`
-   - `CCPAYMENT_APP_SECRET` / `CCPAYMENT_SECRET_KEY` / `CCPAYMENT_WEBHOOK_SECRET`
-   - `CCPAYMENT_MERCHANT_ID` (optional)
+   - `POLYGON_RPC_URL`
+   - `DEPOSIT_WALLET_ADDRESS`
+   - `MIN_DEPOSIT_AMOUNT` / `BLOCK_CONFIRMATIONS`
+   - `VITE_WALLETCONNECT_PROJECT_ID` (client build, if using WalletConnect)
    - `APP_URL` / public URL
 5. **SSL:** certificate validity (browser or `openssl s_client`).
 6. **Firewall:** only required ports exposed (e.g. 443, 22 from admin IPs).
@@ -107,7 +108,7 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://blockminer.space/health
 ### G. Post-deploy verification (5–15 minutes)
 
 - Login, dashboard, mining socket/heartbeat if applicable.
-- Wallet / deposits UI; CCPayment webhook is **POST** only — verify nginx routes and logs, not destructive tests against production DB.
+- Wallet / deposits UI — verify Polygon deposit flow and nginx routes; avoid destructive tests against production DB.
 - i18n: switch language to **pt-BR** and **es-ES** in the client.
 - `docker compose logs -f --tail=200 app` — watch for errors (first 5 minutes).
 
@@ -148,9 +149,8 @@ Copy and fill with timestamps (UTC):
 - `NODE_ENV`
 - `DATABASE_URL`
 - `JWT_SECRET`
-- `CCPAYMENT_APP_ID` / `CCPAYMENT_API_KEY`
-- `CCPAYMENT_APP_SECRET` / `CCPAYMENT_SECRET_KEY` / `CCPAYMENT_WEBHOOK_SECRET`
-- `CCPAYMENT_MERCHANT_ID`
+- `POLYGON_RPC_URL` / `DEPOSIT_WALLET_ADDRESS` / `MIN_DEPOSIT_AMOUNT` / `BLOCK_CONFIRMATIONS`
+- `VITE_WALLETCONNECT_PROJECT_ID` (built into client)
 - `APP_URL` / `CORS_ORIGINS` as required
 
 ---

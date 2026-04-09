@@ -355,25 +355,25 @@
     "ticket_status_credited": "Creditado",
     "ticket_status_rejected": "Rejeitado",
     "ticket_status_approved": "Aprovado",
-    "ccpayment": {
-      "title": "CCPayment (POL)",
-      "hint": "Endereços permanentes usam o ID estável BM{seuUserId}-bm (criado automaticamente). Formatos BM{userId}-aleatório ainda funcionam nos webhooks.",
-      "deposit_panel_hint": "Obtenha um endereço Polygon no CCPayment. O crédito entra automaticamente quando o pagamento for confirmado.",
-      "open_button": "Depositar via CCPayment",
-      "loading": "Contactando CCPayment…",
-      "error_load": "Não foi possível carregar o endereço CCPayment.",
-      "error_disabled": "Servidor com CCPayment desligado: no .env.production use CCPAYMENT_ENABLED=true (ou 1) e credenciais, ou remova a linha CCPAYMENT_ENABLED=false. Confirme CCPAYMENT_APP_ID e CCPAYMENT_APP_SECRET. Nos logs do arranque: linha \"CCPayment wallet deposit endpoint\" (explicit_off = flag false; unset_no_credentials = sem chaves).",
-      "error_not_configured": "Falta App ID ou App Secret do CCPayment no servidor. No .env.production da VPS define CCPAYMENT_APP_ID e CCPAYMENT_APP_SECRET (ou CCPAYMENT_SECRET_KEY), reinicia o contentor app. Se usas deploy Windows: o ficheiro .env.production.vm-backup tem de incluir essas linhas ou o script deixa de enviar o .env para não apagar a config.",
-      "min_deposit": "Depósito mínimo: {{min}} POL (definido pelo servidor).",
-      "address_label": "Endereço de depósito",
-      "memo_label": "Memo",
-      "waiting_hint": "Após enviar POL, o saldo atualiza quando o CCPayment confirmar. Esta página atualiza periodicamente com o painel aberto.",
+    "web3_deposit": {
+      "title": "Depósito POL (Polygon)",
+      "hint": "Conecte com carteira no navegador ou WalletConnect (Polygon, chain 137). Envie POL para o endereço da tesouraria abaixo e registe a transação se necessário. O servidor credita após confirmações on-chain suficientes.",
+      "connect_browser": "Conectar carteira",
+      "connect_wc": "WalletConnect",
+      "connecting": "A conectar…",
+      "treasury_label": "Endereço da tesouraria",
+      "linked_label": "Carteira associada",
+      "link_prompt": "Conecte e assine a mensagem para associar a carteira a esta conta.",
+      "min_deposit": "Depósito mínimo: {{min}} POL",
+      "waiting_hint": "Após enviar POL, o estado e o progresso de confirmação atualizam abaixo durante a verificação.",
       "toast_credited": "{{amount}} POL creditados na sua conta.",
-      "notify_success_title": "Depósito creditado (CCPayment)",
-      "notify_success_body": "Sua conta recebeu {{amount}} POL via CCPayment.",
-      "deposit_history": "Histórico de depósitos",
-      "docs_link_label": "Configuração do comerciante (docs)"
-    }
+      "confirmations": "Confirmações {{current}} / {{required}}",
+      "tx_reverted_hint": "Transação revertida na chain.",
+      "tx_pending_mined": "À espera de ser minerada…",
+      "no_treasury": "Endereço da tesouraria não configurado no servidor (DEPOSIT_WALLET_ADDRESS).",
+      "no_wallet_for_send": "Sem sessão de carteira. Conecte primeiro (navegador ou WalletConnect)."
+    },
+    "express_mode_note": "EXPRESS: associe a carteira para assinar transferências na Polygon. O saldo atualiza após {{n}} confirmações de bloco."
   },
   "faucet": {
     "title": "Faucet de Equipamentos",

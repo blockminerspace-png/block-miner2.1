@@ -1,12 +1,58 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
 import { getBrowserEthereumProvider } from '../utils/walletProvider.js';
+import { getWalletConnectEthereumProvider, isWalletConnectConfigured } from '../utils/walletConnect.js';
 
 const POLYGON_CHAIN_ID = '0x89'; // 137
 
-function getEthereumProvider() {
+function getInjectedProvider() {
     return getBrowserEthereumProvider();
+}
+
+async function switchNetworkFor(provider) {
+    if (!provider) return;
+    try {
+        await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: POLYGON_CHAIN_ID }],
+        });
+    } catch (switchError) {
+        if (switchError.code === 4902) {
+            try {
+                await provider.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: POLYGON_CHAIN_ID,
+                        chainName: 'Polygon Mainnet',
+                        nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+                        rpcUrls: ['https://polygon-rpc.com'],
+                        blockExplorerUrls: ['https://polygonscan.com/'],
+                    }],
+                });
+            } catch (addError) {
+                console.error('Error adding network:', addError);
+            }
+        }
+        console.error('Error switching network:', switchError);
+    }
+}
+
+async function signOwnershipMessage(provider, userAccount) {
+    const message = `Verify wallet ownership for Block Miner: ${userAccount}`;
+    try {
+        return await provider.request({
+            method: 'personal_sign',
+            params: [message, userAccount],
+        });
+    } catch (signError) {
+        const sig = await provider.request({
+            method: 'personal_sign',
+            params: [userAccount, message],
+        });
+        if (!sig) throw signError;
+        return sig;
+    }
 }
 
 export function useWallet() {
@@ -14,22 +60,32 @@ export function useWallet() {
     const [chainId, setChainId] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
+    const wcProviderRef = useRef(null);
+
+    const getActiveEip1193 = useCallback(() => wcProviderRef.current || getInjectedProvider(), []);
+
+    const disconnectWalletConnectSession = useCallback(async () => {
+        const p = wcProviderRef.current;
+        wcProviderRef.current = null;
+        if (p) {
+            try {
+                await p.disconnect();
+            } catch {
+                /* ignore */
+            }
+        }
+    }, []);
 
     const checkConnection = useCallback(async () => {
-        const provider = getEthereumProvider();
+        const provider = getInjectedProvider();
         if (!provider) return;
 
         try {
-            // Check if we have an account already but don't force login here
-            // Just sync the local address if the user is already authenticated in the app
             const accounts = await provider.request({ method: 'eth_accounts' });
             if (accounts.length > 0) {
                 const currentChainId = await provider.request({ method: 'eth_chainId' });
                 setChainId(currentChainId);
 
-                // We don't automatically set as connected/account here to follow the 
-                // user's rule of "connect ONLY by signature/verification"
-                // But we can check if the session already has a wallet address linked
                 const res = await api.get('/wallet/balance');
                 if (res.data.ok && res.data.walletAddress && res.data.walletAddress.toLowerCase() === accounts[0].toLowerCase()) {
                     setAccount(accounts[0]);
@@ -37,79 +93,36 @@ export function useWallet() {
                 }
             }
         } catch (error) {
-            console.error("Error checking connection:", error);
+            console.error('Error checking connection:', error);
         }
     }, []);
 
     const switchNetwork = useCallback(async () => {
-        const provider = getEthereumProvider();
-        if (!provider) return;
-
-        try {
-            await provider.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: POLYGON_CHAIN_ID }],
-            });
-        } catch (switchError) {
-            if (switchError.code === 4902) {
-                try {
-                    await provider.request({
-                        method: 'wallet_addEthereumChain',
-                        params: [{
-                            chainId: POLYGON_CHAIN_ID,
-                            chainName: 'Polygon Mainnet',
-                            nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-                            rpcUrls: ['https://polygon-rpc.com'],
-                            blockExplorerUrls: ['https://polygonscan.com/'],
-                        }],
-                    });
-                } catch (addError) {
-                    console.error("Error adding network:", addError);
-                }
-            }
-            console.error("Error switching network:", switchError);
-        }
+        await switchNetworkFor(getInjectedProvider());
     }, []);
 
     const connect = useCallback(async () => {
-        const provider = getEthereumProvider();
+        await disconnectWalletConnectSession();
+        const provider = getInjectedProvider();
         if (!provider) {
-            toast.error('Web3 Wallet not detected. Please install a compatible browser wallet.');
+            toast.error('Web3 Wallet not detected. Install a browser wallet or use WalletConnect.');
             return;
         }
 
         setIsConnecting(true);
         try {
-            // 1. Request accounts (Permission to talk to wallet)
             const accounts = await provider.request({ method: 'eth_requestAccounts' });
             const userAccount = accounts[0];
 
-            // 2. Ensure correct network
             const currentChainId = await provider.request({ method: 'eth_chainId' });
             setChainId(currentChainId);
 
             if (currentChainId !== POLYGON_CHAIN_ID) {
-                await switchNetwork();
-                // Wait for network switch to complete/retry if needed
+                await switchNetworkFor(provider);
             }
 
-            // 3. Request Signature (Proof of ownership)
-            const message = `Verify wallet ownership for Block Miner: ${userAccount}`;
-            let signature;
-            try {
-                signature = await provider.request({
-                    method: 'personal_sign',
-                    params: [message, userAccount],
-                });
-            } catch (signError) {
-                signature = await provider.request({
-                    method: 'personal_sign',
-                    params: [userAccount, message],
-                });
-                if (!signature) throw signError;
-            }
+            const signature = await signOwnershipMessage(provider, userAccount);
 
-            // 4. Verify on Backend
             const res = await api.post('/wallet/update-address', {
                 walletAddress: userAccount,
                 signature
@@ -123,7 +136,7 @@ export function useWallet() {
                 throw new Error(res.data.message || 'Verification failed');
             }
         } catch (error) {
-            console.error("Connection error:", error);
+            console.error('Connection error:', error);
             if (error.code === 4001) {
                 toast.error('Connection cancelled by user.');
             } else {
@@ -132,14 +145,70 @@ export function useWallet() {
         } finally {
             setIsConnecting(false);
         }
-    }, [switchNetwork]);
+    }, [disconnectWalletConnectSession]);
+
+    const connectWalletConnect = useCallback(async () => {
+        if (!isWalletConnectConfigured()) {
+            toast.error('WalletConnect is not configured (missing VITE_WALLETCONNECT_PROJECT_ID).');
+            return;
+        }
+
+        setIsConnecting(true);
+        try {
+            await disconnectWalletConnectSession();
+
+            const wc = await getWalletConnectEthereumProvider();
+            if (!wc) {
+                throw new Error('Could not initialize WalletConnect.');
+            }
+            wcProviderRef.current = wc;
+
+            const accounts = await wc.request({ method: 'eth_requestAccounts' });
+            const userAccount = accounts[0];
+            if (!userAccount) throw new Error('No account from WalletConnect.');
+
+            const currentChainId = await wc.request({ method: 'eth_chainId' });
+            setChainId(currentChainId);
+            if (currentChainId !== POLYGON_CHAIN_ID) {
+                await switchNetworkFor(wc);
+                const after = await wc.request({ method: 'eth_chainId' });
+                setChainId(after);
+            }
+
+            const signature = await signOwnershipMessage(wc, userAccount);
+
+            const res = await api.post('/wallet/update-address', {
+                walletAddress: userAccount,
+                signature
+            });
+
+            if (res.data.ok) {
+                setAccount(userAccount);
+                setIsConnected(true);
+                toast.success('Wallet verified and connected!');
+            } else {
+                throw new Error(res.data.message || 'Verification failed');
+            }
+        } catch (error) {
+            console.error('WalletConnect error:', error);
+            wcProviderRef.current = null;
+            if (error.code === 4001) {
+                toast.error('Connection cancelled by user.');
+            } else {
+                toast.error(error.message || 'WalletConnect failed.');
+            }
+        } finally {
+            setIsConnecting(false);
+        }
+    }, [disconnectWalletConnectSession]);
 
     useEffect(() => {
         checkConnection();
 
-        const provider = getEthereumProvider();
+        const provider = getInjectedProvider();
         if (provider) {
             const handleAccountsChanged = (accounts) => {
+                if (wcProviderRef.current) return;
                 if (accounts.length > 0) {
                     setAccount(accounts[0]);
                     setIsConnected(true);
@@ -151,8 +220,6 @@ export function useWallet() {
 
             const handleChainChanged = (newChainId) => {
                 setChainId(newChainId);
-                // Recommended to reload the page on chain change
-                // window.location.reload(); 
             };
 
             provider.on('accountsChanged', handleAccountsChanged);
@@ -163,6 +230,7 @@ export function useWallet() {
                 provider.removeListener('chainChanged', handleChainChanged);
             };
         }
+        return undefined;
     }, [checkConnection]);
 
     return {
@@ -172,6 +240,10 @@ export function useWallet() {
         isConnecting,
         isCorrectNetwork: chainId === POLYGON_CHAIN_ID,
         connect,
-        switchNetwork
+        connectWalletConnect,
+        switchNetwork,
+        getActiveEip1193,
+        walletConnectConfigured: isWalletConnectConfigured(),
+        disconnectWalletConnectSession
     };
 }

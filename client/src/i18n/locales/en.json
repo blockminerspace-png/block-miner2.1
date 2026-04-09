@@ -352,25 +352,25 @@
     "ticket_status_credited": "Credited",
     "ticket_status_rejected": "Rejected",
     "ticket_status_approved": "Approved",
-    "ccpayment": {
-      "title": "CCPayment (POL)",
-      "hint": "Permanent deposit addresses use your stable merchant user id BM{yourUserId}-bm (created automatically). Legacy formats BM{userId}-random still work for webhooks.",
-      "deposit_panel_hint": "Get a Polygon deposit address from CCPayment. Credits apply automatically when CCPayment confirms the payment.",
-      "open_button": "Deposit via CCPayment",
-      "loading": "Contacting CCPayment…",
-      "error_load": "Could not load CCPayment deposit address.",
-      "error_disabled": "CCPayment is turned off on the server, or the flag is set to disable it. Ask the operator to set CCPAYMENT_ENABLED=true (or 1/yes) and valid API credentials in production environment.",
-      "error_not_configured": "CCPayment App ID or App Secret is missing on the server. Set CCPAYMENT_APP_ID and CCPAYMENT_APP_SECRET (or CCPAYMENT_SECRET_KEY) in the VPS .env.production and restart the app container. If you deploy from Windows, include those in .env.production.vm-backup or the deploy script will skip uploading .env to avoid wiping CCPayment.",
-      "min_deposit": "Minimum deposit: {{min}} POL (set by server).",
-      "address_label": "Deposit address",
-      "memo_label": "Memo",
-      "waiting_hint": "After you send POL, balance updates when CCPayment confirms the deposit. This page refreshes periodically while this panel is open.",
+    "web3_deposit": {
+      "title": "Polygon POL deposit",
+      "hint": "Connect with a browser wallet or WalletConnect (Polygon, chain 137). Send POL to the treasury address below, then register the transaction if needed. The server credits your balance after enough on-chain confirmations.",
+      "connect_browser": "Connect wallet",
+      "connect_wc": "WalletConnect",
+      "connecting": "Connecting…",
+      "treasury_label": "Treasury deposit address",
+      "linked_label": "Linked wallet",
+      "link_prompt": "Connect and sign the message to link your wallet to this account.",
+      "min_deposit": "Minimum deposit: {{min}} POL",
+      "waiting_hint": "After you send POL, status and confirmation progress update below while verification runs.",
       "toast_credited": "{{amount}} POL credited to your account.",
-      "notify_success_title": "Deposit credited (CCPayment)",
-      "notify_success_body": "Your account was credited with {{amount}} POL via CCPayment.",
-      "deposit_history": "Deposit history",
-      "docs_link_label": "Merchant setup (docs)"
-    }
+      "confirmations": "Confirmations {{current}} / {{required}}",
+      "tx_reverted_hint": "Transaction reverted on-chain.",
+      "tx_pending_mined": "Waiting to be mined…",
+      "no_treasury": "Treasury address is not configured on the server (DEPOSIT_WALLET_ADDRESS).",
+      "no_wallet_for_send": "No wallet session. Connect a browser wallet or WalletConnect first."
+    },
+    "express_mode_note": "EXPRESS: Link your wallet to sign transfers on Polygon. Balance updates after {{n}} block confirmations."
   },
   "faucet": {
     "title": "Equipment Faucet",

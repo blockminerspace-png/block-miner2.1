@@ -1,11 +1,14 @@
 import { ethers } from "ethers";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
+import { getMinDepositPol, getRequiredBlockConfirmations } from "./polygonDepositConfig.js";
+import { getSharedPolygonProvider } from "./polygonProvider.js";
 
 const logger = loggerLib.child("DepositVerifier");
 
-const MAX_ATTEMPTS = 20;    // 20 × 15s = 5 minutos
-const INTERVAL_MS  = 15_000;
+/** Enough retries for slow RPC + N block confirmations on Polygon. */
+export const DEPOSIT_VERIFY_MAX_ATTEMPTS = 96;
+const INTERVAL_MS = 15_000;
 
 /**
  * Verifica um único depósito pendente na blockchain.
@@ -16,7 +19,7 @@ async function verifyOnePendingDeposit(tx) {
   const DEPOSIT_ADDRESS = (process.env.DEPOSIT_WALLET_ADDRESS || "").toLowerCase();
 
   // Expirou sem confirmação
-  if (attempts > MAX_ATTEMPTS) {
+  if (attempts > DEPOSIT_VERIFY_MAX_ATTEMPTS) {
     await prisma.transaction.update({
       where: { id: tx.id },
       data: {
@@ -29,10 +32,9 @@ async function verifyOnePendingDeposit(tx) {
     return;
   }
 
-  const rpcUrl = process.env.POLYGON_RPC_URL || "https://polygon-bor-rpc.publicnode.com";
-  const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
-    staticNetwork: ethers.Network.from(137)
-  });
+  const provider = getSharedPolygonProvider();
+  const requiredConfs = getRequiredBlockConfirmations();
+  const minPol = getMinDepositPol();
 
   try {
     const receipt = await provider.getTransactionReceipt(tx.txHash);
@@ -96,15 +98,25 @@ async function verifyOnePendingDeposit(tx) {
       return;
     }
 
+    const latestBlock = await provider.getBlockNumber();
+    const confCount = latestBlock - Number(receipt.blockNumber) + 1;
+    if (confCount < requiredConfs) {
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: { verifyAttempts: attempts }
+      });
+      return;
+    }
+
     // Valor real da chain (anti-fraud: ignora valor declarado pelo usuário)
     const verifiedAmount = parseFloat(ethers.formatEther(onchainTx.value));
-    if (verifiedAmount < 0.0001) {
+    if (verifiedAmount < minPol) {
       await prisma.transaction.update({
         where: { id: tx.id },
         data: {
           status: "failed",
           verifyAttempts: attempts,
-          rawTx: JSON.stringify({ error: "amount_too_small", value: verifiedAmount })
+          rawTx: JSON.stringify({ error: "amount_too_small", value: verifiedAmount, minPol })
         }
       });
       return;
@@ -227,7 +239,9 @@ export function startDepositVerifier() {
   if (_interval) return;
   runDepositVerifier().catch(() => {});
   _interval = setInterval(() => runDepositVerifier().catch(() => {}), INTERVAL_MS);
-  logger.info(`DepositVerifier started — interval ${INTERVAL_MS}ms, max ${MAX_ATTEMPTS} attempts (~${(MAX_ATTEMPTS * INTERVAL_MS) / 60_000}min)`);
+  logger.info(
+    `DepositVerifier started — interval ${INTERVAL_MS}ms, max ${DEPOSIT_VERIFY_MAX_ATTEMPTS} attempts (~${(DEPOSIT_VERIFY_MAX_ATTEMPTS * INTERVAL_MS) / 60_000}min)`
+  );
 }
 
 export default { startDepositVerifier, runDepositVerifier };
