@@ -116,6 +116,57 @@ export function verifyCcpaymentWebhookRequest(rawBody, headers) {
 }
 
 /**
+ * Map CCPayment v2 wrapped webhooks (UserDeposit / DirectDeposit) to the flat shape expected by {@link processCcpaymentDepositBody}.
+ *
+ * @param {Record<string, unknown>} body
+ * @returns {Record<string, unknown>}
+ */
+export function unwrapCcpaymentV2WebhookPayload(body) {
+  if (!body || typeof body !== "object") return body;
+  const type = String(body.type || "");
+  const msg = body.msg && typeof body.msg === "object" ? body.msg : null;
+  if (!msg) return body;
+
+  const mapPayStatus = (s) => {
+    const x = String(s || "").toLowerCase();
+    if (x === "success") return "success";
+    if (x === "processing") return "pending";
+    if (x === "failed" || x === "fail") return "failed";
+    return String(s || "");
+  };
+
+  if (type === "UserDeposit") {
+    return {
+      pay_status: mapPayStatus(msg.status),
+      record_id: msg.recordId,
+      extend: { merchant_order_id: String(msg.userId != null ? msg.userId : "") },
+      chain: msg.chain != null ? String(msg.chain) : "",
+      crypto: msg.coinSymbol != null ? String(msg.coinSymbol) : "",
+      paid_amount: msg.amount,
+      order_id: null,
+      txid: msg.txId ?? msg.txid,
+      order_type: type
+    };
+  }
+
+  if (type === "DirectDeposit") {
+    return {
+      pay_status: mapPayStatus(msg.status),
+      record_id: msg.recordId,
+      extend: { merchant_order_id: String(msg.referenceId != null ? msg.referenceId : "") },
+      chain: msg.chain != null ? String(msg.chain) : "",
+      crypto: msg.coinSymbol != null ? String(msg.coinSymbol) : "",
+      paid_amount: msg.amount,
+      order_id: null,
+      txid: msg.txId ?? msg.txid,
+      order_type: type
+    };
+  }
+
+  return body;
+}
+
+/**
  * Processes a verified JSON body. Idempotent on CCPayment record_id.
  *
  * @param {Record<string, unknown>} body
@@ -123,6 +174,15 @@ export function verifyCcpaymentWebhookRequest(rawBody, headers) {
  * @returns {Promise<{ outcome: string, userId?: number }>}
  */
 export async function processCcpaymentDepositBody(body, meta = {}) {
+  body = unwrapCcpaymentV2WebhookPayload(body);
+
+  if (!String(body.chain || "").trim() && body.crypto) {
+    const sym = String(body.crypto).trim().toUpperCase();
+    if (sym === "MATIC" || sym === "POL" || sym === "WPOL") {
+      body = { ...body, chain: "Polygon" };
+    }
+  }
+
   const payStatusRaw = String(body.pay_status || "");
   const normalized = normalizePayStatus(payStatusRaw);
 

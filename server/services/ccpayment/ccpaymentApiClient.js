@@ -11,9 +11,9 @@ import { normalizeEnvString } from "./ccpaymentEnv.js";
 
 /**
  * Outbound wallet API:
- * - "1" (default): POST admin /v1/payment/address/get, body user_id + chain, Sign = SHA-256(appId+appSecret+timestamp+body).
- * - "2": same POST URL by default, body referenceId + chain (CCPayment deposit APIs doc), Sign = HMAC-SHA256(appSecret, appId+timestamp+body).
- *   Do not send Api-Version header (doc examples omit it; v1 Sign on v2-only accounts yields 225213).
+ * - "1" (default): POST admin …/v1/payment/address/get, body user_id + chain, Sign = SHA-256(appId+appSecret+timestamp+body).
+ * - "2": POST https://ccpayment.com/ccpayment/v2/getOrCreateUserDepositAddress (SDK-style v2 host), body userId + chain, Sign = HMAC-SHA256(appSecret, appId+timestamp+body).
+ *   v2-only merchant accounts reject admin/v1 URLs with "only call api of version 2".
  */
 function outboundWalletApiVersion() {
   return normalizeEnvString(process.env.CCPAYMENT_OUTBOUND_API_VERSION || "1").toLowerCase();
@@ -45,6 +45,22 @@ function timeoutMs() {
 
 function addressPath() {
   const p = String(process.env.CCPAYMENT_PAYMENT_ADDRESS_PATH || "/payment/address/get").trim();
+  return p.startsWith("/") ? p : `/${p}`;
+}
+
+/** Base URL for outbound API v2 (not admin.ccpayment.com). */
+function outboundV2BaseUrl() {
+  return String(process.env.CCPAYMENT_API_V2_BASE_URL || "https://ccpayment.com/ccpayment/v2").replace(
+    /\/+$/,
+    ""
+  );
+}
+
+/** Path for Create or Get User Deposit Address on v2. */
+function v2UserDepositAddressPath() {
+  const p = String(
+    process.env.CCPAYMENT_V2_USER_DEPOSIT_PATH || "/getOrCreateUserDepositAddress"
+  ).trim();
   return p.startsWith("/") ? p : `/${p}`;
 }
 
@@ -138,12 +154,15 @@ export async function getPermanentDepositAddress({ userId }) {
     if (!appId || !appSecret) {
       throw new Error("CCPayment credentials not configured");
     }
-    /** @see https://ccpayment.com/api/doc/?en#deposit-apis — Get Permanent Deposit Address */
-    const v2Payload = { referenceId, chain };
+    /**
+     * User Deposit API — Create or Get User Deposit Address (v2 host).
+     * @see https://ccpayment.com/api/doc/?en#deposit-apis
+     */
+    const v2Payload = { userId: referenceId, chain };
     const body = JSON.stringify(v2Payload);
     const timestamp = String(Math.floor(Date.now() / 1000));
     const sign = computeCcPaymentOutboundSignV2(appId, appSecret, timestamp, body);
-    const url = `${baseUrl()}${addressPath()}`;
+    const url = `${outboundV2BaseUrl()}${v2UserDepositAddressPath()}`;
 
     const res = await fetch(url, {
       method: "POST",

@@ -11,6 +11,7 @@ import {
 } from "../server/services/ccpayment/ccpaymentSignature.js";
 import {
   verifyCcpaymentWebhookRequest,
+  unwrapCcpaymentV2WebhookPayload,
   CcpaymentWebhookError
 } from "../server/services/ccpayment/ccpaymentDepositWebhookService.js";
 import {
@@ -109,6 +110,38 @@ test("normalizePayStatus maps CCPayment pay_status", () => {
   assert.equal(normalizePayStatus("pending"), "pending");
   assert.equal(normalizePayStatus("processing"), "pending");
   assert.equal(normalizePayStatus("failed"), "failed");
+});
+
+test("unwrapCcpaymentV2WebhookPayload maps UserDeposit to flat API-deposit shape", () => {
+  const out = unwrapCcpaymentV2WebhookPayload({
+    type: "UserDeposit",
+    msg: {
+      recordId: "rec-1",
+      userId: "BM5-bm",
+      coinSymbol: "MATIC",
+      status: "Success",
+      amount: "1.5"
+    }
+  });
+  assert.equal(out.pay_status, "success");
+  assert.equal(out.record_id, "rec-1");
+  assert.equal(out.extend.merchant_order_id, "BM5-bm");
+  assert.equal(out.paid_amount, "1.5");
+});
+
+test("unwrapCcpaymentV2WebhookPayload maps DirectDeposit referenceId", () => {
+  const out = unwrapCcpaymentV2WebhookPayload({
+    type: "DirectDeposit",
+    msg: {
+      recordId: "rec-2",
+      referenceId: "BM9-bm",
+      coinSymbol: "POL",
+      status: "Success",
+      amount: "2"
+    }
+  });
+  assert.equal(out.extend.merchant_order_id, "BM9-bm");
+  assert.equal(out.paid_amount, "2");
 });
 
 test("verifyCcpaymentWebhookRequest passes for valid headers and body", () => {
