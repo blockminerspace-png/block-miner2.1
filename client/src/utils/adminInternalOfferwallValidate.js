@@ -32,9 +32,20 @@ export function validateAdminInternalOfferwallForm(form) {
     return { ok: false, i18nKey: 'admin_internal_offerwall.validation_min_view_range' };
   }
 
-  const daily = parseInt(String(form.dailyLimitPerUser ?? ''), 10);
-  if (!Number.isInteger(daily) || daily < 1 || daily > 50) {
-    return { ok: false, i18nKey: 'admin_internal_offerwall.validation_daily_limit_range' };
+  const maxExec = parseInt(String(form.maxExecutionsPerPeriod ?? form.dailyLimitPerUser ?? ''), 10);
+  if (!Number.isInteger(maxExec) || maxExec < 1 || maxExec > 50) {
+    return { ok: false, i18nKey: 'admin_internal_offerwall.validation_max_executions_range' };
+  }
+
+  const rt = String(form.resetType || 'DAILY').trim().toUpperCase();
+  if (rt !== 'DAILY' && rt !== 'COOLDOWN') {
+    return { ok: false, i18nKey: 'admin_internal_offerwall.validation_reset_type' };
+  }
+  if (rt === 'COOLDOWN') {
+    const cd = parseInt(String(form.cooldownSeconds ?? ''), 10);
+    if (!Number.isInteger(cd) || cd < 60 || cd > 604800) {
+      return { ok: false, i18nKey: 'admin_internal_offerwall.validation_cooldown_range' };
+    }
   }
 
   if (String(form.kind) === KIND_PTC) {

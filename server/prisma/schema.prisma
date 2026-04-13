@@ -106,7 +106,7 @@ model User {
   miniPassPurchases              UserMiniPassPurchase[]
   dailyTaskProgress              UserDailyTaskProgress[]
   internalOfferwallAttempts      InternalOfferwallAttempt[]
-  minigameSessions               MinigameSession[]
+  game2048Sessions               Game2048Session[]
 
   @@map("users")
 }
@@ -834,22 +834,25 @@ model Game {
   @@map("games")
 }
 
-/// Server-authoritative Hash Tap Sprint sessions (69s play window, cooldown between rewards).
-model MinigameSession {
-  id            Int       @id @default(autoincrement())
-  userId        Int       @map("user_id")
-  status        String    @map("status")
-  startedAt     DateTime  @map("started_at")
-  endsAt        DateTime  @map("ends_at")
-  completedAt   DateTime? @map("completed_at")
-  rewardGranted Boolean   @default(false) @map("reward_granted")
-  createdAt     DateTime  @default(now()) @map("created_at")
+/// Server-authoritative Chain 2048 sessions (board + moves validated server-side).
+model Game2048Session {
+  id                Int       @id @default(autoincrement())
+  userId            Int       @map("user_id")
+  status            String    @map("status")
+  board             Json      @map("board")
+  score             Int       @default(0) @map("score")
+  won               Boolean   @default(false) @map("won")
+  rewardGranted     Boolean   @default(false) @map("reward_granted")
+  endedAt           DateTime? @map("ended_at")
+  rewardClaimedAt   DateTime? @map("reward_claimed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
-  @@index([userId, completedAt])
-  @@map("minigame_sessions")
+  @@index([userId, rewardClaimedAt])
+  @@map("game2048_sessions")
 }
 
 model YoutubeWatchPower {

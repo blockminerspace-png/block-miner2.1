@@ -24,7 +24,9 @@ function defaultForm() {
     description: '',
     iframeUrl: '',
     minViewSeconds: '10',
-    dailyLimitPerUser: '3',
+    maxExecutionsPerPeriod: '3',
+    resetType: 'DAILY',
+    cooldownSeconds: '3600',
     rewardKind: 'BLK',
     rewardBlkAmount: '0.01',
     rewardPolAmount: '0.01',
@@ -45,13 +47,16 @@ function rowToForm(row) {
   const meta = row.taskMetadata && typeof row.taskMetadata === 'object' ? row.taskMetadata : {};
   const actions = Array.isArray(meta.requiredActions) ? meta.requiredActions.join('\n') : '';
   const countries = Array.isArray(meta.targetCountryCodes) ? meta.targetCountryCodes.join(', ') : '';
+  const resetType = String(meta.resetType || 'DAILY').toUpperCase() === 'COOLDOWN' ? 'COOLDOWN' : 'DAILY';
   return {
     kind: String(row.kind || KIND_PTC),
     title: String(row.title || ''),
     description: row.description != null ? String(row.description) : '',
     iframeUrl: String(row.iframeUrl || ''),
     minViewSeconds: String(row.minViewSeconds ?? 10),
-    dailyLimitPerUser: String(row.dailyLimitPerUser ?? 3),
+    maxExecutionsPerPeriod: String(row.dailyLimitPerUser ?? 3),
+    resetType,
+    cooldownSeconds: String(meta.cooldownSeconds ?? 3600),
     rewardKind: String(row.rewardKind || 'BLK'),
     rewardBlkAmount: row.rewardBlkAmount != null ? String(row.rewardBlkAmount) : '0.01',
     rewardPolAmount: row.rewardPolAmount != null ? String(row.rewardPolAmount) : '0.01',
@@ -74,12 +79,16 @@ function buildApiBody(form) {
     title: form.title.trim(),
     description: form.description.trim() || null,
     minViewSeconds: parseInt(String(form.minViewSeconds), 10),
-    dailyLimitPerUser: parseInt(String(form.dailyLimitPerUser), 10),
+    maxExecutionsPerPeriod: parseInt(String(form.maxExecutionsPerPeriod), 10),
+    resetType: String(form.resetType || 'DAILY').toUpperCase(),
     rewardKind: form.rewardKind,
     completionMode: form.completionMode,
     sortOrder: parseInt(String(form.sortOrder), 10) || 0,
     isActive: form.isActive
   };
+  if (body.resetType === 'COOLDOWN') {
+    body.cooldownSeconds = parseInt(String(form.cooldownSeconds), 10);
+  }
   if (form.kind === KIND_PTC) {
     body.iframeUrl = form.iframeUrl.trim();
   }
@@ -392,16 +401,40 @@ export default function AdminInternalOfferwall() {
                   />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs font-semibold text-slate-400">{t('admin_internal_offerwall.form_daily_limit')}</span>
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_internal_offerwall.form_max_executions')}</span>
                   <input
                     type="number"
                     min={1}
                     max={50}
-                    value={form.dailyLimitPerUser}
-                    onChange={(e) => setForm((f) => ({ ...f, dailyLimitPerUser: e.target.value }))}
+                    value={form.maxExecutionsPerPeriod}
+                    onChange={(e) => setForm((f) => ({ ...f, maxExecutionsPerPeriod: e.target.value }))}
                     className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                   />
                 </label>
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_internal_offerwall.form_reset_type')}</span>
+                  <select
+                    value={form.resetType}
+                    onChange={(e) => setForm((f) => ({ ...f, resetType: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                  >
+                    <option value="DAILY">{t('admin_internal_offerwall.form_reset_daily')}</option>
+                    <option value="COOLDOWN">{t('admin_internal_offerwall.form_reset_cooldown')}</option>
+                  </select>
+                </label>
+                {form.resetType === 'COOLDOWN' ? (
+                  <label className="block space-y-1">
+                    <span className="text-xs font-semibold text-slate-400">{t('admin_internal_offerwall.form_cooldown_seconds')}</span>
+                    <input
+                      type="number"
+                      min={60}
+                      max={604800}
+                      value={form.cooldownSeconds}
+                      onChange={(e) => setForm((f) => ({ ...f, cooldownSeconds: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                ) : null}
                 <label className="block space-y-1">
                   <span className="text-xs font-semibold text-slate-400">{t('admin_internal_offerwall.form_reward_kind')}</span>
                   <select

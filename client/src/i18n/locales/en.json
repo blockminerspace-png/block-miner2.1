@@ -1,4 +1,11 @@
 {
+  "errors": {
+    "security": {
+      "RACE_CONDITION_DETECTED": "This action conflicted with another request. Refresh the page and try again.",
+      "IDEMPOTENT_REPLAY": "This purchase was already confirmed. Showing the same result without charging again.",
+      "INVALID_STATE": "This resource is not in a valid state for the requested action."
+    }
+  },
   "landing": {
     "meta": {
       "title": "BlockMiner — Mine POL, Play Games, Earn Rewards | blockminer.space",
@@ -634,7 +641,6 @@
     "auto_mining": "Auto Mining",
     "youtube": "YouTube",
     "games": "Games",
-    "minigame": "Hash Sprint",
     "calculator": "Calculator",
     "manual": "Manual",
     "ranking": "Ranking",
@@ -651,39 +657,38 @@
       "social": "Social & Fun"
     }
   },
-  "minigame": {
-    "title": "Hash Tap Sprint",
-    "subtitle": "Tap the highlighted tile as fast as you can. Your reward is unlocked when the server round ends (69 seconds). A 3-minute cooldown applies after each reward.",
-    "card_duration": "Round length",
-    "card_reward": "Reward",
-    "card_cooldown": "Cooldown",
-    "reward_hs": "+{{hr}} H/s (temporary)",
-    "cooldown_minutes": "3 min",
-    "instructions_idle": "Start a round when the button is available. The server tracks time — finish the full window to claim.",
-    "instructions_play": "Tap the glowing cell. Each hit raises your streak (for fun). Missing slightly lowers streak.",
-    "round_timer": "Time left",
-    "streak": "Streak",
-    "grid_aria": "Tap sprint grid",
-    "cell_aria": "Cell {{index}}",
-    "server_sync_hint": "Reward is granted automatically when the countdown reaches zero (validated on the server).",
-    "play": "Play",
-    "play_running": "Round in progress…",
-    "play_cooldown": "Cooldown {{time}}",
-    "play_resume": "Resume",
-    "last_win": "Last reward: +{{hr}} H/s for {{days}} days. Next play in {{cd}}.",
-    "toast": {
-      "reward": "+{{hr}} H/s active for {{days}} days!"
-    },
+  "game2048": {
+    "title": "Chain 2048",
+    "card_desc": "Server-validated 2048 — reach the target tile, then claim temporary hashrate.",
+    "subtitle": "Reach the target tile on the server-side board. Moves, merges, and score are validated on the server. Claim a temporary hashrate bonus when you qualify.",
+    "score": "Score",
+    "best_tile": "Best tile",
+    "target_hint": "Reach tile {{tile}} to unlock claim (minimum score {{minScore}}).",
+    "reward_line": "Reward: +{{hr}} H/s for {{days}} days",
+    "cooldown_line": "Cooldown after claim: {{minutes}} min",
+    "play_hint": "Use arrow keys or swipe.",
+    "open_game": "Open game",
+    "new_game": "New game",
+    "claim": "Claim reward",
+    "claiming": "Claiming…",
+    "loading": "Loading…",
+    "syncing": "Syncing…",
+    "game_over": "No moves left",
+    "you_won": "Target tile reached — you can claim if you meet the minimum score.",
+    "claimed_toast": "+{{hr}} H/s for {{days}} days",
+    "back_arena": "Back to Arena",
+    "grid_aria": "2048 board",
+    "tile_aria": "Tile row {{row}} column {{col}} value {{value}}",
     "errors": {
-      "load_status": "Could not load minigame status.",
-      "start_failed": "Could not start the round. Try again.",
-      "complete_failed": "Could not claim the reward. Try again.",
-      "cooldown_active": "Cooldown active — wait before starting another round.",
-      "COOLDOWN_ACTIVE": "Cooldown active — wait before starting another round.",
-      "TOO_EARLY": "The round is not finished yet (server time).",
-      "SESSION_EXPIRED": "This round has expired. Start a new one when cooldown allows.",
-      "SESSION_NOT_ACTIVE": "This round is no longer active.",
+      "load_status": "Could not load game status.",
+      "start_failed": "Could not start a new game.",
+      "move_failed": "Move failed.",
+      "claim_failed": "Could not claim the reward.",
+      "COOLDOWN_ACTIVE": "Cooldown active — wait before starting another game.",
       "SESSION_NOT_FOUND": "Session not found.",
+      "SESSION_NOT_ACTIVE": "This session is no longer active.",
+      "WIN_REQUIRED": "Reach the target tile before claiming.",
+      "SCORE_TOO_LOW": "Score is below the minimum required to claim.",
       "INVALID_BODY": "Invalid request."
     }
   },
@@ -986,6 +991,13 @@
     "submit_ok": "Reward granted.",
     "submit_pending": "Submitted for review.",
     "daily_limit": "You reached today's limit for this offer.",
+    "usage_progress": "{{completed}} / {{max}} completed",
+    "available_in": "Available in {{time}}",
+    "errors": {
+      "task_limit_reached": "Execution limit reached. Available again in {{time}}.",
+      "task_not_available": "This task is not available right now.",
+      "task_start_conflict": "Could not start the task. Please try again."
+    },
     "mode_self": "Instant reward",
     "mode_admin": "Manual approval",
     "inactive_or_missing": "This task is not available or has been deactivated.",
@@ -1022,7 +1034,11 @@
     "form_description": "Description (optional)",
     "form_iframe_url": "Partner page URL (PTC only, opens in new tab)",
     "form_min_view": "Minimum seconds on page",
-    "form_daily_limit": "Completions per user / day",
+    "form_max_executions": "Max executions per period (per user)",
+    "form_reset_type": "Limit reset type",
+    "form_reset_daily": "Daily (Brazil calendar day)",
+    "form_reset_cooldown": "Rolling cooldown window",
+    "form_cooldown_seconds": "Cooldown window (seconds)",
     "form_reward_kind": "Reward kind",
     "form_reward_blk": "BLK amount",
     "form_reward_pol": "POL amount",
@@ -1040,7 +1056,9 @@
     "validation_title_required": "Enter a title (required).",
     "validation_title_too_long": "Title must be at most 200 characters.",
     "validation_min_view_range": "Minimum view seconds must be between 0 and 7200.",
-    "validation_daily_limit_range": "Daily limit per user must be between 1 and 50.",
+    "validation_max_executions_range": "Max executions per period must be between 1 and 50.",
+    "validation_reset_type": "Reset type must be Daily or Cooldown.",
+    "validation_cooldown_range": "Cooldown window must be between 60 and 604800 seconds (7 days).",
     "validation_iframe_required": "Enter a valid https partner URL for PTC offers (host is registered on the server when you save).",
     "validation_iframe_invalid": "Iframe URL is not a valid URL.",
     "validation_iframe_https": "Iframe URL must use http or https.",
@@ -1835,7 +1853,7 @@
   },
   "minerGames": {
     "temporary_power_title": "Temporary game power",
-    "temporary_power_tooltip": "Hash rate earned from Arena minigames (Memory Sync, Power Match). It expires after the configured duration and does not replace rack machines.",
+    "temporary_power_tooltip": "Hash rate earned from Arena minigames (Memory Sync, Power Match, Chain 2048). It expires after the configured duration and does not replace rack machines.",
     "permanent_power_label": "Permanent (rack)",
     "no_active_bonus": "No active game bonus",
     "breakdown_show": "Show breakdown",
@@ -2084,7 +2102,7 @@
     "title": "Miner Vault",
     "subtitle": "Securely store your miners away from the main interface.",
     "empty": "Your vault is empty.",
-    "empty_hint": "Move miners here from your inventory to hide them from the main view.",
+    "empty_hint": "Move miners here from your mining room (backpack or racks) to store them in the vault.",
     "stored_machines": "Stored Machines",
     "move_to_vault": "Move to Vault",
     "retrieve_from_vault": "Retrieve from Vault",
@@ -2099,13 +2117,16 @@
     "confirm_retrieve_desc": "This will return the machine to your inventory.",
     "loading": "Loading vault...",
     "error_loading": "Error loading vault.",
+    "retry": "Try again",
     "errors": {
       "VAULT_RACK_LINK": "This machine is still linked to a rack. Refresh the page and try again.",
       "VAULT_UNAVAILABLE": "Could not complete vault storage. Try again in a moment.",
       "VAULT_NOT_FOUND": "Machine or item was not found.",
       "VAULT_BAD_REQUEST": "Invalid request.",
       "VAULT_BAD_ITEM": "Invalid machine reference.",
-      "VAULT_BAD_SOURCE": "Invalid source."
+      "VAULT_BAD_SOURCE": "Invalid source.",
+      "VAULT_BAD_DESTINATION": "Invalid destination.",
+      "VAULT_ALREADY_STORED": "This machine is already in the warehouse. Refresh the page and try again."
     }
   },
   "adminAuth": {

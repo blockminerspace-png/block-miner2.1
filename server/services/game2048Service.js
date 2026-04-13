@@ -1,0 +1,441 @@
+import prisma from "../src/db/prisma.js";
+import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
+import { getMiningEngine } from "../src/miningEngineInstance.js";
+import { notifyMiniPassGamePlayed } from "./miniPass/miniPassMissionHookService.js";
+import { notifyDailyTaskGamePlayed } from "./dailyTasks/dailyTaskHookService.js";
+import {
+  createInitialBoard,
+  emptyBoard,
+  hasValidMove,
+  maxTile,
+  moveBoard,
+  parseBoard,
+  spawnRandomTile
+} from "./game2048Engine.js";
+import {
+  GAME2048_GAME_SLUG,
+  game2048CooldownMs,
+  game2048MinScore,
+  game2048PowerDays,
+  game2048RewardHashRate,
+  game2048WinTile
+} from "../utils/game2048Constants.js";
+
+const SESSION_ACTIVE = "ACTIVE";
+const SESSION_ENDED = "ENDED";
+const SESSION_CLAIMED = "CLAIMED";
+
+const STALE_ACTIVE_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * @param {Date | null | undefined} claimedAt
+ * @param {Date} now
+ * @returns {Date | null}
+ */
+export function computeCooldownEndsAt(claimedAt, now) {
+  const cdMs = game2048CooldownMs();
+  if (cdMs <= 0 || !claimedAt) return null;
+  const end = new Date(claimedAt.getTime() + cdMs);
+  return end > now ? end : null;
+}
+
+/**
+ * @param {import("@prisma/client").Prisma.TransactionClient} tx
+ */
+async function getOrCreateGame2048GameId(tx) {
+  const g = await tx.game.upsert({
+    where: { slug: GAME2048_GAME_SLUG },
+    create: {
+      name: "Chain 2048",
+      slug: GAME2048_GAME_SLUG,
+      isActive: true
+    },
+    update: {}
+  });
+  return g.id;
+}
+
+/**
+ * @param {import("@prisma/client").Prisma.TransactionClient} tx
+ * @param {number} userId
+ */
+async function lockUserFor2048(tx, userId) {
+  await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId} FOR UPDATE`;
+}
+
+/**
+ * @param {import("@prisma/client").Prisma.TransactionClient} tx
+ * @param {number} userId
+ * @param {Date} now
+ */
+async function expireStaleActiveSessions(tx, userId, now) {
+  const threshold = new Date(now.getTime() - STALE_ACTIVE_MS);
+  await tx.game2048Session.updateMany({
+    where: {
+      userId,
+      status: SESSION_ACTIVE,
+      updatedAt: { lt: threshold }
+    },
+    data: { status: SESSION_ENDED, endedAt: now }
+  });
+}
+
+/**
+ * @param {import("@prisma/client").Prisma.JsonValue} boardJson
+ * @returns {number[][] | null}
+ */
+function boardFromRow(boardJson) {
+  return parseBoard(boardJson);
+}
+
+/**
+ * @param {object} row
+ * @param {Date} now
+ */
+function serializeSession(row, now) {
+  const board = boardFromRow(row.board);
+  const winTile = game2048WinTile();
+  const minScore = game2048MinScore();
+  const hasMoves = board ? hasValidMove(board) : false;
+  const canClaim =
+    Boolean(row.won) &&
+    !row.rewardGranted &&
+    row.status !== SESSION_CLAIMED &&
+    Number(row.score) >= minScore;
+
+  return {
+    id: row.id,
+    status: row.status,
+    board: board || emptyBoard(),
+    score: Number(row.score) || 0,
+    won: Boolean(row.won),
+    rewardGranted: Boolean(row.rewardGranted),
+    hasMoves,
+    canClaim,
+    winTile,
+    minScore,
+    gameOver: row.status === SESSION_ENDED || row.status === SESSION_CLAIMED || !hasMoves,
+    rewardHashRate: game2048RewardHashRate()
+  };
+}
+
+/**
+ * @param {number} userId
+ * @param {Date} [now]
+ */
+export async function getGame2048Status(userId, now = new Date()) {
+  await prisma.$transaction(async (tx) => {
+    await lockUserFor2048(tx, userId);
+    await expireStaleActiveSessions(tx, userId, now);
+  });
+
+  const lastClaimed = await prisma.game2048Session.findFirst({
+    where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
+    orderBy: { rewardClaimedAt: "desc" }
+  });
+
+  const cooldownEndsAt = computeCooldownEndsAt(lastClaimed?.rewardClaimedAt ?? null, now);
+
+  const active = await prisma.game2048Session.findFirst({
+    where: { userId, status: SESSION_ACTIVE },
+    orderBy: { id: "desc" }
+  });
+
+  const winTile = game2048WinTile();
+  const minScore = game2048MinScore();
+
+  const cdMs = game2048CooldownMs();
+  const cooldownMinutesHint = cdMs > 0 ? Math.max(1, Math.ceil(cdMs / 60_000)) : 0;
+
+  return {
+    ok: true,
+    allowNewStart: !cooldownEndsAt && !active,
+    cooldownEndsAt: cooldownEndsAt ? cooldownEndsAt.toISOString() : null,
+    cooldownSecondsRemaining: cooldownEndsAt
+      ? Math.max(0, Math.ceil((cooldownEndsAt.getTime() - now.getTime()) / 1000))
+      : 0,
+    activeSession: active ? serializeSession(active, now) : null,
+    rewardHashRate: game2048RewardHashRate(),
+    winTile,
+    minScore,
+    powerDays: game2048PowerDays(),
+    cooldownMinutesHint
+  };
+}
+
+/**
+ * @param {number} userId
+ * @param {Date} [now]
+ */
+export async function startGame2048Session(userId, now = new Date()) {
+  return prisma.$transaction(async (tx) => {
+    await lockUserFor2048(tx, userId);
+    await expireStaleActiveSessions(tx, userId, now);
+
+    const lastClaimed = await tx.game2048Session.findFirst({
+      where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
+      orderBy: { rewardClaimedAt: "desc" }
+    });
+    const cd = computeCooldownEndsAt(lastClaimed?.rewardClaimedAt ?? null, now);
+    if (cd) {
+      return {
+        ok: false,
+        code: "COOLDOWN_ACTIVE",
+        status: 429,
+        cooldownEndsAt: cd.toISOString(),
+        cooldownSecondsRemaining: Math.max(0, Math.ceil((cd.getTime() - now.getTime()) / 1000))
+      };
+    }
+
+    const existing = await tx.game2048Session.findFirst({
+      where: { userId, status: SESSION_ACTIVE },
+      orderBy: { id: "desc" }
+    });
+    if (existing) {
+      return {
+        ok: true,
+        reused: true,
+        session: serializeSession(existing, now)
+      };
+    }
+
+    const board = createInitialBoard();
+    const row = await tx.game2048Session.create({
+      data: {
+        userId,
+        status: SESSION_ACTIVE,
+        board,
+        score: 0,
+        won: false,
+        rewardGranted: false
+      }
+    });
+
+    return {
+      ok: true,
+      reused: false,
+      session: serializeSession(row, now)
+    };
+  });
+}
+
+/**
+ * @param {number} userId
+ * @param {number} sessionId
+ * @param {"up"|"down"|"left"|"right"} direction
+ * @param {Date} [now]
+ */
+export async function applyGame2048Move(userId, sessionId, direction, now = new Date()) {
+  const sid = Math.floor(Number(sessionId));
+  if (!sid) {
+    return { ok: false, code: "INVALID_SESSION", status: 400 };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await lockUserFor2048(tx, userId);
+    await expireStaleActiveSessions(tx, userId, now);
+
+    const row = await tx.game2048Session.findFirst({
+      where: { id: sid, userId }
+    });
+    if (!row) {
+      return { ok: false, code: "SESSION_NOT_FOUND", status: 404 };
+    }
+    if (row.status !== SESSION_ACTIVE) {
+      return { ok: false, code: "SESSION_NOT_ACTIVE", status: 409 };
+    }
+
+    const board = boardFromRow(row.board);
+    if (!board) {
+      return { ok: false, code: "INVALID_BOARD", status: 500 };
+    }
+
+    const { board: afterMove, scoreDelta, moved } = moveBoard(board, direction);
+    if (!moved) {
+      return {
+        ok: true,
+        moved: false,
+        session: serializeSession(row, now)
+      };
+    }
+
+    const nextBoard = afterMove;
+    spawnRandomTile(nextBoard);
+    const nextScore = (Number(row.score) || 0) + scoreDelta;
+    const winTile = game2048WinTile();
+    const won = Boolean(row.won) || maxTile(nextBoard) >= winTile;
+    let nextStatus = SESSION_ACTIVE;
+    let endedAt = row.endedAt;
+    if (!hasValidMove(nextBoard)) {
+      nextStatus = SESSION_ENDED;
+      endedAt = now;
+    }
+
+    const updated = await tx.game2048Session.update({
+      where: { id: row.id },
+      data: {
+        board: nextBoard,
+        score: nextScore,
+        won,
+        status: nextStatus,
+        endedAt
+      }
+    });
+
+    return {
+      ok: true,
+      moved: true,
+      session: serializeSession(updated, now)
+    };
+  });
+}
+
+/**
+ * @param {number} userId
+ * @param {number} sessionId
+ * @param {object} [meta]
+ * @param {string | null} [meta.ip]
+ * @param {string | null} [meta.userAgent]
+ * @param {Date} [now]
+ */
+export async function claimGame2048Reward(userId, sessionId, meta = {}, now = new Date()) {
+  const sid = Math.floor(Number(sessionId));
+  if (!sid) {
+    return { ok: false, code: "INVALID_SESSION", status: 400 };
+  }
+
+  const minScore = game2048MinScore();
+  const winTile = game2048WinTile();
+  const rewardHr = game2048RewardHashRate();
+  const powerDays = game2048PowerDays();
+
+  const result = await prisma.$transaction(async (tx) => {
+    await lockUserFor2048(tx, userId);
+    await expireStaleActiveSessions(tx, userId, now);
+
+    const row = await tx.game2048Session.findFirst({
+      where: { id: sid, userId }
+    });
+    if (!row) {
+      return { ok: false, code: "SESSION_NOT_FOUND", status: 404 };
+    }
+
+    if (row.rewardGranted) {
+      const lastClaimed = await tx.game2048Session.findFirst({
+        where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
+        orderBy: { rewardClaimedAt: "desc" }
+      });
+      const cd = computeCooldownEndsAt(lastClaimed?.rewardClaimedAt ?? null, now);
+      return {
+        ok: true,
+        idempotent: true,
+        rewardHashRate: rewardHr,
+        powerDays,
+        nextClaimAllowedAt: cd ? cd.toISOString() : null,
+        cooldownSecondsRemaining: cd ? Math.max(0, Math.ceil((cd.getTime() - now.getTime()) / 1000)) : 0
+      };
+    }
+
+    if (!row.won) {
+      return { ok: false, code: "WIN_REQUIRED", status: 400 };
+    }
+    if ((Number(row.score) || 0) < minScore) {
+      return { ok: false, code: "SCORE_TOO_LOW", status: 400 };
+    }
+
+    const lastClaimed = await tx.game2048Session.findFirst({
+      where: {
+        userId,
+        rewardGranted: true,
+        rewardClaimedAt: { not: null },
+        id: { not: row.id }
+      },
+      orderBy: { rewardClaimedAt: "desc" }
+    });
+    const cdOther = computeCooldownEndsAt(lastClaimed?.rewardClaimedAt ?? null, now);
+    if (cdOther) {
+      return {
+        ok: false,
+        code: "COOLDOWN_ACTIVE",
+        status: 429,
+        cooldownEndsAt: cdOther.toISOString(),
+        cooldownSecondsRemaining: Math.max(0, Math.ceil((cdOther.getTime() - now.getTime()) / 1000))
+      };
+    }
+
+    const gameId = await getOrCreateGame2048GameId(tx);
+    const playedAt = now;
+    const expiresAt = new Date(playedAt.getTime() + powerDays * 86_400_000);
+
+    const powerRow = await tx.userPowerGame.create({
+      data: {
+        userId,
+        gameId,
+        hashRate: rewardHr,
+        playedAt,
+        expiresAt
+      }
+    });
+
+    await tx.game2048Session.update({
+      where: { id: row.id },
+      data: {
+        status: SESSION_CLAIMED,
+        rewardGranted: true,
+        rewardClaimedAt: playedAt,
+        endedAt: row.endedAt ?? playedAt
+      }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId,
+        action: "game2048_claim",
+        ip: meta.ip ? String(meta.ip).slice(0, 64) : null,
+        userAgent: meta.userAgent ? String(meta.userAgent).slice(0, 512) : null,
+        detailsJson: JSON.stringify({
+          sessionId: row.id,
+          winTile,
+          score: row.score,
+          hashRate: rewardHr,
+          expiresAt: expiresAt.toISOString()
+        })
+      }
+    });
+
+    const cd = game2048CooldownMs() > 0 ? new Date(playedAt.getTime() + game2048CooldownMs()) : null;
+    return {
+      ok: true,
+      idempotent: false,
+      rewardHashRate: rewardHr,
+      powerDays,
+      userPowerGameId: powerRow.id,
+      nextClaimAllowedAt: cd ? cd.toISOString() : null,
+      cooldownSecondsRemaining: cd ? Math.max(0, Math.ceil((cd.getTime() - now.getTime()) / 1000)) : 0
+    };
+  });
+
+  if (result.ok && !result.idempotent && result.userPowerGameId) {
+    notifyMiniPassGamePlayed(userId, {
+      userPowerGameId: result.userPowerGameId,
+      gameSlug: GAME2048_GAME_SLUG
+    }).catch(() => {});
+    notifyDailyTaskGamePlayed(userId, {
+      userPowerGameId: result.userPowerGameId,
+      gameSlug: GAME2048_GAME_SLUG
+    }).catch(() => {});
+    try {
+      const newTotal = await syncUserBaseHashRate(userId);
+      const engine = getMiningEngine();
+      if (engine) {
+        const miner = engine.findMinerByUserId(userId);
+        if (miner) miner.baseHashRate = newTotal;
+        if (engine.io) engine.io.to(`user:${userId}`).emit("machines:update");
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  return result;
+}

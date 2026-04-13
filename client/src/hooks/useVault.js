@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { api } from '../store/auth';
+import { useGameStore } from '../store/game';
 
 /**
  * Custom hook for managing vault operations
@@ -14,9 +15,12 @@ export function useVault() {
       });
 
       if (!response.data.ok) {
-        throw new Error(response.data.message || 'Failed to move machine to vault');
+        const err = new Error(response.data.message || 'Failed to move machine to vault');
+        err.response = { data: response.data };
+        throw err;
       }
 
+      await useGameStore.getState().fetchVault();
       return response.data;
     } catch (error) {
       console.error('Error moving machine to vault:', error);
@@ -32,9 +36,12 @@ export function useVault() {
       });
 
       if (!response.data.ok) {
-        throw new Error(response.data.message || 'Failed to retrieve machine from vault');
+        const err = new Error(response.data.message || 'Failed to retrieve machine from vault');
+        err.response = { data: response.data };
+        throw err;
       }
 
+      await useGameStore.getState().fetchVault();
       return response.data;
     } catch (error) {
       console.error('Error retrieving machine from vault:', error);

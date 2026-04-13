@@ -1,4 +1,11 @@
 {
+  "errors": {
+    "security": {
+      "RACE_CONDITION_DETECTED": "Esta acción entró en conflicto con otra solicitud. Actualiza la página e inténtalo de nuevo.",
+      "IDEMPOTENT_REPLAY": "Esta compra ya fue confirmada. Mostramos el mismo resultado sin volver a cobrar.",
+      "INVALID_STATE": "Este recurso no está en un estado válido para la acción solicitada."
+    }
+  },
   "landing": {
     "meta": {
       "title": "BlockMiner — Mina POL, juega, gana recompensas | blockminer.space",
@@ -272,7 +279,6 @@
     "auto_mining": "Auto Minería",
     "youtube": "YouTube",
     "games": "Juegos",
-    "minigame": "Hash Sprint",
     "calculator": "Calculadora",
     "manual": "Manual",
     "ranking": "Ranking",
@@ -289,39 +295,38 @@
       "social": "Social & Fun"
     }
   },
-  "minigame": {
-    "title": "Hash Tap Sprint",
-    "subtitle": "Toca la casilla resaltada lo más rápido que puedas. La recompensa se desbloquea cuando la ronda termina en el servidor (69 segundos). Tras cada recompensa hay un enfriamiento de 3 minutos.",
-    "card_duration": "Duración de la ronda",
-    "card_reward": "Recompensa",
-    "card_cooldown": "Enfriamiento",
-    "reward_hs": "+{{hr}} H/s (temporal)",
-    "cooldown_minutes": "3 min",
-    "instructions_idle": "Inicia una ronda cuando el botón esté disponible. El servidor controla el tiempo: debes completar la ventana completa para reclamar.",
-    "instructions_play": "Toca la celda brillante. Cada acierto sube tu racha (diversión). Fallar reduce un poco la racha.",
-    "round_timer": "Tiempo restante",
-    "streak": "Racha",
-    "grid_aria": "Cuadrícula del tap sprint",
-    "cell_aria": "Celda {{index}}",
-    "server_sync_hint": "La recompensa se concede sola cuando la cuenta atrás llega a cero (validado en el servidor).",
-    "play": "Jugar",
-    "play_running": "Ronda en curso…",
-    "play_cooldown": "Enfriamiento {{time}}",
-    "play_resume": "Reanudar",
-    "last_win": "Última recompensa: +{{hr}} H/s durante {{days}} días. Próxima partida en {{cd}}.",
-    "toast": {
-      "reward": "¡+{{hr}} H/s activos durante {{days}} días!"
-    },
+  "game2048": {
+    "title": "Chain 2048",
+    "card_desc": "2048 validado en el servidor: alcanza la ficha objetivo y reclama hashrate temporal.",
+    "subtitle": "Alcanza la ficha objetivo en el tablero validado por el servidor. Movimientos, fusiones y puntuación se confirman en el servidor. Reclama un bonus temporal de hashrate cuando cumplas los requisitos.",
+    "score": "Puntuación",
+    "best_tile": "Mejor ficha",
+    "target_hint": "Alcanza la ficha {{tile}} para desbloquear la reclamación (puntuación mínima {{minScore}}).",
+    "reward_line": "Recompensa: +{{hr}} H/s durante {{days}} días",
+    "cooldown_line": "Enfriamiento tras reclamar: {{minutes}} min",
+    "play_hint": "Usa las flechas o desliza.",
+    "open_game": "Abrir juego",
+    "new_game": "Nueva partida",
+    "claim": "Reclamar recompensa",
+    "claiming": "Reclamando…",
+    "loading": "Cargando…",
+    "syncing": "Sincronizando…",
+    "game_over": "No quedan movimientos",
+    "you_won": "Objetivo alcanzado — puedes reclamar si cumples la puntuación mínima.",
+    "claimed_toast": "+{{hr}} H/s durante {{days}} días",
+    "back_arena": "Volver a la Arena",
+    "grid_aria": "Tablero 2048",
+    "tile_aria": "Ficha fila {{row}} columna {{col}} valor {{value}}",
     "errors": {
-      "load_status": "No se pudo cargar el estado del minijuego.",
-      "start_failed": "No se pudo iniciar la ronda. Inténtalo de nuevo.",
-      "complete_failed": "No se pudo reclamar la recompensa. Inténtalo de nuevo.",
-      "cooldown_active": "Enfriamiento activo: espera antes de iniciar otra ronda.",
-      "COOLDOWN_ACTIVE": "Enfriamiento activo: espera antes de iniciar otra ronda.",
-      "TOO_EARLY": "La ronda aún no ha terminado (hora del servidor).",
-      "SESSION_EXPIRED": "Esta ronda ha caducado. Empieza una nueva cuando el enfriamiento lo permita.",
-      "SESSION_NOT_ACTIVE": "Esta ronda ya no está activa.",
+      "load_status": "No se pudo cargar el estado del juego.",
+      "start_failed": "No se pudo iniciar una nueva partida.",
+      "move_failed": "Movimiento fallido.",
+      "claim_failed": "No se pudo reclamar la recompensa.",
+      "COOLDOWN_ACTIVE": "Enfriamiento activo: espera antes de empezar otra partida.",
       "SESSION_NOT_FOUND": "Sesión no encontrada.",
+      "SESSION_NOT_ACTIVE": "Esta sesión ya no está activa.",
+      "WIN_REQUIRED": "Alcanza la ficha objetivo antes de reclamar.",
+      "SCORE_TOO_LOW": "La puntuación está por debajo del mínimo para reclamar.",
       "INVALID_BODY": "Solicitud no válida."
     }
   },
@@ -550,6 +555,13 @@
     "submit_ok": "Recompensa concedida.",
     "submit_pending": "Enviado para revisión.",
     "daily_limit": "Has alcanzado el límite diario de esta oferta.",
+    "usage_progress": "{{completed}} / {{max}} completadas",
+    "available_in": "Disponible en {{time}}",
+    "errors": {
+      "task_limit_reached": "Límite de ejecuciones alcanzado. Vuelve a intentarlo en {{time}}.",
+      "task_not_available": "Esta tarea no está disponible ahora.",
+      "task_start_conflict": "No se pudo iniciar la tarea. Inténtalo de nuevo."
+    },
     "mode_self": "Recompensa instantánea",
     "mode_admin": "Aprobación manual",
     "inactive_or_missing": "Esta tarea no está disponible o ha sido desactivada.",
@@ -586,7 +598,11 @@
     "form_description": "Descripción (opcional)",
     "form_iframe_url": "URL de la página del socio (solo PTC, nueva pestaña)",
     "form_min_view": "Segundos mínimos en la página",
-    "form_daily_limit": "Finalizaciones por usuario / día",
+    "form_max_executions": "Máx. ejecuciones por periodo (por usuario)",
+    "form_reset_type": "Tipo de reinicio del límite",
+    "form_reset_daily": "Diario (día calendario Brasil)",
+    "form_reset_cooldown": "Ventana móvil de tiempo",
+    "form_cooldown_seconds": "Ventana de tiempo (segundos)",
     "form_reward_kind": "Tipo de recompensa",
     "form_reward_blk": "Cantidad BLK",
     "form_reward_pol": "Cantidad POL",
@@ -604,7 +620,9 @@
     "validation_title_required": "Introduce un título (obligatorio).",
     "validation_title_too_long": "El título debe tener como máximo 200 caracteres.",
     "validation_min_view_range": "Los segundos mínimos en la página deben estar entre 0 y 7200.",
-    "validation_daily_limit_range": "El límite diario por usuario debe estar entre 1 y 50.",
+    "validation_max_executions_range": "El máximo de ejecuciones por periodo debe estar entre 1 y 50.",
+    "validation_reset_type": "El tipo de reinicio debe ser Diario o Cooldown.",
+    "validation_cooldown_range": "La ventana de tiempo debe estar entre 60 y 604800 segundos (7 días).",
     "validation_iframe_required": "Introduce una URL https válida de la página del socio para PTC (el host se registra en el servidor al guardar).",
     "validation_iframe_invalid": "La URL del iframe no es una URL válida.",
     "validation_iframe_https": "La URL del iframe debe usar http o https.",
@@ -1471,7 +1489,7 @@
   },
   "minerGames": {
     "temporary_power_title": "Poder temporal de los juegos",
-    "temporary_power_tooltip": "Hash rate ganado en los minijuegos de la Arena (Memory Sync, Power Match). Caduca tras el tiempo configurado y no sustituye las máquinas en el rack.",
+    "temporary_power_tooltip": "Hash rate ganado en los minijuegos de la Arena (Memory Sync, Power Match, Chain 2048). Caduca tras el tiempo configurado y no sustituye las máquinas en el rack.",
     "permanent_power_label": "Permanente (rack)",
     "no_active_bonus": "Sin bonificación activa de juegos",
     "breakdown_show": "Ver desglose por juego",
@@ -1590,7 +1608,7 @@
     "title": "Bóveda de Mineros",
     "subtitle": "Almacena tus mineros de forma segura lejos de la interfaz principal.",
     "empty": "Tu bóveda está vacía.",
-    "empty_hint": "Mueve mineros aquí desde tu inventario para ocultarlos de la vista principal.",
+    "empty_hint": "Mueve mineros desde la sala de minería (mochila o racks) para guardarlos en la bóveda.",
     "stored_machines": "Máquinas Almacenadas",
     "move_to_vault": "Mover a Bóveda",
     "retrieve_from_vault": "Retirar de Bóveda",
@@ -1605,13 +1623,16 @@
     "confirm_retrieve_desc": "Esto devolverá la máquina a tu inventario.",
     "loading": "Cargando bóveda...",
     "error_loading": "Error al cargar bóveda.",
+    "retry": "Reintentar",
     "errors": {
       "VAULT_RACK_LINK": "La máquina sigue vinculada a un rack. Actualiza la página e inténtalo de nuevo.",
       "VAULT_UNAVAILABLE": "No se pudo guardar en la bóveda. Inténtalo de nuevo en un momento.",
       "VAULT_NOT_FOUND": "Máquina o artículo no encontrado.",
       "VAULT_BAD_REQUEST": "Solicitud no válida.",
       "VAULT_BAD_ITEM": "Referencia de máquina no válida.",
-      "VAULT_BAD_SOURCE": "Origen no válido."
+      "VAULT_BAD_SOURCE": "Origen no válido.",
+      "VAULT_BAD_DESTINATION": "Destino no válido.",
+      "VAULT_ALREADY_STORED": "Esta máquina ya está en el almacén. Actualiza la página e inténtalo de nuevo."
     }
   },
   "feature_gate": {

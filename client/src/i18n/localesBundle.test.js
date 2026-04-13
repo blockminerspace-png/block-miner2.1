@@ -113,6 +113,12 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.internalOfferwallPage.countdown_title).toBeTruthy();
     expect(pt.internalOfferwallPage.countdown_ready).toBeTruthy();
     expect(es.internalOfferwallPage.countdown_unit).toBeTruthy();
+    expect(en.internalOfferwallPage.usage_progress).toContain("{{completed}}");
+    expect(pt.internalOfferwallPage.available_in).toContain("{{time}}");
+    expect(es.internalOfferwallPage.errors.task_limit_reached).toContain("{{time}}");
+    expect(en.admin_internal_offerwall.form_max_executions).toBeTruthy();
+    expect(pt.admin_internal_offerwall.form_reset_type).toBeTruthy();
+    expect(es.admin_internal_offerwall.validation_cooldown_range).toBeTruthy();
     expect(en.admin_internal_offerwall.nav).toBeTruthy();
     expect(pt.admin_internal_offerwall.nav).toBeTruthy();
     expect(es.admin_internal_offerwall.nav).toBeTruthy();
@@ -212,15 +218,27 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(es.inventory.backpack_qty_hint).toContain("{{count}}");
   });
 
-  it("exposes Hash Tap Sprint minigame strings and sidebar label in en, pt-BR, and es", () => {
-    expect(en.sidebar.minigame).toBeTruthy();
-    expect(pt.sidebar.minigame).toBeTruthy();
-    expect(es.sidebar.minigame).toBeTruthy();
-    expect(en.minigame.title).toBeTruthy();
-    expect(pt.minigame.title).toBeTruthy();
-    expect(es.minigame.title).toBeTruthy();
-    expect(en.minigame.errors.TOO_EARLY).toBeTruthy();
-    expect(pt.minigame.errors.TOO_EARLY).toBeTruthy();
-    expect(es.minigame.errors.TOO_EARLY).toBeTruthy();
+  it("exposes Chain 2048 game strings in en, pt-BR, and es", () => {
+    expect(en.game2048.title).toBeTruthy();
+    expect(pt.game2048.title).toBeTruthy();
+    expect(es.game2048.title).toBeTruthy();
+    expect(en.game2048.errors.COOLDOWN_ACTIVE).toBeTruthy();
+    expect(pt.game2048.errors.COOLDOWN_ACTIVE).toBeTruthy();
+    expect(es.game2048.errors.COOLDOWN_ACTIVE).toBeTruthy();
+    expect(en.game2048.open_game).toBeTruthy();
+    expect(pt.game2048.open_game).toBeTruthy();
+    expect(es.game2048.open_game).toBeTruthy();
+  });
+
+  it("exposes security API error strings in en, pt-BR, and es", () => {
+    expect(en.errors.security.RACE_CONDITION_DETECTED).toBeTruthy();
+    expect(pt.errors.security.RACE_CONDITION_DETECTED).toBeTruthy();
+    expect(es.errors.security.RACE_CONDITION_DETECTED).toBeTruthy();
+    expect(en.errors.security.IDEMPOTENT_REPLAY).toBeTruthy();
+    expect(pt.errors.security.IDEMPOTENT_REPLAY).toBeTruthy();
+    expect(es.errors.security.IDEMPOTENT_REPLAY).toBeTruthy();
+    expect(en.errors.security.INVALID_STATE).toBeTruthy();
+    expect(pt.errors.security.INVALID_STATE).toBeTruthy();
+    expect(es.errors.security.INVALID_STATE).toBeTruthy();
   });
 });

@@ -566,6 +566,7 @@ export default function Inventory() {
   const [backpackVaultBusy, setBackpackVaultBusy] = useState(false);
   const navigate = useNavigate();
   const fetchMachines = useGameStore((s) => s.fetchMachines);
+  const fetchVault = useGameStore((s) => s.fetchVault);
 
   const fetchData = useCallback(async () => {
     try {
@@ -626,6 +627,7 @@ export default function Inventory() {
         setVaultBackpackConfirmId(null);
         await fetchData();
         await fetchMachines();
+        await fetchVault();
       } else {
         toast.error(res.data.message || t("vault.move_error"));
       }
@@ -658,6 +660,7 @@ export default function Inventory() {
         setSelectedSlot(null);
         await fetchData();
         await fetchMachines();
+        await fetchVault();
       } else {
         toast.error(res.data.message || t("vault.move_error"));
       }

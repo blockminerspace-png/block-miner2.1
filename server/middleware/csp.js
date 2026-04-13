@@ -113,6 +113,20 @@ function baseDirectives({ allowWebSockets }) {
   };
 }
 
+/**
+ * Helmet-compatible CSP options (single policy for all responses — safe for JSON routes; browsers
+ * enforce CSP primarily on document navigations).
+ */
+export function getHelmetContentSecurityPolicyOptions() {
+  return {
+    useDefaults: false,
+    directives: baseDirectives({ allowWebSockets: true }),
+  };
+}
+
+/**
+ * @deprecated Prefer `getHelmetContentSecurityPolicyOptions()` with `helmet()` in server bootstrap.
+ */
 export function createCspMiddleware() {
   return (req, res, next) => {
     const group = getRouteGroup(req.path);

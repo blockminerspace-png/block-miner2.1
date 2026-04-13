@@ -39,7 +39,6 @@
     "titleKey": "sidebar.categories.social",
     "items": [
       { "itemId": "games", "labelKey": "sidebar.games", "icon": "Gamepad2", "path": "/games" },
-      { "itemId": "hash_sprint_minigame", "labelKey": "sidebar.minigame", "icon": "Crosshair", "path": "/minigame" },
       { "itemId": "calculator", "labelKey": "sidebar.calculator", "icon": "Calculator", "path": "/calculator" },
       { "itemId": "manual", "labelKey": "sidebar.manual", "icon": "BookOpen", "path": "/manual" },
       { "itemId": "ranking", "labelKey": "sidebar.ranking", "icon": "Trophy", "path": "/ranking" },

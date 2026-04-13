@@ -10,9 +10,17 @@ vi.mock('../store/auth', () => ({
   },
 }));
 
+const fetchVault = vi.fn().mockResolvedValue(undefined);
+vi.mock('../store/game', () => ({
+  useGameStore: {
+    getState: () => ({ fetchVault }),
+  },
+}));
+
 describe('useVault', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchVault.mockClear();
   });
 
   describe('moveToVault', () => {
@@ -32,6 +40,7 @@ describe('useVault', () => {
         itemId: mockMachineId,
         source: "inventory"
       });
+      expect(fetchVault).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error if API call fails', async () => {
@@ -63,6 +72,7 @@ describe('useVault', () => {
         vaultId: mockMachineId,
         destination: 'inventory',
       });
+      expect(fetchVault).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error if API call fails', async () => {

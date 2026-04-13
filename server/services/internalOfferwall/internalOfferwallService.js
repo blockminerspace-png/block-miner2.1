@@ -16,8 +16,15 @@ import {
   OFFER_KIND_PTC_IFRAME,
   REWARD_BLK,
   REWARD_HASHRATE_TEMP,
-  REWARD_POL
+  REWARD_POL,
+  RESET_TYPE_COOLDOWN,
+  RESET_TYPE_DAILY
 } from "./internalOfferwallConstants.js";
+import {
+  COMPLETION_HISTORY_LOOKBACK_MS,
+  computeUsageSnapshot,
+  getOfferLimitConfig
+} from "./internalOfferwallLimitState.js";
 import { isAllowHttpIframe, validateIframeUrl } from "./validateIframeUrl.js";
 import { isInternalOfferwallEnabled } from "./internalOfferwallFeature.js";
 import { normalizeTaskMetadata } from "./internalOfferwallTaskMetadata.js";
@@ -39,6 +46,27 @@ function clampInt(v, min, max, fallback) {
   const n = parseInt(String(v ?? ""), 10);
   if (!Number.isInteger(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+/**
+ * Merges top-level admin fields into taskMetadata before normalization.
+ * @param {Record<string, unknown>} b
+ * @returns {unknown}
+ */
+function buildTaskMetadataInputForNormalize(b) {
+  const metaIn = b.taskMetadata !== undefined ? b.taskMetadata : b.task_metadata;
+  const base =
+    metaIn != null && typeof metaIn === "object" && !Array.isArray(metaIn) ? { ...metaIn } : {};
+  if (b.resetType !== undefined) base.resetType = b.resetType;
+  if (b.cooldownSeconds !== undefined) base.cooldownSeconds = b.cooldownSeconds;
+  return Object.keys(base).length ? base : null;
+}
+
+/**
+ * @param {unknown} e
+ */
+function isPrismaSerializationConflict(e) {
+  return Boolean(e && typeof e === "object" && "code" in e && /** @type {{ code?: string }} */ (e).code === "P2034");
 }
 
 /**
@@ -99,7 +127,11 @@ export async function parseAdminOfferBody(prisma, body) {
   }
 
   const minViewSeconds = clampInt(b.minViewSeconds, 0, 7200, 10);
-  const dailyLimitPerUser = clampInt(b.dailyLimitPerUser, 1, 50, 3);
+  const maxExecRaw =
+    b.maxExecutionsPerPeriod !== undefined && b.maxExecutionsPerPeriod !== null && String(b.maxExecutionsPerPeriod).trim() !== ""
+      ? b.maxExecutionsPerPeriod
+      : b.dailyLimitPerUser;
+  const dailyLimitPerUser = clampInt(maxExecRaw, 1, 50, 3);
   const sortOrder = clampInt(b.sortOrder, 0, 99999, 0);
 
   const rewardKind = String(b.rewardKind || "").trim().toUpperCase();
@@ -145,7 +177,7 @@ export async function parseAdminOfferBody(prisma, body) {
     data.rewardHashRateDays = days;
   }
 
-  const metaIn = b.taskMetadata !== undefined ? b.taskMetadata : b.task_metadata;
+  const metaIn = buildTaskMetadataInputForNormalize(b);
   const metaOpts = { allowHttp, allowedHosts: getIframeHostAllowlistCachedSync() };
   let meta = normalizeTaskMetadata(kind, metaIn, metaOpts);
   if (!meta.ok && meta.code === "IFRAME_URL_NOT_ALLOWED" && meta.host) {
@@ -164,7 +196,21 @@ export async function parseAdminOfferBody(prisma, body) {
     }
     return base;
   }
-  data.taskMetadata = meta.value;
+
+  const metaVal = meta.value && typeof meta.value === "object" ? { ...meta.value } : null;
+  if (metaVal?.resetType === RESET_TYPE_COOLDOWN) {
+    if (metaVal.cooldownSeconds == null || !Number.isFinite(Number(metaVal.cooldownSeconds))) {
+      return {
+        ok: false,
+        status: 400,
+        message: "COOLDOWN reset requires cooldownSeconds between 60 and 604800."
+      };
+    }
+  } else if (metaVal && metaVal.resetType !== RESET_TYPE_COOLDOWN) {
+    delete metaVal.cooldownSeconds;
+  }
+
+  data.taskMetadata = metaVal && Object.keys(metaVal).length ? metaVal : null;
 
   return { ok: true, data };
 }
@@ -254,7 +300,12 @@ async function abandonStaleStartedAttempts(userId, periodKey) {
   });
 }
 
-function publicOfferShape(row) {
+/**
+ * @param {object} row
+ * @param {ReturnType<typeof computeUsageSnapshot>} usageSnap
+ */
+function publicOfferShape(row, usageSnap) {
+  const meta = row.taskMetadata && typeof row.taskMetadata === "object" ? row.taskMetadata : null;
   return {
     id: row.id,
     kind: row.kind,
@@ -269,7 +320,17 @@ function publicOfferShape(row) {
     rewardHashRateDays: row.rewardHashRateDays,
     completionMode: row.completionMode,
     sortOrder: row.sortOrder,
-    taskMetadata: row.taskMetadata && typeof row.taskMetadata === "object" ? row.taskMetadata : null
+    taskMetadata: meta,
+    dailyLimitPerUser: row.dailyLimitPerUser,
+    maxExecutionsPerPeriod: row.dailyLimitPerUser,
+    resetType: usageSnap.resetType,
+    cooldownSeconds: usageSnap.cooldownWindowSec,
+    usage: {
+      completedCount: usageSnap.completedCount,
+      maxPerPeriod: usageSnap.maxPerPeriod,
+      secondsUntilAvailable: usageSnap.secondsUntilAvailable,
+      canStartNew: usageSnap.canStartNew
+    }
   };
 }
 
@@ -277,7 +338,8 @@ export async function userListOffers(userId) {
   if (!isInternalOfferwallEnabled()) {
     return { ok: false, code: "FEATURE_DISABLED", offers: [], openAttempts: [] };
   }
-  const periodKey = getDailyTaskPeriodKey();
+  const now = new Date();
+  const periodKey = getDailyTaskPeriodKey(now);
   await abandonStaleStartedAttempts(userId, periodKey);
   const offers = await prisma.internalOfferwallOffer.findMany({
     where: { isActive: true },
@@ -292,17 +354,68 @@ export async function userListOffers(userId) {
     },
     include: { offer: true }
   });
-  const openAttempts = openRows.map((open) => ({
-    id: open.id,
-    offerId: open.offerId,
-    status: open.status,
-    startedAt: open.startedAt.toISOString(),
-    partnerOpenedAt: open.partnerOpenedAt ? open.partnerOpenedAt.toISOString() : null,
-    offer: publicOfferShape(open.offer)
-  }));
+  const offerIds = offers.map((o) => o.id);
+  const since = new Date(now.getTime() - COMPLETION_HISTORY_LOOKBACK_MS);
+  /** @type {Map<number, { periodKey: string, completedAt: Date | null }[]>} */
+  const completionByOffer = new Map();
+  if (offerIds.length) {
+    const compRows = await prisma.internalOfferwallAttempt.findMany({
+      where: {
+        userId,
+        offerId: { in: offerIds },
+        status: ATTEMPT_STATUS_COMPLETED,
+        completedAt: { not: null, gte: since }
+      },
+      select: { offerId: true, periodKey: true, completedAt: true }
+    });
+    for (const r of compRows) {
+      const list = completionByOffer.get(r.offerId) || [];
+      list.push({ periodKey: r.periodKey, completedAt: r.completedAt });
+      completionByOffer.set(r.offerId, list);
+    }
+  }
+  const hasOpenByOffer = new Map();
+  for (const o of openRows) {
+    hasOpenByOffer.set(o.offerId, true);
+  }
+
+  const openAttempts = openRows.map((open) => {
+    const cfg = getOfferLimitConfig(open.offer);
+    const rows = completionByOffer.get(open.offerId) || [];
+    const usageSnap = computeUsageSnapshot({
+      resetType: cfg.resetType,
+      maxPerPeriod: cfg.maxPerPeriod,
+      cooldownWindowSec: cfg.cooldownWindowSec,
+      completionRows: rows,
+      periodKey,
+      now,
+      hasOpenAttempt: true
+    });
+    return {
+      id: open.id,
+      offerId: open.offerId,
+      status: open.status,
+      startedAt: open.startedAt.toISOString(),
+      partnerOpenedAt: open.partnerOpenedAt ? open.partnerOpenedAt.toISOString() : null,
+      offer: publicOfferShape(open.offer, usageSnap)
+    };
+  });
   return {
     ok: true,
-    offers: offers.map(publicOfferShape),
+    offers: offers.map((row) => {
+      const cfg = getOfferLimitConfig(row);
+      const rows = completionByOffer.get(row.id) || [];
+      const usageSnap = computeUsageSnapshot({
+        resetType: cfg.resetType,
+        maxPerPeriod: cfg.maxPerPeriod,
+        cooldownWindowSec: cfg.cooldownWindowSec,
+        completionRows: rows,
+        periodKey,
+        now,
+        hasOpenAttempt: Boolean(hasOpenByOffer.get(row.id))
+      });
+      return publicOfferShape(row, usageSnap);
+    }),
     openAttempts
   };
 }
@@ -311,69 +424,140 @@ export async function userListOffers(userId) {
  * @param {number} userId
  * @param {number} offerId
  */
+/**
+ * @param {number} userId
+ * @param {number} offerId
+ */
+async function userStartOfferOnceSerializable(userId, offerId) {
+  const now = new Date();
+  const periodKey = getDailyTaskPeriodKey(now);
+  const since = new Date(now.getTime() - COMPLETION_HISTORY_LOOKBACK_MS);
+
+  return prisma.$transaction(
+    async (tx) => {
+      const offer = await tx.internalOfferwallOffer.findFirst({
+        where: { id: offerId, isActive: true }
+      });
+      if (!offer) {
+        return {
+          ok: false,
+          status: 404,
+          code: "TASK_NOT_AVAILABLE",
+          message: "Offer not found or inactive.",
+          messageKey: "internalOfferwallPage.errors.task_not_available"
+        };
+      }
+
+      const cfg = getOfferLimitConfig(offer);
+      const completionRows = await tx.internalOfferwallAttempt.findMany({
+        where: {
+          userId,
+          offerId,
+          status: ATTEMPT_STATUS_COMPLETED,
+          completedAt: { not: null, gte: since }
+        },
+        select: { periodKey: true, completedAt: true }
+      });
+
+      const existing = await tx.internalOfferwallAttempt.findFirst({
+        where: {
+          userId,
+          offerId,
+          periodKey,
+          status: { in: [ATTEMPT_STATUS_STARTED, ATTEMPT_STATUS_PENDING_REVIEW] }
+        }
+      });
+      const hasOpen = Boolean(existing);
+
+      const snap = computeUsageSnapshot({
+        resetType: cfg.resetType,
+        maxPerPeriod: cfg.maxPerPeriod,
+        cooldownWindowSec: cfg.cooldownWindowSec,
+        completionRows,
+        periodKey,
+        now,
+        hasOpenAttempt: hasOpen
+      });
+
+      if (!snap.canStartNew && !hasOpen) {
+        return {
+          ok: false,
+          status: 429,
+          code: "TASK_LIMIT_REACHED",
+          message: "Execution limit reached for this offer.",
+          messageKey: "internalOfferwallPage.errors.task_limit_reached",
+          secondsUntilReset: snap.secondsUntilAvailable ?? 0
+        };
+      }
+
+      if (existing) {
+        return {
+          ok: true,
+          attempt: {
+            id: existing.id,
+            offerId: existing.offerId,
+            status: existing.status,
+            startedAt: existing.startedAt.toISOString(),
+            partnerOpenedAt: existing.partnerOpenedAt ? existing.partnerOpenedAt.toISOString() : null
+          }
+        };
+      }
+
+      const attempt = await tx.internalOfferwallAttempt.create({
+        data: {
+          userId,
+          offerId,
+          periodKey,
+          status: ATTEMPT_STATUS_STARTED,
+          startedAt: now
+        }
+      });
+      return {
+        ok: true,
+        attempt: {
+          id: attempt.id,
+          offerId: attempt.offerId,
+          status: attempt.status,
+          startedAt: attempt.startedAt.toISOString(),
+          partnerOpenedAt: attempt.partnerOpenedAt ? attempt.partnerOpenedAt.toISOString() : null
+        }
+      };
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      timeout: 12_000
+    }
+  );
+}
+
 export async function userStartOffer(userId, offerId) {
   if (!isInternalOfferwallEnabled()) {
-    return { ok: false, status: 403, code: "FEATURE_DISABLED", message: "This feature is disabled." };
-  }
-  const offer = await prisma.internalOfferwallOffer.findFirst({
-    where: { id: offerId, isActive: true }
-  });
-  if (!offer) {
-    return { ok: false, status: 404, code: "OFFER_NOT_FOUND", message: "Offer not found or inactive." };
-  }
-
-  const periodKey = getDailyTaskPeriodKey();
-  const completedCount = await prisma.internalOfferwallAttempt.count({
-    where: {
-      userId,
-      offerId,
-      periodKey,
-      status: ATTEMPT_STATUS_COMPLETED
-    }
-  });
-  if (completedCount >= offer.dailyLimitPerUser) {
-    return { ok: false, status: 429, code: "DAILY_LIMIT", message: "Daily limit reached for this offer." };
-  }
-
-  const existing = await prisma.internalOfferwallAttempt.findFirst({
-    where: {
-      userId,
-      offerId,
-      periodKey,
-      status: { in: [ATTEMPT_STATUS_STARTED, ATTEMPT_STATUS_PENDING_REVIEW] }
-    }
-  });
-  if (existing) {
     return {
-      ok: true,
-      attempt: {
-        id: existing.id,
-        offerId: existing.offerId,
-        status: existing.status,
-        startedAt: existing.startedAt.toISOString(),
-        partnerOpenedAt: existing.partnerOpenedAt ? existing.partnerOpenedAt.toISOString() : null
-      }
+      ok: false,
+      status: 403,
+      code: "TASK_NOT_AVAILABLE",
+      message: "This feature is disabled.",
+      messageKey: "internalOfferwallPage.errors.task_not_available"
     };
   }
 
-  const attempt = await prisma.internalOfferwallAttempt.create({
-    data: {
-      userId,
-      offerId,
-      periodKey,
-      status: ATTEMPT_STATUS_STARTED,
-      startedAt: new Date()
+  const maxTries = 4;
+  for (let i = 0; i < maxTries; i++) {
+    try {
+      return await userStartOfferOnceSerializable(userId, offerId);
+    } catch (e) {
+      if (isPrismaSerializationConflict(e) && i < maxTries - 1) {
+        continue;
+      }
+      throw e;
     }
-  });
+  }
   return {
-    ok: true,
-    attempt: {
-      id: attempt.id,
-      offerId: attempt.offerId,
-      status: attempt.status,
-      startedAt: attempt.startedAt.toISOString(),
-      partnerOpenedAt: attempt.partnerOpenedAt ? attempt.partnerOpenedAt.toISOString() : null
-    }
+    ok: false,
+    status: 503,
+    code: "TASK_NOT_AVAILABLE",
+    message: "Could not start the task. Try again.",
+    messageKey: "internalOfferwallPage.errors.task_start_conflict"
   };
 }
 

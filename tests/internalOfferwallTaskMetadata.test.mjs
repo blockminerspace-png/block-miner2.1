@@ -44,4 +44,21 @@ describe("normalizeTaskMetadata", () => {
     assert.equal(r.ok, true);
     if (r.ok) assert.match(String(r.value?.externalInfoUrl || ""), /^https:\/\/www\.example\.com\//);
   });
+
+  it("normalizes resetType and cooldownSeconds", () => {
+    const r = normalizeTaskMetadata(OFFER_KIND_GENERAL_TASK, {
+      resetType: "cooldown",
+      cooldownSeconds: 90
+    });
+    assert.equal(r.ok, true);
+    if (r.ok) {
+      assert.equal(r.value?.resetType, "COOLDOWN");
+      assert.equal(r.value?.cooldownSeconds, 90);
+    }
+  });
+
+  it("rejects invalid resetType", () => {
+    const r = normalizeTaskMetadata(OFFER_KIND_GENERAL_TASK, { resetType: "weekly" });
+    assert.equal(r.ok, false);
+  });
 });

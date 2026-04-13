@@ -14,3 +14,8 @@ export const ATTEMPT_STATUS_REJECTED = "REJECTED";
 export const REWARD_BLK = "BLK";
 export const REWARD_POL = "POL";
 export const REWARD_HASHRATE_TEMP = "HASHRATE_TEMP";
+
+/** Limit resets at the next Brazil-calendar day boundary (same as daily tasks). */
+export const RESET_TYPE_DAILY = "DAILY";
+/** Rolling window: at most N completions within the last `cooldownSeconds` seconds. */
+export const RESET_TYPE_COOLDOWN = "COOLDOWN";

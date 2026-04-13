@@ -35,7 +35,10 @@ export async function postStart(req, res) {
     }
     const out = await userStartOffer(userId, offerId);
     if (!out.ok) {
-      return res.status(out.status).json({ ok: false, code: out.code, message: out.message });
+      const payload = { ok: false, code: out.code, message: out.message };
+      if (out.messageKey) payload.messageKey = out.messageKey;
+      if (out.secondsUntilReset != null) payload.secondsUntilReset = out.secondsUntilReset;
+      return res.status(out.status).json(payload);
     }
     res.json({ ok: true, attempt: out.attempt });
   } catch (e) {

@@ -151,13 +151,6 @@ export const SIDEBAR_ITEM_REGISTRY = {
     section: "social",
     defaultParentItemId: null
   },
-  hash_sprint_minigame: {
-    path: "/minigame",
-    labelKey: "sidebar.minigame",
-    icon: "Crosshair",
-    section: "social",
-    defaultParentItemId: null
-  },
   calculator: {
     path: "/calculator",
     labelKey: "sidebar.calculator",
@@ -324,7 +317,6 @@ export function buildDefaultSidebarEntries() {
     { itemId: "read_earn", visible: true, sortOrder: 170, section: "earn", parentItemId: "rewards_group" },
 
     { itemId: "games", visible: true, sortOrder: 210, section: "social", parentItemId: null },
-    { itemId: "hash_sprint_minigame", visible: true, sortOrder: 215, section: "social", parentItemId: null },
     { itemId: "calculator", visible: true, sortOrder: 220, section: "social", parentItemId: null },
     { itemId: "manual", visible: true, sortOrder: 230, section: "social", parentItemId: null },
     { itemId: "ranking", visible: true, sortOrder: 240, section: "social", parentItemId: null },

@@ -4,6 +4,10 @@ import { io } from 'socket.io-client';
 
 export const useGameStore = create((set, get) => ({
     machines: [],
+    /** Rows from `GET /api/vault` (warehouse / vault storage). */
+    vaultItems: [],
+    vaultLoading: false,
+    vaultError: null,
     inventory: [],
     racks: {},
     stats: null,
@@ -93,6 +97,11 @@ export const useGameStore = create((set, get) => ({
             else get().fetchMachines();
         });
 
+        socket.on('vault:update', (payload) => {
+            if (Array.isArray(payload?.vault)) set({ vaultItems: payload.vault, vaultError: null });
+            else get().fetchVault();
+        });
+
         socket.on('chat:new-message', (msg) => {
             const currentUser = JSON.parse(localStorage.getItem('user-storage'))?.state?.user;
             if (currentUser && msg.message.includes(`@${currentUser.username || currentUser.name}`)) {
@@ -127,6 +136,28 @@ export const useGameStore = create((set, get) => ({
             const res = await api.get('/machines');
             if (res.data.ok) set({ machines: res.data.machines });
         } catch (err) { console.error(err); }
+    },
+
+    /**
+     * Loads vault (warehouse) rows — authoritative list for the Vault page.
+     * Mining room `machines` only includes installed rack miners (`userMiner`).
+     */
+    fetchVault: async () => {
+        set({ vaultLoading: true, vaultError: null });
+        try {
+            const res = await api.get('/vault');
+            if (res.data?.ok) {
+                const rows = Array.isArray(res.data.vault) ? res.data.vault : [];
+                set({ vaultItems: rows, vaultError: null });
+            } else {
+                set({ vaultError: 'LOAD_FAILED' });
+            }
+        } catch (err) {
+            console.error('fetchVault:', err);
+            set({ vaultError: 'NETWORK' });
+        } finally {
+            set({ vaultLoading: false });
+        }
     },
 
     fetchInventory: async () => {

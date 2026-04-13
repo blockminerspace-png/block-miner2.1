@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -33,6 +33,33 @@ function openPartnerWithReferrer(url) {
   a.remove();
   return true;
 }
+/**
+ * @param {number} totalSec
+ */
+function formatHoursClock(totalSec) {
+  const s = Math.max(0, Math.floor(Number(totalSec) || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+}
+
+/**
+ * @param {number | null | undefined} serverSeconds
+ */
+function useDecountingSeconds(serverSeconds) {
+  const [v, setV] = useState(serverSeconds ?? null);
+  useEffect(() => {
+    setV(serverSeconds ?? null);
+  }, [serverSeconds]);
+  useEffect(() => {
+    if (v == null || v <= 0) return undefined;
+    const id = setInterval(() => setV((x) => (x != null && x > 0 ? x - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [v, serverSeconds]);
+  return v;
+}
+
 function rewardLine(t, offer) {
   const k = String(offer.rewardKind || '').toUpperCase();
   if (k === 'BLK' && offer.rewardBlkAmount != null) {
@@ -199,15 +226,28 @@ export default function InternalOfferwall() {
       const d = res.data;
       if (d?.ok) {
         await loadOffers();
-      } else if (d?.code === 'DAILY_LIMIT' || res.status === 429) {
-        toast.error(t('internalOfferwallPage.daily_limit'));
       } else {
-        toast.error(d?.message || t('internalOfferwallPage.load_error'));
+        const key = d?.messageKey;
+        if (key && typeof key === 'string') {
+          const time = formatHoursClock(d?.secondsUntilReset ?? 0);
+          toast.error(t(key, { time }));
+        } else if (d?.code === 'TASK_LIMIT_REACHED' || d?.code === 'DAILY_LIMIT' || res.status === 429) {
+          toast.error(t('internalOfferwallPage.errors.task_limit_reached'));
+        } else if (d?.code === 'TASK_NOT_AVAILABLE') {
+          toast.error(t('internalOfferwallPage.errors.task_not_available'));
+        } else {
+          toast.error(d?.message || t('internalOfferwallPage.load_error'));
+        }
       }
     } catch (e) {
       const d = e?.response?.data;
-      if (e?.response?.status === 429 || d?.code === 'DAILY_LIMIT') {
-        toast.error(t('internalOfferwallPage.daily_limit'));
+      const key = d?.messageKey;
+      if (key && typeof key === 'string') {
+        toast.error(t(key, { time: formatHoursClock(d?.secondsUntilReset ?? 0) }));
+      } else if (e?.response?.status === 429 || d?.code === 'TASK_LIMIT_REACHED' || d?.code === 'DAILY_LIMIT') {
+        toast.error(t('internalOfferwallPage.errors.task_limit_reached'));
+      } else if (d?.code === 'TASK_NOT_AVAILABLE') {
+        toast.error(t('internalOfferwallPage.errors.task_not_available'));
       } else {
         toast.error(d?.message || t('internalOfferwallPage.load_error'));
       }
@@ -305,6 +345,7 @@ export default function InternalOfferwall() {
                 onStart={() => onStart(offer)}
                 onSubmit={() => attempt && onSubmit(attempt.id)}
                 onPartnerOpen={attempt ? () => onPartnerPageOpen(offer, attempt) : undefined}
+                onCooldownElapsed={loadOffers}
               />
             );
           })}
@@ -325,10 +366,31 @@ function OfferCard({
   partnerBusy,
   onStart,
   onSubmit,
-  onPartnerOpen
+  onPartnerOpen,
+  onCooldownElapsed
 }) {
   const isPtc = String(offer.kind).toUpperCase() === KIND_PTC;
   const minSec = Number(offer.minViewSeconds) || 0;
+  const usage = offer.usage || {
+    completedCount: 0,
+    maxPerPeriod: Number(offer.maxExecutionsPerPeriod ?? offer.dailyLimitPerUser) || 3,
+    secondsUntilAvailable: null,
+    canStartNew: true
+  };
+  const limitBlocksStart = !attempt && !usage.canStartNew;
+  const countdownRemain = useDecountingSeconds(usage.secondsUntilAvailable);
+  const cooldownFireRef = useRef(false);
+  useEffect(() => {
+    cooldownFireRef.current = false;
+  }, [usage.secondsUntilAvailable, offer.id]);
+  useEffect(() => {
+    if (countdownRemain !== 0) return undefined;
+    if (usage.secondsUntilAvailable == null || usage.secondsUntilAvailable <= 0) return undefined;
+    if (cooldownFireRef.current) return undefined;
+    cooldownFireRef.current = true;
+    onCooldownElapsed?.();
+    return undefined;
+  }, [countdownRemain, usage.secondsUntilAvailable, onCooldownElapsed]);
 
   const clockIso = isPtc
     ? String(attempt?.partnerOpenedAt || '')
@@ -369,11 +431,22 @@ function OfferCard({
             <p className="text-xs text-slate-500 mt-2 whitespace-pre-wrap">{offer.taskMetadata.verificationNote}</p>
           ) : null}
           <p className="text-sm text-sky-300/90 mt-2 font-semibold">{rewardLabel}</p>
+          <p className="text-xs text-slate-500 mt-2 font-medium">
+            {t('internalOfferwallPage.usage_progress', {
+              completed: String(usage.completedCount),
+              max: String(usage.maxPerPeriod)
+            })}
+          </p>
+          {limitBlocksStart && countdownRemain != null && countdownRemain > 0 ? (
+            <p className="text-sm text-amber-400/95 mt-2 font-semibold tabular-nums" role="status" aria-live="polite">
+              {t('internalOfferwallPage.available_in', { time: formatHoursClock(countdownRemain) })}
+            </p>
+          ) : null}
         </div>
         {!attempt ? (
           <button
             type="button"
-            disabled={startBusy}
+            disabled={startBusy || limitBlocksStart}
             onClick={onStart}
             className="shrink-0 inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm disabled:opacity-50"
           >

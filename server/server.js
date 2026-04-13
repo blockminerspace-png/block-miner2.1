@@ -16,7 +16,7 @@ import { setMiningEngine } from "./src/miningEngineInstance.js";
 import loggerLib from "./utils/logger.js";
 // Middlewares
 import { createRateLimiter } from "./middleware/rateLimit.js";
-import { createCspMiddleware } from "./middleware/csp.js";
+import { getHelmetContentSecurityPolicyOptions } from "./middleware/csp.js";
 import { createCsrfMiddleware } from "./middleware/csrf.js";
 
 // Routes
@@ -43,7 +43,6 @@ import { statsRouter } from "./routes/stats.js";
 import { shortlinkRouter } from "./routes/shortlink.js";
 import { youtubeRouter } from "./routes/youtube.js";
 import { gamesRouter } from "./routes/games.js";
-import { minigameRouter } from "./routes/minigame.routes.js";
 import { autoMiningGpuRouter } from "./routes/auto-mining-gpu.js";
 import { sessionRouter } from "./routes/session.js";
 import { notificationRouter } from "./routes/notification.js";
@@ -218,11 +217,12 @@ registerSupportSocketHandlers({
 });
 
 // 4. Global Security Stack
-app.use(helmet({ 
-  contentSecurityPolicy: false,
-  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
-}));
-app.use(createCspMiddleware());
+app.use(
+  helmet({
+    contentSecurityPolicy: getHelmetContentSecurityPolicyOptions(),
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  }),
+);
 app.use(cors(buildExpressCorsOptions()));
 
 const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "1mb";
@@ -274,7 +274,6 @@ app.use("/api/stats", statsRouter);
 app.use("/api/shortlink", shortlinkRouter);
 app.use("/api/youtube", youtubeRouter);
 app.use("/api/games", gamesRouter);
-app.use("/api/minigame", minigameRouter);
 app.use("/api/auto-mining-gpu", autoMiningGpuRouter);
 app.use("/api/session", sessionRouter);
 app.use("/api/notifications", notificationRouter);

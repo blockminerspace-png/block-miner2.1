@@ -1,6 +1,9 @@
 /**
  * Valid logical transitions for Prisma enum `MachineInstanceLocation`.
  * Inventory <-> rack uses install/uninstall; warehouse uses vault move/retrieve.
+ *
+ * Client UI uses `MachinePlacementStatus` (see `client/src/constants/machinePlacement.js`):
+ * INVENTORY, INSTALLED (rack), VAULT (warehouse).
  */
 export const MACHINE_INSTANCE_LOCATIONS = /** @type {const} */ (["INVENTORY", "RACK", "WAREHOUSE"]);
 

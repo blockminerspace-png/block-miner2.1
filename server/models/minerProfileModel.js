@@ -1,6 +1,7 @@
 import prisma from '../src/db/prisma.js';
 import crypto from 'crypto';
 import { isAutoMiningV2SchemaAvailable } from '../services/autoMiningV2/autoMiningV2DbAvailability.js';
+import { lockUserRowForUpdate } from '../utils/transactionLocks.js';
 
 export async function getOrCreateMinerProfile(user) {
   let dbUser = await prisma.user.findUnique({
@@ -101,19 +102,24 @@ export async function getOrCreateMinerProfile(user) {
 export async function persistMinerProfile(miner) {
   if (!miner?.userId) return;
 
-  // Usa delta para n\u00e3o sobrescrever saldo creditado diretamente no banco
-  // (dep\u00f3sitos, tickets, offerwall que s\u00f3 atualizam o DB sem passar pelo engine)
-  const delta = miner.balance - (miner.lastPersistedBalance ?? miner.balance);
-  if (Math.abs(delta) < 0.0000001) return; // nada a persistir
-
-  await prisma.user.update({
-    where: { id: miner.userId },
-    data: {
-      polBalance: delta > 0 ? { increment: delta } : { decrement: -delta }
-    }
+  /**
+   * Serialize balance persistence per user with a row lock, then recompute the delta inside
+   * the transaction so concurrent persist calls cannot double-apply the same in-memory delta.
+   * Deposits and other services that increment `pol_balance` directly remain safe because we
+   * only ever apply the engine delta as an atomic increment/decrement.
+   */
+  await prisma.$transaction(async (tx) => {
+    await lockUserRowForUpdate(tx, miner.userId);
+    const delta = miner.balance - (miner.lastPersistedBalance ?? miner.balance);
+    if (Math.abs(delta) < 0.0000001) return;
+    await tx.user.update({
+      where: { id: miner.userId },
+      data: {
+        polBalance: delta > 0 ? { increment: delta } : { decrement: -delta },
+      },
+    });
+    miner.lastPersistedBalance = miner.balance;
   });
-
-  miner.lastPersistedBalance = miner.balance;
 }
 
 export async function syncUserBaseHashRate(userId) {

@@ -47,14 +47,30 @@ export default function Shop() {
 
         try {
             setIsPurchasing(true);
-            const res = await api.post('/shop/purchase', { minerId: selectedMiner.id, quantity });
+            const idempotencyKey =
+                typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+            const res = await api.post('/shop/purchase', {
+                minerId: selectedMiner.id,
+                quantity,
+                idempotencyKey,
+            });
             if (res.data.ok) {
-                toast.success(res.data.message || t('shop.purchase_success'));
+                const messageKey = res.data.messageKey;
+                const msg =
+                    typeof messageKey === 'string' && messageKey
+                        ? t(messageKey)
+                        : res.data.message || t('shop.purchase_success');
+                toast.success(msg);
                 fetchAll();
                 setShowConfirmModal(false);
             }
         } catch (err) {
-            toast.error(err.response?.data?.message || t('common.error'));
+            const d = err.response?.data;
+            const errMsg =
+                d?.messageKey && typeof d.messageKey === 'string' ? t(d.messageKey) : d?.message || t('common.error');
+            toast.error(errMsg);
         } finally {
             setIsPurchasing(false);
         }

@@ -11,7 +11,8 @@ import { io } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../store/auth';
 import { formatHashrate } from '../utils/machine';
-import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   MINER_GAMES_LOGICAL_SIZE,
@@ -834,7 +835,7 @@ export default function Games() {
         </div>
 
         {!activeGame ? (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
             <GameCard
               title={t('minerGames.memory_sync_title')}
               description={t('minerGames.memory_sync_desc')}
@@ -854,6 +855,14 @@ export default function Games() {
               disabled={match3Cooldown > 0}
               ctaStart={t('minerGames.cta_start')}
               cooldownLabel={t('minerGames.cooldown_label', { seconds: match3Cooldown })}
+            />
+            <GameCardLink
+              to="/games/2048"
+              title={t('game2048.title')}
+              description={t('game2048.card_desc')}
+              icon={Grid3X3}
+              color="from-emerald-600 to-teal-800"
+              ctaLabel={t('game2048.open_game')}
             />
           </div>
         ) : (
@@ -979,6 +988,31 @@ function TemporaryPowerSummary({ t, totalGamePower, loading, errorKey, flash, on
     </div>
   );
 }
+
+const GameCardLink = memo(function GameCardLink({ to, title, description, icon, color, ctaLabel }) {
+  return (
+    <Link
+      to={to}
+      className="group relative block overflow-hidden rounded-[4rem] border border-slate-800 bg-slate-900 p-12 text-left shadow-2xl transition-all duration-500 hover:-translate-y-4 hover:border-primary"
+    >
+      <div
+        className={`absolute -right-12 -top-12 h-72 w-72 bg-gradient-to-br ${color} blur-[90px] transition-all duration-700 opacity-10 group-hover:opacity-30`}
+      />
+      <div
+        className={`mb-12 flex h-28 w-28 items-center justify-center rounded-[3rem] border border-white/10 bg-gradient-to-br ${color} shadow-2xl transition-transform duration-500 group-hover:rotate-12`}
+      >
+        {React.createElement(icon, { className: 'h-14 w-14 text-white', 'aria-hidden': true })}
+      </div>
+      <h3 className="mb-6 text-4xl font-black uppercase italic leading-none tracking-tighter text-white">{title}</h3>
+      <p className="mb-12 text-sm font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200">
+        {description}
+      </p>
+      <div className="flex translate-y-6 items-center gap-5 text-xs font-black uppercase tracking-[0.4em] text-primary opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
+        {ctaLabel} <Play className="h-4 w-4 fill-current" aria-hidden />
+      </div>
+    </Link>
+  );
+});
 
 const GameCard = memo(function GameCard({
   title,
