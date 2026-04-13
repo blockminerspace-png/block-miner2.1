@@ -112,7 +112,13 @@ function Get-ViteEnvOverrideMap {
         'VITE_TELEGRAM_URL',
         'VITE_TWITTER_URL',
         'VITE_YOUTUBE_URL',
-        'VITE_GA_ID'
+        'VITE_GA_ID',
+        # BTCPay (Bitcoin deposits) — merged into VPS .env.production from deploy.secrets.local (never commit secrets).
+        'BTCPAY_URL',
+        'BTCPAY_API_KEY',
+        'BTCPAY_STORE_ID',
+        'BTCPAY_WEBHOOK_SECRET',
+        'BTCPAY_INVOICE_PAYMENT_METHODS'
     )
     foreach ($k in $names) {
         $fromFile = $Secrets[$k]
