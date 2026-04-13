@@ -893,21 +893,20 @@ export default function Inventory() {
                         e.dataTransfer.effectAllowed = "move";
                       }}
                       /**
-                       * Always stack the action row below identity (never sm:flex-row from viewport).
-                       * The sidebar column is often narrower than 640px while the viewport is wide,
-                       * which caused the warehouse button to overlap level/hashrate text.
+                       * CSS Grid (not flex-column): guarantees two distinct rows so the vault
+                       * action can never share a flex line with stats (fixes overlap in narrow sidebar / WebKit).
                        */
-                      className="flex cursor-grab select-none flex-col gap-3 rounded-2xl border border-gray-800/50 bg-gray-800/30 p-4 transition-all hover:border-gray-700 active:cursor-grabbing"
+                      className="grid cursor-grab select-none grid-cols-1 grid-rows-[auto_auto] gap-3 rounded-2xl border border-gray-800/50 bg-gray-800/30 p-4 transition-all hover:border-gray-700 active:cursor-grabbing"
                     >
-                      <div className="flex min-w-0 gap-3">
+                      <div className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-3">
                         <div className="relative h-14 w-14 shrink-0 rounded-xl border border-gray-800/50 bg-gray-900/50 p-2">
                           <img src={descriptor.image} alt={group.minerName} className="h-full w-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
-                          <div className="absolute -right-2 -top-2 rounded-full border border-primary/20 bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">x{group.quantity}</div>
+                          <div className="absolute -right-2 -top-2 z-[1] rounded-full border border-primary/20 bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">x{group.quantity}</div>
                         </div>
-                        <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="min-w-0">
                           <h4 className="break-words text-sm font-bold leading-snug text-white">{group.minerName}</h4>
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                            <span className="shrink-0">
+                            <span className="shrink-0 whitespace-nowrap">
                               {t("inventory.modal.level")} {group.level}
                             </span>
                             <span aria-hidden>·</span>
@@ -921,7 +920,7 @@ export default function Inventory() {
                         </div>
                       </div>
                       <div
-                        className="flex w-full min-w-0 shrink-0 flex-col items-stretch gap-2 border-t border-gray-800/40 pt-3"
+                        className="col-span-full flex w-full min-w-0 flex-col items-stretch gap-2 border-t border-gray-800/40 pt-3"
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                       >
@@ -935,14 +934,14 @@ export default function Inventory() {
                             }
                             setVaultBackpackConfirmId(firstId);
                           }}
-                          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-[10px] font-black uppercase tracking-wider transition-colors disabled:pointer-events-none disabled:opacity-40 sm:text-[11px] ${
+                          className={`relative z-[2] flex min-h-11 w-full max-w-full flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-center text-[10px] font-black uppercase leading-tight tracking-wider transition-colors disabled:pointer-events-none disabled:opacity-40 sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5 sm:text-[11px] ${
                             isConfirming
                               ? "border-violet-500 bg-violet-600 text-white"
                               : "border-violet-500/35 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25"
                           }`}
                         >
                           <Warehouse className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-                          <span className="leading-snug">
+                          <span className="max-w-full break-words leading-snug">
                             {isConfirming ? t("inventory.backpack_confirm_warehouse") : t("inventory.backpack_send_warehouse")}
                           </span>
                         </button>
