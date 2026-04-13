@@ -1460,7 +1460,7 @@
     "ticket_status_approved": "Approved",
     "btcpay": {
       "option_label": "Bitcoin (BTCPay)",
-      "option_hint": "Pay with Bitcoin (on-chain or Lightning if enabled in BTCPay). Your account is credited in POL after the invoice settles.",
+      "option_hint": "Pay with Bitcoin on-chain or Lightning (checkout requests both when your BTCPay store supports them). Your account is credited in POL after the invoice settles.",
       "title": "Bitcoin deposit (BTCPay)",
       "body": "We create a BTCPay invoice priced in USD from the current POL rate. After BTCPay marks the invoice as settled, we credit your POL balance once — no double credit.",
       "create_invoice": "Create Bitcoin invoice",
@@ -1471,6 +1471,8 @@
       "checkout_open": "Open checkout",
       "copy_link": "Copy payment link",
       "onchain_address": "BTC address (if available)",
+      "lightning_invoice": "Lightning invoice (if available)",
+      "copy_lightning": "Copy Lightning invoice",
       "status_label": "Status",
       "status_pending": "Pending settlement",
       "status_completed": "Completed",

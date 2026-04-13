@@ -10,6 +10,7 @@ import {
   buildBtcpayTxHash,
   createBtcpayInvoice,
   extractBtcAddressFromInvoice,
+  extractLightningInvoiceFromInvoice,
   fetchBtcpayInvoice,
   isBtcpayConfigured
 } from "../services/btcpayService.js";
@@ -138,6 +139,7 @@ export async function postBtcpayInvoice(req, res) {
         amountUsd,
         polUsdRate: priceUsd,
         btcAddress: extractBtcAddressFromInvoice(invoice),
+        lightningInvoice: extractLightningInvoiceFromInvoice(invoice),
         status: existing.status
       });
     }
@@ -168,6 +170,7 @@ export async function postBtcpayInvoice(req, res) {
       amountUsd,
       polUsdRate: priceUsd,
       btcAddress: extractBtcAddressFromInvoice(invoice),
+      lightningInvoice: extractLightningInvoiceFromInvoice(invoice),
       status: BTCPAY_DEPOSIT_STATUS_PENDING
     });
   } catch (err) {
@@ -242,6 +245,7 @@ export async function getBtcpayInvoiceStatus(req, res) {
       amountPol: Number(row.amount),
       checkoutLink: parsedRaw.checkoutLink || remote?.checkoutLink || null,
       btcAddress: remote ? extractBtcAddressFromInvoice(remote) : null,
+      lightningInvoice: remote ? extractLightningInvoiceFromInvoice(remote) : null,
       paymentNotConfirmed:
         row.status === BTCPAY_DEPOSIT_STATUS_PENDING && String(remote?.status || "") !== "Settled"
     });

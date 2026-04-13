@@ -1,6 +1,6 @@
 /**
  * BTCPay Server (Greenfield API) client + webhook signature verification.
- * Payment flow: user requests POL credit → invoice priced in USD → user pays BTC/LN →
+ * Payment flow: user requests POL credit → invoice priced in USD → user pays BTC on-chain and/or Lightning →
  * BTCPay marks invoice Settled → webhook → we verify + credit POL once (idempotent).
  */
 /* global fetch */
@@ -10,6 +10,9 @@ import loggerLib from "../utils/logger.js";
 const logger = loggerLib.child("BtcpayService");
 
 const BTCPAY_TX_PREFIX = "btcpay:";
+
+/** Greenfield `checkout.paymentMethods` ids (see BTCPay swagger CheckoutOptions). */
+const DEFAULT_BTCPAY_CHECKOUT_PAYMENT_METHODS = Object.freeze(["BTC", "BTC-LightningNetwork"]);
 
 export const BTCPAY_DEPOSIT_STATUS_PENDING = "btcpay_pending";
 
@@ -27,6 +30,35 @@ export function isBtcpayConfigured() {
 export function getBtcpayBaseUrl() {
   const raw = String(process.env.BTCPAY_URL || "").trim().replace(/\/+$/, "");
   return raw;
+}
+
+/**
+ * Resolves Greenfield `checkout.paymentMethods` from env.
+ * @param {string|undefined} rawEnv value of BTCPAY_INVOICE_PAYMENT_METHODS
+ * @returns {string[]|undefined} list to send, or undefined to omit (use store defaults)
+ */
+export function resolveBtcpayCheckoutPaymentMethodsFromRaw(rawEnv) {
+  const raw = String(rawEnv ?? "").trim();
+  if (!raw) return [...DEFAULT_BTCPAY_CHECKOUT_PAYMENT_METHODS];
+  if (/^(STORE_DEFAULT|\*)$/i.test(raw)) return undefined;
+  const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts : [...DEFAULT_BTCPAY_CHECKOUT_PAYMENT_METHODS];
+}
+
+export function resolveBtcpayCheckoutPaymentMethods() {
+  return resolveBtcpayCheckoutPaymentMethodsFromRaw(process.env.BTCPAY_INVOICE_PAYMENT_METHODS);
+}
+
+function looksLikeLightningDestination(s) {
+  const t = String(s).trim().toLowerCase();
+  if (t.length < 10) return false;
+  return (
+    t.startsWith("lnbc") ||
+    t.startsWith("lntb") ||
+    t.startsWith("lnbcrt") ||
+    t.startsWith("lightning:") ||
+    t.startsWith("lnurl")
+  );
 }
 
 export function buildBtcpayTxHash(invoiceId) {
@@ -74,11 +106,14 @@ export async function createBtcpayInvoice({ amountUsd, metadata }) {
   const base = getBtcpayBaseUrl();
   const storeId = String(process.env.BTCPAY_STORE_ID || "").trim();
   const url = `${base}/api/v1/stores/${encodeURIComponent(storeId)}/invoices`;
+  const checkout = { speedPolicy: "MediumSpeed" };
+  const paymentMethods = resolveBtcpayCheckoutPaymentMethods();
+  if (paymentMethods?.length) checkout.paymentMethods = paymentMethods;
   const body = {
     amount: amountUsd,
     currency: "USD",
     metadata: metadata || {},
-    checkout: { speedPolicy: "MediumSpeed" }
+    checkout
   };
   const res = await fetch(url, {
     method: "POST",
@@ -127,20 +162,41 @@ export async function fetchBtcpayInvoice(invoiceId) {
 }
 
 /**
- * Extracts a BTC on-chain address from the invoice payload when BTCPay exposes it (varies by version / payment method).
+ * Extracts a BTC on-chain address from the invoice payload (excludes Lightning BOLT11 / LNURL).
  */
 export function extractBtcAddressFromInvoice(invoice) {
   const addresses = invoice?.addresses;
   if (addresses && typeof addresses === "object") {
     const btc = addresses.BTC || addresses.btc;
-    if (typeof btc === "string" && btc.length > 10) return btc;
+    if (typeof btc === "string" && btc.length > 10 && !looksLikeLightningDestination(btc)) return btc;
   }
   const pm = invoice?.availablePaymentMethods;
   if (Array.isArray(pm)) {
     for (const p of pm) {
+      const id = String(p?.paymentMethodId || "");
+      if (/lightning/i.test(id)) continue;
       const dest = p?.destination;
-      if (typeof dest === "string" && dest.length > 10) return dest;
+      if (typeof dest !== "string" || dest.length < 10) continue;
+      if (looksLikeLightningDestination(dest)) continue;
+      return dest;
     }
+  }
+  return null;
+}
+
+/**
+ * BOLT11 / Lightning payment link from the invoice when BTCPay exposes Lightning as a payment method.
+ */
+export function extractLightningInvoiceFromInvoice(invoice) {
+  const pm = invoice?.availablePaymentMethods;
+  if (!Array.isArray(pm)) return null;
+  for (const p of pm) {
+    const id = String(p?.paymentMethodId || "");
+    if (!/lightning/i.test(id)) continue;
+    const dest = p?.destination;
+    if (typeof dest === "string" && dest.length > 10) return dest;
+    const link = p?.paymentLink;
+    if (typeof link === "string" && link.length > 10) return link;
   }
   return null;
 }

@@ -84,6 +84,7 @@ No repositório BlockMiner (ou cópia na VPS):
    - **`BTCPAY_HOST`** = **exatamente** o hostname público (ex.: `btcpay.blockminer.space`) — tem de bater certo com o DNS e com o certificado.
    - **`LETSENCRYPT_EMAIL`** = email válido (avisos de expiração de certificado).
    - **`NBITCOIN_NETWORK`**: `testnet` para testes mais rápidos; `mainnet` para dinheiro real (sync longo e mais disco).
+   - **`BTCPAYGEN_LIGHTNING`**: vazio = só on-chain; `clightning` ou `lnd` = Lightning no mesmo stack (mais RAM/disco; vê [upstream](https://docs.btcpayserver.org/Docker/)). O BlockMiner pede nas faturas Greenfield **`BTC` + `BTC-LightningNetwork`** por defeito; a loja tem de ter Lightning configurado para o método aparecer.
 
 3. Na VPS, **como root**:  
    `bash docker/btcpay/install-btcpay.sh`
@@ -115,9 +116,10 @@ Estas variáveis vão no **servidor onde corre a API BlockMiner** (ex.: `deploy.
 | Variável | Exemplo | Notas |
 |----------|---------|--------|
 | `BTCPAY_URL` | `https://btcpay.blockminer.space` | **Sem** barra final. **Sem** porta (443 implícito). Tem de ser o mesmo host que abres no browser. |
-| `BTCPAY_API_KEY` | `token copiado do BTCPay` | Greenfield / Access token com permissão para **criar e ver invoices**. |
+| `BTCPAY_API_KEY` | `token copiado do BTCPay` | Greenfield / Access token com permissão para **criar e ver invoices**; com Lightning ativo no servidor, inclui também permissões de invoice Lightning se o BTCPay as pedir ao criar o token. |
 | `BTCPAY_STORE_ID` | `id da loja` | No BTCPay: Store → definições / General → Store ID. |
 | `BTCPAY_WEBHOOK_SECRET` | `segredo da entrega webhook` | Store → Webhooks → criar webhook para a URL abaixo → copiar **signing secret**. |
+| `BTCPAY_INVOICE_PAYMENT_METHODS` | (opcional) | Por defeito a API pede **`BTC,BTC-LightningNetwork`**. Se a tua loja **não** tiver Lightning e a criação de fatura falhar, define `BTC` só, ou `STORE_DEFAULT` para deixar o BTCPay escolher conforme a loja. |
 
 **Webhook URL** a registar no BTCPay (corpo do BlockMiner):
 

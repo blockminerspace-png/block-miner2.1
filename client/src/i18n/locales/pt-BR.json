@@ -1463,7 +1463,7 @@
     "ticket_status_approved": "Aprovado",
     "btcpay": {
       "option_label": "Bitcoin (BTCPay)",
-      "option_hint": "Paga com Bitcoin (on-chain ou Lightning se estiver ativo no BTCPay). A tua conta é creditada em POL depois da fatura ser liquidada.",
+      "option_hint": "Paga com Bitcoin on-chain ou Lightning (o checkout pede os dois quando a tua loja BTCPay suporta). A tua conta é creditada em POL depois da fatura ser liquidada.",
       "title": "Depósito em Bitcoin (BTCPay)",
       "body": "Criamos uma fatura BTCPay em USD com base na taxa atual do POL. Quando o BTCPay marca a fatura como liquidada, creditamos o teu saldo em POL uma vez — sem crédito duplicado.",
       "create_invoice": "Criar fatura Bitcoin",
@@ -1474,6 +1474,8 @@
       "checkout_open": "Abrir checkout",
       "copy_link": "Copiar link de pagamento",
       "onchain_address": "Endereço BTC (se disponível)",
+      "lightning_invoice": "Fatura Lightning (se disponível)",
+      "copy_lightning": "Copiar fatura Lightning",
       "status_label": "Estado",
       "status_pending": "Liquidação pendente",
       "status_completed": "Concluído",

@@ -172,6 +172,7 @@ export default function Wallet() {
     const [btcpayCheckoutLink, setBtcpayCheckoutLink] = useState('');
     const [btcpayInvoiceId, setBtcpayInvoiceId] = useState('');
     const [btcpayBtcAddr, setBtcpayBtcAddr] = useState(null);
+    const [btcpayLightningInvoice, setBtcpayLightningInvoice] = useState(null);
     const [btcpayInvoiceStatus, setBtcpayInvoiceStatus] = useState(null);
     const [polPrice, setPolPrice] = useState(0);
     const [minDepositPol, setMinDepositPol] = useState(0.01);
@@ -323,6 +324,7 @@ export default function Wallet() {
             setBtcpayInvoiceId('');
             setBtcpayCheckoutLink('');
             setBtcpayBtcAddr(null);
+            setBtcpayLightningInvoice(null);
             setBtcpayInvoiceStatus(null);
         }
     }, [depositChannel]);
@@ -336,10 +338,13 @@ export default function Wallet() {
                 );
                 if (res.data?.ok) {
                     setBtcpayInvoiceStatus(res.data.localStatus);
+                    if (res.data.btcAddress != null) setBtcpayBtcAddr(res.data.btcAddress);
+                    if (res.data.lightningInvoice != null) setBtcpayLightningInvoice(res.data.lightningInvoice);
                     if (res.data.localStatus === 'completed') {
                         setBtcpayInvoiceId('');
                         setBtcpayCheckoutLink('');
                         setBtcpayBtcAddr(null);
+                        setBtcpayLightningInvoice(null);
                         void fetchWalletData();
                         void fetchPendingDeposits();
                     }
@@ -550,6 +555,7 @@ export default function Wallet() {
                 setBtcpayInvoiceId(res.data.invoiceId);
                 setBtcpayCheckoutLink(res.data.checkoutLink);
                 setBtcpayBtcAddr(res.data.btcAddress || null);
+                setBtcpayLightningInvoice(res.data.lightningInvoice || null);
                 setBtcpayInvoiceStatus(res.data.status);
                 toast.success(t('wallet.btcpay.invoice_created'));
                 void fetchPendingDeposits();
@@ -1225,6 +1231,23 @@ export default function Wallet() {
                                                                     className="text-[9px] font-black text-primary uppercase"
                                                                 >
                                                                     {t('common.copy')}
+                                                                </button>
+                                                            </div>
+                                                        ) : null}
+                                                        {btcpayLightningInvoice ? (
+                                                            <div className="space-y-1">
+                                                                <p className="text-[9px] font-black text-slate-500 uppercase">
+                                                                    {t('wallet.btcpay.lightning_invoice')}
+                                                                </p>
+                                                                <p className="text-[10px] font-mono text-slate-300 break-all">
+                                                                    {btcpayLightningInvoice}
+                                                                </p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => copyToClipboard(btcpayLightningInvoice)}
+                                                                    className="text-[9px] font-black text-primary uppercase"
+                                                                >
+                                                                    {t('wallet.btcpay.copy_lightning')}
                                                                 </button>
                                                             </div>
                                                         ) : null}

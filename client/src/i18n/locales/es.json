@@ -1096,7 +1096,7 @@
     "ticket_status_approved": "Aprobado",
     "btcpay": {
       "option_label": "Bitcoin (BTCPay)",
-      "option_hint": "Paga con Bitcoin (on-chain o Lightning si está habilitado en BTCPay). Tu cuenta se acredita en POL cuando la factura quede liquidada.",
+      "option_hint": "Paga con Bitcoin on-chain o Lightning (el checkout solicita ambos si tu tienda BTCPay lo admite). Tu cuenta se acredita en POL cuando la factura quede liquidada.",
       "title": "Depósito en Bitcoin (BTCPay)",
       "body": "Creamos una factura BTCPay en USD según el tipo de cambio actual de POL. Cuando BTCPay marca la factura como liquidada, acreditamos tu saldo en POL una sola vez, sin doble acreditación.",
       "create_invoice": "Crear factura Bitcoin",
@@ -1107,6 +1107,8 @@
       "checkout_open": "Abrir checkout",
       "copy_link": "Copiar enlace de pago",
       "onchain_address": "Dirección BTC (si está disponible)",
+      "lightning_invoice": "Factura Lightning (si está disponible)",
+      "copy_lightning": "Copiar factura Lightning",
       "status_label": "Estado",
       "status_pending": "Liquidación pendiente",
       "status_completed": "Completado",
