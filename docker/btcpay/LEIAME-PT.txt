@@ -1,0 +1,55 @@
+BTCPay Server — instalação completa (oficial via Docker)
+========================================================
+
+O BlockMiner NÃO embute o binário do BTCPay no mesmo container da app. A forma
+suportada pela equipa do BTCPay é clonar "btcpayserver-docker" e correr o
+script oficial "btcpay-setup.sh", que gera o docker compose certo (Bitcoin Core,
+NBXplorer, Postgres, Nginx, etc.).
+
+Passos (numa VPS Linux nova OU numa VPS só para pagamentos)
+------------------------------------------------------------
+
+1) DNS
+   - Cria um subdomínio, ex.: pay.teudominio.com
+   - Aponta o registo A (e AAAA se usas IPv6) para o IP da VPS onde vais instalar.
+
+2) Portas
+   - Abre 80 e 443 na firewall para o Let's Encrypt e HTTPS.
+   - Se já tens Nginx/Caddy a ocupar 80/443 nessa MESMA máquina que o BlockMiner,
+     o BTCPay deve ir para OUTRA VPS ou usas portas alternativas (ver README
+     upstream: REVERSEPROXY_HTTP_PORT / REVERSEPROXY_HTTPS_PORT).
+
+3) Ficheiro de configuração local (no repositório BlockMiner)
+   - Copia:  docker/btcpay/env.example  ->  docker/btcpay/env
+   - Edita BTCPAY_HOST, LETSENCRYPT_EMAIL, NBITCOIN_NETWORK (testnet é mais
+     rápido para testar; mainnet para produção real).
+
+4) Instalação (na VPS, como root)
+   - Copia a pasta docker/btcpay/ para a VPS OU faz clone/pull do repo e:
+     sudo bash docker/btcpay/install-btcpay.sh
+
+5) Primeiro acesso
+   - Abre https://BTCPAY_HOST no browser
+   - Cria conta admin, cria uma Store, ativa carteira BTC.
+   - Gera token Greenfield (API) com permissões de criar/ver invoices.
+   - Em Webhooks, adiciona a URL do BlockMiner, ex.:
+     https://blockminer.space/api/payments/btcpay/webhook
+     Evento: pagamento liquidado / Invoice settled (conforme UI).
+
+6) Ligar o BlockMiner ao teu BTCPay
+   - No servidor da app (deploy.secrets.local / .env merged), define:
+     BTCPAY_URL=https://pay.teudominio.com
+     BTCPAY_API_KEY=...
+     BTCPAY_STORE_ID=...
+     BTCPAY_WEBHOOK_SECRET=...
+   - Volta a fazer deploy da app.
+
+Manutenção
+----------
+Na pasta do clone (por defeito docker/btcpay/btcpayserver-docker), o upstream
+instala scripts como btcpay-up.sh / btcpay-update.sh (ver documentação oficial).
+
+Referência oficial
+--------------------
+https://github.com/btcpayserver/btcpayserver-docker
+https://docs.btcpayserver.org/Docker/

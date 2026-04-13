@@ -1,0 +1,3 @@
+# Local operator secrets — never commit
+env
+btcpayserver-docker/
