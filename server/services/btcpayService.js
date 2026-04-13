@@ -11,9 +11,6 @@ const logger = loggerLib.child("BtcpayService");
 
 const BTCPAY_TX_PREFIX = "btcpay:";
 
-/** Greenfield `checkout.paymentMethods` ids (see BTCPay swagger CheckoutOptions). */
-const DEFAULT_BTCPAY_CHECKOUT_PAYMENT_METHODS = Object.freeze(["BTC", "BTC-LightningNetwork"]);
-
 export const BTCPAY_DEPOSIT_STATUS_PENDING = "btcpay_pending";
 
 /** Webhook types that warrant re-fetching the invoice from BTCPay (server truth). */
@@ -48,14 +45,14 @@ export function getBtcpayBaseUrl() {
 /**
  * Resolves Greenfield `checkout.paymentMethods` from env.
  * @param {string|undefined} rawEnv value of BTCPAY_INVOICE_PAYMENT_METHODS
- * @returns {string[]|undefined} list to send, or undefined to omit (use store defaults)
+ * @returns {string[]|undefined} list to send, or undefined to omit (BTCPay uses store-enabled methods only)
  */
 export function resolveBtcpayCheckoutPaymentMethodsFromRaw(rawEnv) {
   const raw = String(rawEnv ?? "").trim();
-  if (!raw) return [...DEFAULT_BTCPAY_CHECKOUT_PAYMENT_METHODS];
+  if (!raw) return undefined;
   if (/^(STORE_DEFAULT|\*)$/i.test(raw)) return undefined;
   const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
-  return parts.length ? parts : [...DEFAULT_BTCPAY_CHECKOUT_PAYMENT_METHODS];
+  return parts.length ? parts : undefined;
 }
 
 export function resolveBtcpayCheckoutPaymentMethods() {

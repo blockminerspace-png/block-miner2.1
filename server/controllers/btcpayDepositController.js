@@ -97,7 +97,12 @@ export async function postBtcpayInvoice(req, res) {
     try {
       invoice = await createBtcpayInvoice({ amountUsd, metadata });
     } catch (e) {
-      logger.error("createBtcpayInvoice failed", { message: e.message });
+      logger.error("createBtcpayInvoice failed", {
+        message: e.message,
+        status: e.status,
+        btcpayCode: e.details?.code,
+        btcpayMessage: typeof e.details?.message === "string" ? e.details.message.slice(0, 200) : undefined
+      });
       return clientError(
         res,
         502,

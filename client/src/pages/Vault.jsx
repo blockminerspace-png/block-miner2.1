@@ -6,7 +6,9 @@ import { Shield, AlertCircle, Pickaxe } from "lucide-react";
 import { useVault } from "../hooks/useVault";
 import { useGameStore } from "../store/game";
 import MachineCard from "../components/MachineCard";
+import MachineQuantityModal from "../components/MachineQuantityModal";
 import { MachinePlacementStatus } from "../constants/machinePlacement";
+import { inventoryStackKey } from "../utils/inventoryStackKey";
 
 /** Shared page chrome so loading, error, and content states stay visually consistent. */
 function VaultPageShell({ children }) {
@@ -27,7 +29,8 @@ export default function Vault() {
   const fetchMachines = useGameStore((s) => s.fetchMachines);
   const fetchInventory = useGameStore((s) => s.fetchInventory);
   const { retrieveFromVault } = useVault();
-  const [retrievingId, setRetrievingId] = useState(null);
+  const [retrieving, setRetrieving] = useState(false);
+  const [vaultQtyModalGroup, setVaultQtyModalGroup] = useState(null);
 
   useEffect(() => {
     void fetchVault();
@@ -43,12 +46,41 @@ export default function Vault() {
     [vaultItems],
   );
 
-  const handleRetrieveFromVault = useCallback(
-    async (vaultRowId) => {
-      setRetrievingId(vaultRowId);
+  const groupedVault = useMemo(() => {
+    const groups = {};
+    for (const row of vaultRows) {
+      const key = inventoryStackKey(row);
+      if (!groups[key]) {
+        groups[key] = { ...row, quantity: 1, items: [row] };
+      } else {
+        groups[key].quantity += 1;
+        groups[key].items.push(row);
+      }
+    }
+    return Object.values(groups).sort((a, b) => Number(b.hashRate) - Number(a.hashRate));
+  }, [vaultRows]);
+
+  const totalVaultUnits = useMemo(
+    () => groupedVault.reduce((sum, g) => sum + g.quantity, 0),
+    [groupedVault],
+  );
+
+  const handleConfirmRetrieveQty = useCallback(
+    async (qty) => {
+      const group = vaultQtyModalGroup;
+      if (!group || retrieving) return;
+      const sorted = [...group.items].sort((a, b) => a.id - b.id);
+      const ids = sorted.slice(0, qty).map((r) => r.id);
+      if (ids.length === 0) return;
+      setRetrieving(true);
       try {
-        await retrieveFromVault(vaultRowId, "inventory");
-        toast.success(t("vault.retrieve_success"));
+        await retrieveFromVault({ destination: "inventory", vaultIds: ids });
+        toast.success(
+          ids.length > 1
+            ? t("vault.retrieve_bulk_success", { count: ids.length })
+            : t("vault.retrieve_success"),
+        );
+        setVaultQtyModalGroup(null);
         await Promise.all([fetchVault(), fetchMachines(), fetchInventory()]);
       } catch (error) {
         console.error("Error retrieving machine from vault:", error);
@@ -63,10 +95,10 @@ export default function Vault() {
         }
         toast.error(error?.response?.data?.message || t("vault.retrieve_error"));
       } finally {
-        setRetrievingId(null);
+        setRetrieving(false);
       }
     },
-    [retrieveFromVault, t, fetchVault, fetchMachines, fetchInventory],
+    [vaultQtyModalGroup, retrieving, retrieveFromVault, t, fetchVault, fetchMachines, fetchInventory],
   );
 
   const navToMiningRoom = useCallback(() => navigate("/inventory"), [navigate]);
@@ -131,6 +163,20 @@ export default function Vault() {
 
   return (
     <VaultPageShell>
+      <MachineQuantityModal
+        open={Boolean(vaultQtyModalGroup)}
+        onClose={() => !retrieving && setVaultQtyModalGroup(null)}
+        title={t("vault.quantity_modal_title")}
+        subtitle={t("vault.quantity_modal_subtitle")}
+        quantityLabel={t("vault.quantity_field")}
+        max={vaultQtyModalGroup?.quantity ?? 1}
+        min={1}
+        confirmLabel={t("vault.quantity_confirm")}
+        cancelLabel={t("common.cancel")}
+        busy={retrieving}
+        onConfirm={(q) => void handleConfirmRetrieveQty(q)}
+      />
+
       <header className="flex flex-col gap-4 border-b border-gray-800/40 pb-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -162,20 +208,21 @@ export default function Vault() {
         <>
           <div>
             <h2 className="text-base font-bold text-gray-300 sm:text-lg">
-              {t("vault.stored_machines")} ({vaultRows.length})
+              {t("vault.stored_machines")} ({totalVaultUnits})
             </h2>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5">
-            {vaultRows.map((machine) => (
+            {groupedVault.map((group) => (
               <MachineCard
-                key={machine.id}
-                machine={machine}
+                key={inventoryStackKey(group)}
+                machine={group}
                 showActions
                 isVault
-                onRetrieve={() => handleRetrieveFromVault(machine.id)}
+                stackQuantity={group.quantity}
+                onRetrieve={() => setVaultQtyModalGroup(group)}
                 retrieveLabel={t("vault.retrieve_from_vault")}
-                actionDisabled={retrievingId !== null}
+                actionDisabled={retrieving}
               />
             ))}
           </div>

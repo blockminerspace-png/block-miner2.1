@@ -23,6 +23,7 @@ import {
   mapApiCategoriesToMenu,
   normalizeMiniPassOutOfRewardsGroup,
 } from '../utils/sidebarNavMap';
+import { pathMatchesNavChild } from '../utils/sidebarPathMatch.js';
 
 export default function Sidebar() {
   const { t } = useTranslation();
@@ -32,9 +33,11 @@ export default function Sidebar() {
   const { notifications, markNotificationRead, toggleChat, hasMention } = useGameStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  /** @type {[Record<string, boolean>, import('react').Dispatch<import('react').SetStateAction<Record<string, boolean>>>]} */
-  /** Rewards group holds PTC, faucet, etc. — start expanded so nested links are visible without an extra click. */
-  const [openGroups, setOpenGroups] = useState(() => ({ rewards_group: true }));
+  /**
+   * User-expanded nav groups when not on a matching child route.
+   * A group stays open only if the path matches a child OR this flag is true for that key.
+   */
+  const [manualOpenGroups, setManualOpenGroups] = useState(() => ({}));
   const [navCategoriesSource, setNavCategoriesSource] = useState(
     () => defaultPublicSidebarNav
   );
@@ -73,20 +76,6 @@ export default function Sidebar() {
   );
 
   useEffect(() => {
-    setOpenGroups((prev) => {
-      const next = { ...prev };
-      for (const cat of categories) {
-        for (const item of cat.items) {
-          if (item.type !== 'group') continue;
-          const childActive = item.children?.some((c) => c.path === location.pathname);
-          if (childActive) next[item.key] = true;
-        }
-      }
-      return next;
-    });
-  }, [categories, location.pathname]);
-
-  useEffect(() => {
     const handler = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
         setNotifOpen(false);
@@ -119,13 +108,16 @@ export default function Sidebar() {
             <div className="space-y-1">
               {category.items.map((item) => {
                 if (item.type === 'group') {
-                  const isParentActive = item.children.some(
-                    (child) => location.pathname === child.path
+                  const pathOpensGroup = item.children.some((child) =>
+                    pathMatchesNavChild(location.pathname, child.path)
                   );
-                  const groupOpen = Boolean(openGroups[item.key]);
+                  const groupOpen = pathOpensGroup || Boolean(manualOpenGroups[item.key]);
+                  const isParentActive = pathOpensGroup;
                   const isRewards = item.key === 'rewards_group';
-                  const toggleGroup = () =>
-                    setOpenGroups((g) => ({ ...g, [item.key]: !Boolean(g[item.key]) }));
+                  const toggleGroup = () => {
+                    if (pathOpensGroup) return;
+                    setManualOpenGroups((g) => ({ ...g, [item.key]: !Boolean(g[item.key]) }));
+                  };
 
                   const innerButton = (
                     <button
@@ -169,7 +161,7 @@ export default function Sidebar() {
                       {groupOpen && (
                         <div className="space-y-1 pl-8">
                           {item.children.map((child) => {
-                            const isChildActive = location.pathname === child.path;
+                            const isChildActive = pathMatchesNavChild(location.pathname, child.path);
                             return (
                               <button
                                 key={child.path}

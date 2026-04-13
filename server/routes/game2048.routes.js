@@ -10,5 +10,6 @@ const writeLimiter = createRateLimiter({ windowMs: 60_000, max: 90 });
 
 game2048Router.get("/status", requireAuth, readLimiter, game2048Controller.getStatus);
 game2048Router.post("/start", requireAuth, writeLimiter, game2048Controller.postStart);
+game2048Router.post("/restart", requireAuth, writeLimiter, game2048Controller.postRestart);
 game2048Router.post("/move", requireAuth, writeLimiter, game2048Controller.postMove);
 game2048Router.post("/claim", requireAuth, writeLimiter, game2048Controller.postClaim);

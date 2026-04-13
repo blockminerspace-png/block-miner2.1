@@ -7,12 +7,14 @@ import { useGameStore } from '../store/game';
  * @returns {Object} Vault operations
  */
 export function useVault() {
-  const moveToVault = useCallback(async (itemId, source = 'inventory') => {
+  const moveToVault = useCallback(async (arg1, source = 'inventory') => {
     try {
-      const response = await api.post('/vault/move-to-vault', {
-        itemId,
-        source,
-      });
+      const body =
+        typeof arg1 === 'object' && arg1 !== null && !Array.isArray(arg1)
+          ? arg1
+          : { source, itemId: arg1 };
+
+      const response = await api.post('/vault/move-to-vault', body);
 
       if (!response.data.ok) {
         const err = new Error(response.data.message || 'Failed to move machine to vault');
@@ -28,12 +30,14 @@ export function useVault() {
     }
   }, []);
 
-  const retrieveFromVault = useCallback(async (vaultId, destination = 'inventory') => {
+  const retrieveFromVault = useCallback(async (arg1, arg2) => {
     try {
-      const response = await api.post('/vault/retrieve-from-vault', {
-        vaultId,
-        destination,
-      });
+      const body =
+        typeof arg1 === 'object' && arg1 !== null && !Array.isArray(arg1)
+          ? arg1
+          : { destination: arg2 ?? 'inventory', vaultId: arg1 };
+
+      const response = await api.post('/vault/retrieve-from-vault', body);
 
       if (!response.data.ok) {
         const err = new Error(response.data.message || 'Failed to retrieve machine from vault');

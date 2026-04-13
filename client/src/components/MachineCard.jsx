@@ -13,6 +13,8 @@ export default function MachineCard({
   retrieveLabel,
   isVault = false,
   actionDisabled = false,
+  /** When >1, shows an x{count} badge on the artwork (stacked identical machines). */
+  stackQuantity = 1,
 }) {
   const { t } = useTranslation();
   const descriptor = getMachineDescriptor(machine);
@@ -22,15 +24,22 @@ export default function MachineCard({
   return (
     <article className="bg-surface border border-gray-800/50 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col gap-4 min-w-0">
       <div className="flex gap-3 min-w-0 items-start">
-        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gray-900/50 rounded-xl p-2 border border-gray-800/50 shrink-0 flex items-center justify-center">
-          <img
-            src={descriptor.image}
-            alt={displayName}
-            className="max-w-full max-h-full w-full h-full object-contain"
-            onError={(e) => {
-              e.target.src = DEFAULT_MINER_IMAGE_URL;
-            }}
-          />
+        <div className="relative w-14 h-14 shrink-0 sm:w-16 sm:h-16">
+          <div className="flex h-full w-full items-center justify-center rounded-xl border border-gray-800/50 bg-gray-900/50 p-2">
+            <img
+              src={descriptor.image}
+              alt={displayName}
+              className="max-h-full max-w-full h-full w-full object-contain"
+              onError={(e) => {
+                e.target.src = DEFAULT_MINER_IMAGE_URL;
+              }}
+            />
+          </div>
+          {stackQuantity > 1 ? (
+            <div className="absolute -right-2 -top-2 z-[1] rounded-full border border-primary/20 bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">
+              x{stackQuantity}
+            </div>
+          ) : null}
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-2">
           <h4 className="text-sm font-bold text-white leading-snug break-words">{displayName}</h4>

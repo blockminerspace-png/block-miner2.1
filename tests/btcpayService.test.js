@@ -61,9 +61,9 @@ test("buildBtcpayTxHash and parseInvoiceIdFromTxHash roundtrip", () => {
   assert.equal(parseInvoiceIdFromTxHash("0xabc"), null);
 });
 
-test("resolveBtcpayCheckoutPaymentMethodsFromRaw defaults to BTC + Lightning", () => {
-  assert.deepEqual(resolveBtcpayCheckoutPaymentMethodsFromRaw(""), ["BTC", "BTC-LightningNetwork"]);
-  assert.deepEqual(resolveBtcpayCheckoutPaymentMethodsFromRaw(undefined), ["BTC", "BTC-LightningNetwork"]);
+test("resolveBtcpayCheckoutPaymentMethodsFromRaw defaults to store default (omit list)", () => {
+  assert.equal(resolveBtcpayCheckoutPaymentMethodsFromRaw(""), undefined);
+  assert.equal(resolveBtcpayCheckoutPaymentMethodsFromRaw(undefined), undefined);
 });
 
 test("resolveBtcpayCheckoutPaymentMethodsFromRaw STORE_DEFAULT omits override", () => {

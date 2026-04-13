@@ -18,6 +18,7 @@ import {
   game2048MinScore,
   game2048PowerDays,
   game2048RewardHashRate,
+  game2048TimeLimitSec,
   game2048WinTile
 } from "../utils/game2048Constants.js";
 
@@ -89,6 +90,36 @@ function boardFromRow(boardJson) {
 }
 
 /**
+ * @param {import("@prisma/client").Game2048Session} row
+ * @param {Date} now
+ */
+function secondsRemainingForSession(row, now) {
+  const limit = game2048TimeLimitSec();
+  if (limit <= 0) return null;
+  const startMs = new Date(row.createdAt).getTime();
+  const elapsedSec = Math.floor((now.getTime() - startMs) / 1000);
+  if (row.status !== SESSION_ACTIVE) return 0;
+  return Math.max(0, limit - elapsedSec);
+}
+
+/**
+ * Ends ACTIVE session when the round timer has elapsed.
+ * @param {import("@prisma/client").Prisma.TransactionClient} tx
+ * @param {import("@prisma/client").Game2048Session} row
+ * @param {Date} now
+ */
+async function finalizeTimedOutSession(tx, row, now) {
+  const limit = game2048TimeLimitSec();
+  if (limit <= 0 || row.status !== SESSION_ACTIVE) return row;
+  const startMs = new Date(row.createdAt).getTime();
+  if (now.getTime() - startMs < limit * 1000) return row;
+  return tx.game2048Session.update({
+    where: { id: row.id },
+    data: { status: SESSION_ENDED, endedAt: now }
+  });
+}
+
+/**
  * @param {object} row
  * @param {Date} now
  */
@@ -102,6 +133,8 @@ function serializeSession(row, now) {
     !row.rewardGranted &&
     row.status !== SESSION_CLAIMED &&
     Number(row.score) >= minScore;
+  const timeLimitSeconds = game2048TimeLimitSec();
+  const secLeft = secondsRemainingForSession(row, now);
 
   return {
     id: row.id,
@@ -115,7 +148,11 @@ function serializeSession(row, now) {
     winTile,
     minScore,
     gameOver: row.status === SESSION_ENDED || row.status === SESSION_CLAIMED || !hasMoves,
-    rewardHashRate: game2048RewardHashRate()
+    rewardHashRate: game2048RewardHashRate(),
+    startedAt: new Date(row.createdAt).toISOString(),
+    endedAt: row.endedAt ? new Date(row.endedAt).toISOString() : null,
+    timeLimitSeconds,
+    secondsRemaining: secLeft
   };
 }
 
@@ -124,21 +161,25 @@ function serializeSession(row, now) {
  * @param {Date} [now]
  */
 export async function getGame2048Status(userId, now = new Date()) {
-  await prisma.$transaction(async (tx) => {
+  const { cooldownEndsAt, active } = await prisma.$transaction(async (tx) => {
     await lockUserFor2048(tx, userId);
     await expireStaleActiveSessions(tx, userId, now);
-  });
 
-  const lastClaimed = await prisma.game2048Session.findFirst({
-    where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
-    orderBy: { rewardClaimedAt: "desc" }
-  });
+    const lastClaimed = await tx.game2048Session.findFirst({
+      where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
+      orderBy: { rewardClaimedAt: "desc" }
+    });
+    const cd = computeCooldownEndsAt(lastClaimed?.rewardClaimedAt ?? null, now);
 
-  const cooldownEndsAt = computeCooldownEndsAt(lastClaimed?.rewardClaimedAt ?? null, now);
+    let activeRow = await tx.game2048Session.findFirst({
+      where: { userId, status: SESSION_ACTIVE },
+      orderBy: { id: "desc" }
+    });
+    if (activeRow) {
+      activeRow = await finalizeTimedOutSession(tx, activeRow, now);
+    }
 
-  const active = await prisma.game2048Session.findFirst({
-    where: { userId, status: SESSION_ACTIVE },
-    orderBy: { id: "desc" }
+    return { cooldownEndsAt: cd, active: activeRow };
   });
 
   const winTile = game2048WinTile();
@@ -187,11 +228,14 @@ export async function startGame2048Session(userId, now = new Date()) {
       };
     }
 
-    const existing = await tx.game2048Session.findFirst({
+    let existing = await tx.game2048Session.findFirst({
       where: { userId, status: SESSION_ACTIVE },
       orderBy: { id: "desc" }
     });
     if (existing) {
+      existing = await finalizeTimedOutSession(tx, existing, now);
+    }
+    if (existing && existing.status === SESSION_ACTIVE) {
       return {
         ok: true,
         reused: true,
@@ -220,6 +264,58 @@ export async function startGame2048Session(userId, now = new Date()) {
 }
 
 /**
+ * Forfeits any active round and starts a fresh board (same rules as start; no reward).
+ * @param {number} userId
+ * @param {Date} [now]
+ */
+export async function restartGame2048Session(userId, now = new Date()) {
+  return prisma.$transaction(async (tx) => {
+    await lockUserFor2048(tx, userId);
+    await expireStaleActiveSessions(tx, userId, now);
+
+    const lastClaimed = await tx.game2048Session.findFirst({
+      where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
+      orderBy: { rewardClaimedAt: "desc" }
+    });
+    const cd = computeCooldownEndsAt(lastClaimed?.rewardClaimedAt ?? null, now);
+    if (cd) {
+      return {
+        ok: false,
+        code: "COOLDOWN_ACTIVE",
+        status: 429,
+        cooldownEndsAt: cd.toISOString(),
+        cooldownSecondsRemaining: Math.max(0, Math.ceil((cd.getTime() - now.getTime()) / 1000))
+      };
+    }
+
+    const active = await tx.game2048Session.findFirst({
+      where: { userId, status: SESSION_ACTIVE },
+      orderBy: { id: "desc" }
+    });
+    if (active) {
+      await tx.game2048Session.update({
+        where: { id: active.id },
+        data: { status: SESSION_ENDED, endedAt: now }
+      });
+    }
+
+    const board = createInitialBoard();
+    const row = await tx.game2048Session.create({
+      data: {
+        userId,
+        status: SESSION_ACTIVE,
+        board,
+        score: 0,
+        won: false,
+        rewardGranted: false
+      }
+    });
+
+    return { ok: true, session: serializeSession(row, now) };
+  });
+}
+
+/**
  * @param {number} userId
  * @param {number} sessionId
  * @param {"up"|"down"|"left"|"right"} direction
@@ -235,14 +331,15 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
     await lockUserFor2048(tx, userId);
     await expireStaleActiveSessions(tx, userId, now);
 
-    const row = await tx.game2048Session.findFirst({
+    let row = await tx.game2048Session.findFirst({
       where: { id: sid, userId }
     });
     if (!row) {
       return { ok: false, code: "SESSION_NOT_FOUND", status: 404 };
     }
+    row = await finalizeTimedOutSession(tx, row, now);
     if (row.status !== SESSION_ACTIVE) {
-      return { ok: false, code: "SESSION_NOT_ACTIVE", status: 409 };
+      return { ok: false, code: "SESSION_NOT_ACTIVE", status: 409, session: serializeSession(row, now) };
     }
 
     const board = boardFromRow(row.board);

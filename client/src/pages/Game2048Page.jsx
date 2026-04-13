@@ -1,37 +1,38 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Clock, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../store/auth";
 import { CRYPTO_ICONS, COIN_COLORS, cryptoSlugFor2048Tile } from "../games/cryptoGameIcons.js";
 
-/** Hero headline: highlights trailing "2048" when it is the game token (not i18n key substrings like "game2048"). */
-function Game2048Headline({ t }) {
-  const full = t("game2048.title");
-  const m = full.match(/^(.*?)(\s?2048)$/i);
-  if (!m) {
-    return <span className="text-white">{full}</span>;
-  }
-  return (
-    <>
-      <span className="text-white">{m[1]}</span>
-      <span className="text-primary">{m[2]}</span>
-    </>
-  );
-}
+function useRoundSecondsRemaining(session) {
+  const [tick, setTick] = useState(0);
+  const limit = session?.timeLimitSeconds ?? 0;
+  const startedAt = session?.startedAt;
+  const active = session?.status === "ACTIVE" && !session?.gameOver;
 
-/** Decorative strip — same asset set as crypto-memory / match-3 (Games.jsx). */
-const HERO_STRIP_SLUGS = ["bitcoin", "ethereum", "solana", "polygon"];
+  useEffect(() => {
+    if (!active || limit <= 0) return undefined;
+    const id = setInterval(() => setTick((x) => x + 1), 500);
+    return () => clearInterval(id);
+  }, [active, limit, session?.id]);
+
+  return useMemo(() => {
+    if (!startedAt || limit <= 0) return null;
+    const end = new Date(startedAt).getTime() + limit * 1000;
+    return Math.max(0, Math.ceil((end - Date.now()) / 1000));
+  }, [startedAt, limit, tick]);
+}
 
 function Chain2048Tile({ value, row, col, t }) {
   const slug = value > 0 ? cryptoSlugFor2048Tile(value) : null;
-  const scheme = slug ? COIN_COLORS[slug] || COIN_COLORS.polygon : null;
-  const iconSrc = slug ? CRYPTO_ICONS[slug] || CRYPTO_ICONS.polygon : null;
+  const scheme = slug ? COIN_COLORS[slug] || COIN_COLORS.ethereum : null;
+  const iconSrc = slug ? CRYPTO_ICONS[slug] || CRYPTO_ICONS.ethereum : null;
 
   return (
-    <div className="relative flex items-center justify-center overflow-hidden rounded-xl bg-slate-800/50 ring-1 ring-inset ring-slate-700/40">
+    <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-slate-900/60 ring-1 ring-inset ring-white/[0.06]">
       <AnimatePresence mode="popLayout">
         {value > 0 && scheme && iconSrc ? (
           <motion.div
@@ -41,30 +42,39 @@ function Chain2048Tile({ value, row, col, t }) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.82, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 28 }}
-            className="relative flex h-[92%] w-[92%] flex-col items-center justify-center overflow-hidden rounded-lg shadow-inner"
+            className="relative flex h-[88%] w-[88%] items-center justify-center overflow-hidden rounded-md shadow-inner"
             style={{
               borderWidth: 1,
               borderStyle: "solid",
               borderColor: scheme.border,
-              background: `linear-gradient(155deg, ${scheme.bg}, rgba(15,23,42,0.92))`,
-              boxShadow: `0 0 18px -4px ${scheme.glow}`,
+              background: `linear-gradient(145deg, ${scheme.bg}, rgba(8,12,22,0.92))`,
+              boxShadow: `0 0 12px -3px ${scheme.glow}`,
             }}
             aria-label={t("game2048.tile_aria", { row: row + 1, col: col + 1, value })}
           >
             <img
               src={iconSrc}
               alt=""
-              className="pointer-events-none absolute left-1/2 top-[18%] h-[48%] w-[48%] -translate-x-1/2 object-contain opacity-[0.42]"
+              className="pointer-events-none h-[62%] w-[62%] object-contain brightness-0 invert drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]"
               draggable={false}
             />
-            <span className="relative z-[1] mt-auto mb-[8%] text-[clamp(0.65rem,4.2vw,1.25rem)] font-black tabular-nums tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
-              {value}
-            </span>
           </motion.div>
         ) : null}
       </AnimatePresence>
     </div>
   );
+}
+
+function endOverlayKey(session) {
+  if (!session?.gameOver) return null;
+  if (session.won) return "won";
+  const limit = session.timeLimitSeconds ?? 0;
+  if (session.hasMoves && limit > 0 && session.startedAt && session.endedAt) {
+    const elapsed = new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime();
+    if (elapsed >= limit * 1000 - 1500) return "time";
+  }
+  if (session.hasMoves) return "closed";
+  return "lost";
 }
 
 export default function Game2048Page() {
@@ -74,6 +84,7 @@ export default function Game2048Page() {
   const [status, setStatus] = useState(null);
   const [session, setSession] = useState(null);
   const touchRef = useRef(null);
+  const timeoutRefreshRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -94,9 +105,24 @@ export default function Game2048Page() {
     void refreshStatus();
   }, [refreshStatus]);
 
+  const roundSeconds = useRoundSecondsRemaining(session);
+
+  useEffect(() => {
+    if (roundSeconds !== 0 || !session || session.status !== "ACTIVE" || session.gameOver) {
+      timeoutRefreshRef.current = false;
+      return;
+    }
+    if ((session.timeLimitSeconds ?? 0) <= 0) return;
+    if (timeoutRefreshRef.current) return;
+    timeoutRefreshRef.current = true;
+    void refreshStatus();
+  }, [roundSeconds, session, refreshStatus]);
+
   const sendMove = useCallback(
     async (direction) => {
       if (!session?.id || busy) return;
+      if (session.status !== "ACTIVE" || session.gameOver) return;
+      if ((session.timeLimitSeconds ?? 0) > 0 && roundSeconds === 0) return;
       setBusy(true);
       try {
         const { data } = await api.post("/games/2048/move", {
@@ -109,6 +135,7 @@ export default function Game2048Page() {
             ? t(`game2048.errors.${code}`, { defaultValue: t("game2048.errors.move_failed") })
             : t("game2048.errors.move_failed");
           toast.error(msg);
+          if (data?.session) setSession(data.session);
           return;
         }
         if (data.session) setSession(data.session);
@@ -118,12 +145,13 @@ export default function Game2048Page() {
         setBusy(false);
       }
     },
-    [session, busy, t],
+    [session, busy, t, roundSeconds],
   );
 
   const onKeyDown = useCallback(
     (e) => {
-      if (!session || session.status !== "ACTIVE" || busy) return;
+      if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
+      if ((session.timeLimitSeconds ?? 0) > 0 && roundSeconds === 0) return;
       const key = e.key;
       let dir = null;
       if (key === "ArrowUp") dir = "up";
@@ -134,7 +162,7 @@ export default function Game2048Page() {
       e.preventDefault();
       void sendMove(dir);
     },
-    [session, busy, sendMove],
+    [session, busy, sendMove, roundSeconds],
   );
 
   useEffect(() => {
@@ -159,6 +187,28 @@ export default function Game2048Page() {
       await refreshStatus();
     } catch {
       toast.error(t("game2048.errors.start_failed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restartGame = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post("/games/2048/restart");
+      if (!data?.ok) {
+        if (data?.code === "COOLDOWN_ACTIVE") {
+          toast.error(t("game2048.errors.COOLDOWN_ACTIVE"));
+        } else {
+          toast.error(t("game2048.errors.restart_failed"));
+        }
+        await refreshStatus();
+        return;
+      }
+      if (data.session) setSession(data.session);
+      await refreshStatus();
+    } catch {
+      toast.error(t("game2048.errors.restart_failed"));
     } finally {
       setBusy(false);
     }
@@ -202,7 +252,8 @@ export default function Game2048Page() {
   const onTouchEnd = (e) => {
     const start = touchRef.current;
     touchRef.current = null;
-    if (!start || !session || session.status !== "ACTIVE" || busy) return;
+    if (!start || !session || session.status !== "ACTIVE" || session.gameOver || busy) return;
+    if ((session.timeLimitSeconds ?? 0) > 0 && roundSeconds === 0) return;
     const t1 = e.changedTouches?.[0];
     if (!t1) return;
     const dx = t1.clientX - start.x;
@@ -228,122 +279,138 @@ export default function Game2048Page() {
   const canStartNew = Boolean(status?.allowNewStart) && (!session || session.status !== "ACTIVE");
   const board = session?.board;
   const best = board ? Math.max(...board.flat()) : 0;
-
   const cooldownMinutesDisplay = status?.cooldownMinutesHint || 3;
+  const displaySeconds = roundSeconds ?? session?.secondsRemaining ?? 0;
+  const showTimer = (session?.timeLimitSeconds ?? 0) > 0 && session?.status === "ACTIVE" && !session?.gameOver;
+  const overlayKind = session ? endOverlayKey(session) : null;
 
   return (
     <div
-      className="mx-auto max-w-3xl animate-in space-y-8 pb-20 fade-in duration-1000"
+      className="mx-auto min-h-[calc(100vh-6rem)] max-w-lg animate-in space-y-5 pb-16 fade-in duration-700"
       style={{ direction: "ltr" }}
     >
-      <div className="flex flex-col gap-5 rounded-[2rem] border border-slate-800 bg-slate-900/50 p-5 shadow-xl sm:p-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
-        <div className="min-w-0 flex-1">
-          <Link
-            to="/games"
-            className="mb-3 inline-flex min-h-10 items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 transition-colors hover:text-primary"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {t("game2048.back_arena")}
-          </Link>
-          <h1 className="text-3xl font-black uppercase italic leading-none tracking-tighter text-white sm:text-4xl">
-            <Game2048Headline t={t} />
-          </h1>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-400">{t("game2048.subtitle")}</p>
-        </div>
-        <div
-          className="flex shrink-0 flex-row flex-wrap items-center gap-2 sm:gap-3 lg:flex-col lg:items-end"
-          aria-label={t("game2048.crypto_strip_aria")}
+      <div className="px-1 pt-2">
+        <Link
+          to="/games"
+          className="mb-2 inline-flex min-h-10 items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-500 transition-colors hover:text-sky-400"
         >
-          {HERO_STRIP_SLUGS.map((slug) => (
-            <div
-              key={slug}
-              className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800/90 to-slate-950/90 p-2 shadow-lg ring-1 ring-white/5"
-            >
-              <img src={CRYPTO_ICONS[slug]} alt="" className="h-10 w-10 object-contain sm:h-11 sm:w-11" draggable={false} />
-            </div>
-          ))}
-        </div>
+          <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t("game2048.back_arena")}
+        </Link>
+        <h1 className="sr-only">{t("game2048.title")}</h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 rounded-[2rem] border border-slate-800 bg-slate-900/50 p-4 sm:p-5">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t("game2048.score")}</p>
-          <p className="text-2xl font-black tabular-nums text-white">{session?.score ?? 0}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t("game2048.best_tile")}</p>
-          <p className="text-2xl font-black tabular-nums text-primary">{best}</p>
-        </div>
-        <div className="col-span-2 text-xs text-slate-500">
-          {t("game2048.target_hint", { tile: winTile, minScore })}
-        </div>
-        <div className="col-span-2 text-xs text-slate-400">
-          {t("game2048.reward_line", { hr: rewardHr, days: powerDays })}
-        </div>
-        {cooldownMinutesDisplay > 0 && (
-          <div className="col-span-2 text-xs text-slate-500">
-            {t("game2048.cooldown_line", { minutes: cooldownMinutesDisplay })}
+      <div className="rounded-2xl border border-slate-800/80 bg-[#070b14] px-3 py-3 shadow-[0_0_40px_-12px_rgba(37,99,235,0.25)] sm:px-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{t("game2048.score")}</p>
+            <p className="text-xl font-black tabular-nums text-white sm:text-2xl">{session?.score ?? 0}</p>
           </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {canStartNew && (
-          <button
-            type="button"
-            onClick={() => void startGame()}
-            disabled={busy || !status?.allowNewStart}
-            className="min-h-11 rounded-xl bg-primary px-5 py-3 text-sm font-black uppercase tracking-wide text-white shadow-lg shadow-primary/25 transition-opacity hover:opacity-95 disabled:opacity-50"
-          >
-            {t("game2048.new_game")}
-          </button>
-        )}
-        {session?.canClaim && (
-          <button
-            type="button"
-            onClick={() => void claimReward()}
-            disabled={busy}
-            className="min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-5 py-3 text-sm font-black uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
-          >
-            {busy ? t("game2048.claiming") : t("game2048.claim")}
-          </button>
-        )}
-      </div>
-
-      {cdSec > 0 && !session && (
-        <p className="text-center text-sm text-amber-400">
-          {t("game2048.errors.COOLDOWN_ACTIVE")} ({cdSec}s)
-        </p>
-      )}
-
-      {session && board && (
-        <div
-          role="grid"
-          aria-label={t("game2048.grid_aria")}
-          className="relative mx-auto aspect-square w-full max-w-[min(100vw-2rem,420px)] touch-none rounded-[2rem] border border-slate-800 bg-slate-950/85 p-2 shadow-2xl ring-1 ring-white/5 sm:p-3"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-        >
-          <div className="grid h-full w-full grid-cols-4 grid-rows-4 gap-1.5 sm:gap-2">
-            {board.map((row, ri) =>
-              row.map((value, ci) => (
-                <Chain2048Tile key={`cell-${ri}-${ci}`} value={value} row={ri} col={ci} t={t} />
-              )),
+          <div className="shrink-0 text-center">
+            <p
+              className="bg-gradient-to-b from-sky-300 via-blue-400 to-indigo-600 bg-clip-text text-lg font-black uppercase italic leading-none tracking-tight text-transparent drop-shadow-sm sm:text-xl"
+              aria-hidden
+            >
+              {t("game2048.brand")}
+            </p>
+            <span className="sr-only">{t("game2048.brand_aria")}</span>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
+            {(showTimer || (session?.timeLimitSeconds ?? 0) > 0) && (
+              <div className="text-right">
+                <p className="flex items-center justify-end gap-1 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                  <Clock className="h-3 w-3" aria-hidden />
+                  {t("game2048.time")}
+                </p>
+                <p className="text-lg font-black tabular-nums text-sky-300 sm:text-xl">
+                  {showTimer ? displaySeconds : 0}
+                  <span className="text-xs font-bold text-slate-500">{t("game2048.seconds_suffix")}</span>
+                </p>
+              </div>
+            )}
+            {session?.status === "ACTIVE" && !session?.gameOver && (
+              <button
+                type="button"
+                onClick={() => void restartGame()}
+                disabled={busy}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-lg shadow-red-900/40 transition-opacity hover:opacity-90 disabled:opacity-40"
+                aria-label={t("game2048.reset_aria")}
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden />
+              </button>
             )}
           </div>
-          {session.gameOver && (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-[2rem] bg-slate-950/80 p-4 text-center backdrop-blur-[2px]">
-              <p className="text-lg font-black uppercase text-white">
-                {session.won ? t("game2048.you_won") : t("game2048.game_over")}
-              </p>
-            </div>
+        </div>
+
+        <div className="mb-3 space-y-1 border-t border-slate-800/80 pt-3 text-[11px] leading-snug text-slate-500">
+          <p>
+            {t("game2048.target_hint", { tile: winTile, minScore })} · {t("game2048.best_tile")}:{" "}
+            <span className="font-bold text-sky-400">{best}</span>
+          </p>
+          <p>{t("game2048.reward_line", { hr: rewardHr, days: powerDays })}</p>
+          {cooldownMinutesDisplay > 0 && <p>{t("game2048.cooldown_line", { minutes: cooldownMinutesDisplay })}</p>}
+        </div>
+
+        <div className="flex flex-wrap gap-2 border-t border-slate-800/80 pt-3">
+          {canStartNew && (
+            <button
+              type="button"
+              onClick={() => void startGame()}
+              disabled={busy || !status?.allowNewStart}
+              className="min-h-11 rounded-xl bg-sky-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-sky-900/30 transition-opacity hover:opacity-95 disabled:opacity-50"
+            >
+              {t("game2048.new_game")}
+            </button>
+          )}
+          {session?.canClaim && (
+            <button
+              type="button"
+              onClick={() => void claimReward()}
+              disabled={busy}
+              className="min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-5 py-3 text-xs font-black uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
+            >
+              {busy ? t("game2048.claiming") : t("game2048.claim")}
+            </button>
           )}
         </div>
-      )}
 
-      <p className="text-center text-xs text-slate-500">{t("game2048.play_hint")}</p>
+        {cdSec > 0 && !session && (
+          <p className="mt-3 text-center text-sm text-amber-400">
+            {t("game2048.errors.COOLDOWN_ACTIVE")} ({cdSec}s)
+          </p>
+        )}
 
-      {busy && <p className="text-center text-xs text-slate-500">{t("game2048.syncing")}</p>}
+        {session && board && (
+          <div
+            role="grid"
+            aria-label={t("game2048.grid_aria")}
+            className="relative mx-auto mt-4 aspect-square w-full max-w-[min(100vw-2rem,420px)] touch-none rounded-2xl border border-slate-800/90 bg-[#050810] p-1.5 shadow-inner ring-1 ring-white/[0.04] sm:p-2"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
+            <div className="grid h-full w-full grid-cols-8 grid-rows-8 gap-1 sm:gap-1.5">
+              {board.map((row, ri) =>
+                row.map((value, ci) => (
+                  <Chain2048Tile key={`cell-${ri}-${ci}`} value={value} row={ri} col={ci} t={t} />
+                )),
+              )}
+            </div>
+            {session.gameOver && (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-[#03050a]/88 p-4 text-center backdrop-blur-[2px]">
+                <p className="text-base font-black uppercase leading-tight text-white sm:text-lg">
+                  {overlayKind === "won" && t("game2048.you_won")}
+                  {overlayKind === "time" && t("game2048.time_up")}
+                  {overlayKind === "closed" && t("game2048.round_closed")}
+                  {overlayKind === "lost" && t("game2048.game_over")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="mt-3 text-center text-[11px] text-slate-600">{t("game2048.play_hint")}</p>
+        {busy && <p className="text-center text-[11px] text-slate-600">{t("game2048.syncing")}</p>}
+      </div>
     </div>
   );
 }

@@ -1,12 +1,13 @@
 /** @typedef {"up"|"down"|"left"|"right"} Game2048Direction */
 
-const SIZE = 4;
+/** Board edge length (classic 2048 is 4; arena layout uses 8). */
+export const BOARD_SIZE = 8;
 
 /**
  * @returns {number[][]}
  */
 export function emptyBoard() {
-  return Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  return Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
 }
 
 /**
@@ -15,8 +16,8 @@ export function emptyBoard() {
  */
 export function maxTile(board) {
   let m = 0;
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE; j++) {
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    for (let j = 0; j < BOARD_SIZE; j++) {
       const v = board[i][j];
       if (v > m) m = v;
     }
@@ -44,8 +45,8 @@ export function mergeLineTowardZero(line) {
       i += 1;
     }
   }
-  while (merged.length < SIZE) merged.push(0);
-  return { row: merged.slice(0, SIZE), scoreAdd };
+  while (merged.length < BOARD_SIZE) merged.push(0);
+  return { row: merged.slice(0, BOARD_SIZE), scoreAdd };
 }
 
 /**
@@ -54,8 +55,8 @@ export function mergeLineTowardZero(line) {
  * @returns {boolean}
  */
 export function boardsEqual(a, b) {
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE; j++) {
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    for (let j = 0; j < BOARD_SIZE; j++) {
       if (a[i][j] !== b[i][j]) return false;
     }
   }
@@ -72,13 +73,13 @@ export function moveBoard(board, direction) {
   let scoreDelta = 0;
 
   if (direction === "left") {
-    for (let i = 0; i < SIZE; i++) {
+    for (let i = 0; i < BOARD_SIZE; i++) {
       const { row, scoreAdd } = mergeLineTowardZero(next[i]);
       next[i] = row;
       scoreDelta += scoreAdd;
     }
   } else if (direction === "right") {
-    for (let i = 0; i < SIZE; i++) {
+    for (let i = 0; i < BOARD_SIZE; i++) {
       next[i].reverse();
       const { row, scoreAdd } = mergeLineTowardZero(next[i]);
       next[i] = row;
@@ -86,19 +87,22 @@ export function moveBoard(board, direction) {
       scoreDelta += scoreAdd;
     }
   } else if (direction === "up") {
-    for (let j = 0; j < SIZE; j++) {
-      const col = [next[0][j], next[1][j], next[2][j], next[3][j]];
+    for (let j = 0; j < BOARD_SIZE; j++) {
+      const col = [];
+      for (let i = 0; i < BOARD_SIZE; i++) col.push(next[i][j]);
       const { row, scoreAdd } = mergeLineTowardZero(col);
       scoreDelta += scoreAdd;
-      for (let i = 0; i < SIZE; i++) next[i][j] = row[i];
+      for (let i = 0; i < BOARD_SIZE; i++) next[i][j] = row[i];
     }
   } else if (direction === "down") {
-    for (let j = 0; j < SIZE; j++) {
-      const col = [next[0][j], next[1][j], next[2][j], next[3][j]].reverse();
+    for (let j = 0; j < BOARD_SIZE; j++) {
+      const col = [];
+      for (let i = 0; i < BOARD_SIZE; i++) col.push(next[i][j]);
+      col.reverse();
       const { row, scoreAdd } = mergeLineTowardZero(col);
       const restored = row.reverse();
-      for (let i = 0; i < SIZE; i++) next[i][j] = restored[i];
       scoreDelta += scoreAdd;
+      for (let i = 0; i < BOARD_SIZE; i++) next[i][j] = restored[i];
     }
   } else {
     return { board: next, scoreDelta: 0, moved: false };
@@ -115,8 +119,8 @@ export function moveBoard(board, direction) {
  */
 export function spawnRandomTile(board, rng = Math.random) {
   const empties = [];
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE; j++) {
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    for (let j = 0; j < BOARD_SIZE; j++) {
       if (board[i][j] === 0) empties.push([i, j]);
     }
   }
@@ -142,12 +146,12 @@ export function createInitialBoard(rng = Math.random) {
  * @returns {boolean}
  */
 export function hasValidMove(board) {
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE; j++) {
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    for (let j = 0; j < BOARD_SIZE; j++) {
       if (board[i][j] === 0) return true;
       const v = board[i][j];
-      if (j + 1 < SIZE && board[i][j + 1] === v) return true;
-      if (i + 1 < SIZE && board[i + 1][j] === v) return true;
+      if (j + 1 < BOARD_SIZE && board[i][j + 1] === v) return true;
+      if (i + 1 < BOARD_SIZE && board[i + 1][j] === v) return true;
     }
   }
   return false;
@@ -158,13 +162,13 @@ export function hasValidMove(board) {
  * @returns {number[][] | null}
  */
 export function parseBoard(json) {
-  if (!Array.isArray(json) || json.length !== SIZE) return null;
+  if (!Array.isArray(json) || json.length !== BOARD_SIZE) return null;
   const out = [];
-  for (let i = 0; i < SIZE; i++) {
+  for (let i = 0; i < BOARD_SIZE; i++) {
     const row = json[i];
-    if (!Array.isArray(row) || row.length !== SIZE) return null;
+    if (!Array.isArray(row) || row.length !== BOARD_SIZE) return null;
     const r = [];
-    for (let j = 0; j < SIZE; j++) {
+    for (let j = 0; j < BOARD_SIZE; j++) {
       const c = row[j];
       if (typeof c !== "number" || !Number.isFinite(c) || !Number.isInteger(c) || c < 0 || c > 1_048_576) {
         return null;

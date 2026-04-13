@@ -27,3 +27,10 @@ export function game2048PowerDays() {
   const n = Number(process.env.GAME2048_POWER_DAYS || process.env.YT_POWER_DAYS || 7);
   return Math.max(1, Math.min(365, Math.floor(Number.isFinite(n) ? n : 7)));
 }
+
+/** Countdown round length in seconds; 0 disables the timer. */
+export function game2048TimeLimitSec() {
+  const n = Number(process.env.GAME2048_TIME_LIMIT_SEC ?? 180);
+  const v = Math.floor(Number.isFinite(n) ? n : 180);
+  return Math.max(0, Math.min(3600, v));
+}

@@ -38,9 +38,21 @@ describe('useVault', () => {
 
       expect(api.post).toHaveBeenCalledWith("/vault/move-to-vault", {
         itemId: mockMachineId,
-        source: "inventory"
+        source: "inventory",
       });
       expect(fetchVault).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call API with itemIds for bulk inventory payload', async () => {
+      api.post.mockResolvedValue({ data: { ok: true } });
+      const { result } = renderHook(() => useVault());
+      await act(async () => {
+        await result.current.moveToVault({ source: 'inventory', itemIds: [1, 2, 3] });
+      });
+      expect(api.post).toHaveBeenCalledWith('/vault/move-to-vault', {
+        source: 'inventory',
+        itemIds: [1, 2, 3],
+      });
     });
 
     it('should throw error if API call fails', async () => {
@@ -73,6 +85,18 @@ describe('useVault', () => {
         destination: 'inventory',
       });
       expect(fetchVault).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call API with vaultIds for bulk retrieve', async () => {
+      api.post.mockResolvedValue({ data: { ok: true } });
+      const { result } = renderHook(() => useVault());
+      await act(async () => {
+        await result.current.retrieveFromVault({ destination: 'inventory', vaultIds: [10, 11] });
+      });
+      expect(api.post).toHaveBeenCalledWith('/vault/retrieve-from-vault', {
+        destination: 'inventory',
+        vaultIds: [10, 11],
+      });
     });
 
     it('should throw error if API call fails', async () => {

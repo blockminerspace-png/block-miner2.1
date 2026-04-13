@@ -23,6 +23,35 @@ import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErr
 
 const logger = loggerLib.child("VaultController");
 
+/** Max machines per bulk vault / inventory request (abuse guard). */
+const VAULT_BULK_MAX = 120;
+
+/**
+ * @param {unknown[]} raw
+ * @returns {number[]}
+ */
+function normalizePositiveIntIds(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = raw
+    .map((x) => Number(x))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return [...new Set(out)].sort((a, b) => a - b);
+}
+
+/**
+ * @param {{ vaultId?: unknown; vaultIds?: unknown }} body
+ * @returns {number[]}
+ */
+function normalizeVaultIdsFromBody(body) {
+  const fromArr = normalizePositiveIntIds(
+    Array.isArray(body?.vaultIds) ? body.vaultIds : [],
+  );
+  if (fromArr.length > 0) return fromArr.slice(0, VAULT_BULK_MAX);
+  const one = Number(body?.vaultId);
+  if (Number.isInteger(one) && one > 0) return [one];
+  return [];
+}
+
 /**
  * Notifies the client to refresh vault rows (`GET /api/vault`).
  * @param {number} userId
@@ -83,6 +112,110 @@ async function assertOwnedMachineNotInWarehouseTx(tx, userId, ownedMachineId) {
   }
 }
 
+/**
+ * @param {import("@prisma/client").Prisma.TransactionClient} tx
+ * @param {number} userId
+ * @param {number} iid
+ * @param {Date} now
+ */
+async function moveSingleInventoryItemToVaultTx(tx, userId, iid, now) {
+  const rowLocked = await lockUserInventoryRowForUpdate(tx, userId, iid);
+  if (!rowLocked) {
+    const err = new Error("NOT_FOUND");
+    /** @type {any} */ (err).http = 404;
+    throw err;
+  }
+
+  const inventoryItem = await tx.userInventory.findFirst({
+    where: { id: iid, userId },
+  });
+  if (!inventoryItem) {
+    const err = new Error("NOT_FOUND");
+    /** @type {any} */ (err).http = 404;
+    throw err;
+  }
+
+  await assertOwnedMachineNotInWarehouseTx(tx, userId, inventoryItem.ownedMachineId);
+
+  const minerId = await safeVaultMinerId(tx, inventoryItem.minerId);
+  const omId = await ensureOwnedMachineForInventoryTx(tx, inventoryItem);
+  await tx.userVault.create({
+    data: {
+      userId,
+      minerId,
+      minerName: inventoryItem.minerName,
+      level: inventoryItem.level,
+      hashRate: inventoryItem.hashRate,
+      slotSize: inventoryItem.slotSize,
+      imageUrl: inventoryItem.imageUrl,
+      storedAt: now,
+      ownedMachineId: omId,
+    },
+  });
+  await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.WAREHOUSE, {
+    minerId,
+    minerName: inventoryItem.minerName,
+    level: inventoryItem.level,
+    hashRate: inventoryItem.hashRate,
+    slotSize: inventoryItem.slotSize ?? 1,
+    imageUrl: inventoryItem.imageUrl,
+  });
+  await tx.userInventory.delete({
+    where: { id: iid, userId },
+  });
+}
+
+/**
+ * @param {import("@prisma/client").Prisma.TransactionClient} tx
+ * @param {number} userId
+ * @param {number} vaultId
+ * @param {Date} now
+ */
+async function retrieveSingleVaultRowToInventoryTx(tx, userId, vaultId, now) {
+  const locked = await lockUserVaultRowForUpdate(tx, userId, vaultId);
+  if (!locked) {
+    const err = new Error("NOT_FOUND");
+    /** @type {any} */ (err).http = 404;
+    throw err;
+  }
+
+  const vaultItem = await tx.userVault.findFirst({
+    where: { id: vaultId, userId },
+  });
+  if (!vaultItem) {
+    const err = new Error("NOT_FOUND");
+    /** @type {any} */ (err).http = 404;
+    throw err;
+  }
+
+  const minerId = await safeVaultMinerId(tx, vaultItem.minerId);
+  const omId = await ensureOwnedMachineForVaultTx(tx, vaultItem);
+  await tx.userInventory.create({
+    data: {
+      userId,
+      minerId,
+      minerName: vaultItem.minerName,
+      level: vaultItem.level,
+      hashRate: vaultItem.hashRate,
+      slotSize: vaultItem.slotSize,
+      imageUrl: vaultItem.imageUrl,
+      acquiredAt: now,
+      ownedMachineId: omId,
+    },
+  });
+  await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.INVENTORY, {
+    minerId,
+    minerName: vaultItem.minerName,
+    level: vaultItem.level,
+    hashRate: vaultItem.hashRate,
+    slotSize: vaultItem.slotSize ?? 1,
+    imageUrl: vaultItem.imageUrl,
+  });
+  await tx.userVault.delete({
+    where: { id: vaultId, userId },
+  });
+}
+
 export async function getVault(req, res) {
   try {
     const vault = await vaultModel.listVault(req.user.id);
@@ -115,70 +248,35 @@ export async function getVault(req, res) {
 
 export async function moveToVault(req, res) {
   try {
-    const { source, itemId } = req.body;
+    const { source, itemId, itemIds } = req.body;
     const now = new Date();
+    let lastMovedCount = 1;
 
     if (source === "inventory") {
-      const iid = Number(itemId);
-      if (!Number.isInteger(iid) || iid < 1) {
+      const idsFromBody = Array.isArray(itemIds)
+        ? normalizePositiveIntIds(itemIds)
+        : Number.isInteger(Number(itemId)) && Number(itemId) > 0
+          ? [Number(itemId)]
+          : [];
+      if (idsFromBody.length === 0 || idsFromBody.length > VAULT_BULK_MAX) {
         return res.status(400).json({
           ok: false,
           code: SecurityErrorCodes.INVALID_STATE,
           messageKey: `errors.security.${SecurityErrorCodes.INVALID_STATE}`,
-          message: "Invalid inventory item.",
+          message: "Invalid inventory selection.",
         });
       }
 
       await prisma.$transaction(async (tx) => {
         await lockUserRowForUpdate(tx, req.user.id);
-        const rowLocked = await lockUserInventoryRowForUpdate(tx, req.user.id, iid);
-        if (!rowLocked) {
-          const err = new Error("NOT_FOUND");
-          /** @type {any} */ (err).http = 404;
-          throw err;
+        for (const iid of idsFromBody) {
+          await moveSingleInventoryItemToVaultTx(tx, req.user.id, iid, now);
         }
-
-        const inventoryItem = await tx.userInventory.findFirst({
-          where: { id: iid, userId: req.user.id },
-        });
-        if (!inventoryItem) {
-          const err = new Error("NOT_FOUND");
-          /** @type {any} */ (err).http = 404;
-          throw err;
-        }
-
-        await assertOwnedMachineNotInWarehouseTx(tx, req.user.id, inventoryItem.ownedMachineId);
-
-        const minerId = await safeVaultMinerId(tx, inventoryItem.minerId);
-        const omId = await ensureOwnedMachineForInventoryTx(tx, inventoryItem);
-        await tx.userVault.create({
-          data: {
-            userId: req.user.id,
-            minerId,
-            minerName: inventoryItem.minerName,
-            level: inventoryItem.level,
-            hashRate: inventoryItem.hashRate,
-            slotSize: inventoryItem.slotSize,
-            imageUrl: inventoryItem.imageUrl,
-            storedAt: now,
-            ownedMachineId: omId,
-          },
-        });
-        await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.WAREHOUSE, {
-          minerId,
-          minerName: inventoryItem.minerName,
-          level: inventoryItem.level,
-          hashRate: inventoryItem.hashRate,
-          slotSize: inventoryItem.slotSize ?? 1,
-          imageUrl: inventoryItem.imageUrl,
-        });
-        await tx.userInventory.delete({
-          where: { id: iid, userId: req.user.id },
-        });
       });
 
       await syncMiningProfileBestEffort(req.user.id);
       emitVaultSocketRefresh(req.user.id);
+      lastMovedCount = idsFromBody.length;
     } else if (source === "rack") {
       const mid = Number(itemId);
       if (!Number.isInteger(mid) || mid < 1) {
@@ -262,16 +360,23 @@ export async function moveToVault(req, res) {
 
     const engine = getMiningEngine();
     if (engine) {
+      const plural = source === "inventory" && lastMovedCount > 1;
       await createNotification({
         userId: req.user.id,
-        title: "Miner stored",
-        message: "Your miner was moved to the warehouse (vault).",
+        title: plural ? "Miners stored" : "Miner stored",
+        message: plural
+          ? `${lastMovedCount} miners were moved to the warehouse (vault).`
+          : "Your miner was moved to the warehouse (vault).",
         type: "info",
         io: engine.io,
       });
     }
 
-    res.json({ ok: true, message: "Machine moved to vault successfully!" });
+    res.json({
+      ok: true,
+      message: "Machine moved to vault successfully!",
+      movedCount: lastMovedCount,
+    });
   } catch (error) {
     const prismaCode = error?.code;
     const meta = error?.meta;
@@ -328,69 +433,42 @@ export async function moveToVault(req, res) {
 
 export async function retrieveFromVault(req, res) {
   try {
-    const { destination, vaultId: rawVaultId } = req.body;
-    const vaultId = Number(rawVaultId);
-    if (!Number.isInteger(vaultId) || vaultId < 1) {
-      return res.status(400).json({
-        ok: false,
-        code: SecurityErrorCodes.INVALID_STATE,
-        messageKey: `errors.security.${SecurityErrorCodes.INVALID_STATE}`,
-        message: "Invalid vault item.",
-      });
-    }
-
+    const { destination } = req.body;
     const now = new Date();
+    let retrievedCount = 1;
 
     if (destination === "inventory") {
+      const vaultIds = normalizeVaultIdsFromBody(req.body);
+      if (vaultIds.length === 0 || vaultIds.length > VAULT_BULK_MAX) {
+        return res.status(400).json({
+          ok: false,
+          code: SecurityErrorCodes.INVALID_STATE,
+          messageKey: `errors.security.${SecurityErrorCodes.INVALID_STATE}`,
+          message: "Invalid vault selection.",
+        });
+      }
+
       await prisma.$transaction(async (tx) => {
         await lockUserRowForUpdate(tx, req.user.id);
-        const locked = await lockUserVaultRowForUpdate(tx, req.user.id, vaultId);
-        if (!locked) {
-          const err = new Error("NOT_FOUND");
-          /** @type {any} */ (err).http = 404;
-          throw err;
+        for (const vaultId of vaultIds) {
+          await retrieveSingleVaultRowToInventoryTx(tx, req.user.id, vaultId, now);
         }
-
-        const vaultItem = await tx.userVault.findFirst({
-          where: { id: vaultId, userId: req.user.id },
-        });
-        if (!vaultItem) {
-          const err = new Error("NOT_FOUND");
-          /** @type {any} */ (err).http = 404;
-          throw err;
-        }
-
-        const minerId = await safeVaultMinerId(tx, vaultItem.minerId);
-        const omId = await ensureOwnedMachineForVaultTx(tx, vaultItem);
-        await tx.userInventory.create({
-          data: {
-            userId: req.user.id,
-            minerId,
-            minerName: vaultItem.minerName,
-            level: vaultItem.level,
-            hashRate: vaultItem.hashRate,
-            slotSize: vaultItem.slotSize,
-            imageUrl: vaultItem.imageUrl,
-            acquiredAt: now,
-            ownedMachineId: omId,
-          },
-        });
-        await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.INVENTORY, {
-          minerId,
-          minerName: vaultItem.minerName,
-          level: vaultItem.level,
-          hashRate: vaultItem.hashRate,
-          slotSize: vaultItem.slotSize ?? 1,
-          imageUrl: vaultItem.imageUrl,
-        });
-        await tx.userVault.delete({
-          where: { id: vaultId, userId: req.user.id },
-        });
       });
 
       await syncMiningProfileBestEffort(req.user.id);
       emitVaultSocketRefresh(req.user.id);
+      retrievedCount = vaultIds.length;
     } else if (destination === "rack") {
+      const vaultId = Number(req.body.vaultId);
+      if (!Number.isInteger(vaultId) || vaultId < 1) {
+        return res.status(400).json({
+          ok: false,
+          code: SecurityErrorCodes.INVALID_STATE,
+          messageKey: `errors.security.${SecurityErrorCodes.INVALID_STATE}`,
+          message: "Invalid vault item.",
+        });
+      }
+
       const slotIndex = Number(req.body.slotIndex);
       if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= 80) {
         return res.status(400).json({
@@ -495,16 +573,23 @@ export async function retrieveFromVault(req, res) {
 
     const engine = getMiningEngine();
     if (engine) {
+      const plural = destination === "inventory" && retrievedCount > 1;
       await createNotification({
         userId: req.user.id,
-        title: "Miner retrieved",
-        message: "Your miner was removed from the warehouse (vault).",
+        title: plural ? "Miners retrieved" : "Miner retrieved",
+        message: plural
+          ? `${retrievedCount} miners were moved to your inventory.`
+          : "Your miner was removed from the warehouse (vault).",
         type: "success",
         io: engine.io,
       });
     }
 
-    res.json({ ok: true, message: "Machine retrieved from vault successfully!" });
+    res.json({
+      ok: true,
+      message: "Machine retrieved from vault successfully!",
+      movedCount: retrievedCount,
+    });
   } catch (error) {
     if (error?.message === "NOT_FOUND" || error?.http === 404) {
       return res.status(404).json({

@@ -9,6 +9,8 @@ import { useGameStore } from "../store/game";
 import { formatHashrate, DEFAULT_MINER_IMAGE_URL, getMachineDescriptor } from "../utils/machine";
 import { dedupeOccupiedSlotsForDismantle } from "../utils/inventoryRackUtils.js";
 import RackMachineTooltipPortal from "../components/inventory/RackMachineTooltipPortal.jsx";
+import MachineQuantityModal from "../components/MachineQuantityModal.jsx";
+import { inventoryStackKey } from "../utils/inventoryStackKey.js";
 
 const RACK_TOOLTIP_SHOW_MS = 120;
 const RACK_TOOLTIP_HIDE_MS = 80;
@@ -171,9 +173,12 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
   const groupedInventory = useMemo(() => {
     const groups = {};
     for (const item of inventory) {
-      const key = `${item.minerName}_${item.level}_${item.hashRate}_${item.slotSize ?? 0}_${item.minerId ?? ""}`;
+      const key = inventoryStackKey(item);
       if (!groups[key]) groups[key] = { ...item, quantity: 1, items: [item] };
-      else { groups[key].quantity += 1; groups[key].items.push(item); }
+      else {
+        groups[key].quantity += 1;
+        groups[key].items.push(item);
+      }
     }
     return Object.values(groups).sort((a, b) => b.hashRate - a.hashRate);
   }, [inventory]);
@@ -294,7 +299,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                   {groupedInventory.map((group) => {
                     const desc = getMachineDescriptor({ hashRate: group.hashRate, slotSize: group.slotSize, imageUrl: group.imageUrl });
                     return (
-                      <button key={group.id} type="button" onClick={() => onInstall(slot.rack.id, group.items[0].id)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-800/30 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/10">
+                      <button key={inventoryStackKey(group)} type="button" onClick={() => onInstall(slot.rack.id, group.items[0].id)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-800/30 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/10">
                         <div className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 bg-gray-900 rounded-lg p-2 shrink-0 relative">
                             <img src={desc.image} alt={group.minerName} className="w-full h-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
@@ -578,8 +583,8 @@ export default function Inventory() {
   const [rackDismantleLoading, setRackDismantleLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [activeRoom, setActiveRoom] = useState(1);
-  /** First inventory row id pending confirm for backpack → warehouse (vault). */
-  const [vaultBackpackConfirmId, setVaultBackpackConfirmId] = useState(null);
+  /** Grouped backpack stack open in the “send to warehouse” quantity modal. */
+  const [backpackWarehouseModal, setBackpackWarehouseModal] = useState(null);
   const [backpackVaultBusy, setBackpackVaultBusy] = useState(false);
   const navigate = useNavigate();
   const fetchMachines = useGameStore((s) => s.fetchMachines);
@@ -630,18 +635,28 @@ export default function Inventory() {
     } catch (err) { toast.error(err?.response?.data?.message || t("common.error")); }
   };
 
-  const handleMoveInventoryToVault = async (inventoryItemId) => {
-    const id = Number(inventoryItemId);
-    if (!Number.isInteger(id) || id <= 0) {
+  const handleMoveInventoryToVault = async (inventoryItemIds) => {
+    const ids = (Array.isArray(inventoryItemIds) ? inventoryItemIds : [inventoryItemIds])
+      .map((x) => Number(x))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    if (ids.length === 0) {
       toast.error(t("common.error"));
       return;
     }
     setBackpackVaultBusy(true);
     try {
-      const res = await api.post("/vault/move-to-vault", { source: "inventory", itemId: id });
+      const body =
+        ids.length === 1
+          ? { source: "inventory", itemId: ids[0] }
+          : { source: "inventory", itemIds: ids };
+      const res = await api.post("/vault/move-to-vault", body);
       if (res.data.ok) {
-        toast.success(t("vault.move_success"));
-        setVaultBackpackConfirmId(null);
+        toast.success(
+          ids.length > 1
+            ? t("inventory.backpack_bulk_success", { count: ids.length })
+            : t("vault.move_success"),
+        );
+        setBackpackWarehouseModal(null);
         await fetchData();
         await fetchMachines();
         await fetchVault();
@@ -739,9 +754,12 @@ export default function Inventory() {
   const groupedInventory = useMemo(() => {
     const groups = {};
     for (const item of inventory) {
-      const key = `${item.minerName}_${item.level}_${item.hashRate}_${item.slotSize ?? 0}_${item.minerId ?? ""}`;
+      const key = inventoryStackKey(item);
       if (!groups[key]) groups[key] = { ...item, quantity: 1, items: [item] };
-      else { groups[key].quantity += 1; groups[key].items.push(item); }
+      else {
+        groups[key].quantity += 1;
+        groups[key].items.push(item);
+      }
     }
     return Object.values(groups).sort((a, b) => b.hashRate - a.hashRate);
   }, [inventory]);
@@ -761,6 +779,25 @@ export default function Inventory() {
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <MachineQuantityModal
+        open={Boolean(backpackWarehouseModal)}
+        onClose={() => !backpackVaultBusy && setBackpackWarehouseModal(null)}
+        title={t("inventory.backpack_qty_modal_title")}
+        subtitle={t("inventory.backpack_qty_modal_subtitle")}
+        quantityLabel={t("inventory.backpack_qty_field")}
+        max={backpackWarehouseModal?.quantity ?? 1}
+        min={1}
+        confirmLabel={t("inventory.backpack_qty_confirm")}
+        cancelLabel={t("common.cancel")}
+        busy={backpackVaultBusy}
+        onConfirm={(q) => {
+          const group = backpackWarehouseModal;
+          if (!group) return;
+          const sorted = [...group.items].sort((a, b) => a.id - b.id);
+          void handleMoveInventoryToVault(sorted.slice(0, q).map((r) => r.id));
+        }}
+      />
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-black text-white tracking-tight">{t("inventory.title")}</h1>
@@ -816,7 +853,7 @@ export default function Inventory() {
                     rackNumber={rackOffset + vr.rackNumber}
                     slots={vr.slots}
                     onSlotClick={(slot) => {
-                      setVaultBackpackConfirmId(null);
+                      setBackpackWarehouseModal(null);
                       setSelectedSlot(slot);
                     }}
                     onSlotDrop={handleInstall}
@@ -882,10 +919,9 @@ export default function Inventory() {
                 {groupedInventory.map((group) => {
                   const descriptor = getMachineDescriptor({ hashRate: group.hashRate, slotSize: group.slotSize, imageUrl: group.imageUrl });
                   const firstId = group.items[0]?.id;
-                  const isConfirming = vaultBackpackConfirmId === firstId;
                   return (
                     <div
-                      key={group.id}
+                      key={inventoryStackKey(group)}
                       draggable
                       title={t("inventory.modal.choose_machine")}
                       onDragStart={(e) => {
@@ -927,34 +963,14 @@ export default function Inventory() {
                         <button
                           type="button"
                           disabled={backpackVaultBusy || !Number.isFinite(Number(firstId))}
-                          onClick={() => {
-                            if (isConfirming) {
-                              void handleMoveInventoryToVault(firstId);
-                              return;
-                            }
-                            setVaultBackpackConfirmId(firstId);
-                          }}
-                          className={`relative z-[2] flex min-h-11 w-full max-w-full flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-center text-[10px] font-black uppercase leading-tight tracking-wider transition-colors disabled:pointer-events-none disabled:opacity-40 sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5 sm:text-[11px] ${
-                            isConfirming
-                              ? "border-violet-500 bg-violet-600 text-white"
-                              : "border-violet-500/35 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25"
-                          }`}
+                          onClick={() => setBackpackWarehouseModal(group)}
+                          className="relative z-[2] flex min-h-11 w-full max-w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-violet-500/35 bg-violet-500/15 px-2 py-2.5 text-center text-[10px] font-black uppercase leading-tight tracking-wider text-violet-200 transition-colors hover:bg-violet-500/25 disabled:pointer-events-none disabled:opacity-40 sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5 sm:text-[11px]"
                         >
                           <Warehouse className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
                           <span className="max-w-full break-words leading-snug">
-                            {isConfirming ? t("inventory.backpack_confirm_warehouse") : t("inventory.backpack_send_warehouse")}
+                            {t("inventory.backpack_send_warehouse")}
                           </span>
                         </button>
-                        {isConfirming && (
-                          <button
-                            type="button"
-                            disabled={backpackVaultBusy}
-                            onClick={() => setVaultBackpackConfirmId(null)}
-                            className="min-h-9 rounded-lg py-2 text-xs font-bold text-gray-500 transition-colors hover:bg-gray-800/50 hover:text-gray-300 disabled:opacity-40"
-                          >
-                            {t("common.cancel")}
-                          </button>
-                        )}
                       </div>
                     </div>
                   );
@@ -974,7 +990,7 @@ export default function Inventory() {
           onMoveToVault={handleMoveRackToVault}
           onClose={() => {
             setSelectedSlot(null);
-            setVaultBackpackConfirmId(null);
+            setBackpackWarehouseModal(null);
           }}
         />
       )}

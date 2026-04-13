@@ -3,6 +3,7 @@ import {
   applyGame2048Move,
   claimGame2048Reward,
   getGame2048Status,
+  restartGame2048Session,
   startGame2048Session
 } from "../services/game2048Service.js";
 
@@ -56,6 +57,25 @@ export async function postStart(req, res) {
   }
 }
 
+export async function postRestart(req, res) {
+  try {
+    const userId = req.user.id;
+    const r = await restartGame2048Session(userId);
+    if (!r.ok) {
+      return res.status(r.status || 400).json({
+        ok: false,
+        code: r.code,
+        cooldownEndsAt: r.cooldownEndsAt,
+        cooldownSecondsRemaining: r.cooldownSecondsRemaining
+      });
+    }
+    res.json({ ok: true, session: r.session });
+  } catch (e) {
+    console.error("game2048 postRestart", e);
+    res.status(500).json({ ok: false, code: "error" });
+  }
+}
+
 export async function postMove(req, res) {
   try {
     const parsed = moveBodySchema.safeParse(req.body);
@@ -65,7 +85,11 @@ export async function postMove(req, res) {
     const userId = req.user.id;
     const r = await applyGame2048Move(userId, parsed.data.sessionId, parsed.data.direction);
     if (!r.ok) {
-      return res.status(r.status || 400).json({ ok: false, code: r.code });
+      return res.status(r.status || 400).json({
+        ok: false,
+        code: r.code,
+        ...(r.session ? { session: r.session } : {})
+      });
     }
     res.json({
       ok: true,
