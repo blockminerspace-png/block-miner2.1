@@ -112,8 +112,11 @@ O repo inclui **coexistência automatizada** com o Nginx do BlockMiner na frente
 - Na tua máquina Windows (com PuTTY e `deploy.secrets.local`):  
   `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remote-btcpay-setup.ps1`  
   (faz `git pull` no caminho `REMOTE_PATH` e corre o script acima.)
+- **Certificado confiável (obrigatório para depositar no browser):** depois do DNS a apontar para a VPS e com **80 aberto** (Cloudflare em cinzento para esse hostname, não laranja, senão o HTTP-01 falha):  
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remote-btcpay-letsencrypt.ps1`  
+  Isto corre `scripts/vps-issue-btcpay-letsencrypt.sh` na VM: **certbot** (nativo ou imagem `certbot/certbot`), PEMs em `nginx/certs-btcpay/`, `nginx -s reload`. Email: variável `BTCPAY_LE_EMAIL` no ambiente remoto **ou** `LETSENCRYPT_EMAIL` em `docker/btcpay/env`.
 
-O contentor `nginx` gera um **autoassinado** em **`nginx/certs-btcpay/`** no host (montado em `/etc/nginx/certs-btcpay` no contentor) com **SAN `DNS:btcpay.blockminer.space`** — sem SAN o Chrome mostra `NET::ERR_CERT_COMMON_NAME_INVALID`. Continua **autoassinado** (aviso amarelo) até substituíres por **Let's Encrypt** nessa pasta e fazeres `docker compose ... restart nginx`. O HTTP-01 usa `certbot-www/` e o bloco `/.well-known/acme-challenge/` em `nginx.conf` para esse hostname.
+O contentor `nginx` gera um **autoassinado** em **`nginx/certs-btcpay/`** no host (montado em `/etc/nginx/certs-btcpay` no contentor) com **SAN `DNS:btcpay.blockminer.space`** — sem SAN o Chrome mostra `NET::ERR_CERT_COMMON_NAME_INVALID`. Até correres o passo **Let's Encrypt** acima, o Chrome mostra **`NET::ERR_CERT_AUTHORITY_INVALID`** (autoassinado) e **bloqueia** abrir o checkout BTCPay. Depois do LE, o HTTP-01 continua a usar `certbot-www/` e o bloco `/.well-known/acme-challenge/` em `nginx.conf` para esse hostname.
 
 ---
 
