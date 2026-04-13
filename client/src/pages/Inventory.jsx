@@ -892,27 +892,36 @@ export default function Inventory() {
                         e.dataTransfer.setData("inventoryId", String(firstId));
                         e.dataTransfer.effectAllowed = "move";
                       }}
-                      className="flex cursor-grab select-none flex-col gap-3 rounded-2xl border border-gray-800/50 bg-gray-800/30 p-4 transition-all hover:border-gray-700 active:cursor-grabbing sm:flex-row sm:items-center sm:gap-4"
+                      /**
+                       * Always stack the action row below identity (never sm:flex-row from viewport).
+                       * The sidebar column is often narrower than 640px while the viewport is wide,
+                       * which caused the warehouse button to overlap level/hashrate text.
+                       */
+                      className="flex cursor-grab select-none flex-col gap-3 rounded-2xl border border-gray-800/50 bg-gray-800/30 p-4 transition-all hover:border-gray-700 active:cursor-grabbing"
                     >
-                      <div className="relative h-14 w-14 shrink-0 self-start rounded-xl border border-gray-800/50 bg-gray-900/50 p-2 sm:self-center">
-                        <img src={descriptor.image} alt={group.minerName} className="w-full h-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
-                        <div className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-primary/20">x{group.quantity}</div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-white truncate">{group.minerName}</h4>
-                        <div className="flex items-center gap-3 mt-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                          <span>{t("inventory.modal.level")} {group.level}</span>
-                          <span>·</span>
-                          <span className="text-primary font-black">{formatHashrate(group.hashRate)}</span>
+                      <div className="flex min-w-0 gap-3">
+                        <div className="relative h-14 w-14 shrink-0 rounded-xl border border-gray-800/50 bg-gray-900/50 p-2">
+                          <img src={descriptor.image} alt={group.minerName} className="h-full w-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
+                          <div className="absolute -right-2 -top-2 rounded-full border border-primary/20 bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">x{group.quantity}</div>
                         </div>
-                        {group.quantity > 1 && (
-                          <p className="text-[10px] text-gray-600 mt-1 font-medium normal-case tracking-normal">
-                            {t("inventory.backpack_qty_hint", { count: group.quantity - 1 })}
-                          </p>
-                        )}
+                        <div className="min-w-0 flex-1 overflow-hidden">
+                          <h4 className="break-words text-sm font-bold leading-snug text-white">{group.minerName}</h4>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                            <span className="shrink-0">
+                              {t("inventory.modal.level")} {group.level}
+                            </span>
+                            <span aria-hidden>·</span>
+                            <span className="font-black text-primary">{formatHashrate(group.hashRate)}</span>
+                          </div>
+                          {group.quantity > 1 && (
+                            <p className="mt-1 text-[10px] font-medium normal-case tracking-normal text-gray-600">
+                              {t("inventory.backpack_qty_hint", { count: group.quantity - 1 })}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div
-                        className="flex w-full shrink-0 flex-col items-stretch gap-2 sm:w-auto sm:min-w-[10.5rem]"
+                        className="flex w-full min-w-0 shrink-0 flex-col items-stretch gap-2 border-t border-gray-800/40 pt-3"
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                       >
