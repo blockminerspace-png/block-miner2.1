@@ -75,8 +75,9 @@ export BTCPAYGEN_LIGHTNING="${BTCPAYGEN_LIGHTNING-clightning}"
 export BTCPAYGEN_ADDITIONAL_FRAGMENTS="${BTCPAYGEN_ADDITIONAL_FRAGMENTS:-opt-save-storage-s}"
 export BTCPAY_ENABLE_SSH="${BTCPAY_ENABLE_SSH:-false}"
 
-# Optional overrides from env file (same names as upstream README)
-[[ -n "${BTCPAY_ADDITIONAL_HOSTS:-}" ]] && export BTCPAY_ADDITIONAL_HOSTS
+# Optional overrides from env file (same names as upstream README).
+# Upstream btcpay-setup.sh runs with nounset and dereferences BTCPAY_ADDITIONAL_HOSTS — export even when empty.
+export BTCPAY_ADDITIONAL_HOSTS="${BTCPAY_ADDITIONAL_HOSTS:-}"
 [[ -n "${REVERSEPROXY_HTTP_PORT:-}" ]] && export REVERSEPROXY_HTTP_PORT
 [[ -n "${REVERSEPROXY_HTTPS_PORT:-}" ]] && export REVERSEPROXY_HTTPS_PORT
 [[ -n "${REVERSEPROXY_DEFAULT_HOST:-}" ]] && export REVERSEPROXY_DEFAULT_HOST
