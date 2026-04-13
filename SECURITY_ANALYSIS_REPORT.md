@@ -102,13 +102,14 @@ const passwordHash = await bcrypt.hash(password, 10);
 The `.env` file contains hardcoded secrets:
 
 ```env
-JWT_SECRET=7144bf87de94ba444b5f781fc09b14f7691ac7d3f9aaf62068cd27c97ad9e827
-ADMIN_SECURITY_CODE=BM-Admin-2026-OK
-WITHDRAWAL_PRIVATE_KEY=0aac4f7074ef868cfc50638a2d963a7535516a74e74d9e683846fa04cd974257
-WITHDRAWAL_MNEMONIC=zone dish prefer seek note ginger toy wet private habit town amount
-SMTP_PASS=@Contaapp.2026
-SMTP_USER=no-reply@blockminer.space
-POLYGONSCAN_API_KEY=DNIDH8EQQ6BXBA8A1BZS644DGGMYBACMDV
+# Example shape only — real values were redacted; never commit production .env
+JWT_SECRET=<REDACTED>
+ADMIN_SECURITY_CODE=<REDACTED>
+WITHDRAWAL_PRIVATE_KEY=<REDACTED>
+WITHDRAWAL_MNEMONIC=<REDACTED>
+SMTP_PASS=<REDACTED>
+SMTP_USER=<REDACTED>
+POLYGONSCAN_API_KEY=<REDACTED>
 ```
 
 **Impact:** If the `.env` file is exposed or committed to version control, attackers have full access to:

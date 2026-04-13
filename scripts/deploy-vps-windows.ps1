@@ -100,6 +100,11 @@ function Get-ViteEnvOverrideMap {
         # Server-side AES key for encrypting RTMP stream keys at rest (64 hex chars). Merge into uploaded .env.production.
         'STREAM_ENCRYPTION_KEY',
         'STREAM_CAPTURE_DISABLED',
+        # Admin panel (/api/admin/auth/login) — merged from deploy.secrets.local over vm-backup
+        'ADMIN_EMAIL',
+        'ADMIN_SECURITY_CODE',
+        'ADMIN_JWT_EXPIRES_IN',
+        'ADMIN_SESSION_COOKIE_SECURE',
         'VITE_WALLETCONNECT_PROJECT_ID',
         'VITE_PUBLIC_WALLET_APP_URL',
         'VITE_POLYGON_RPC_URL',
