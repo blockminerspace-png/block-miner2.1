@@ -93,6 +93,26 @@ O script clona o **btcpayserver-docker** oficial e corre **`. ./btcpay-setup.sh 
 
 ---
 
+## 5.1 “Ovo e galinha”: configurar o BTCPay **sem** o `.env.production` completo da API
+
+O BlockMiner **só** precisa de `BTCPAY_*` no `.env.production` **depois** de teres uma instância BTCPay a responder e uma **loja** criada. A ordem natural é:
+
+1. **Instalação BTCPay na VPS** a terminar (log: `/root/btcpay-blockminer-install.log` — o sync pode demorar **horas** na primeira vez).
+2. **Abrir no browser** o URL público do **teu** BTCPay: `https://<BTCPAY_HOST>` (ex.: `https://btcpay.blockminer.space`). **Não** uses o painel do **demo** público (`mainnet.demo.btcpayserver.org`, etc.): isso é **outro servidor**; Store ID, API keys e webhooks **não** servem para o teu `BTCPAY_URL` real.
+3. No **teu** BTCPay: criar **conta admin** → **Store** → configurar **wallet** / Lightning conforme quiseres → **Server** / **Account** → **API keys** (Greenfield, permissões de invoices) → **Store → Webhooks** com a URL da tua API (`https://<teu-dominio-app>/api/payments/btcpay/webhook`) e copiar o **signing secret**.
+4. **Só então** preencher no servidor da **API** BlockMiner: `BTCPAY_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID`, `BTCPAY_WEBHOOK_SECRET` e fazer **rebuild/restart** do contentor `app`.
+
+### Certificado ainda “com erro” no browser
+
+- Se o aviso for **autoridade inválida** e já tiveres corrido o `scripts/remote-btcpay-letsencrypt.ps1`: confirma **DNS cinzento** (não laranja) para esse hostname, espera propagação, e tenta **janela anónima** ou outro browser (cache/HSTS).
+- Para **configurar uma vez** mesmo com aviso (não recomendado para utilizadores finais): na página de bloqueio do Chrome → **Avançado** → **Continuar para o site** (ou, na página de erro com foco no teclado, escrever `thisisunsafe` — truque só para **admin/dev**). Depois emite LE e o aviso desaparece.
+
+### `504 Gateway Time-out` em `https://btcpay...`
+
+O Nginx do BlockMiner está a ouvir em **443**, mas o **upstream BTCPay** nas portas **39180 / 39443** (coexistência) **ainda não responde** ou a instalação falhou. Não é “só certificado”: o serviço por trás não está pronto. Na VPS: `tail -f /root/btcpay-blockminer-install.log` e, na pasta `docker/btcpay/btcpayserver-docker` (se existir), `docker compose ps` conforme a doc oficial.
+
+---
+
 ## 6. Muito importante: mesma VPS que o BlockMiner ou VPS à parte?
 
 ### Opção recomendada: **VPS separada** só para BTCPay
