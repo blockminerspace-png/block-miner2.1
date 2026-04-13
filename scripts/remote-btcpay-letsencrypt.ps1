@@ -100,7 +100,7 @@ try {
     Write-Host "==> remote-btcpay-letsencrypt: $SshUser@$SshHost $RemotePath branch=$DeployGitBranch (git pull: $(-not $SkipGitPull))"
     & $PlinkExe -batch -ssh @plinkHostKeyArgs -pwfile $tmpPw "${SshUser}@${SshHost}" (ConvertTo-UnixLf $remote)
     if ($LASTEXITCODE -ne 0) { throw "plink failed exit $LASTEXITCODE" }
-    Write-Host "==> Done. Open https://btcpay.blockminer.space (or your BTCPAY_LE_DOMAIN) — padlock should be valid."
+    Write-Host "==> Done. Open https://btcpay.blockminer.space (or your BTCPAY_LE_DOMAIN); browser should show a valid certificate."
 }
 finally {
     if (Test-Path -LiteralPath $tmpPw) { Remove-Item -LiteralPath $tmpPw -Force }
