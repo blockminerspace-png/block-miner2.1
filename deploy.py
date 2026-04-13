@@ -8,6 +8,9 @@ Do not store SSH passwords in this file. Use one of:
   - deploy.secrets.local key SSH_PASSWORD (see deploy.secrets.example)
   - Single-line file .deploy-pw.txt at repo root (gitignored; password only)
 
+Optional: set DEPLOY_GIT_BRANCH=main in the environment to force the VPS git reset to origin/main
+(overrides DEPLOY_GIT_BRANCH in deploy.secrets.local — use when production must track main).
+
 Optional docstring hints (no secrets):
   - Server IP: 89.167.119.164
   - SSH User: root

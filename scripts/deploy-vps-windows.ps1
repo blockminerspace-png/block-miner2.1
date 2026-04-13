@@ -67,10 +67,15 @@ $SshHost = ($SshHost -replace "`r", '').Trim()
 $SshUser = ($SshUser -replace "`r", '').Trim()
 $RemotePath = ($RemotePath -replace "`r", '').Trim()
 
-# Branch on the remote for git reset (default: main). Test VM: set DEPLOY_GIT_BRANCH=develop in deploy.secrets.local
+# Branch on the remote for git reset (default: main). deploy.secrets.local may set DEPLOY_GIT_BRANCH;
+# process env DEPLOY_GIT_BRANCH wins (one-shot: production on main even if secrets still say develop).
 $DeployGitBranch = 'main'
 if ($deploySecrets['DEPLOY_GIT_BRANCH'] -and $deploySecrets['DEPLOY_GIT_BRANCH'].Trim()) {
     $DeployGitBranch = ($deploySecrets['DEPLOY_GIT_BRANCH'] -replace "`r", '').Trim()
+}
+$envDeployBranch = [Environment]::GetEnvironmentVariable('DEPLOY_GIT_BRANCH', 'Process')
+if ($envDeployBranch -and $envDeployBranch.Trim()) {
+    $DeployGitBranch = $envDeployBranch.Trim()
 }
 if (-not $PSBoundParameters.ContainsKey('LetsEncryptDomain') -and $deploySecrets['LE_SYNC_DOMAIN']) {
     $LetsEncryptDomain = $deploySecrets['LE_SYNC_DOMAIN']
