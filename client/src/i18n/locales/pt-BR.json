@@ -678,6 +678,7 @@
     "you_won": "Alvo atingido — podes reclamar se cumprires a pontuação mínima.",
     "claimed_toast": "+{{hr}} H/s por {{days}} dias",
     "back_arena": "Voltar à Arena",
+    "crypto_strip_aria": "Ícones de criptomoedas usados nos outros jogos da arena",
     "grid_aria": "Tabuleiro 2048",
     "tile_aria": "Peça linha {{row}} coluna {{col}} valor {{value}}",
     "errors": {

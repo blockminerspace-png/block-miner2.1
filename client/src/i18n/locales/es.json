@@ -315,6 +315,7 @@
     "you_won": "Objetivo alcanzado — puedes reclamar si cumples la puntuación mínima.",
     "claimed_toast": "+{{hr}} H/s durante {{days}} días",
     "back_arena": "Volver a la Arena",
+    "crypto_strip_aria": "Arte de criptomonedas como en los demás juegos de la arena",
     "grid_aria": "Tablero 2048",
     "tile_aria": "Ficha fila {{row}} columna {{col}} valor {{value}}",
     "errors": {

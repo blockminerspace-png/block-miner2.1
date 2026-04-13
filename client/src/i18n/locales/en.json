@@ -677,6 +677,7 @@
     "you_won": "Target tile reached — you can claim if you meet the minimum score.",
     "claimed_toast": "+{{hr}} H/s for {{days}} days",
     "back_arena": "Back to Arena",
+    "crypto_strip_aria": "Cryptocurrency artwork used in other arena games",
     "grid_aria": "2048 board",
     "tile_aria": "Tile row {{row}} column {{col}} value {{value}}",
     "errors": {

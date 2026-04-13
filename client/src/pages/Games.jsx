@@ -26,6 +26,7 @@ import {
   translateGameFinishedFailure,
   translateGameReward,
 } from '../games/minerGamesSocketMessages.js';
+import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from '../games/cryptoGameIcons.js';
 
 const SOCKET_URL = '/';
 const LOGICAL = MINER_GAMES_LOGICAL_SIZE;
@@ -33,35 +34,6 @@ const LOGICAL = MINER_GAMES_LOGICAL_SIZE;
 /** Must match server MEMORY_FLIP_OPEN_SETTLE_MS (~client open animation). */
 const MEMORY_CARD_OPEN_ANIM_MS = 300;
 const MEMORY_CARD_CLOSE_ANIM_MS = 500;
-
-const CRYPTO_ICONS = {
-  bitcoin: '/icons/bitcoin.png',
-  ethereum: '/icons/ethereum.png',
-  solana: '/icons/solana.png',
-  'binance-coin': '/icons/binance-coin.png',
-  cardano: '/icons/cardano.png',
-  polkadot: '/icons/polkadot.png',
-  dogecoin: '/icons/dogecoin.png',
-  polygon: '/icons/polygon.png',
-};
-
-const COIN_COLORS = {
-  bitcoin: { bg: 'rgba(247,147,26,0.25)', glow: 'rgba(247,147,26,0.8)', border: 'rgba(247,147,26,0.5)' },
-  ethereum: { bg: 'rgba(98,126,234,0.25)', glow: 'rgba(98,126,234,0.8)', border: 'rgba(98,126,234,0.5)' },
-  solana: { bg: 'rgba(20,241,149,0.20)', glow: 'rgba(20,241,149,0.8)', border: 'rgba(20,241,149,0.5)' },
-  'binance-coin': { bg: 'rgba(243,186,47,0.25)', glow: 'rgba(243,186,47,0.8)', border: 'rgba(243,186,47,0.5)' },
-  cardano: { bg: 'rgba(0,51,173,0.30)', glow: 'rgba(70,130,255,0.8)', border: 'rgba(70,130,255,0.5)' },
-  polkadot: { bg: 'rgba(230,0,122,0.22)', glow: 'rgba(230,0,122,0.8)', border: 'rgba(230,0,122,0.5)' },
-  dogecoin: { bg: 'rgba(194,166,80,0.25)', glow: 'rgba(194,166,80,0.8)', border: 'rgba(194,166,80,0.5)' },
-  polygon: { bg: 'rgba(130,71,229,0.25)', glow: 'rgba(130,71,229,0.8)', border: 'rgba(130,71,229,0.5)' },
-};
-
-const ICON_IMAGES = {};
-Object.entries(CRYPTO_ICONS).forEach(([k, v]) => {
-  const img = new Image();
-  img.src = v;
-  ICON_IMAGES[k] = img;
-});
 
 /** Defer React state updates out of the canvas rAF callback stack. */
 function scheduleUiUpdate(fn) {
