@@ -113,7 +113,7 @@ O repo inclui **coexistência automatizada** com o Nginx do BlockMiner na frente
   `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remote-btcpay-setup.ps1`  
   (faz `git pull` no caminho `REMOTE_PATH` e corre o script acima.)
 
-O contentor `nginx` gera um **autoassinado** em `nginx/certs-btcpay/` se ainda não houver PEM (substitui depois por Let's Encrypt real para esse hostname, se quiseres aviso verde no browser).
+O contentor `nginx` gera um **autoassinado** em **`nginx/certs-btcpay/`** no host (montado em `/etc/nginx/certs-btcpay` no contentor) com **SAN `DNS:btcpay.blockminer.space`** — sem SAN o Chrome mostra `NET::ERR_CERT_COMMON_NAME_INVALID`. Continua **autoassinado** (aviso amarelo) até substituíres por **Let's Encrypt** nessa pasta e fazeres `docker compose ... restart nginx`. O HTTP-01 usa `certbot-www/` e o bloco `/.well-known/acme-challenge/` em `nginx.conf` para esse hostname.
 
 ---
 

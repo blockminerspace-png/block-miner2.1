@@ -78,9 +78,14 @@ services:
           apk add --no-cache openssl
         fi
         mkdir -p /etc/nginx/certs-btcpay
-        if [ ! -s /etc/nginx/certs-btcpay/cert.pem ]; then
+        # Chrome requires SAN, not CN alone — otherwise NET::ERR_CERT_COMMON_NAME_INVALID.
+        has_btcpay_san() {
+          openssl x509 -in /etc/nginx/certs-btcpay/cert.pem -noout -text 2>/dev/null | grep -q "DNS:btcpay.blockminer.space"
+        }
+        if [ ! -s /etc/nginx/certs-btcpay/cert.pem ] || ! has_btcpay_san; then
           openssl req -x509 -nodes -days 60 -newkey rsa:2048 \
             -subj "/CN=btcpay.blockminer.space" \
+            -addext "subjectAltName=DNS:btcpay.blockminer.space" \
             -keyout /etc/nginx/certs-btcpay/key.pem \
             -out /etc/nginx/certs-btcpay/cert.pem
         fi
