@@ -45,7 +45,7 @@ export function createCsrfMiddleware() {
     const url = req.originalUrl || req.url;
 
     // Third-party server-to-server callbacks and Socket.IO (no browser CSRF token)
-    if (url.includes("/socket.io/")) {
+    if (url.includes("/socket.io/") || url.includes("/api/payments/btcpay/webhook")) {
       return next();
     }
 

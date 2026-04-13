@@ -8,6 +8,7 @@ import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 import { getMinDepositPol, getRequiredBlockConfirmations } from "../services/polygonDepositConfig.js";
 import { getSharedPolygonProvider } from "../services/polygonProvider.js";
+import { isBtcpayConfigured } from "../services/btcpayService.js";
 
 /** Minimum POL for a withdrawal request. */
 export const WITHDRAW_MIN_POL = 10;
@@ -32,7 +33,8 @@ export async function getBalance(req, res) {
       depositContractAddress,
       minDepositPol: getMinDepositPol(),
       blockConfirmations: getRequiredBlockConfirmations(),
-      depositVerifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS
+      depositVerifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS,
+      btcpayDepositEnabled: isBtcpayConfigured()
     });
   } catch (error) {
     logger.error("Error getting balance", { error: error.message });
@@ -321,7 +323,7 @@ export async function getPendingDeposits(req, res) {
       where: {
         userId: req.user.id,
         type: "deposit",
-        status: { in: ["pending_verification", "completed", "failed"] }
+        status: { in: ["pending_verification", "btcpay_pending", "completed", "failed"] }
       },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -362,7 +364,8 @@ export async function getPendingDeposits(req, res) {
         let confirmationsCurrent = null;
         let txMined = null;
         let txReverted = null;
-        if (d.status === "pending_verification" && d.txHash && latestBlock != null) {
+        const isBtcpayHash = typeof d.txHash === "string" && d.txHash.toLowerCase().startsWith("btcpay:");
+        if (d.status === "pending_verification" && d.txHash && latestBlock != null && !isBtcpayHash) {
           try {
             const receipt = await provider.getTransactionReceipt(d.txHash);
             if (!receipt) {

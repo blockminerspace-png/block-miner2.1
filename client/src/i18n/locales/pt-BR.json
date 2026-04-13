@@ -4,6 +4,17 @@
       "RACE_CONDITION_DETECTED": "Esta ação conflitou com outra solicitação. Atualize a página e tente novamente.",
       "IDEMPOTENT_REPLAY": "Esta compra já foi confirmada. Mostramos o mesmo resultado sem cobrar de novo.",
       "INVALID_STATE": "Este recurso não está em um estado válido para a ação solicitada."
+    },
+    "btcpay": {
+      "PAYMENT_NOT_CONFIRMED": "O pagamento em Bitcoin ainda não foi confirmado. Mantenha esta página aberta ou volte depois; o saldo é atualizado automaticamente.",
+      "INVALID_WEBHOOK": "Notificação de pagamento inválida.",
+      "INVOICE_NOT_FOUND": "Fatura não encontrada para sua conta.",
+      "BTCPAY_DISABLED": "Depósitos em Bitcoin (BTCPay) não estão configurados neste servidor.",
+      "INVALID_AMOUNT": "Informe um valor válido em POL acima do mínimo.",
+      "PRICE_UNAVAILABLE": "Não foi possível carregar o preço do POL. Tente novamente em alguns minutos.",
+      "INVOICE_CREATE_FAILED": "Não foi possível criar a fatura no BTCPay. Tente novamente mais tarde.",
+      "INVALID_INVOICE_ID": "Identificador de fatura inválido.",
+      "SERVER_ERROR": "Algo deu errado. Tente novamente."
     }
   },
   "landing": {
@@ -1450,6 +1461,25 @@
     "ticket_status_credited": "Creditado",
     "ticket_status_rejected": "Rejeitado",
     "ticket_status_approved": "Aprovado",
+    "btcpay": {
+      "option_label": "Bitcoin (BTCPay)",
+      "option_hint": "Paga com Bitcoin (on-chain ou Lightning se estiver ativo no BTCPay). A tua conta é creditada em POL depois da fatura ser liquidada.",
+      "title": "Depósito em Bitcoin (BTCPay)",
+      "body": "Criamos uma fatura BTCPay em USD com base na taxa atual do POL. Quando o BTCPay marca a fatura como liquidada, creditamos o teu saldo em POL uma vez — sem crédito duplicado.",
+      "create_invoice": "Criar fatura Bitcoin",
+      "pay_with_bitcoin": "Pagar com Bitcoin",
+      "waiting_confirmation": "À espera da confirmação do BTCPay",
+      "payment_confirmed": "Pagamento confirmado — POL creditado",
+      "invoice_created": "Fatura criada. Conclui o pagamento na carteira ou no checkout alojado.",
+      "checkout_open": "Abrir checkout",
+      "copy_link": "Copiar link de pagamento",
+      "onchain_address": "Endereço BTC (se disponível)",
+      "status_label": "Estado",
+      "status_pending": "Liquidação pendente",
+      "status_completed": "Concluído",
+      "pending_short": "Fatura BTCPay",
+      "qr_alt": "Código QR do checkout BTCPay"
+    },
     "deposit_options": {
       "smart_contract": "Depósito via contrato inteligente",
       "walletconnect": "WalletConnect (código QR)",

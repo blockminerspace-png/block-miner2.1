@@ -4,6 +4,17 @@
       "RACE_CONDITION_DETECTED": "This action conflicted with another request. Refresh the page and try again.",
       "IDEMPOTENT_REPLAY": "This purchase was already confirmed. Showing the same result without charging again.",
       "INVALID_STATE": "This resource is not in a valid state for the requested action."
+    },
+    "btcpay": {
+      "PAYMENT_NOT_CONFIRMED": "Bitcoin payment is not confirmed yet. Keep this page open or return later; your balance updates automatically.",
+      "INVALID_WEBHOOK": "Invalid payment notification.",
+      "INVOICE_NOT_FOUND": "Invoice not found for your account.",
+      "BTCPAY_DISABLED": "Bitcoin (BTCPay) deposits are not configured on this server.",
+      "INVALID_AMOUNT": "Enter a valid POL amount above the minimum.",
+      "PRICE_UNAVAILABLE": "Could not load the POL price. Try again in a few minutes.",
+      "INVOICE_CREATE_FAILED": "Could not create the BTCPay invoice. Try again later.",
+      "INVALID_INVOICE_ID": "Invalid invoice identifier.",
+      "SERVER_ERROR": "Something went wrong. Please try again."
     }
   },
   "landing": {
@@ -1447,6 +1458,25 @@
     "ticket_status_credited": "Credited",
     "ticket_status_rejected": "Rejected",
     "ticket_status_approved": "Approved",
+    "btcpay": {
+      "option_label": "Bitcoin (BTCPay)",
+      "option_hint": "Pay with Bitcoin (on-chain or Lightning if enabled in BTCPay). Your account is credited in POL after the invoice settles.",
+      "title": "Bitcoin deposit (BTCPay)",
+      "body": "We create a BTCPay invoice priced in USD from the current POL rate. After BTCPay marks the invoice as settled, we credit your POL balance once — no double credit.",
+      "create_invoice": "Create Bitcoin invoice",
+      "pay_with_bitcoin": "Pay with Bitcoin",
+      "waiting_confirmation": "Waiting for BTCPay confirmation",
+      "payment_confirmed": "Payment confirmed — POL credited",
+      "invoice_created": "Invoice created. Complete payment in your wallet or the hosted checkout.",
+      "checkout_open": "Open checkout",
+      "copy_link": "Copy payment link",
+      "onchain_address": "BTC address (if available)",
+      "status_label": "Status",
+      "status_pending": "Pending settlement",
+      "status_completed": "Completed",
+      "pending_short": "BTCPay invoice",
+      "qr_alt": "QR code for BTCPay checkout"
+    },
     "deposit_options": {
       "smart_contract": "Smart contract deposit",
       "walletconnect": "WalletConnect (QR code)",

@@ -1,6 +1,7 @@
 import express from "express";
 import * as walletController from "../controllers/walletController.js";
 import * as blkWalletController from "../controllers/blkWalletController.js";
+import * as btcpayDepositController from "../controllers/btcpayDepositController.js";
 import { requireAuth } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 
@@ -17,6 +18,8 @@ walletRouter.post("/deposit", requireAuth, walletLimiter, walletController.reque
 walletRouter.post("/deposit/submit", requireAuth, walletLimiter, walletController.submitDeposit);
 walletRouter.post("/deposit/estimate-gas", requireAuth, walletLimiter, walletController.postDepositEstimateGas);
 walletRouter.get("/deposit/pending", requireAuth, walletLimiter, walletController.getPendingDeposits);
+walletRouter.post("/btcpay/invoice", requireAuth, walletLimiter, btcpayDepositController.postBtcpayInvoice);
+walletRouter.get("/btcpay/invoice/:invoiceId", requireAuth, walletLimiter, btcpayDepositController.getBtcpayInvoiceStatus);
 walletRouter.post("/update-address", requireAuth, walletLimiter, walletController.updateAddress);
 walletRouter.post("/withdraw", requireAuth, walletLimiter, walletController.requestWithdrawal);
 walletRouter.put("/mining-payout-mode", requireAuth, walletLimiter, walletController.setMiningPayoutMode);

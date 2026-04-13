@@ -56,6 +56,7 @@ import userRouter from "./routes/user.js";
 import { sidebarNavRouter } from "./routes/sidebar-nav.js";
 import * as publicLiveStatsController from "./controllers/publicLiveStatsController.js";
 import * as healthController from "./controllers/healthController.js";
+import { handleBtcpayWebhook } from "./controllers/btcpayWebhookController.js";
 import * as bannerController from "./controllers/bannerController.js";
 import * as transparencyController from "./controllers/transparencyController.js";
 // Models & Utils
@@ -224,6 +225,24 @@ app.use(
   }),
 );
 app.use(cors(buildExpressCorsOptions()));
+
+/**
+ * BTCPay webhook must read the raw body for HMAC verification (before express.json consumes it).
+ */
+const btcpayWebhookLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 300,
+  message: "Too many BTCPay webhook requests."
+});
+app.post(
+  "/api/payments/btcpay/webhook",
+  btcpayWebhookLimiter,
+  express.raw({
+    type: () => true,
+    limit: "4mb"
+  }),
+  handleBtcpayWebhook
+);
 
 const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "1mb";
 app.use(express.json({ limit: JSON_BODY_LIMIT }));

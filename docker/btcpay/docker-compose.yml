@@ -1,0 +1,29 @@
+# BTCPay Server — reference Docker layout for BlockMiner operators.
+#
+# Production: the upstream project generates a full stack (Bitcoin Core / NBXplorer / BTCPay / Postgres / Nginx).
+# Follow the official guide: https://docs.btcpayserver.org/Docker/
+# Repository: https://github.com/btcpayserver/btcpayserver-docker
+#
+# After deployment:
+# 1. Open your HTTPS host, complete BTCPay registration, create a Store.
+# 2. Wallets → BTC (and Lightning if desired) — wait for sync on mainnet.
+# 3. Store → Access tokens → Create token with "Create invoice" + "View invoices".
+# 4. Store → Webhooks → Add webhook → URL = https://YOUR_APP/api/payments/btcpay/webhook
+#    → Request "A payment has been settled" (InvoiceSettled) → copy signing secret into BTCPAY_WEBHOOK_SECRET.
+# 5. Put BTCPAY_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID, BTCPAY_WEBHOOK_SECRET in BlockMiner server .env (never commit secrets).
+#
+# Reverse proxy: terminate TLS in front of BTCPay (Caddy, Nginx, or Traefik). BTCPay must be served over HTTPS
+# for secure cookies and wallet interfaces. Example Caddy vhost:
+#   pay.example.com {
+#     reverse_proxy btcpayserver:49392
+#   }
+#
+# The block below is a minimal placeholder so `docker compose` has a file to extend; replace with generated
+# compose from btcpayserver-docker, or merge their output into your infra repo.
+
+services:
+  reverse-proxy-note:
+    image: caddy:2-alpine
+    profiles: ["documentation-only"]
+    restart: "no"
+    command: ["sh", "-c", "echo See comments in this compose file; exit 0"]

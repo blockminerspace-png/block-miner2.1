@@ -28,6 +28,7 @@ import { api } from '../store/auth';
 import { parseEther, isAddress, getAddress, Interface } from 'ethers';
 import { BLOCK_MINER_DEPOSIT_ABI } from '../web3/blockMinerDepositAbi.js';
 import { useSendTransaction } from 'wagmi';
+import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../hooks/useWallet';
 import { useGameStore } from '../store/game';
 import { canUseInjectedDepositChannel } from '../utils/depositChannel.js';
@@ -167,6 +168,11 @@ export default function Wallet() {
     });
     const [depositForm, setDepositForm] = useState({ amount: '' });
     const [depositChannel, setDepositChannel] = useState('smart_contract');
+    const [btcpayDepositEnabled, setBtcpayDepositEnabled] = useState(false);
+    const [btcpayCheckoutLink, setBtcpayCheckoutLink] = useState('');
+    const [btcpayInvoiceId, setBtcpayInvoiceId] = useState('');
+    const [btcpayBtcAddr, setBtcpayBtcAddr] = useState(null);
+    const [btcpayInvoiceStatus, setBtcpayInvoiceStatus] = useState(null);
     const [polPrice, setPolPrice] = useState(0);
     const [minDepositPol, setMinDepositPol] = useState(0.01);
     const [blockConfirmations, setBlockConfirmations] = useState(3);
@@ -237,6 +243,7 @@ export default function Wallet() {
                 if (typeof balanceRes.data.depositVerifyMaxAttempts === 'number' && balanceRes.data.depositVerifyMaxAttempts >= 1) {
                     setDepositVerifyMaxAttempts(balanceRes.data.depositVerifyMaxAttempts);
                 }
+                setBtcpayDepositEnabled(Boolean(balanceRes.data.btcpayDepositEnabled));
 
                 // If user has a saved address but not connected, pre-fill it for convenience
                 if (!withdrawForm.address && balanceRes.data.walletAddress) {
@@ -296,9 +303,61 @@ export default function Wallet() {
         }
     }, [systemContractAddress, systemDepositAddress, walletConnectConfigured]);
 
+    useEffect(() => {
+        if (depositChannel === 'btcpay' && !btcpayDepositEnabled) {
+            const canInjected = canUseInjectedDepositChannel(systemContractAddress, systemDepositAddress);
+            setDepositChannel(
+                !canInjected && walletConnectConfigured ? 'walletconnect' : 'smart_contract'
+            );
+        }
+    }, [
+        depositChannel,
+        btcpayDepositEnabled,
+        walletConnectConfigured,
+        systemContractAddress,
+        systemDepositAddress
+    ]);
+
+    useEffect(() => {
+        if (depositChannel !== 'btcpay') {
+            setBtcpayInvoiceId('');
+            setBtcpayCheckoutLink('');
+            setBtcpayBtcAddr(null);
+            setBtcpayInvoiceStatus(null);
+        }
+    }, [depositChannel]);
+
+    useEffect(() => {
+        if (!btcpayInvoiceId || depositChannel !== 'btcpay') return undefined;
+        const poll = async () => {
+            try {
+                const res = await api.get(
+                    `/wallet/btcpay/invoice/${encodeURIComponent(btcpayInvoiceId)}`
+                );
+                if (res.data?.ok) {
+                    setBtcpayInvoiceStatus(res.data.localStatus);
+                    if (res.data.localStatus === 'completed') {
+                        setBtcpayInvoiceId('');
+                        setBtcpayCheckoutLink('');
+                        setBtcpayBtcAddr(null);
+                        void fetchWalletData();
+                        void fetchPendingDeposits();
+                    }
+                }
+            } catch {
+                /* ignore */
+            }
+        };
+        void poll();
+        const id = setInterval(poll, 12_000);
+        return () => clearInterval(id);
+    }, [btcpayInvoiceId, depositChannel, fetchWalletData, fetchPendingDeposits]);
+
     // Para de fazer poll quando não há mais pendentes
     useEffect(() => {
-        const hasPending = pendingDeposits.some(d => d.status === 'pending_verification');
+        const hasPending = pendingDeposits.some(
+            d => d.status === 'pending_verification' || d.status === 'btcpay_pending'
+        );
         if (hasPending) {
             startPendingPoll();
         } else {
@@ -473,6 +532,37 @@ export default function Wallet() {
             } else {
                 toast.error(error.reason || error.message || t('wallet.web3_deposit.tx_failed'));
             }
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const handleCreateBtcpayInvoice = async () => {
+        const amount = parseFloat(depositForm.amount);
+        if (isNaN(amount) || amount < minDepositPol) {
+            toast.error(t('wallet.min_deposit_error', { min: minDepositPol }));
+            return;
+        }
+        setIsActionLoading(true);
+        try {
+            const res = await api.post('/wallet/btcpay/invoice', { amountPol: amount });
+            if (res.data?.ok) {
+                setBtcpayInvoiceId(res.data.invoiceId);
+                setBtcpayCheckoutLink(res.data.checkoutLink);
+                setBtcpayBtcAddr(res.data.btcAddress || null);
+                setBtcpayInvoiceStatus(res.data.status);
+                toast.success(t('wallet.btcpay.invoice_created'));
+                void fetchPendingDeposits();
+                startPendingPoll();
+            } else {
+                const key = res.data?.i18nKey;
+                toast.error(key ? t(key) : res.data?.message || t('common.error'));
+            }
+        } catch (err) {
+            const key = err.response?.data?.i18nKey;
+            toast.error(
+                key ? t(key) : err.response?.data?.message || err.message || t('common.error')
+            );
         } finally {
             setIsActionLoading(false);
         }
@@ -849,7 +939,7 @@ export default function Wallet() {
 
                             {activeTab === 'deposit' && (
                                 <form onSubmit={(e) => e.preventDefault()} className="space-y-6 sm:space-y-8">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                         <button
                                             type="button"
                                             onClick={() => setDepositChannel('smart_contract')}
@@ -889,20 +979,35 @@ export default function Wallet() {
                                                 {t('wallet.deposit_options.walletconnect')}
                                             </span>
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDepositChannel('btcpay')}
+                                            disabled={!btcpayDepositEnabled}
+                                            className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
+                                                depositChannel === 'btcpay'
+                                                    ? 'border-primary bg-primary/15 text-white shadow-lg shadow-primary/10'
+                                                    : 'border-slate-700 text-slate-400 hover:border-slate-600'
+                                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                        >
+                                            {t('wallet.btcpay.option_label')}
+                                        </button>
                                     </div>
                                     <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
-                                        {t('wallet.deposit_options.hint')}
+                                        {depositChannel === 'btcpay'
+                                            ? t('wallet.btcpay.option_hint')
+                                            : t('wallet.deposit_options.hint')}
                                     </p>
-                                    {depositChannel === 'smart_contract' && kitConnected ? (
+                                    {depositChannel !== 'btcpay' && depositChannel === 'smart_contract' && kitConnected ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed">
                                             {t('wallet.web3_deposit.hint_disconnect_for_contract')}
                                         </p>
                                     ) : null}
-                                    {depositChannel === 'walletconnect' && isConnected && !kitConnected ? (
+                                    {depositChannel !== 'btcpay' && depositChannel === 'walletconnect' && isConnected && !kitConnected ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed">
                                             {t('wallet.web3_deposit.hint_disconnect_for_wc')}
                                         </p>
                                     ) : null}
+                                    {depositChannel !== 'btcpay' ? (
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
                                         <div className="p-5 sm:p-6 rounded-3xl border border-indigo-500/25 bg-indigo-950/20 flex flex-col gap-4 min-h-[280px]">
                                             <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300">
@@ -1042,6 +1147,109 @@ export default function Wallet() {
                                             ) : null}
                                         </div>
                                     </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
+                                            <div className="p-5 sm:p-6 rounded-3xl border border-amber-500/25 bg-amber-950/15 flex flex-col gap-4 min-h-[280px]">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-amber-200">
+                                                    {t('wallet.btcpay.title')}
+                                                </h4>
+                                                <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                                                    {t('wallet.btcpay.body')}
+                                                </p>
+                                                <p className="text-[9px] text-slate-500 font-bold mt-auto">
+                                                    {t('wallet.web3_deposit.min_deposit', { min: minDepositPol })}
+                                                </p>
+                                            </div>
+                                            <div className="p-5 sm:p-6 rounded-3xl border border-slate-800/80 bg-slate-950/50 flex flex-col gap-4 min-h-[280px]">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-200">
+                                                    {t('wallet.btcpay.pay_with_bitcoin')}
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                                                        {t('wallet.amount_to_add')}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={depositForm.amount}
+                                                        onChange={(e) => setDepositForm({ amount: e.target.value })}
+                                                        placeholder="0.00"
+                                                        className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-4 text-slate-200 text-sm font-black transition-all outline-none"
+                                                    />
+                                                    <p className="text-[9px] text-slate-600 font-bold ml-1">
+                                                        {t('wallet.min_deposit_hint', { min: minDepositPol })}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleCreateBtcpayInvoice()}
+                                                    disabled={isActionLoading}
+                                                    className="w-full py-4 sm:py-5 bg-gradient-to-r from-amber-600 to-orange-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-tight sm:tracking-[0.1em] transition-all shadow-xl shadow-amber-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                                                >
+                                                    {isActionLoading ? (
+                                                        <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                                                    ) : (
+                                                        <QrCode className="w-5 h-5 shrink-0" />
+                                                    )}
+                                                    {t('wallet.btcpay.create_invoice')}
+                                                </button>
+                                                {btcpayCheckoutLink ? (
+                                                    <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                                            {t('wallet.btcpay.status_label')}:{' '}
+                                                            <span className="text-slate-200">
+                                                                {btcpayInvoiceStatus === 'completed'
+                                                                    ? t('wallet.btcpay.payment_confirmed')
+                                                                    : t('wallet.btcpay.waiting_confirmation')}
+                                                            </span>
+                                                        </p>
+                                                        <div className="flex justify-center p-3 bg-white rounded-2xl">
+                                                            <QRCodeSVG
+                                                                value={btcpayCheckoutLink}
+                                                                size={160}
+                                                                level="M"
+                                                                title={t('wallet.btcpay.qr_alt')}
+                                                            />
+                                                        </div>
+                                                        {btcpayBtcAddr ? (
+                                                            <div className="space-y-1">
+                                                                <p className="text-[9px] font-black text-slate-500 uppercase">
+                                                                    {t('wallet.btcpay.onchain_address')}
+                                                                </p>
+                                                                <p className="text-[10px] font-mono text-slate-300 break-all">
+                                                                    {btcpayBtcAddr}
+                                                                </p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => copyToClipboard(btcpayBtcAddr)}
+                                                                    className="text-[9px] font-black text-primary uppercase"
+                                                                >
+                                                                    {t('common.copy')}
+                                                                </button>
+                                                            </div>
+                                                        ) : null}
+                                                        <div className="flex flex-col sm:flex-row gap-2">
+                                                            <a
+                                                                href={btcpayCheckoutLink}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="flex-1 text-center py-3 rounded-xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 border border-slate-600"
+                                                            >
+                                                                {t('wallet.btcpay.checkout_open')}
+                                                            </a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyToClipboard(btcpayCheckoutLink)}
+                                                                className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-600 text-slate-200 hover:bg-slate-800"
+                                                            >
+                                                                {t('wallet.btcpay.copy_link')}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Painel de depósitos em verificação */}
                                     {pendingDeposits.length > 0 && (
@@ -1052,7 +1260,12 @@ export default function Wallet() {
                                             </h4>
                                             <div className="space-y-2 max-h-52 overflow-y-auto scrollbar-hide">
                                                 {pendingDeposits.map(dep => {
-                                                    const isPending = dep.status === 'pending_verification';
+                                                    const isBtcpayRow =
+                                                        typeof dep.txHash === 'string' &&
+                                                        dep.txHash.toLowerCase().startsWith('btcpay:');
+                                                    const isPending =
+                                                        dep.status === 'pending_verification' ||
+                                                        dep.status === 'btcpay_pending';
                                                     const isOk = dep.status === 'completed';
                                                     return (
                                                         <div key={dep.id} className={`flex items-center justify-between p-3.5 rounded-2xl border ${
@@ -1069,30 +1282,45 @@ export default function Wallet() {
                                                                 }
                                                                 <div>
                                                                     <p className="text-[9px] font-mono text-slate-400">
-                                                                        {dep.txHash ? `${dep.txHash.slice(0,10)}...${dep.txHash.slice(-6)}` : 'N/A'}
+                                                                        {isBtcpayRow
+                                                                            ? t('wallet.btcpay.pending_short')
+                                                                            : dep.txHash
+                                                                              ? `${dep.txHash.slice(0, 10)}...${dep.txHash.slice(-6)}`
+                                                                              : 'N/A'}
                                                                     </p>
                                                                     <p className="text-[9px] text-slate-600">
                                                                         {isPending ? (
                                                                             <>
-                                                                                {t('wallet.verifying_attempt', {
-                                                                                    current: dep.verifyAttempts,
-                                                                                    max: dep.verifyMaxAttempts ?? depositVerifyMaxAttempts
-                                                                                })}
-                                                                                {typeof dep.confirmationsCurrent === 'number' && dep.confirmationsRequired ? (
-                                                                                    <span className="block mt-0.5 text-indigo-300/90">
-                                                                                        {dep.txReverted
-                                                                                            ? t('wallet.web3_deposit.tx_reverted_hint')
-                                                                                            : dep.txMined === false
-                                                                                                ? t('wallet.web3_deposit.tx_pending_mined')
-                                                                                                : t('wallet.web3_deposit.confirmations', {
-                                                                                                      current: Math.min(
-                                                                                                          dep.confirmationsCurrent,
-                                                                                                          dep.confirmationsRequired
-                                                                                                      ),
-                                                                                                      required: dep.confirmationsRequired
-                                                                                                  })}
+                                                                                {isBtcpayRow ? (
+                                                                                    <span className="block text-indigo-300/90">
+                                                                                        {t('wallet.btcpay.waiting_confirmation')}
                                                                                     </span>
-                                                                                ) : null}
+                                                                                ) : (
+                                                                                    <>
+                                                                                        {t('wallet.verifying_attempt', {
+                                                                                            current: dep.verifyAttempts,
+                                                                                            max:
+                                                                                                dep.verifyMaxAttempts ??
+                                                                                                depositVerifyMaxAttempts
+                                                                                        })}
+                                                                                        {typeof dep.confirmationsCurrent ===
+                                                                                            'number' && dep.confirmationsRequired ? (
+                                                                                            <span className="block mt-0.5 text-indigo-300/90">
+                                                                                                {dep.txReverted
+                                                                                                    ? t('wallet.web3_deposit.tx_reverted_hint')
+                                                                                                    : dep.txMined === false
+                                                                                                      ? t('wallet.web3_deposit.tx_pending_mined')
+                                                                                                      : t('wallet.web3_deposit.confirmations', {
+                                                                                                            current: Math.min(
+                                                                                                                dep.confirmationsCurrent,
+                                                                                                                dep.confirmationsRequired
+                                                                                                            ),
+                                                                                                            required: dep.confirmationsRequired
+                                                                                                        })}
+                                                                                            </span>
+                                                                                        ) : null}
+                                                                                    </>
+                                                                                )}
                                                                             </>
                                                                         ) : isOk ? (
                                                                             `+${Number(dep.amount).toFixed(4)} POL`
@@ -1103,7 +1331,7 @@ export default function Wallet() {
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                {dep.txHash && (
+                                                                {dep.txHash && !isBtcpayRow ? (
                                                                     <a
                                                                         href={`https://polygonscan.com/tx/${dep.txHash}`}
                                                                         target="_blank"
@@ -1112,7 +1340,7 @@ export default function Wallet() {
                                                                     >
                                                                         <ExternalLink className="w-3 h-3" />
                                                                     </a>
-                                                                )}
+                                                                ) : null}
                                                                 <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
                                                                     isPending ? 'text-indigo-300 bg-indigo-400/10' :
                                                                     isOk ? 'text-emerald-300 bg-emerald-400/10' :
