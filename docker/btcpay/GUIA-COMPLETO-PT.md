@@ -111,7 +111,7 @@ O BlockMiner **só** precisa de `BTCPAY_*` no `.env.production` **depois** de te
 
 O Nginx do BlockMiner está a ouvir em **443**, mas o **upstream BTCPay** nas portas **39180 / 39443** (coexistência) **ainda não responde** ou a instalação falhou. Não é “só certificado”: o serviço por trás não está pronto. Na VPS: `tail -f /root/btcpay-blockminer-install.log` e, na pasta `docker/btcpay/btcpayserver-docker` (se existir), `docker compose ps` conforme a doc oficial.
 
-Se o log mostrar **`BTCPAY_ADDITIONAL_HOSTS: unbound variable`**, o `btcpay-setup.sh` oficial saiu logo no início — atualiza o repo BlockMiner (correção em `install-btcpay.sh` / `reinstall-btcpay.sh`), garante `BTCPAY_ADDITIONAL_HOSTS=` no `docker/btcpay/env`, e corre de novo `bash docker/btcpay/reinstall-btcpay.sh` (ou `install-btcpay.sh` se ainda não houve stack).
+Se o log mostrar **`BTCPAY_ADDITIONAL_HOSTS: unbound variable`** ou **`BTCPAY_DOCKER_COMPOSE: unbound variable`**, o instalador oficial abortou logo no início (o nosso `install-btcpay.sh` usava `set -u` e isso propagava para o `source` do upstream). Atualiza o repo BlockMiner e corre de novo `bash docker/btcpay/reinstall-btcpay.sh` (ou `install-btcpay.sh`). Mantém `BTCPAY_ADDITIONAL_HOSTS=` no `docker/btcpay/env` se usares o script de coexistência.
 
 ---
 

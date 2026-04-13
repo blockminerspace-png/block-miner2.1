@@ -125,9 +125,16 @@ echo "==> Starting official: . ./btcpay-setup.sh -i"
 echo "    This installs Docker if needed, generates compose, and starts BTCPay (sync takes a long time)."
 echo ""
 
-# Must be sourced (upstream contract)
+# Must be sourced (upstream contract). Do not inherit `set -u`: upstream reads vars
+# (e.g. BTCPAY_DOCKER_COMPOSE) before assigning defaults and aborts with "unbound variable".
+set +u
 # shellcheck disable=SC1091
 . ./btcpay-setup.sh -i
+btcpay_setup_status=$?
+set -euo pipefail
+if [[ "$btcpay_setup_status" -ne 0 ]]; then
+  exit "$btcpay_setup_status"
+fi
 
 echo ""
 echo "==> Done."

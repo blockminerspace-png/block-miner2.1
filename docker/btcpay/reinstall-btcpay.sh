@@ -49,7 +49,13 @@ export BTCPAY_ADDITIONAL_HOSTS="${BTCPAY_ADDITIONAL_HOSTS:-}"
 
 cd "$INSTALL_DIR"
 echo "==> Re-running upstream btcpay-setup.sh -i from ${INSTALL_DIR}"
+set +u
 # shellcheck disable=SC1091
 . ./btcpay-setup.sh -i
+btcpay_setup_status=$?
+set -euo pipefail
+if [[ "$btcpay_setup_status" -ne 0 ]]; then
+  exit "$btcpay_setup_status"
+fi
 
 echo "==> Reinstall pass complete. https://${BTCPAY_HOST}"
