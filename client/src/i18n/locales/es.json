@@ -936,6 +936,8 @@
     "backpack_help": "Usa Enviar al almacén para guardar una unidad en la bóveda (vault) sin instalarla.",
     "warehouse": "Almacén",
     "go_to_warehouse": "Ir al Almacén",
+    "room_label": "Sala",
+    "slot_add_machine": "Añadir máquina",
     "room_locked": "Sala {{room}} bloqueada",
     "room_locked_desc": "24 racks · 192 slots disponibles tras el desbloqueo",
     "unlock_free": "Desbloquear gratis",
@@ -1607,6 +1609,9 @@
   "vault": {
     "title": "Bóveda de Mineros",
     "subtitle": "Almacena tus mineros de forma segura lejos de la interfaz principal.",
+    "nav_back_mining_room": "Volver a la Sala de Minería",
+    "empty_cta": "Ir a la Sala de Minería",
+    "machine_status_vault": "En la bóveda",
     "empty": "Tu bóveda está vacía.",
     "empty_hint": "Mueve mineros desde la sala de minería (mochila o racks) para guardarlos en la bóveda.",
     "stored_machines": "Máquinas Almacenadas",

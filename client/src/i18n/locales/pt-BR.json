@@ -1301,6 +1301,8 @@
     "backpack_help": "Use Enviar para o armazém para guardar uma unidade no cofre (vault) sem instalar.",
     "warehouse": "Armazém",
     "go_to_warehouse": "Ir para o Armazém",
+    "room_label": "Sala",
+    "slot_add_machine": "Adicionar máquina",
     "room_locked": "Sala {{room}} bloqueada",
     "room_locked_desc": "24 racks · 192 slots disponíveis após desbloqueio",
     "unlock_free": "Desbloquear grátis",
@@ -2106,6 +2108,9 @@
   "vault": {
     "title": "Cofre de Mineradores",
     "subtitle": "Armazene seus mineradores com segurança longe da interface principal.",
+    "nav_back_mining_room": "Voltar à Sala de Mineração",
+    "empty_cta": "Ir para a Sala de Mineração",
+    "machine_status_vault": "No cofre",
     "empty": "Seu cofre está vazio.",
     "empty_hint": "Mova mineradores da sala de mineração (mochila ou racks) para os guardar no cofre.",
     "stored_machines": "Máquinas Armazenadas",

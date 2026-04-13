@@ -1300,6 +1300,8 @@
     "backpack_help": "Use Send to warehouse to store a unit in the vault without installing it.",
     "warehouse": "Warehouse",
     "go_to_warehouse": "Go to Warehouse",
+    "room_label": "Room",
+    "slot_add_machine": "Add machine",
     "room_locked": "Room {{room}} locked",
     "room_locked_desc": "24 racks · 192 slots available after unlocking",
     "unlock_free": "Unlock for free",
@@ -2101,6 +2103,9 @@
   "vault": {
     "title": "Miner Vault",
     "subtitle": "Securely store your miners away from the main interface.",
+    "nav_back_mining_room": "Back to Mining Room",
+    "empty_cta": "Go to Mining Room",
+    "machine_status_vault": "In vault",
     "empty": "Your vault is empty.",
     "empty_hint": "Move miners here from your mining room (backpack or racks) to store them in the vault.",
     "stored_machines": "Stored Machines",

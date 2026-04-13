@@ -193,18 +193,18 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
         <div className="p-4 sm:p-8 max-h-[calc(100vh-18rem)] overflow-y-auto">
           {machine ? (
             <div className="space-y-6">
-              <div className="flex items-center gap-6 p-4 bg-gray-800/20 rounded-2xl border border-gray-800/50">
-                <div className="w-20 h-20 bg-gray-900/50 rounded-2xl p-3 border border-gray-800/50">
-                  <img src={descriptor.image} alt={descriptor.name} className="w-full h-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
+              <div className="flex flex-col gap-4 rounded-2xl border border-gray-800/50 bg-gray-800/20 p-4 sm:flex-row sm:items-center sm:gap-6">
+                <div className="mx-auto flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-gray-800/50 bg-gray-900/50 p-3 sm:mx-0">
+                  <img src={descriptor.image} alt={descriptor.name} className="max-h-full max-w-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
                 </div>
-                <div>
-                  <h4 className="text-lg font-bold text-white">{machine.minerName || descriptor.name}</h4>
-                  <div className="flex items-center gap-4 mt-1">
-                    <div className="flex flex-col"><span className="text-[10px] font-bold text-gray-600 uppercase">{t("inventory.modal.level")}</span><span className="text-sm font-bold text-gray-300">{machine.level}</span></div>
-                    <div className="flex flex-col"><span className="text-[10px] font-bold text-gray-600 uppercase">{t("inventory.modal.hashrate")}</span><span className="text-sm font-bold text-primary uppercase">{formatHashrate(machine.hashRate)}</span></div>
+                <div className="min-w-0 flex-1 text-center sm:text-left">
+                  <h4 className="text-lg font-bold leading-snug text-white break-words">{machine.minerName || descriptor.name}</h4>
+                  <div className="mt-2 flex flex-wrap items-start justify-center gap-4 sm:justify-start">
+                    <div className="flex flex-col items-center sm:items-start"><span className="text-[10px] font-bold uppercase text-gray-600">{t("inventory.modal.level")}</span><span className="text-sm font-bold text-gray-300">{machine.level}</span></div>
+                    <div className="flex flex-col items-center sm:items-start"><span className="text-[10px] font-bold uppercase text-gray-600">{t("inventory.modal.hashrate")}</span><span className="text-sm font-bold uppercase text-primary">{formatHashrate(machine.hashRate)}</span></div>
                     {machine.slotSize >= 2 && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-gray-600 uppercase">{t("inventory.modal.slots")}</span>
+                      <div className="flex flex-col items-center sm:items-start">
+                        <span className="text-[10px] font-bold uppercase text-gray-600">{t("inventory.modal.slots")}</span>
                         <span className="text-sm font-bold text-amber-400">{machine.slotSize}</span>
                       </div>
                     )}
@@ -230,7 +230,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                         }
                         setConfirmingAction("inventory");
                       }}
-                      className={`group w-full min-h-[3.25rem] px-4 py-3.5 rounded-2xl font-bold text-sm transition-all border flex flex-col sm:flex-row items-center justify-center gap-2 text-center sm:text-left disabled:opacity-50 disabled:pointer-events-none ${
+                      className={`group flex min-h-11 w-full flex-col items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-center text-sm font-bold transition-all disabled:pointer-events-none disabled:opacity-50 sm:flex-row sm:text-left ${
                         confirmingAction === "inventory"
                           ? "bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/20"
                           : "bg-red-500/10 text-red-300 border-red-500/30 hover:bg-red-500/15 hover:border-red-500/50"
@@ -258,7 +258,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                         }
                         setConfirmingAction("vault");
                       }}
-                      className={`group w-full min-h-[3.25rem] px-4 py-3.5 rounded-2xl font-bold text-sm transition-all border flex flex-col sm:flex-row items-center justify-center gap-2 text-center sm:text-left disabled:opacity-50 disabled:pointer-events-none ${
+                      className={`group flex min-h-11 w-full flex-col items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-center text-sm font-bold transition-all disabled:pointer-events-none disabled:opacity-50 sm:flex-row sm:text-left ${
                         confirmingAction === "vault"
                           ? "bg-violet-600 text-white border-violet-500 shadow-lg shadow-violet-600/25"
                           : "bg-violet-500/15 text-violet-200 border-violet-500/35 hover:bg-violet-500/25 hover:border-violet-400/50"
@@ -277,7 +277,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                       type="button"
                       disabled={busy}
                       onClick={() => setConfirmingAction(null)}
-                      className="w-full min-h-[2.75rem] py-3 bg-gray-900/90 text-gray-400 rounded-2xl font-semibold text-sm transition-all border border-gray-800 hover:bg-gray-800 hover:text-gray-200 disabled:opacity-50"
+                      className="min-h-11 w-full rounded-2xl border border-gray-800 bg-gray-900/90 py-3 text-sm font-semibold text-gray-400 transition-all hover:bg-gray-800 hover:text-gray-200 disabled:opacity-50"
                     >
                       {t("common.cancel")}
                     </button>
@@ -294,7 +294,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                   {groupedInventory.map((group) => {
                     const desc = getMachineDescriptor({ hashRate: group.hashRate, slotSize: group.slotSize, imageUrl: group.imageUrl });
                     return (
-                      <button key={group.id} onClick={() => onInstall(slot.rack.id, group.items[0].id)} className="w-full p-4 bg-gray-800/30 hover:bg-primary/10 border border-gray-800 hover:border-primary/30 rounded-2xl flex items-center justify-between transition-all">
+                      <button key={group.id} type="button" onClick={() => onInstall(slot.rack.id, group.items[0].id)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-800/30 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/10">
                         <div className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 bg-gray-900 rounded-lg p-2 shrink-0 relative">
                             <img src={desc.image} alt={group.minerName} className="w-full h-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
@@ -410,7 +410,7 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
             disabled={rackDismantleLoading}
             title={t("inventory.dismantle_rack_tooltip")}
             aria-label={t("inventory.dismantle_rack_aria")}
-            className="w-8 h-8 shrink-0 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 transition-colors hover:bg-red-500/20 disabled:pointer-events-none disabled:opacity-40"
           >
             <X className="w-4 h-4" strokeWidth={2.5} aria-hidden />
           </button>
@@ -498,26 +498,43 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
                       }
                     : undefined
                 }
-                className={`relative rounded-2xl border ${
+                className={`group relative flex min-h-[5.25rem] flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border p-1.5 text-center transition-all duration-200 sm:min-h-0 ${
                   isOccupied
                     ? "border-primary/30 bg-primary/5"
                     : isDragTarget
-                    ? "border-primary bg-primary/15 scale-[1.04] shadow-glow"
+                    ? "scale-[1.02] border-primary bg-primary/15 shadow-glow sm:scale-[1.04]"
                     : "border-gray-800/50 bg-gray-900/30 hover:border-gray-700"
-                } transition-all duration-200 group flex items-center justify-center ${isDoubleSlot ? 'aspect-[2/1]' : 'aspect-square'}`}
+                } ${isDoubleSlot ? "sm:aspect-[2/1]" : "sm:aspect-square"}`}
               >
                 {isOccupied ? (
                   <>
-                    <img src={descriptor.image} alt="" className="w-full h-full object-contain group-hover:scale-110 transition-transform pointer-events-none" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
-                    <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary pointer-events-none" />
+                    <div className="pointer-events-none flex min-h-0 w-full flex-1 items-center justify-center p-1 sm:p-2">
+                      <img
+                        src={descriptor.image}
+                        alt=""
+                        className="max-h-full max-w-full object-contain transition-transform group-hover:scale-105"
+                        onError={(e) => {
+                          e.target.src = DEFAULT_MINER_IMAGE_URL;
+                        }}
+                      />
+                    </div>
+                    <div className="pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
                     {isDoubleSlot && (
-                      <div className="absolute bottom-1 left-1 bg-amber-500/80 text-black text-[7px] font-black px-1 rounded pointer-events-none leading-tight">2×</div>
+                      <div className="pointer-events-none absolute bottom-1 left-1 rounded bg-amber-500/90 px-1 text-[7px] font-black leading-tight text-black">2×</div>
                     )}
                   </>
                 ) : isDragTarget ? (
-                  <Plus className="w-6 h-6 text-primary animate-pulse" />
+                  <div className="flex flex-col items-center justify-center gap-0.5 px-0.5">
+                    <Plus className="h-6 w-6 shrink-0 animate-pulse text-primary" aria-hidden />
+                    <span className="hidden text-[8px] font-bold uppercase leading-tight text-primary/90 sm:inline">{t("inventory.slot_add_machine")}</span>
+                  </div>
                 ) : (
-                  <Plus className="w-5 h-5 text-gray-700 group-hover:text-gray-500 transition-colors" />
+                  <div className="flex flex-col items-center justify-center gap-1 px-0.5">
+                    <Plus className="h-5 w-5 shrink-0 text-gray-600 transition-colors group-hover:text-gray-400" aria-hidden />
+                    <span className="max-w-[5.5rem] text-[8px] font-bold uppercase leading-tight tracking-wide text-gray-500 group-hover:text-gray-400 sm:max-w-none sm:text-[9px]">
+                      {t("inventory.slot_add_machine")}
+                    </span>
+                  </div>
                 )}
               </button>
             );
@@ -744,20 +761,31 @@ export default function Inventory() {
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-black text-white tracking-tight">{t("inventory.title")}</h1>
           <p className="text-gray-500 font-medium">{t("inventory.subtitle")}</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-xs font-bold text-purple-400 flex items-center gap-1.5 shadow-glow-sm">
-            <Zap className="w-3.5 h-3.5" />{formatHashrate(activeMachinesHashRate)}
-          </div>
-          <div className="px-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-xs font-bold text-gray-400">
-            {summary.occupiedRacks} {t("inventory.active_machines")}
-          </div>
-          <div className="px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl text-xs font-bold text-primary">
-            {inventory.length} {t("inventory.in_inventory")}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-end">
+          <button
+            type="button"
+            onClick={() => navigate("/vault")}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-secondary/25 bg-secondary/10 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-secondary transition-colors hover:bg-secondary/20 sm:w-auto"
+          >
+            <Warehouse className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            {t("inventory.go_to_warehouse")}
+          </button>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <div className="inline-flex min-h-11 flex-1 min-w-[10rem] items-center justify-center gap-1.5 rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-2 text-xs font-bold text-purple-400 shadow-glow-sm sm:flex-initial">
+              <Zap className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {formatHashrate(activeMachinesHashRate)}
+            </div>
+            <div className="inline-flex min-h-11 flex-1 min-w-[8rem] items-center justify-center rounded-xl border border-gray-700/50 bg-gray-800/50 px-4 py-2 text-xs font-bold text-gray-400 sm:flex-initial">
+              {summary.occupiedRacks} {t("inventory.active_machines")}
+            </div>
+            <div className="inline-flex min-h-11 flex-1 min-w-[8rem] items-center justify-center rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-bold text-primary sm:flex-initial">
+              {inventory.length} {t("inventory.in_inventory")}
+            </div>
           </div>
         </div>
       </div>
@@ -768,9 +796,9 @@ export default function Inventory() {
           const isUnlocked = room.unlocked;
           return (
             <button key={room.roomNumber} role="tab" aria-selected={isActive} onClick={() => setActiveRoom(room.roomNumber)}
-              className={`shrink-0 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${isActive ? "bg-primary text-black shadow-glow" : isUnlocked ? "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50" : "bg-gray-900/30 text-gray-500 hover:text-gray-400"}`}>
+              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-xs font-black uppercase tracking-wider transition-all ${isActive ? "bg-primary text-black shadow-glow" : isUnlocked ? "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50" : "bg-gray-900/30 text-gray-500 hover:text-gray-400"}`}>
               {!isUnlocked && <Lock className="w-3 h-3" />}
-              {t("inventory.room_label", "Sala")} {room.roomNumber}
+              {t("inventory.room_label")} {room.roomNumber}
               {isUnlocked && !isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
             </button>
           );
@@ -824,16 +852,17 @@ export default function Inventory() {
 
         <div className="space-y-4">
             <div className="bg-surface border border-gray-800/50 rounded-3xl p-4 sm:p-6 shadow-xl lg:sticky top-28">
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Box className="w-5 h-5 text-primary" /> {t("sidebar.machines")}
+                <Box className="h-5 w-5 shrink-0 text-primary" aria-hidden /> {t("sidebar.machines")}
               </h2>
               <button
                 type="button"
-                onClick={() => navigate('/vault')}
-                className="rounded-2xl bg-secondary/10 border border-secondary/20 text-secondary px-3 py-2 text-xs font-bold uppercase tracking-[0.24em] hover:bg-secondary/20 transition-colors"
+                onClick={() => navigate("/vault")}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-secondary/25 bg-secondary/10 px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-secondary transition-colors hover:bg-secondary/20 sm:w-auto sm:px-4 sm:text-xs"
               >
-                {t('inventory.go_to_warehouse', 'Ir para o Armazém')}
+                <Warehouse className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                {t("inventory.go_to_warehouse")}
               </button>
             </div>
             <div className="mb-4 rounded-3xl border border-primary/20 bg-primary/5 p-3 space-y-2">
@@ -863,9 +892,9 @@ export default function Inventory() {
                         e.dataTransfer.setData("inventoryId", String(firstId));
                         e.dataTransfer.effectAllowed = "move";
                       }}
-                      className="bg-gray-800/30 border border-gray-800/50 rounded-2xl p-4 flex items-center gap-3 sm:gap-4 hover:border-gray-700 transition-all cursor-grab active:cursor-grabbing select-none"
+                      className="flex cursor-grab select-none flex-col gap-3 rounded-2xl border border-gray-800/50 bg-gray-800/30 p-4 transition-all hover:border-gray-700 active:cursor-grabbing sm:flex-row sm:items-center sm:gap-4"
                     >
-                      <div className="w-14 h-14 bg-gray-900/50 rounded-xl p-2 border border-gray-800/50 shrink-0 relative">
+                      <div className="relative h-14 w-14 shrink-0 self-start rounded-xl border border-gray-800/50 bg-gray-900/50 p-2 sm:self-center">
                         <img src={descriptor.image} alt={group.minerName} className="w-full h-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
                         <div className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-primary/20">x{group.quantity}</div>
                       </div>
@@ -883,7 +912,7 @@ export default function Inventory() {
                         )}
                       </div>
                       <div
-                        className="shrink-0 flex flex-col items-stretch gap-1.5"
+                        className="flex w-full shrink-0 flex-col items-stretch gap-2 sm:w-auto sm:min-w-[10.5rem]"
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                       >
@@ -897,14 +926,14 @@ export default function Inventory() {
                             }
                             setVaultBackpackConfirmId(firstId);
                           }}
-                          className={`min-h-[2.75rem] px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 ${
+                          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-[10px] font-black uppercase tracking-wider transition-colors disabled:pointer-events-none disabled:opacity-40 sm:text-[11px] ${
                             isConfirming
-                              ? "bg-violet-600 text-white border-violet-500"
-                              : "bg-violet-500/15 text-violet-200 border-violet-500/35 hover:bg-violet-500/25"
+                              ? "border-violet-500 bg-violet-600 text-white"
+                              : "border-violet-500/35 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25"
                           }`}
                         >
-                          <Warehouse className="w-4 h-4 shrink-0 opacity-90" aria-hidden />
-                          <span className="leading-tight text-center">
+                          <Warehouse className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                          <span className="leading-snug">
                             {isConfirming ? t("inventory.backpack_confirm_warehouse") : t("inventory.backpack_send_warehouse")}
                           </span>
                         </button>
@@ -913,7 +942,7 @@ export default function Inventory() {
                             type="button"
                             disabled={backpackVaultBusy}
                             onClick={() => setVaultBackpackConfirmId(null)}
-                            className="text-[10px] font-bold text-gray-500 hover:text-gray-300 py-1"
+                            className="min-h-9 rounded-lg py-2 text-xs font-bold text-gray-500 transition-colors hover:bg-gray-800/50 hover:text-gray-300 disabled:opacity-40"
                           >
                             {t("common.cancel")}
                           </button>
