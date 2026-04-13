@@ -105,7 +105,15 @@ O script clona o **btcpayserver-docker** oficial e corre **`. ./btcpay-setup.sh 
 
 ### Se insistires na mesma máquina
 
-Tens de **mudar portas** do reverse proxy de um dos dois (variáveis `REVERSEPROXY_HTTP_PORT` / `REVERSEPROXY_HTTPS_PORT` no fluxo upstream) **ou** um único Nginx na frente a encaminhar por hostname — é arquitetura avançada; **não** é o caminho “copiar e colar” deste guia.
+O repo inclui **coexistência automatizada** com o Nginx do BlockMiner na frente (TLS na porta 443 do jogo, BTCPay interno em **39180/39443** no host):
+
+- `nginx/nginx.conf` — `server_name btcpay.blockminer.space` a fazer `proxy_pass` para essas portas.
+- `scripts/vps-btcpay-coexist-install.sh` — grava `docker/btcpay/env` com `REVERSEPROXY_HTTP_PORT` / `REVERSEPROXY_HTTPS_PORT` e arranca o `install-btcpay.sh` em **background** (log em `/root/btcpay-blockminer-install.log`).
+- Na tua máquina Windows (com PuTTY e `deploy.secrets.local`):  
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remote-btcpay-setup.ps1`  
+  (faz `git pull` no caminho `REMOTE_PATH` e corre o script acima.)
+
+O contentor `nginx` gera um **autoassinado** em `nginx/certs-btcpay/` se ainda não houver PEM (substitui depois por Let's Encrypt real para esse hostname, se quiseres aviso verde no browser).
 
 ---
 

@@ -28,6 +28,12 @@ env_new.tmp
 .env.production.vm-backup
 !.env.example
 
+# BTCPay coexistence on same VPS (LE / self-signed; not committed)
+nginx/certs-btcpay/*.pem
+nginx/certs-btcpay/*.key
+certbot-www/*
+!certbot-www/.gitkeep
+
 # SQLite / local data
 data/*.db
 data/*.db-journal
