@@ -9,6 +9,7 @@ import {
   BTCPAY_WEBHOOK_SETTLE_TYPES,
   buildBtcpayTxHash,
   fetchBtcpayInvoice,
+  isBtcpayComingSoon,
   verifyBtcpayWebhookSignature
 } from "../services/btcpayService.js";
 
@@ -151,6 +152,11 @@ export async function handleBtcpayWebhook(req, res) {
   if (!verifyBtcpayWebhookSignature(rawBody, String(sig || ""), secret)) {
     logger.warn("Invalid BTCPay webhook signature");
     return res.status(401).json({ ok: false, code: "INVALID_WEBHOOK" });
+  }
+
+  if (isBtcpayComingSoon()) {
+    logger.info("BTCPay webhook acknowledged but skipped (BTCPAY_COMING_SOON)");
+    return res.status(200).json({ ok: true, ignored: true, reason: "coming_soon" });
   }
 
   let payload;

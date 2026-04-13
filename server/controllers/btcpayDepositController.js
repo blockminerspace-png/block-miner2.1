@@ -12,7 +12,8 @@ import {
   extractBtcAddressFromInvoice,
   extractLightningInvoiceFromInvoice,
   fetchBtcpayInvoice,
-  isBtcpayConfigured
+  isBtcpayComingSoon,
+  isBtcpayInvoiceFlowEnabled
 } from "../services/btcpayService.js";
 
 const logger = loggerLib.child("BtcpayDeposit");
@@ -28,7 +29,16 @@ function clientError(res, status, code, i18nKey, message) {
 
 export async function postBtcpayInvoice(req, res) {
   try {
-    if (!isBtcpayConfigured()) {
+    if (!isBtcpayInvoiceFlowEnabled()) {
+      if (isBtcpayComingSoon()) {
+        return clientError(
+          res,
+          503,
+          "BTCPAY_COMING_SOON",
+          "errors.btcpay.BTCPAY_COMING_SOON",
+          "Bitcoin (BTCPay) deposits are temporarily unavailable."
+        );
+      }
       return clientError(
         res,
         503,
@@ -191,7 +201,16 @@ export async function postBtcpayInvoice(req, res) {
 
 export async function getBtcpayInvoiceStatus(req, res) {
   try {
-    if (!isBtcpayConfigured()) {
+    if (!isBtcpayInvoiceFlowEnabled()) {
+      if (isBtcpayComingSoon()) {
+        return clientError(
+          res,
+          503,
+          "BTCPAY_COMING_SOON",
+          "errors.btcpay.BTCPAY_COMING_SOON",
+          "Bitcoin (BTCPay) deposits are temporarily unavailable."
+        );
+      }
       return clientError(
         res,
         503,

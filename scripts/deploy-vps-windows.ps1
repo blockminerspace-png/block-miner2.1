@@ -118,7 +118,8 @@ function Get-ViteEnvOverrideMap {
         'BTCPAY_API_KEY',
         'BTCPAY_STORE_ID',
         'BTCPAY_WEBHOOK_SECRET',
-        'BTCPAY_INVOICE_PAYMENT_METHODS'
+        'BTCPAY_INVOICE_PAYMENT_METHODS',
+        'BTCPAY_COMING_SOON'
     )
     foreach ($k in $names) {
         $fromFile = $Secrets[$k]

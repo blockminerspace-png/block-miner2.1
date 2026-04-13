@@ -14,6 +14,7 @@
       "PRICE_UNAVAILABLE": "Could not load the POL price. Try again in a few minutes.",
       "INVOICE_CREATE_FAILED": "Could not create the BTCPay invoice. Try again later.",
       "INVALID_INVOICE_ID": "Invalid invoice identifier.",
+      "BTCPAY_COMING_SOON": "Bitcoin (BTCPay) deposits are temporarily unavailable. Please try again later.",
       "SERVER_ERROR": "Something went wrong. Please try again."
     }
   },
@@ -1492,7 +1493,9 @@
       "pending_short": "BTCPay invoice",
       "qr_alt": "QR code for BTCPay checkout",
       "disabled_hint_generic": "Bitcoin (BTCPay) deposits are disabled on this server because BTCPay is not fully configured.",
-      "disabled_hint_keys": "Bitcoin (BTCPay) is off until the server sets these environment variables (then restart the app): {{keys}}"
+      "disabled_hint_keys": "Bitcoin (BTCPay) is off until the server sets these environment variables (then restart the app): {{keys}}",
+      "coming_soon": "Coming soon",
+      "coming_soon_hint": "Bitcoin (BTCPay) is paused while we move infrastructure. Other deposit methods stay available."
     },
     "deposit_options": {
       "smart_contract": "Smart contract deposit",

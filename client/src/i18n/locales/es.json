@@ -14,6 +14,7 @@
       "PRICE_UNAVAILABLE": "No se pudo cargar el precio de POL. Inténtalo de nuevo en unos minutos.",
       "INVOICE_CREATE_FAILED": "No se pudo crear la factura en BTCPay. Inténtalo más tarde.",
       "INVALID_INVOICE_ID": "Identificador de factura no válido.",
+      "BTCPAY_COMING_SOON": "Los depósitos en Bitcoin (BTCPay) no están disponibles temporalmente. Inténtalo más tarde.",
       "SERVER_ERROR": "Algo salió mal. Inténtalo de nuevo."
     }
   },
@@ -1128,7 +1129,9 @@
       "pending_short": "Factura BTCPay",
       "qr_alt": "Código QR del checkout BTCPay",
       "disabled_hint_generic": "Los depósitos Bitcoin (BTCPay) están desactivados en este servidor porque la integración BTCPay no está completa.",
-      "disabled_hint_keys": "Bitcoin (BTCPay) permanece desactivado hasta que el servidor defina estas variables de entorno (luego reinicia la app): {{keys}}"
+      "disabled_hint_keys": "Bitcoin (BTCPay) permanece desactivado hasta que el servidor defina estas variables de entorno (luego reinicia la app): {{keys}}",
+      "coming_soon": "Próximamente",
+      "coming_soon_hint": "Bitcoin (BTCPay) está en pausa mientras movemos la infraestructura. Los demás métodos de depósito siguen disponibles."
     },
     "deposit_options": {
       "smart_contract": "Depósito vía contrato inteligente",

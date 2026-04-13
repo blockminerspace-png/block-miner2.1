@@ -169,6 +169,7 @@ export default function Wallet() {
     const [depositForm, setDepositForm] = useState({ amount: '' });
     const [depositChannel, setDepositChannel] = useState('smart_contract');
     const [btcpayDepositEnabled, setBtcpayDepositEnabled] = useState(false);
+    const [btcpayDepositComingSoon, setBtcpayDepositComingSoon] = useState(false);
     const [btcpayMissingEnvKeys, setBtcpayMissingEnvKeys] = useState([]);
     const [btcpayCheckoutLink, setBtcpayCheckoutLink] = useState('');
     const [btcpayInvoiceId, setBtcpayInvoiceId] = useState('');
@@ -246,6 +247,7 @@ export default function Wallet() {
                     setDepositVerifyMaxAttempts(balanceRes.data.depositVerifyMaxAttempts);
                 }
                 setBtcpayDepositEnabled(Boolean(balanceRes.data.btcpayDepositEnabled));
+                setBtcpayDepositComingSoon(Boolean(balanceRes.data.btcpayDepositComingSoon));
                 setBtcpayMissingEnvKeys(
                     Array.isArray(balanceRes.data.btcpayDepositMissingEnvKeys)
                         ? balanceRes.data.btcpayDepositMissingEnvKeys
@@ -1001,16 +1003,25 @@ export default function Wallet() {
                                                     : 'border-slate-700 text-slate-400 hover:border-slate-600'
                                             } disabled:opacity-40 disabled:cursor-not-allowed`}
                                         >
-                                            {t('wallet.btcpay.option_label')}
+                                            <span className="flex flex-col items-center justify-center gap-1.5">
+                                                <span>{t('wallet.btcpay.option_label')}</span>
+                                                {btcpayDepositComingSoon ? (
+                                                    <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-100">
+                                                        {t('wallet.btcpay.coming_soon')}
+                                                    </span>
+                                                ) : null}
+                                            </span>
                                         </button>
                                     </div>
                                     {!btcpayDepositEnabled ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed px-1">
-                                            {btcpayMissingEnvKeys.length
-                                                ? t('wallet.btcpay.disabled_hint_keys', {
-                                                      keys: btcpayMissingEnvKeys.join(', ')
-                                                  })
-                                                : t('wallet.btcpay.disabled_hint_generic')}
+                                            {btcpayDepositComingSoon
+                                                ? t('wallet.btcpay.coming_soon_hint')
+                                                : btcpayMissingEnvKeys.length
+                                                  ? t('wallet.btcpay.disabled_hint_keys', {
+                                                        keys: btcpayMissingEnvKeys.join(', ')
+                                                    })
+                                                  : t('wallet.btcpay.disabled_hint_generic')}
                                         </p>
                                     ) : null}
                                     <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">

@@ -37,6 +37,18 @@ export function isBtcpayConfigured() {
   return listBtcpayMissingEnvKeys().length === 0;
 }
 
+/** True when BTCPAY_COMING_SOON is set — UI shows "Coming soon" and invoice API is off (e.g. BTCPay stack stopped). */
+export function isBtcpayComingSoon() {
+  const v = String(process.env.BTCPAY_COMING_SOON || "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
+/** Greenfield invoice flow allowed (configured and not in coming-soon mode). */
+export function isBtcpayInvoiceFlowEnabled() {
+  if (isBtcpayComingSoon()) return false;
+  return isBtcpayConfigured();
+}
+
 export function getBtcpayBaseUrl() {
   const raw = String(process.env.BTCPAY_URL || "").trim().replace(/\/+$/, "");
   return raw;

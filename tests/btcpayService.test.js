@@ -5,7 +5,9 @@ import {
   buildBtcpayTxHash,
   extractBtcAddressFromInvoice,
   extractLightningInvoiceFromInvoice,
+  isBtcpayComingSoon,
   isBtcpayConfigured,
+  isBtcpayInvoiceFlowEnabled,
   listBtcpayMissingEnvKeys,
   parseInvoiceIdFromTxHash,
   resolveBtcpayCheckoutPaymentMethodsFromRaw,
@@ -16,7 +18,9 @@ const BTCPAY_ENV_KEYS = ["BTCPAY_URL", "BTCPAY_API_KEY", "BTCPAY_STORE_ID", "BTC
 
 test("listBtcpayMissingEnvKeys reports all four when unset", () => {
   const saved = Object.fromEntries(BTCPAY_ENV_KEYS.map((k) => [k, process.env[k]]));
+  const savedComingSoon = process.env.BTCPAY_COMING_SOON;
   try {
+    delete process.env.BTCPAY_COMING_SOON;
     for (const k of BTCPAY_ENV_KEYS) delete process.env[k];
     assert.deepEqual(listBtcpayMissingEnvKeys(), [...BTCPAY_ENV_KEYS]);
     assert.equal(isBtcpayConfigured(), false);
@@ -27,11 +31,20 @@ test("listBtcpayMissingEnvKeys reports all four when unset", () => {
     process.env.BTCPAY_WEBHOOK_SECRET = "whsec";
     assert.deepEqual(listBtcpayMissingEnvKeys(), []);
     assert.equal(isBtcpayConfigured(), true);
+    assert.equal(isBtcpayComingSoon(), false);
+    assert.equal(isBtcpayInvoiceFlowEnabled(), true);
+    process.env.BTCPAY_COMING_SOON = "1";
+    assert.equal(isBtcpayComingSoon(), true);
+    assert.equal(isBtcpayInvoiceFlowEnabled(), false);
+    delete process.env.BTCPAY_COMING_SOON;
+    assert.equal(isBtcpayInvoiceFlowEnabled(), true);
   } finally {
     for (const k of BTCPAY_ENV_KEYS) {
       if (saved[k] === undefined) delete process.env[k];
       else process.env[k] = saved[k];
     }
+    if (savedComingSoon === undefined) delete process.env.BTCPAY_COMING_SOON;
+    else process.env.BTCPAY_COMING_SOON = savedComingSoon;
   }
 });
 

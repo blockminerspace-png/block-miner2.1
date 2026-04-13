@@ -8,7 +8,11 @@ import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 import { getMinDepositPol, getRequiredBlockConfirmations } from "../services/polygonDepositConfig.js";
 import { getSharedPolygonProvider } from "../services/polygonProvider.js";
-import { listBtcpayMissingEnvKeys } from "../services/btcpayService.js";
+import {
+  isBtcpayComingSoon,
+  isBtcpayInvoiceFlowEnabled,
+  listBtcpayMissingEnvKeys
+} from "../services/btcpayService.js";
 
 /** Minimum POL for a withdrawal request. */
 export const WITHDRAW_MIN_POL = 10;
@@ -26,7 +30,8 @@ export async function getBalance(req, res) {
     const balance = await walletModel.getUserBalance(req.user.id);
     const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS || null;
     const depositContractAddress = (process.env.SMART_CONTRACT_ADDRESS || "").trim() || null;
-    const btcpayMissing = listBtcpayMissingEnvKeys();
+    const comingSoon = isBtcpayComingSoon();
+    const btcpayMissing = comingSoon ? [] : listBtcpayMissingEnvKeys();
     res.json({
       ok: true,
       ...balance,
@@ -35,7 +40,8 @@ export async function getBalance(req, res) {
       minDepositPol: getMinDepositPol(),
       blockConfirmations: getRequiredBlockConfirmations(),
       depositVerifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS,
-      btcpayDepositEnabled: btcpayMissing.length === 0,
+      btcpayDepositEnabled: isBtcpayInvoiceFlowEnabled(),
+      btcpayDepositComingSoon: comingSoon,
       btcpayDepositMissingEnvKeys: btcpayMissing
     });
   } catch (error) {
