@@ -8,7 +8,7 @@ Este documento explica **o que apontar no Cloudflare**, **por qual URL e porta a
 
 | Peça | Valor típico |
 |------|----------------|
-| **URL pública do BTCPay** | `https://pay.TEUDOMINIO.com` — porta **443** (padrão HTTPS; **não** precisas de `:443` no browser nem no `BTCPAY_URL`) |
+| **URL pública do BTCPay** | Ex.: `https://btcpay.blockminer.space` — porta **443** (padrão HTTPS; **não** precisas de `:443` no browser nem no `BTCPAY_URL`) |
 | **URL da API do BlockMiner** (webhook) | `https://blockminer.space/api/payments/btcpay/webhook` (ou o domínio real da tua app) |
 | **Onde corres o instalador** | Num servidor **Linux** (VPS) com Docker; idealmente **outra VPS** só para BTCPay (ver secção 6) |
 
@@ -31,7 +31,7 @@ Na zona DNS da Cloudflare (domínio `blockminer.space` ou outro):
 | Campo Cloudflare | Valor |
 |------------------|--------|
 | **Type** | `A` |
-| **Name** | `pay` (se quiseres `pay.blockminer.space`; se quiseres nome completo noutro painel, ajusta) |
+| **Name** | `btcpay` → hostname final `btcpay.blockminer.space` (ou `pay` / `btc` se escolheres outro nome; tem de coincidir com `BTCPAY_HOST`) |
 | **IPv4 address** | IP **público** da VPS onde vais correr o **Docker do BTCPay** (não o IP privado Docker interno) |
 | **Proxy status** | **DNS only** (ícone de nuvem **cinzenta**) — **recomendado** na primeira instalação para o Let's Encrypt validar por HTTP na porta **80** sem a Cloudflare “engolir” o tráfego. |
 | **TTL** | Auto |
@@ -45,7 +45,7 @@ Só se a tua VPS tiver **IPv6 público** e quiseres tráfego IPv6.
 
 ### Propagação
 
-Espera o `pay.teudominio.com` resolver para o IP certo (`ping` ou `nslookup` de fora) **antes** de correres `install-btcpay.sh`.
+Espera o hostname (ex.: `btcpay.blockminer.space`) resolver para o IP certo (`nslookup` de fora) **antes** de correres `install-btcpay.sh`.
 
 ---
 
@@ -58,7 +58,7 @@ Espera o `pay.teudominio.com` resolver para o IP certo (`ping` ou `nslookup` de 
 | **80** | TCP | Let's Encrypt (HTTP-01) + redirecionamento para HTTPS |
 | **443** | TCP | Interface web do BTCPay + API Greenfield em HTTPS |
 
-**Não** coloques `https://pay.teudominio.com:443` no `BTCPAY_URL` — a porta 443 é implícita. Só usarias porta no URL se mudasses **de propósito** o HTTPS para outra (avançado; não é o caso do instalador padrão).
+**Não** coloques `:443` no `BTCPAY_URL` — a porta 443 é implícita. Só usarias porta no URL se mudasses **de propósito** o HTTPS para outra (avançado; não é o caso do instalador padrão).
 
 Se no futuro ativares **Lightning** exposto à internet, o upstream fala em **9735** TCP — só relevante se configurares LN no `env` do BTCPay.
 
@@ -67,7 +67,7 @@ Se no futuro ativares **Lightning** exposto à internet, o upstream fala em **97
 ## 4. Onde acedes ao painel do BTCPay (domínio e “porta”)
 
 - **No browser:** `https://BTCPAY_HOST`  
-  Exemplo: `https://pay.blockminer.space`  
+  Exemplo: `https://btcpay.blockminer.space`  
 - **“Porta”:** é **443** por defeito; **não** escrevas na barra de endereço a não ser que saibas o que estás a fazer.
 
 É **esse mesmo** URL base (sem path, sem barra final) que vais repetir no BlockMiner como `BTCPAY_URL`.
@@ -81,7 +81,7 @@ No repositório BlockMiner (ou cópia na VPS):
 1. Copia o modelo:  
    `cp docker/btcpay/env.example docker/btcpay/env`
 2. Edita `docker/btcpay/env`:
-   - **`BTCPAY_HOST`** = **exatamente** o hostname público (ex.: `pay.blockminer.space`) — tem de bater certo com o DNS.
+   - **`BTCPAY_HOST`** = **exatamente** o hostname público (ex.: `btcpay.blockminer.space`) — tem de bater certo com o DNS e com o certificado.
    - **`LETSENCRYPT_EMAIL`** = email válido (avisos de expiração de certificado).
    - **`NBITCOIN_NETWORK`**: `testnet` para testes mais rápidos; `mainnet` para dinheiro real (sync longo e mais disco).
 
@@ -114,7 +114,7 @@ Estas variáveis vão no **servidor onde corre a API BlockMiner** (ex.: `deploy.
 
 | Variável | Exemplo | Notas |
 |----------|---------|--------|
-| `BTCPAY_URL` | `https://pay.blockminer.space` | **Sem** barra final. **Sem** porta (443 implícito). Tem de ser o mesmo host que abres no browser. |
+| `BTCPAY_URL` | `https://btcpay.blockminer.space` | **Sem** barra final. **Sem** porta (443 implícito). Tem de ser o mesmo host que abres no browser. |
 | `BTCPAY_API_KEY` | `token copiado do BTCPay` | Greenfield / Access token com permissão para **criar e ver invoices**. |
 | `BTCPAY_STORE_ID` | `id da loja` | No BTCPay: Store → definições / General → Store ID. |
 | `BTCPAY_WEBHOOK_SECRET` | `segredo da entrega webhook` | Store → Webhooks → criar webhook para a URL abaixo → copiar **signing secret**. |
@@ -143,7 +143,7 @@ Depois de gravares estes valores no sítio certo, **reinicia / redeploy** a app 
 
 ## 9. Checklist rápido (ordem certa)
 
-1. [ ] Subdomínio escolhido (ex.: `pay.blockminer.space`).
+1. [ ] Subdomínio escolhido (ex.: `btcpay.blockminer.space`).
 2. [ ] Cloudflare: registo **A** → IP da **VPS do BTCPay**; **DNS only** (recomendado).
 3. [ ] Portas **80** e **443** abertas nessa VPS.
 4. [ ] `docker/btcpay/env` preenchido; `BTCPAY_HOST` = hostname exacto.
@@ -160,9 +160,54 @@ Depois de gravares estes valores no sítio certo, **reinicia / redeploy** a app 
 | Sintoma | Causa provável |
 |---------|----------------|
 | Let’s Encrypt falha | DNS ainda não aponta para o IP certo; ou **proxy laranja** a bloquear HTTP-80 na origem; ou 80/443 fechados na firewall. |
-| `https://pay...` não abre | Instalação não terminou; contentores em baixo; firewall; hostname errado no `BTCPAY_HOST`. |
+| `https://btcpay...` não abre / cert inválido | Instalação não terminou; contentores em baixo; firewall; `BTCPAY_HOST` ≠ URL; ou tráfego a ir para o Nginx do BlockMiner (secção 11). |
 | BlockMiner não mostra BTCPay | Falta alguma das **quatro** variáveis `BTCPAY_*` na **API**; ou URL errada; ou não fizeste redeploy. |
 | Webhook 401 | `BTCPAY_WEBHOOK_SECRET` não coincide com o secret da entrega no BTCPay. |
+| Chrome: **NET::ERR_CERT_COMMON_NAME_INVALID** em `https://btcpay.blockminer.space` | O certificado TLS servido **não inclui** esse nome (CN/SAN). Ver secção **11** abaixo. |
+
+---
+
+## 11. Erro `NET::ERR_CERT_COMMON_NAME_INVALID` (Chrome “Sua conexão não é particular”)
+
+Isto significa: ao acederes a `https://btcpay.blockminer.space`, o servidor que responde na porta **443** entrega um certificado emitido para **outro** nome (ex.: só `blockminer.space`, só `www`, ou outro subdomínio).
+
+### 11.1 Confirma para onde o DNS aponta
+
+No PC (PowerShell ou terminal):
+
+```text
+nslookup btcpay.blockminer.space
+```
+
+Anota o **IPv4**. Esse IP tem de ser:
+
+- **A VPS onde o Docker do BTCPay** (stack `btcpayserver-docker`) está a correr **e** onde o `BTCPAY_HOST` no ficheiro `docker/btcpay/env` era **exactamente** `btcpay.blockminer.space` quando correste `install-btcpay.sh`, **ou**
+- Se apontar para o **mesmo IP** do site BlockMiner **sem** o BTCPay a servir esse hostname, o primeiro a responder em 443 pode ser o **Nginx do BlockMiner** com certificado **sem** `btcpay` no nome → **CN inválido**. Soluções: **VPS separada** para o BTCPay **ou** reconfigurar o proxy para esse subdomínio chegar ao contentor certo com cert certo.
+
+### 11.2 O hostname no instalador tem de bater certo com o browser
+
+No servidor **do BTCPay**, no ficheiro `docker/btcpay/env`:
+
+- `BTCPAY_HOST=btcpay.blockminer.space` (sem `https://`, sem barra)
+
+Se instalaste com outro nome (ex. `pay.blockminer.space`) e depois abres `btcpay.…`, o certificado não vai coincidir. Corrige `BTCPAY_HOST` e volta a correr o fluxo oficial de alteração de domínio / setup no repositório clonado (`changedomain.sh` ou reexecutar `btcpay-setup.sh` conforme a [documentação upstream](https://docs.btcpayserver.org/Docker/)).
+
+### 11.3 Cloudflare: proxy (laranja) vs só DNS (cinzento)
+
+- **DNS only (cinzento):** o browser fala **directo** com a tua VPS. O certificado que vês é o da **origem** (normalmente Let's Encrypt do BTCPay). Tem de estar emitido para `btcpay.blockminer.space`.
+- **Proxied (laranja):** o browser fala com a **Cloudflare**. O certificado na borda é da Cloudflare (Universal SSL, etc.). O modo **SSL/TLS** influencia a ligação Cloudflare → origem:
+  - **Flexible** costuma ser má ideia com HTTPS na origem e pode gerar erros estranhos.
+  - Para origem com Let's Encrypt válido, usa **Full (strict)** quando souberes o que estás a fazer.
+
+Se estiveres em **cinzento** e ainda vês **COMMON_NAME_INVALID**, o problema está **na origem** (cert errado ou outro serviço a responder em 443).
+
+### 11.4 Checklist rápido para destravar
+
+1. [ ] `nslookup btcpay.blockminer.space` → IP correcto da máquina **onde o BTCPay Docker está**.
+2. [ ] Nessa máquina, `docker ps` mostra os serviços do stack BTCPay (nginx gerado, etc.).
+3. [ ] `BTCPAY_HOST` no `env` do instalador = `btcpay.blockminer.space` (igual ao browser).
+4. [ ] Portas 80 e 443 abertas; Let’s Encrypt conseguiu emitir (vê logs do contentor nginx do BTCPay).
+5. [ ] No **BlockMiner** (`deploy.secrets.local`): `BTCPAY_URL=https://btcpay.blockminer.space` (mesmo hostname).
 
 ---
 
