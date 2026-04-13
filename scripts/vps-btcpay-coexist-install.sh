@@ -30,6 +30,7 @@ EOF
 echo "==> Reload BlockMiner nginx (TLS bootstrap + btcpay reverse-proxy in nginx.conf)"
 cd "${REPO_ROOT}"
 if [[ -f .env.production ]]; then
+  export COMPOSE_PROFILES=proxy
   docker compose --env-file .env.production stop nginx 2>/dev/null || true
   docker compose --env-file .env.production rm -f nginx 2>/dev/null || true
   docker compose --env-file .env.production up -d nginx
