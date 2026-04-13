@@ -169,6 +169,7 @@ export default function Wallet() {
     const [depositForm, setDepositForm] = useState({ amount: '' });
     const [depositChannel, setDepositChannel] = useState('smart_contract');
     const [btcpayDepositEnabled, setBtcpayDepositEnabled] = useState(false);
+    const [btcpayMissingEnvKeys, setBtcpayMissingEnvKeys] = useState([]);
     const [btcpayCheckoutLink, setBtcpayCheckoutLink] = useState('');
     const [btcpayInvoiceId, setBtcpayInvoiceId] = useState('');
     const [btcpayBtcAddr, setBtcpayBtcAddr] = useState(null);
@@ -245,6 +246,11 @@ export default function Wallet() {
                     setDepositVerifyMaxAttempts(balanceRes.data.depositVerifyMaxAttempts);
                 }
                 setBtcpayDepositEnabled(Boolean(balanceRes.data.btcpayDepositEnabled));
+                setBtcpayMissingEnvKeys(
+                    Array.isArray(balanceRes.data.btcpayDepositMissingEnvKeys)
+                        ? balanceRes.data.btcpayDepositMissingEnvKeys
+                        : []
+                );
 
                 // If user has a saved address but not connected, pre-fill it for convenience
                 if (!withdrawForm.address && balanceRes.data.walletAddress) {
@@ -998,6 +1004,15 @@ export default function Wallet() {
                                             {t('wallet.btcpay.option_label')}
                                         </button>
                                     </div>
+                                    {!btcpayDepositEnabled ? (
+                                        <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed px-1">
+                                            {btcpayMissingEnvKeys.length
+                                                ? t('wallet.btcpay.disabled_hint_keys', {
+                                                      keys: btcpayMissingEnvKeys.join(', ')
+                                                  })
+                                                : t('wallet.btcpay.disabled_hint_generic')}
+                                        </p>
+                                    ) : null}
                                     <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
                                         {depositChannel === 'btcpay'
                                             ? t('wallet.btcpay.option_hint')

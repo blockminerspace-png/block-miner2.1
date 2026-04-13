@@ -19,12 +19,25 @@ export const BTCPAY_DEPOSIT_STATUS_PENDING = "btcpay_pending";
 /** Webhook types that warrant re-fetching the invoice from BTCPay (server truth). */
 export const BTCPAY_WEBHOOK_SETTLE_TYPES = new Set(["InvoiceSettled"]);
 
+/** Env keys required for Bitcoin (BTCPay) deposits (names only — no values). */
+export const BTCPAY_REQUIRED_ENV_KEYS = Object.freeze([
+  "BTCPAY_URL",
+  "BTCPAY_API_KEY",
+  "BTCPAY_STORE_ID",
+  "BTCPAY_WEBHOOK_SECRET"
+]);
+
+/** Returns which required BTCPay env vars are missing or blank (stable order). */
+export function listBtcpayMissingEnvKeys() {
+  const missing = [];
+  for (const k of BTCPAY_REQUIRED_ENV_KEYS) {
+    if (!String(process.env[k] || "").trim()) missing.push(k);
+  }
+  return missing;
+}
+
 export function isBtcpayConfigured() {
-  const url = String(process.env.BTCPAY_URL || "").trim();
-  const key = String(process.env.BTCPAY_API_KEY || "").trim();
-  const store = String(process.env.BTCPAY_STORE_ID || "").trim();
-  const wh = String(process.env.BTCPAY_WEBHOOK_SECRET || "").trim();
-  return Boolean(url && key && store && wh);
+  return listBtcpayMissingEnvKeys().length === 0;
 }
 
 export function getBtcpayBaseUrl() {

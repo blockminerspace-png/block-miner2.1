@@ -8,7 +8,7 @@ import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 import { getMinDepositPol, getRequiredBlockConfirmations } from "../services/polygonDepositConfig.js";
 import { getSharedPolygonProvider } from "../services/polygonProvider.js";
-import { isBtcpayConfigured } from "../services/btcpayService.js";
+import { listBtcpayMissingEnvKeys } from "../services/btcpayService.js";
 
 /** Minimum POL for a withdrawal request. */
 export const WITHDRAW_MIN_POL = 10;
@@ -26,6 +26,7 @@ export async function getBalance(req, res) {
     const balance = await walletModel.getUserBalance(req.user.id);
     const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS || null;
     const depositContractAddress = (process.env.SMART_CONTRACT_ADDRESS || "").trim() || null;
+    const btcpayMissing = listBtcpayMissingEnvKeys();
     res.json({
       ok: true,
       ...balance,
@@ -34,7 +35,8 @@ export async function getBalance(req, res) {
       minDepositPol: getMinDepositPol(),
       blockConfirmations: getRequiredBlockConfirmations(),
       depositVerifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS,
-      btcpayDepositEnabled: isBtcpayConfigured()
+      btcpayDepositEnabled: btcpayMissing.length === 0,
+      btcpayDepositMissingEnvKeys: btcpayMissing
     });
   } catch (error) {
     logger.error("Error getting balance", { error: error.message });

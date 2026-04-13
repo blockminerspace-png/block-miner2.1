@@ -670,6 +670,13 @@
   },
   "game2048": {
     "title": "Chain 2048",
+    "brand": "MINERGAMES",
+    "brand_aria": "Miner Games — crypto 2048",
+    "time": "Time",
+    "seconds_suffix": "s",
+    "reset_aria": "Restart round",
+    "time_up": "Time's up",
+    "round_closed": "Round ended",
     "card_desc": "Server-validated 2048 — reach the target tile, then claim temporary hashrate.",
     "subtitle": "Reach the target tile on the server-side board. Moves, merges, and score are validated on the server. Claim a temporary hashrate bonus when you qualify.",
     "score": "Score",
@@ -701,7 +708,8 @@
       "SESSION_NOT_ACTIVE": "This session is no longer active.",
       "WIN_REQUIRED": "Reach the target tile before claiming.",
       "SCORE_TOO_LOW": "Score is below the minimum required to claim.",
-      "INVALID_BODY": "Invalid request."
+      "INVALID_BODY": "Invalid request.",
+      "restart_failed": "Could not restart the round."
     }
   },
   "liveServer": {
@@ -1477,7 +1485,9 @@
       "status_pending": "Pending settlement",
       "status_completed": "Completed",
       "pending_short": "BTCPay invoice",
-      "qr_alt": "QR code for BTCPay checkout"
+      "qr_alt": "QR code for BTCPay checkout",
+      "disabled_hint_generic": "Bitcoin (BTCPay) deposits are disabled on this server because BTCPay is not fully configured.",
+      "disabled_hint_keys": "Bitcoin (BTCPay) is off until the server sets these environment variables (then restart the app): {{keys}}"
     },
     "deposit_options": {
       "smart_contract": "Smart contract deposit",

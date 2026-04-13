@@ -671,6 +671,13 @@
   },
   "game2048": {
     "title": "Chain 2048",
+    "brand": "MINERGAMES",
+    "brand_aria": "Miner Games — 2048 cripto",
+    "time": "Tempo",
+    "seconds_suffix": "s",
+    "reset_aria": "Reiniciar ronda",
+    "time_up": "Tempo esgotado",
+    "round_closed": "Ronda terminada",
     "card_desc": "2048 validado no servidor — atinge a peça-alvo e reclama hashrate temporário.",
     "subtitle": "Atinge o alvo no tabuleiro validado pelo servidor. Movimentos, fusões e pontuação são confirmados no servidor. Reclama um bónus temporário de hashrate quando fores elegível.",
     "score": "Pontuação",
@@ -702,7 +709,8 @@
       "SESSION_NOT_ACTIVE": "Esta sessão já não está ativa.",
       "WIN_REQUIRED": "Atinge o alvo antes de reclamar.",
       "SCORE_TOO_LOW": "A pontuação está abaixo do mínimo para reclamar.",
-      "INVALID_BODY": "Pedido inválido."
+      "INVALID_BODY": "Pedido inválido.",
+      "restart_failed": "Não foi possível reiniciar a ronda."
     }
   },
   "liveServer": {
@@ -1480,7 +1488,9 @@
       "status_pending": "Liquidação pendente",
       "status_completed": "Concluído",
       "pending_short": "Fatura BTCPay",
-      "qr_alt": "Código QR do checkout BTCPay"
+      "qr_alt": "Código QR do checkout BTCPay",
+      "disabled_hint_generic": "Depósitos Bitcoin (BTCPay) estão desativados neste servidor porque a integração BTCPay não está completa.",
+      "disabled_hint_keys": "Bitcoin (BTCPay) fica desligado até o servidor definir estas variáveis de ambiente (depois reinicia a app): {{keys}}"
     },
     "deposit_options": {
       "smart_contract": "Depósito via contrato inteligente",

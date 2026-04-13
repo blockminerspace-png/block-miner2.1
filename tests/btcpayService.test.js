@@ -5,10 +5,35 @@ import {
   buildBtcpayTxHash,
   extractBtcAddressFromInvoice,
   extractLightningInvoiceFromInvoice,
+  isBtcpayConfigured,
+  listBtcpayMissingEnvKeys,
   parseInvoiceIdFromTxHash,
   resolveBtcpayCheckoutPaymentMethodsFromRaw,
   verifyBtcpayWebhookSignature
 } from "../server/services/btcpayService.js";
+
+const BTCPAY_ENV_KEYS = ["BTCPAY_URL", "BTCPAY_API_KEY", "BTCPAY_STORE_ID", "BTCPAY_WEBHOOK_SECRET"];
+
+test("listBtcpayMissingEnvKeys reports all four when unset", () => {
+  const saved = Object.fromEntries(BTCPAY_ENV_KEYS.map((k) => [k, process.env[k]]));
+  try {
+    for (const k of BTCPAY_ENV_KEYS) delete process.env[k];
+    assert.deepEqual(listBtcpayMissingEnvKeys(), [...BTCPAY_ENV_KEYS]);
+    assert.equal(isBtcpayConfigured(), false);
+    process.env.BTCPAY_URL = "https://btcpay.example.com";
+    assert.deepEqual(listBtcpayMissingEnvKeys(), BTCPAY_ENV_KEYS.slice(1));
+    process.env.BTCPAY_API_KEY = "token";
+    process.env.BTCPAY_STORE_ID = "store";
+    process.env.BTCPAY_WEBHOOK_SECRET = "whsec";
+    assert.deepEqual(listBtcpayMissingEnvKeys(), []);
+    assert.equal(isBtcpayConfigured(), true);
+  } finally {
+    for (const k of BTCPAY_ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
+});
 
 test("verifyBtcpayWebhookSignature accepts valid sha256 signature", () => {
   const secret = "webhook-secret";
