@@ -84,7 +84,7 @@ No repositório BlockMiner (ou cópia na VPS):
    - **`BTCPAY_HOST`** = **exatamente** o hostname público (ex.: `btcpay.blockminer.space`) — tem de bater certo com o DNS e com o certificado.
    - **`LETSENCRYPT_EMAIL`** = email válido (avisos de expiração de certificado).
    - **`NBITCOIN_NETWORK`**: `testnet` para testes mais rápidos; `mainnet` para dinheiro real (sync longo e mais disco).
-   - **`BTCPAYGEN_LIGHTNING`**: vazio = só on-chain; `clightning` ou `lnd` = Lightning no mesmo stack (mais RAM/disco; vê [upstream](https://docs.btcpayserver.org/Docker/)). O BlockMiner pede nas faturas Greenfield **`BTC` + `BTC-LightningNetwork`** por defeito; a loja tem de ter Lightning configurado para o método aparecer.
+   - **`BTCPAYGEN_LIGHTNING`**: no `env.example` do repo vem **`clightning`** (igual ao README oficial). Vazio no teu `env` = só on-chain. `lnd` também é válido. O BlockMiner pede **`BTC` + `BTC-LightningNetwork`** nas faturas; sem Lightning no BTCPay, usa `BTCPAY_INVOICE_PAYMENT_METHODS=BTC` na app (ver secção 7).
 
 3. Na VPS, **como root**:  
    `bash docker/btcpay/install-btcpay.sh`
@@ -213,9 +213,33 @@ Se estiveres em **cinzento** e ainda vês **COMMON_NAME_INVALID**, o problema es
 
 ---
 
+## 12. Reinstalar ou “meter de novo” o BTCPay (clone já existe)
+
+Se já correste o instalador uma vez e só queres **voltar a aplicar** o `docker/btcpay/env` (mudaste `BTCPAY_HOST`, Lightning, email, etc.):
+
+1. Edita `docker/btcpay/env` na VPS (ou faz `git pull` no repo e edita lá).
+2. Na pasta do repo, **como root**:  
+   `bash docker/btcpay/reinstall-btcpay.sh`  
+   Isto entra no clone `btcpayserver-docker` e volta a correr **`. ./btcpay-setup.sh -i`** com as variáveis exportadas do teu `env`.
+
+Se **não há clone** ou queres começar do zero na mesma máquina:
+
+1. Remove ou renomeia a pasta `docker/btcpay/btcpayserver-docker` (está no `.gitignore`; no servidor é cópia local).
+2. `bash docker/btcpay/install-btcpay.sh` (volta a clonar e instalar).
+
+O `install-btcpay.sh` no repo agora:
+
+- Cria `docker/btcpay/env` a partir de `env.example` se faltar o ficheiro `env`.
+- **Recusa** `LETSENCRYPT_EMAIL` com `@example.com` (tens de por email real).
+- Recusa `BTCPAY_HOST` com `example.com` / `EXAMPLE` no nome.
+- Mostra um **check DNS** rápido (`getent` / `host`) antes do setup.
+- Alinha com o [README oficial](https://github.com/btcpayserver/btcpayserver-docker): por defeito **Core Lightning** se não definires outra coisa no `env`, e exporta opcionais `REVERSEPROXY_*`, `ACME_CA_URI`, `BTCPAY_ADDITIONAL_HOSTS` se estiverem no teu `env`.
+
+---
+
 ## Referências oficiais
 
 - [BTCPay Docker](https://docs.btcpayserver.org/Docker/)
 - Repositório: [btcpayserver/btcpayserver-docker](https://github.com/btcpayserver/btcpayserver-docker)
 
-Ficheiros neste repo relacionados: `docker/btcpay/env.example`, `docker/btcpay/install-btcpay.sh`, `LEIAME-PT.txt`, `.env.example` (secção BTCPAY da app).
+Ficheiros neste repo relacionados: `docker/btcpay/env.example`, `docker/btcpay/install-btcpay.sh`, `docker/btcpay/reinstall-btcpay.sh`, `LEIAME-PT.txt`, `.env.example` (secção BTCPAY da app).

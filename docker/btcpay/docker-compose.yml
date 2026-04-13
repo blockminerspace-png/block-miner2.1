@@ -9,7 +9,8 @@
 # btcpay-setup.sh, which produces the real compose under Generated/ and sets
 # BTCPAY_DOCKER_COMPOSE in btcpay-env.sh (see upstream docs).
 #
-# This file exists only so the folder is visible in the repo; use install-btcpay.sh.
+# This file exists only so the folder is visible in the repo; use install-btcpay.sh
+# and reinstall-btcpay.sh (after changing docker/btcpay/env).
 
 name: blockminer-btcpay-docs
 services:

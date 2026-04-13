@@ -9,9 +9,11 @@ Resumo:
 
 1) Lê o GUIA-COMPLETO-PT.md (subdomínio, Cloudflare A, portas 80/443).
 
-2) Copia env.example para env e edita BTCPAY_HOST + LETSENCRYPT_EMAIL.
+2) Edita docker/btcpay/env (se não existir, o install-btcpay.sh cria a partir de env.example).
+   Obrigatório: email real em LETSENCRYPT_EMAIL (o script recusa you@example.com).
 
 3) Na VPS Linux como root:  bash docker/btcpay/install-btcpay.sh
+   Para só voltar a gerar o compose depois de mudares o env:  bash docker/btcpay/reinstall-btcpay.sh
 
 4) Abre https://BTCPAY_HOST no browser (porta 443 implícita).
 
