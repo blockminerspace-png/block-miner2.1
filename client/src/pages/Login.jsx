@@ -6,6 +6,7 @@ import { Cpu, Mail, Lock, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Shiel
 import { toast } from 'sonner';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
+import TurnstileField from '../components/auth/TurnstileField';
 
 export default function Login() {
     const { t } = useTranslation();
@@ -17,6 +18,7 @@ export default function Login() {
     const [requires2FA, setRequires2FA] = useState(false);
     const [twoFactorToken, setTwoFactorToken] = useState('');
     const [localError, setLocalError] = useState('');
+    const [cfTurnstileToken, setCfTurnstileToken] = useState('');
     
     // Legacy Reset States
     const [showLegacyReset, setShowLegacyReset] = useState(false);
@@ -41,7 +43,8 @@ export default function Login() {
             const res = await api.post('/auth/login', {
                 identifier,
                 password,
-                twoFactorToken: requires2FA ? twoFactorToken : undefined
+                twoFactorToken: requires2FA ? twoFactorToken : undefined,
+                cfTurnstileToken: cfTurnstileToken || undefined,
             });
 
             if (res.data.require2FA) {
@@ -66,15 +69,30 @@ export default function Login() {
             } else {
                 const fieldError = err.response?.data?.errors?.[0]?.message;
                 const code = err.response?.data?.code;
+                const messageKey = err.response?.data?.messageKey;
+                const i18nSecurity =
+                    messageKey && typeof messageKey === 'string' && messageKey.startsWith('errors.security.')
+                        ? t(messageKey)
+                        : null;
 
                 const errorByCode = {
                     IDENTIFIER_NOT_FOUND: t('auth.login.errors.identifier_not_found'),
                     INVALID_CREDENTIALS: t('auth.login.errors.invalid_credentials'),
                     INVALID_2FA: t('auth.login.errors.invalid_2fa'),
-                    LOGIN_FAILED: t('auth.login.errors.login_failed')
+                    LOGIN_FAILED: t('auth.login.errors.login_failed'),
+                    ACCOUNT_LOCKED: t('errors.security.ACCOUNT_LOCKED'),
+                    RATE_LIMIT_EXCEEDED: t('errors.security.RATE_LIMIT_EXCEEDED'),
+                    CAPTCHA_REQUIRED: t('errors.security.CAPTCHA_REQUIRED'),
+                    CAPTCHA_FAILED: t('errors.security.CAPTCHA_FAILED'),
                 };
 
-                setLocalError(fieldError || errorByCode[code] || err.response?.data?.message || t('auth.login.errors.login_failed'));
+                setLocalError(
+                    fieldError ||
+                        i18nSecurity ||
+                        errorByCode[code] ||
+                        err.response?.data?.message ||
+                        t('auth.login.errors.login_failed'),
+                );
             }
         }
     };
@@ -234,6 +252,7 @@ export default function Login() {
                                         </button>
                                     </div>
                                 </div>
+                                <TurnstileField onToken={setCfTurnstileToken} />
                             </>
                         ) : (
                             <div className="space-y-4 animate-in fade-in zoom-in duration-300">

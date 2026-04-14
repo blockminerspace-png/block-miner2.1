@@ -3,7 +3,7 @@
  * Mounted with express.raw so the HMAC matches the exact POST body.
  */
 import prisma from "../src/db/prisma.js";
-import loggerLib from "../utils/logger.js";
+import loggerLib, { logUserActivity } from "../utils/logger.js";
 import {
   BTCPAY_DEPOSIT_STATUS_PENDING,
   BTCPAY_WEBHOOK_SETTLE_TYPES,
@@ -138,6 +138,11 @@ async function creditIfSettled(invoiceId) {
   } catch {}
 
   logger.info("BTCPay deposit credited", { userId: row.userId, invoiceId, amount: creditAmount });
+  logUserActivity(
+    "FIN_BTCPAY_DEPOSIT_CREDITED",
+    null,
+    { userId: row.userId, invoiceId, amount: creditAmount, txId: row.id },
+  );
   return { ok: true, httpStatus: 200, credited: true };
 }
 

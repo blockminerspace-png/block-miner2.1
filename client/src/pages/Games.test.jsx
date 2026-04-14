@@ -12,7 +12,7 @@ const socketHandlers = {};
 vi.mock("../store/auth", () => ({
   useAuthStore: vi.fn(),
   api: {
-    get: vi.fn(() => Promise.resolve({ data: { ok: true, totalHashRate: 0 } })),
+    get: vi.fn(),
   },
 }));
 
@@ -55,6 +55,19 @@ describe("Games page", () => {
     Object.keys(socketHandlers).forEach((k) => delete socketHandlers[k]);
     useAuthStore.mockReturnValue({ token: "test-token" });
     vi.mocked(io).mockReturnValue(createMockSocket());
+    vi.mocked(api.get).mockImplementation(async (url) => {
+      if (url === "/games/2048/status") {
+        return {
+          data: {
+            ok: true,
+            allowNewStart: true,
+            cooldownSecondsRemaining: 0,
+            activeSession: null,
+          },
+        };
+      }
+      return { data: { ok: true, totalHashRate: 0 } };
+    });
   });
 
   afterEach(() => {
@@ -65,11 +78,34 @@ describe("Games page", () => {
   it("renders Miner Games headings and game cards", async () => {
     renderWithRouter(<Games />);
     await waitFor(() => expect(api.get).toHaveBeenCalledWith("/games/active-powers"));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("/games/2048/status"));
     expect(screen.getAllByText("minerGames.brand_prefix").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("minerGames.brand_suffix").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("minerGames.memory_sync_title")).toBeInTheDocument();
     expect(screen.getByText("minerGames.power_match_title")).toBeInTheDocument();
     expect(screen.getByText("game2048.title")).toBeInTheDocument();
+  });
+
+  it("greys out Chain 2048 card and shows minutes while cooldown is active", async () => {
+    vi.mocked(api.get).mockImplementation(async (url) => {
+      if (url === "/games/2048/status") {
+        return {
+          data: {
+            ok: true,
+            allowNewStart: false,
+            cooldownSecondsRemaining: 90,
+            activeSession: null,
+          },
+        };
+      }
+      return { data: { ok: true, totalHashRate: 0 } };
+    });
+    renderWithRouter(<Games />);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("/games/2048/status"));
+    expect(
+      screen.getByText('game2048.arena_cooldown_minutes:{"minutes":2}'),
+    ).toBeInTheDocument();
+    expect(screen.getByText("game2048.arena_unavailable")).toBeInTheDocument();
   });
 
   it("shows translated toast for coded game:error", async () => {

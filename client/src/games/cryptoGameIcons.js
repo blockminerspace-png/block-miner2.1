@@ -32,8 +32,40 @@ for (const [k, v] of Object.entries(CRYPTO_ICONS)) {
   ICON_IMAGES[k] = img;
 }
 
-/** Low → high merge ladder (matches arena 2048 presentation). */
-const TILE_CRYPTO_ORDER = Object.freeze(["cardano", "solana", "binance-coin", "ethereum", "bitcoin"]);
+/**
+ * Low → high merge ladder (one entry per power-of-two tier: 2,4,8,…).
+ * Reuses known icons in a fixed order so the sidebar matches merge progression.
+ */
+const TILE_CRYPTO_ORDER = Object.freeze([
+  "polygon",
+  "cardano",
+  "solana",
+  "dogecoin",
+  "polkadot",
+  "binance-coin",
+  "ethereum",
+  "bitcoin",
+  "polygon",
+  "cardano",
+  "solana",
+]);
+
+/**
+ * Tile values from 2 up to `winTile` for merge-path sidebar (cap length for UI).
+ * @param {number} winTile
+ * @param {number} [maxSteps=14]
+ * @returns {number[]}
+ */
+export function mergePathValues(winTile, maxSteps = 14) {
+  const cap = winTile > 0 ? winTile : 2048;
+  const out = [];
+  let v = 2;
+  while (v <= cap && out.length < maxSteps) {
+    out.push(v);
+    v *= 2;
+  }
+  return out;
+}
 
 /**
  * Maps a 2048 tile value (power of two) to a crypto slug for consistent visuals with other games.
@@ -41,10 +73,11 @@ const TILE_CRYPTO_ORDER = Object.freeze(["cardano", "solana", "binance-coin", "e
  * @returns {keyof typeof CRYPTO_ICONS}
  */
 export function cryptoSlugFor2048Tile(value) {
-  if (!Number.isFinite(value) || value < 2) return "cardano";
+  if (!Number.isFinite(value) || value < 2) return "polygon";
   const log = Math.log2(value);
-  if (!Number.isInteger(log) || log < 1) return "cardano";
+  if (!Number.isInteger(log) || log < 1) return "polygon";
   const idx = log - 1;
+  if (idx < 0) return "polygon";
   if (idx < TILE_CRYPTO_ORDER.length) return TILE_CRYPTO_ORDER[idx];
   return "bitcoin";
 }

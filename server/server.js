@@ -3,6 +3,7 @@ import path from "path";
 import { existsSync } from "fs";
 import fs from "fs/promises";
 import http from "http";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
@@ -13,9 +14,11 @@ import prisma from "./src/db/prisma.js";
 import { refreshIframeHostAllowlistCache } from "./services/internalOfferwall/iframeHostAllowlistCache.js";
 import { MiningEngine } from "./src/miningEngine.js";
 import { setMiningEngine } from "./src/miningEngineInstance.js";
-import loggerLib from "./utils/logger.js";
+import loggerLib, { logUnhandledError } from "./utils/logger.js";
 // Middlewares
 import { createRateLimiter } from "./middleware/rateLimit.js";
+import { createDistributedRateLimiter } from "./middleware/distributedRateLimit.js";
+import { createHttpsEnforcementMiddleware } from "./middleware/httpsEnforcement.js";
 import { getHelmetContentSecurityPolicyOptions } from "./middleware/csp.js";
 import { createCsrfMiddleware } from "./middleware/csrf.js";
 
@@ -86,13 +89,34 @@ import {
   buildExpressCorsOptions,
   buildSocketIoCorsConfig
 } from "./utils/corsConfig.js";
+import { createHttpRequestLogger } from "./middleware/httpRequestLogger.js";
 
 const logger = loggerLib.child("Server");
+
+if (process.env.NODE_ENV !== "test") {
+  process.on("unhandledRejection", (reason) => {
+    const err =
+      reason instanceof Error
+        ? reason
+        : new Error(typeof reason === "string" ? reason : JSON.stringify(reason));
+    logUnhandledError(err, null, { source: "unhandledRejection" });
+  });
+  process.on("uncaughtException", (err) => {
+    logUnhandledError(err instanceof Error ? err : new Error(String(err)), null, {
+      source: "uncaughtException",
+    });
+  });
+}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 applyTrustProxy(app);
+app.use(createHttpsEnforcementMiddleware());
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString("base64url");
+  next();
+});
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: buildSocketIoCorsConfig()
@@ -249,25 +273,20 @@ app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 app.use(createCsrfMiddleware());
 
-// Global Rate Limiter
-const globalLimiter = createRateLimiter({
+// Global Rate Limiter (Redis-backed when REDIS_URL is configured)
+const globalLimiter = createDistributedRateLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 5000, // Increased from 2000 to 5000
+  max: 5000,
+  name: "api_global",
   skip: (req) => {
     const skipPaths = ["/api/session/heartbeat", "/api/wallet/balance", "/api/checkin/status"];
     return skipPaths.includes(req.originalUrl);
   },
-  message: "Too many requests from this IP, please try again later."
+  message: "Too many requests from this IP, please try again later.",
 });
 app.use("/api", auditContextMiddleware);
 app.use("/api", globalLimiter);
-
-app.use("/api", (req, res, next) => {
-  logger.info(`INCOMING API REQUEST: ${req.method} ${req.originalUrl}`, {
-    correlationId: req.auditContext?.correlationId,
-  });
-  next();
-});
+app.use("/api", createHttpRequestLogger());
 
 // 5. API Routes
 app.use("/api/auth", authRouter);
@@ -449,6 +468,19 @@ app.get("/{*all}", async (req, res) => {
     logger.error("Error serving index.html", { error: error.message });
     res.status(500).send("Internal Server Error");
   }
+});
+
+app.use((err, req, res, next) => {
+  logUnhandledError(err instanceof Error ? err : new Error(String(err)), req, { source: "express" });
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+  if (req.path && String(req.path).startsWith("/api")) {
+    res.status(500).json({ ok: false, message: "Internal server error." });
+    return;
+  }
+  res.status(500).send("Internal Server Error");
 });
 
 // 8. Bootstrap

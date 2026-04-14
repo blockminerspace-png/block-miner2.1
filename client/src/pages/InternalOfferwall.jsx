@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ExternalLink, LayoutGrid, Loader2, PlayCircle, Send } from 'lucide-react';
+import { ArrowLeft, ExternalLink, LayoutGrid, Loader2, PlayCircle, Send } from 'lucide-react';
 import { api } from '../store/auth';
 
 const KIND_PTC = 'PTC_IFRAME';
@@ -101,7 +101,7 @@ function useElapsedSeconds(startedAtIso, active) {
 
 export default function InternalOfferwall() {
   const { t } = useTranslation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [flagLoading, setFlagLoading] = useState(true);
   const [featureEnabled, setFeatureEnabled] = useState(false);
   const [offersLoading, setOffersLoading] = useState(false);
@@ -110,6 +110,15 @@ export default function InternalOfferwall() {
   const [startBusyId, setStartBusyId] = useState(/** @type {number | null} */ (null));
   const [submitBusyId, setSubmitBusyId] = useState(/** @type {number | null} */ (null));
   const [partnerBusyAttemptId, setPartnerBusyAttemptId] = useState(/** @type {number | null} */ (null));
+  const [abandonBusyId, setAbandonBusyId] = useState(/** @type {number | null} */ (null));
+
+  const clearOfferQuery = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    if (!next.has('offer')) return;
+    next.delete('offer');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -290,6 +299,33 @@ export default function InternalOfferwall() {
     }
   };
 
+  const onAbandonAttempt = useCallback(
+    async (/** @type {number} */ attemptId) => {
+      setAbandonBusyId(attemptId);
+      try {
+        const res = await api.post(`/internal-offerwall/attempts/${attemptId}/abandon`);
+        const d = res.data;
+        if (d?.ok) {
+          toast.success(t('internalOfferwallPage.abandon_ok'));
+          clearOfferQuery();
+          await loadOffers();
+        } else {
+          toast.error(d?.message || t('internalOfferwallPage.load_error'));
+        }
+      } catch (e) {
+        const d = e?.response?.data;
+        if (d?.code === 'CANNOT_ABANDON_PENDING_REVIEW') {
+          toast.error(t('internalOfferwallPage.cannot_abandon_pending_review'));
+        } else {
+          toast.error(d?.message || t('internalOfferwallPage.load_error'));
+        }
+      } finally {
+        setAbandonBusyId(null);
+      }
+    },
+    [t, clearOfferQuery, loadOffers]
+  );
+
   if (flagLoading) {
     return (
       <div className="flex justify-center py-24">
@@ -342,10 +378,13 @@ export default function InternalOfferwall() {
                 startBusy={startBusyId === offer.id}
                 submitBusy={submitBusyId === attempt?.id}
                 partnerBusy={partnerBusyAttemptId === attempt?.id}
+                abandonBusy={abandonBusyId != null && abandonBusyId === attempt?.id}
                 onStart={() => onStart(offer)}
                 onSubmit={() => attempt && onSubmit(attempt.id)}
                 onPartnerOpen={attempt ? () => onPartnerPageOpen(offer, attempt) : undefined}
                 onCooldownElapsed={loadOffers}
+                onClearOfferFocus={clearOfferQuery}
+                onAbandonAttempt={onAbandonAttempt}
               />
             );
           })}
@@ -364,11 +403,24 @@ function OfferCard({
   startBusy,
   submitBusy,
   partnerBusy,
+  abandonBusy,
   onStart,
   onSubmit,
   onPartnerOpen,
-  onCooldownElapsed
+  onCooldownElapsed,
+  onClearOfferFocus,
+  onAbandonAttempt
 }) {
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  useEffect(() => {
+    if (!exitConfirmOpen) return undefined;
+    const onKey = (/** @type {KeyboardEvent} */ e) => {
+      if (e.key === 'Escape') setExitConfirmOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [exitConfirmOpen]);
+
   const isPtc = String(offer.kind).toUpperCase() === KIND_PTC;
   const minSec = Number(offer.minViewSeconds) || 0;
   const usage = offer.usage || {
@@ -401,8 +453,83 @@ function OfferCard({
   const modeSelf = String(offer.completionMode || '') !== MODE_ADMIN;
   const remaining = Math.max(0, Math.ceil(minSec - elapsed));
 
+  const handleBackToListOnly = () => {
+    onClearOfferFocus?.();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const confirmLeaveTask = async () => {
+    if (!attempt?.id) return;
+    setExitConfirmOpen(false);
+    await onAbandonAttempt?.(attempt.id);
+  };
+
   return (
     <li id={domId} className="rounded-2xl border border-white/5 bg-slate-900/50 p-5 space-y-4">
+      {attempt?.status === STATUS_STARTED ? (
+        <div className="pb-3 border-b border-white/10">
+          <button
+            type="button"
+            disabled={abandonBusy || submitBusy || partnerBusy}
+            onClick={() => setExitConfirmOpen(true)}
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-600 bg-slate-800/80 text-slate-100 text-sm font-semibold hover:bg-slate-700/90 disabled:opacity-50"
+          >
+            <ArrowLeft className="w-4 h-4 shrink-0" aria-hidden />
+            {t('internalOfferwallPage.back_to_offerwall')}
+          </button>
+        </div>
+      ) : null}
+      {attempt?.status === 'PENDING_REVIEW' ? (
+        <div className="flex flex-wrap items-center gap-2 justify-between pb-3 border-b border-white/10">
+          <button
+            type="button"
+            onClick={handleBackToListOnly}
+            className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-xl border border-slate-600 bg-slate-800/80 text-slate-100 text-sm font-semibold hover:bg-slate-700/90 w-full sm:w-auto"
+          >
+            <ArrowLeft className="w-4 h-4 shrink-0" aria-hidden />
+            {t('internalOfferwallPage.back_to_offerwall')}
+          </button>
+        </div>
+      ) : null}
+
+      {exitConfirmOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          role="presentation"
+          onClick={() => setExitConfirmOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="io-exit-title"
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="io-exit-title" className="text-lg font-bold text-white">
+              {t('internalOfferwallPage.exit_task_confirm_title')}
+            </h3>
+            <p className="text-sm text-slate-400">{t('internalOfferwallPage.exit_task_confirm_body')}</p>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="min-h-[44px] px-4 py-2 rounded-xl border border-slate-600 text-slate-200 text-sm font-semibold hover:bg-slate-800"
+                onClick={() => setExitConfirmOpen(false)}
+              >
+                {t('internalOfferwallPage.exit_task_confirm_stay')}
+              </button>
+              <button
+                type="button"
+                disabled={abandonBusy}
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold disabled:opacity-50"
+                onClick={() => void confirmLeaveTask()}
+              >
+                {abandonBusy ? <Loader2 className="w-4 h-4 animate-spin mx-auto" aria-hidden /> : t('internalOfferwallPage.exit_task_confirm_leave')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

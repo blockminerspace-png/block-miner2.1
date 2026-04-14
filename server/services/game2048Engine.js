@@ -1,7 +1,7 @@
 /** @typedef {"up"|"down"|"left"|"right"} Game2048Direction */
 
-/** Board edge length (classic 2048 is 4; arena layout uses 8). */
-export const BOARD_SIZE = 8;
+/** Board edge length — classic 2048 uses 4 (matches arena merge-game layout). */
+export const BOARD_SIZE = 4;
 
 /**
  * @returns {number[][]}

@@ -31,7 +31,7 @@ export default function AdminLogin() {
 
         try {
             if (!emailVal || !codeVal) {
-                setError('Preenche o e-mail e o código de segurança.');
+                setError(t('adminAuth.login_fields_required'));
                 setIsLoading(false);
                 return;
             }
@@ -44,10 +44,16 @@ export default function AdminLogin() {
             if (res.data.ok) {
                 navigate('/admin/dashboard');
             } else {
-                setError(res.data.message || 'Falha na autenticação administrativa.');
+                setError(res.data.message || t('adminAuth.login_failed_generic'));
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Erro ao conectar com o servidor.');
+            const d = err.response?.data;
+            const st = err.response?.status;
+            if (d?.code === 'ADMIN_AUTH_NOT_CONFIGURED' || (st === 503 && String(d?.message || '').includes('Admin auth'))) {
+                setError(t('adminAuth.auth_not_configured'));
+            } else {
+                setError(d?.message || t('adminAuth.login_failed_generic'));
+            }
         } finally {
             setIsLoading(false);
         }
@@ -67,8 +73,8 @@ export default function AdminLogin() {
                         </div>
                         <span className="font-black text-2xl tracking-tighter text-white uppercase">Admin<span className="text-amber-500">Panel</span></span>
                     </div>
-                    <h1 className="text-xl font-bold text-white tracking-tight">Acesso Restrito</h1>
-                    <p className="text-slate-500 text-sm font-medium mt-1">Identifique-se para gerenciar o ecossistema.</p>
+                    <h1 className="text-xl font-bold text-white tracking-tight">{t('adminAuth.restricted_title')}</h1>
+                    <p className="text-slate-500 text-sm font-medium mt-1">{t('adminAuth.restricted_subtitle')}</p>
                 </div>
 
                 <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 shadow-2xl">
@@ -89,7 +95,9 @@ export default function AdminLogin() {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">E-mail Administrativo</label>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">
+                                {t('adminAuth.email_label')}
+                            </label>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <Mail className="h-5 w-5 text-slate-600 group-focus-within:text-amber-500 transition-colors" />
@@ -108,7 +116,9 @@ export default function AdminLogin() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Senha de Segurança</label>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">
+                                {t('adminAuth.security_code_label')}
+                            </label>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <Lock className="h-5 w-5 text-slate-600 group-focus-within:text-amber-500 transition-colors" />
@@ -135,7 +145,7 @@ export default function AdminLogin() {
                                 <Loader2 className="w-5 h-5 animate-spin" />
                             ) : (
                                 <>
-                                    Autenticar Admin
+                                    {t('adminAuth.submit')}
                                     <ChevronRight className="w-5 h-5" />
                                 </>
                             )}
@@ -145,7 +155,7 @@ export default function AdminLogin() {
 
                 <div className="mt-8 text-center">
                     <Link to="/login" className="text-slate-600 hover:text-slate-400 text-xs font-bold uppercase tracking-[0.2em] transition-colors">
-                        Voltar para Área do Usuário
+                        {t('adminAuth.back_to_user_area')}
                     </Link>
                 </div>
             </div>

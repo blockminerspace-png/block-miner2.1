@@ -2,10 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Clock, RotateCcw } from "lucide-react";
+import { ArrowLeft, Clock, Coins, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../store/auth";
-import { CRYPTO_ICONS, COIN_COLORS, cryptoSlugFor2048Tile } from "../games/cryptoGameIcons.js";
+import {
+  CRYPTO_ICONS,
+  COIN_COLORS,
+  cryptoSlugFor2048Tile,
+  mergePathValues,
+} from "../games/cryptoGameIcons.js";
+
+function formatMmSs(totalSeconds) {
+  const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}
 
 function useRoundSecondsRemaining(session) {
   const [tick, setTick] = useState(0);
@@ -26,15 +38,33 @@ function useRoundSecondsRemaining(session) {
   }, [startedAt, limit, tick]);
 }
 
+function mergeProgressPercent(bestTile, winTile) {
+  if (!winTile || winTile < 2) return 0;
+  if (!bestTile || bestTile < 2) return 0;
+  if (bestTile >= winTile) return 100;
+  const num = Math.log2(bestTile);
+  const den = Math.log2(winTile);
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return 0;
+  return Math.min(100, Math.max(0, (num / den) * 100));
+}
+
 function Chain2048Tile({ value, row, col, t }) {
   const slug = value > 0 ? cryptoSlugFor2048Tile(value) : null;
   const scheme = slug ? COIN_COLORS[slug] || COIN_COLORS.ethereum : null;
   const iconSrc = slug ? CRYPTO_ICONS[slug] || CRYPTO_ICONS.ethereum : null;
+  const [imgOk, setImgOk] = useState(true);
+
+  useEffect(() => {
+    setImgOk(true);
+  }, [value, slug]);
 
   return (
-    <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-slate-900/60 ring-1 ring-inset ring-white/[0.06]">
+    <div
+      className="relative flex aspect-square items-center justify-center overflow-hidden rounded border border-sky-500/35 bg-[#0a1628] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      style={value === 0 ? { background: "#0c1929" } : undefined}
+    >
       <AnimatePresence mode="popLayout">
-        {value > 0 && scheme && iconSrc ? (
+        {value > 0 && scheme ? (
           <motion.div
             layout
             key={`${row}-${col}-${value}`}
@@ -42,26 +72,66 @@ function Chain2048Tile({ value, row, col, t }) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.82, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 28 }}
-            className="relative flex h-[88%] w-[88%] items-center justify-center overflow-hidden rounded-md shadow-inner"
+            className="relative flex h-[78%] w-[78%] items-center justify-center overflow-hidden rounded-full shadow-inner"
             style={{
-              borderWidth: 1,
+              borderWidth: 2,
               borderStyle: "solid",
               borderColor: scheme.border,
-              background: `linear-gradient(145deg, ${scheme.bg}, rgba(8,12,22,0.92))`,
-              boxShadow: `0 0 12px -3px ${scheme.glow}`,
+              background: `radial-gradient(circle at 30% 25%, ${scheme.bg}, rgba(6,10,18,0.95))`,
+              boxShadow: `0 0 14px -4px ${scheme.glow}`,
             }}
             aria-label={t("game2048.tile_aria", { row: row + 1, col: col + 1, value })}
           >
-            <img
-              src={iconSrc}
-              alt=""
-              className="pointer-events-none h-[62%] w-[62%] object-contain brightness-0 invert drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]"
-              draggable={false}
-            />
+            {iconSrc && imgOk ? (
+              <img
+                src={iconSrc}
+                alt=""
+                className="pointer-events-none h-[62%] w-[62%] object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
+                draggable={false}
+                onError={() => setImgOk(false)}
+              />
+            ) : (
+              <span className="select-none font-mono text-[clamp(10px,3.5vmin,18px)] font-black tabular-nums text-white/90">
+                {value}
+              </span>
+            )}
           </motion.div>
         ) : null}
       </AnimatePresence>
     </div>
+  );
+}
+
+function MergeLadder({ winTile, bestTile, t }) {
+  const steps = useMemo(() => mergePathValues(winTile, 14), [winTile]);
+  return (
+    <aside
+      className="flex w-[52px] shrink-0 flex-col gap-1.5 border-l border-sky-500/20 pl-2 sm:w-[60px]"
+      aria-label={t("game2048.merge_path_aria")}
+    >
+      {steps.map((tileVal, i) => {
+        const slug = cryptoSlugFor2048Tile(tileVal);
+        const src = CRYPTO_ICONS[slug];
+        const active = bestTile >= tileVal;
+        return (
+          <div
+            key={`${tileVal}-${i}`}
+            className={`flex aspect-square items-center justify-center rounded border p-0.5 transition-colors ${
+              active
+                ? "border-amber-400/70 bg-amber-500/15 ring-1 ring-amber-400/40"
+                : "border-sky-600/25 bg-[#0a1628]/80 opacity-70"
+            }`}
+            title={`${tileVal}`}
+          >
+            {src ? (
+              <img src={src} alt="" className="h-[72%] w-[72%] object-contain" draggable={false} />
+            ) : (
+              <span className="text-[8px] font-bold text-slate-500">{tileVal}</span>
+            )}
+          </div>
+        );
+      })}
+    </aside>
   );
 }
 
@@ -265,15 +335,9 @@ export default function Game2048Page() {
     else void sendMove(dy > 0 ? "down" : "up");
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-slate-400">{t("game2048.loading")}</div>
-    );
-  }
-
   const winTile = session?.winTile ?? status?.winTile ?? 2048;
-  const minScore = session?.minScore ?? status?.minScore ?? 0;
-  const rewardHr = session?.rewardHashRate ?? status?.rewardHashRate ?? 50;
+  const minScore = session?.minScore ?? status?.minScore ?? 1000;
+  const rewardHr = session?.rewardHashRate ?? status?.rewardHashRate ?? 25;
   const powerDays = status?.powerDays ?? 7;
   const cdSec = status?.cooldownSecondsRemaining ?? 0;
   const canStartNew = Boolean(status?.allowNewStart) && (!session || session.status !== "ACTIVE");
@@ -283,134 +347,177 @@ export default function Game2048Page() {
   const displaySeconds = roundSeconds ?? session?.secondsRemaining ?? 0;
   const showTimer = (session?.timeLimitSeconds ?? 0) > 0 && session?.status === "ACTIVE" && !session?.gameOver;
   const overlayKind = session ? endOverlayKey(session) : null;
+  const progressPct = mergeProgressPercent(best, winTile);
+
+  const boardSize = board?.length || 0;
+  const boardBoxStyle = {
+    width: "min(calc(100vw - 6.5rem), min(88vw, 72dvh))",
+    maxWidth: "420px",
+    aspectRatio: "1",
+  };
 
   return (
-    <div
-      className="mx-auto min-h-[calc(100vh-6rem)] max-w-lg animate-in space-y-5 pb-16 fade-in duration-700"
-      style={{ direction: "ltr" }}
-    >
-      <div className="px-1 pt-2">
-        <Link
-          to="/games"
-          className="mb-2 inline-flex min-h-10 items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-500 transition-colors hover:text-sky-400"
-        >
-          <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {t("game2048.back_arena")}
-        </Link>
-        <h1 className="sr-only">{t("game2048.title")}</h1>
-      </div>
-
-      <div className="rounded-2xl border border-slate-800/80 bg-[#070b14] px-3 py-3 shadow-[0_0_40px_-12px_rgba(37,99,235,0.25)] sm:px-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{t("game2048.score")}</p>
-            <p className="text-xl font-black tabular-nums text-white sm:text-2xl">{session?.score ?? 0}</p>
-          </div>
-          <div className="shrink-0 text-center">
-            <p
-              className="bg-gradient-to-b from-sky-300 via-blue-400 to-indigo-600 bg-clip-text text-lg font-black uppercase italic leading-none tracking-tight text-transparent drop-shadow-sm sm:text-xl"
-              aria-hidden
-            >
-              {t("game2048.brand")}
-            </p>
-            <span className="sr-only">{t("game2048.brand_aria")}</span>
-          </div>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
-            {(showTimer || (session?.timeLimitSeconds ?? 0) > 0) && (
-              <div className="text-right">
-                <p className="flex items-center justify-end gap-1 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
-                  <Clock className="h-3 w-3" aria-hidden />
-                  {t("game2048.time")}
-                </p>
-                <p className="text-lg font-black tabular-nums text-sky-300 sm:text-xl">
-                  {showTimer ? displaySeconds : 0}
-                  <span className="text-xs font-bold text-slate-500">{t("game2048.seconds_suffix")}</span>
-                </p>
-              </div>
-            )}
-            {session?.status === "ACTIVE" && !session?.gameOver && (
-              <button
-                type="button"
-                onClick={() => void restartGame()}
-                disabled={busy}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-lg shadow-red-900/40 transition-opacity hover:opacity-90 disabled:opacity-40"
-                aria-label={t("game2048.reset_aria")}
+    <div className="fixed inset-0 z-[100] flex flex-col bg-[#020617]" style={{ direction: "ltr" }}>
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center text-slate-400">{t("game2048.loading")}</div>
+      ) : (
+        <>
+          <span className="sr-only">{t("game2048.title")}</span>
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-[#050a14] px-2 py-2 sm:px-4">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <Link
+                to="/games"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700/60 text-slate-400 transition-colors hover:border-sky-500/40 hover:text-sky-400"
+                aria-label={t("game2048.back_arena")}
               >
-                <RotateCcw className="h-4 w-4" aria-hidden />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-3 space-y-1 border-t border-slate-800/80 pt-3 text-[11px] leading-snug text-slate-500">
-          <p>
-            {t("game2048.target_hint", { tile: winTile, minScore })} · {t("game2048.best_tile")}:{" "}
-            <span className="font-bold text-sky-400">{best}</span>
-          </p>
-          <p>{t("game2048.reward_line", { hr: rewardHr, days: powerDays })}</p>
-          {cooldownMinutesDisplay > 0 && <p>{t("game2048.cooldown_line", { minutes: cooldownMinutesDisplay })}</p>}
-        </div>
-
-        <div className="flex flex-wrap gap-2 border-t border-slate-800/80 pt-3">
-          {canStartNew && (
-            <button
-              type="button"
-              onClick={() => void startGame()}
-              disabled={busy || !status?.allowNewStart}
-              className="min-h-11 rounded-xl bg-sky-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-sky-900/30 transition-opacity hover:opacity-95 disabled:opacity-50"
-            >
-              {t("game2048.new_game")}
-            </button>
-          )}
-          {session?.canClaim && (
-            <button
-              type="button"
-              onClick={() => void claimReward()}
-              disabled={busy}
-              className="min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-5 py-3 text-xs font-black uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
-            >
-              {busy ? t("game2048.claiming") : t("game2048.claim")}
-            </button>
-          )}
-        </div>
-
-        {cdSec > 0 && !session && (
-          <p className="mt-3 text-center text-sm text-amber-400">
-            {t("game2048.errors.COOLDOWN_ACTIVE")} ({cdSec}s)
-          </p>
-        )}
-
-        {session && board && (
-          <div
-            role="grid"
-            aria-label={t("game2048.grid_aria")}
-            className="relative mx-auto mt-4 aspect-square w-full max-w-[min(100vw-2rem,420px)] touch-none rounded-2xl border border-slate-800/90 bg-[#050810] p-1.5 shadow-inner ring-1 ring-white/[0.04] sm:p-2"
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-          >
-            <div className="grid h-full w-full grid-cols-8 grid-rows-8 gap-1 sm:gap-1.5">
-              {board.map((row, ri) =>
-                row.map((value, ci) => (
-                  <Chain2048Tile key={`cell-${ri}-${ci}`} value={value} row={ri} col={ci} t={t} />
-                )),
+                <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+              </Link>
+              <div className="flex min-w-0 items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1 sm:px-3">
+                <Coins className="h-5 w-5 shrink-0 text-amber-300" aria-hidden />
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-amber-200/80">
+                    {t("game2048.score")}
+                  </span>
+                  <span className="text-lg font-black tabular-nums leading-none text-amber-50 sm:text-xl">
+                    {session?.score ?? 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <h1 className="pointer-events-none shrink-0 text-center text-[10px] font-black uppercase italic tracking-tight text-white sm:text-xs">
+              <span className="bg-gradient-to-b from-sky-300 via-blue-400 to-indigo-600 bg-clip-text text-transparent">
+                {t("game2048.brand")}
+              </span>
+              <span className="sr-only">{t("game2048.brand_aria")}</span>
+            </h1>
+            <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+              {(showTimer || (session?.timeLimitSeconds ?? 0) > 0) && (
+                <div className="text-right">
+                  <p className="flex items-center justify-end gap-1 text-[8px] font-black uppercase tracking-widest text-slate-500 sm:text-[9px]">
+                    <Clock className="h-3 w-3 shrink-0" aria-hidden />
+                    {t("game2048.time")}
+                  </p>
+                  <p className="font-mono text-lg font-black tabular-nums leading-none text-sky-300 sm:text-xl">
+                    {showTimer ? formatMmSs(displaySeconds) : formatMmSs(0)}
+                  </p>
+                </div>
+              )}
+              {session?.status === "ACTIVE" && !session?.gameOver && (
+                <button
+                  type="button"
+                  onClick={() => void restartGame()}
+                  disabled={busy}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-500/30 bg-red-500/20 text-red-400 transition-all hover:bg-red-500/40 disabled:opacity-40"
+                  aria-label={t("game2048.reset_aria")}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                </button>
               )}
             </div>
-            {session.gameOver && (
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-[#03050a]/88 p-4 text-center backdrop-blur-[2px]">
-                <p className="text-base font-black uppercase leading-tight text-white sm:text-lg">
-                  {overlayKind === "won" && t("game2048.you_won")}
-                  {overlayKind === "time" && t("game2048.time_up")}
-                  {overlayKind === "closed" && t("game2048.round_closed")}
-                  {overlayKind === "lost" && t("game2048.game_over")}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+          </header>
 
-        <p className="mt-3 text-center text-[11px] text-slate-600">{t("game2048.play_hint")}</p>
-        {busy && <p className="text-center text-[11px] text-slate-600">{t("game2048.syncing")}</p>}
-      </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 space-y-2 border-b border-slate-800/80 bg-[#050a14]/90 px-3 py-2 sm:px-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-widest text-sky-400/90">
+                  {t("game2048.progress_label")}
+                </span>
+                <span className="text-[9px] font-bold tabular-nums text-slate-500">
+                  {Math.round(progressPct)}%
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-800 ring-1 ring-sky-900/40">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-300 ease-out"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <p className="text-[10px] leading-snug text-slate-500 sm:text-[11px]">
+                {t("game2048.target_hint", { tile: winTile, minScore })} · {t("game2048.best_tile")}:{" "}
+                <span className="font-bold text-sky-400">{best}</span>
+              </p>
+              <p className="text-[10px] text-slate-500 sm:text-[11px]">{t("game2048.reward_line", { hr: rewardHr, days: powerDays })}</p>
+              {cooldownMinutesDisplay > 0 && (
+                <p className="text-[10px] text-slate-600 sm:text-[11px]">
+                  {t("game2048.cooldown_line", { minutes: cooldownMinutesDisplay })}
+                </p>
+              )}
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-y-auto p-3">
+              <div className="flex flex-wrap justify-center gap-2">
+                {canStartNew && (
+                  <button
+                    type="button"
+                    onClick={() => void startGame()}
+                    disabled={busy || !status?.allowNewStart}
+                    className="min-h-11 rounded-xl bg-sky-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-sky-900/30 transition-opacity hover:opacity-95 disabled:opacity-50"
+                  >
+                    {t("game2048.new_game")}
+                  </button>
+                )}
+                {session?.canClaim && (
+                  <button
+                    type="button"
+                    onClick={() => void claimReward()}
+                    disabled={busy}
+                    className="min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-5 py-3 text-xs font-black uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
+                  >
+                    {busy ? t("game2048.claiming") : t("game2048.claim")}
+                  </button>
+                )}
+              </div>
+
+              {cdSec > 0 && !session && (
+                <p className="text-center text-sm text-amber-400">
+                  {t("game2048.errors.COOLDOWN_ACTIVE")} ({cdSec}s)
+                </p>
+              )}
+
+              {session && board && boardSize > 0 && (
+                <div className="flex max-w-full flex-row items-stretch justify-center gap-1 sm:gap-2">
+                  <div
+                    role="grid"
+                    aria-label={t("game2048.grid_aria")}
+                    className="relative shrink-0 touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)]"
+                    style={boardBoxStyle}
+                    onTouchStart={onTouchStart}
+                    onTouchEnd={onTouchEnd}
+                  >
+                    <div
+                      className="grid h-full w-full gap-1.5 sm:gap-2"
+                      style={{
+                        gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${boardSize}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {board.map((row, ri) =>
+                        row.map((value, ci) => (
+                          <Chain2048Tile key={`cell-${ri}-${ci}`} value={value} row={ri} col={ci} t={t} />
+                        )),
+                      )}
+                    </div>
+                    {session.gameOver && (
+                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[#03050a]/88 p-4 text-center backdrop-blur-[2px]">
+                        <p className="text-base font-black uppercase leading-tight text-white sm:text-lg">
+                          {overlayKind === "won" && t("game2048.you_won")}
+                          {overlayKind === "time" && t("game2048.time_up")}
+                          {overlayKind === "closed" && t("game2048.round_closed")}
+                          {overlayKind === "lost" && t("game2048.game_over")}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <MergeLadder winTile={winTile} bestTile={best} t={t} />
+                </div>
+              )}
+
+              <p className="text-center text-[11px] text-slate-600">{t("game2048.play_hint")}</p>
+              {busy && <p className="text-center text-[11px] text-slate-600">{t("game2048.syncing")}</p>}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

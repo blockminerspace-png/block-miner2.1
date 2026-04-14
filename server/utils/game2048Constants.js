@@ -8,13 +8,13 @@ export function game2048WinTile() {
 }
 
 export function game2048MinScore() {
-  const n = Number(process.env.GAME2048_MIN_SCORE || 0);
-  return Math.max(0, Math.min(10_000_000, Math.floor(Number.isFinite(n) ? n : 0)));
+  const n = Number(process.env.GAME2048_MIN_SCORE || 1000);
+  return Math.max(0, Math.min(10_000_000, Math.floor(Number.isFinite(n) ? n : 1000)));
 }
 
 export function game2048RewardHashRate() {
-  const n = Number(process.env.GAME2048_REWARD_HASHRATE || 50);
-  return Math.max(1, Math.min(100_000, Number.isFinite(n) ? n : 50));
+  const n = Number(process.env.GAME2048_REWARD_HASHRATE || 25);
+  return Math.max(1, Math.min(100_000, Number.isFinite(n) ? n : 25));
 }
 
 export function game2048CooldownMs() {

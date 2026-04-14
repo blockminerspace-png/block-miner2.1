@@ -3,7 +3,16 @@
     "security": {
       "RACE_CONDITION_DETECTED": "Esta acción entró en conflicto con otra solicitud. Actualiza la página e inténtalo de nuevo.",
       "IDEMPOTENT_REPLAY": "Esta compra ya fue confirmada. Mostramos el mismo resultado sin volver a cobrar.",
-      "INVALID_STATE": "Este recurso no está en un estado válido para la acción solicitada."
+      "INVALID_STATE": "Este recurso no está en un estado válido para la acción solicitada.",
+      "ACCOUNT_LOCKED": "Esta cuenta está bloqueada temporalmente por demasiados intentos de inicio de sesión fallidos. Inténtalo más tarde.",
+      "TOO_MANY_REQUESTS": "Demasiadas solicitudes. Reduce el ritmo e inténtalo de nuevo.",
+      "RATE_LIMIT_EXCEEDED": "Demasiadas solicitudes. Reduce el ritmo e inténtalo de nuevo.",
+      "TOO_MANY_ATTEMPTS": "Demasiados intentos para esta acción. Espera un momento antes de volver a intentarlo.",
+      "INVALID_CSRF_TOKEN": "Esta acción fue bloqueada por seguridad (CSRF). Recarga la página e inténtalo de nuevo.",
+      "CAPTCHA_REQUIRED": "Se requiere verificación humana para esta acción.",
+      "CAPTCHA_FAILED": "La verificación humana falló. Inténtalo de nuevo.",
+      "INVALID_REQUEST_SIGNATURE": "La clave de idempotencia no coincide con esta solicitud. Usa una clave nueva para una acción distinta.",
+      "HTTPS_REQUIRED": "Este servidor requiere HTTPS. Actualiza la URL a https:// e inténtalo de nuevo."
     },
     "btcpay": {
       "PAYMENT_NOT_CONFIRMED": "El pago en Bitcoin aún no está confirmado. Mantén esta página abierta o vuelve más tarde; tu saldo se actualiza automáticamente.",
@@ -325,6 +334,8 @@
     "cooldown_line": "Enfriamiento tras reclamar: {{minutes}} min",
     "play_hint": "Usa las flechas o desliza.",
     "open_game": "Abrir juego",
+    "arena_cooldown_minutes": "Quedan {{minutes}} min para volver a jugar",
+    "arena_unavailable": "En enfriamiento",
     "new_game": "Nueva partida",
     "claim": "Reclamar recompensa",
     "claiming": "Reclamando…",
@@ -336,6 +347,8 @@
     "back_arena": "Volver a la Arena",
     "crypto_strip_aria": "Arte de criptomonedas como en los demás juegos de la arena",
     "grid_aria": "Tablero 2048",
+    "progress_label": "Progreso",
+    "merge_path_aria": "Ruta de fusión — niveles de menor a ficha objetivo",
     "tile_aria": "Ficha fila {{row}} columna {{col}} valor {{value}}",
     "errors": {
       "load_status": "No se pudo cargar el estado del juego.",
@@ -587,7 +600,15 @@
     "mode_admin": "Aprobación manual",
     "inactive_or_missing": "Esta tarea no está disponible o ha sido desactivada.",
     "target_regions": "Segmentación (informativo)",
-    "open_external_link": "Abrir enlace relacionado"
+    "open_external_link": "Abrir enlace relacionado",
+    "back_to_offerwall": "Volver a la offerwall",
+    "leave_task": "Cancelar tarea",
+    "exit_task_confirm_title": "¿Volver a la offerwall?",
+    "exit_task_confirm_body": "Se cerrará la sesión en curso de esta oferta. Podrás iniciarla de nuevo más tarde si te quedan ejecuciones.",
+    "exit_task_confirm_leave": "Cancelar tarea",
+    "exit_task_confirm_stay": "Seguir aquí",
+    "abandon_ok": "Tarea cerrada. Puedes empezar de nuevo cuando el límite lo permita.",
+    "cannot_abandon_pending_review": "Este envío está en revisión. Usa Volver a la offerwall para regresar a la lista."
   },
   "admin_internal_offerwall": {
     "nav": "Offerwall interno",
@@ -1135,7 +1156,7 @@
     },
     "deposit_options": {
       "smart_contract": "Depósito vía contrato inteligente",
-      "walletconnect": "WalletConnect (código QR)",
+      "walletconnect": "WalletConnect",
       "hint": "Elige cómo conectar la cartera y luego firma el envío de POL.",
       "contract_required": "El depósito por contrato no está disponible en este entorno. Usa WalletConnect con tesorería o contacta soporte.",
       "walletconnect_hint": "Abre WalletConnect para escanear el QR en el móvil, mantén Polygon (137) y usa el depósito express para firmar.",
@@ -1304,7 +1325,14 @@
       "wallet_not_connected": "Cartera no conectada. Por favor, conecta tu cartera primero.",
       "already_checked_in": "Ya hiciste check-in hoy. ¡Vuelve mañana!",
       "payment_failed": "Pago fallido. Inténtalo de nuevo.",
-      "verification_failed": "Verificación del pago fallida. Contacta con soporte si persiste."
+      "verification_failed": "Verificación del pago fallida. Contacta con soporte si persiste.",
+      "PAYMENT_REQUIRED": "Se necesita una cartera verificada y un pago POL on-chain antes de completar el check-in.",
+      "INVALID_TRANSACTION": "Esta transacción no sirve para el check-in (importe, destinatario, remitente incorrectos o falló on-chain).",
+      "TRANSACTION_NOT_CONFIRMED": "La transacción aún no está confirmada. Espera las confirmaciones en Polygon e inténtalo de nuevo.",
+      "TRANSACTION_ALREADY_USED": "Este hash de transacción ya se usó en un check-in (otro día u otra cuenta).",
+      "BLOCKCHAIN_UNAVAILABLE": "No pudimos contactar la blockchain para verificar el pago. Inténtalo en unos minutos.",
+      "CHECKIN_PAYMENT_DISABLED": "El check-in de pago está desactivado en el servidor. Usa el check-in diario gratuito.",
+      "CHECKIN_SERVER_ERROR": "El check-in falló por un error del servidor. Inténtalo más tarde."
     },
     "success": {
       "wallet_checkin": "¡Check-in confirmado via cartera! Racha de +{{streak}} días",
@@ -2060,7 +2088,16 @@
   },
   "adminAuth": {
     "session_invalid": "Tu sesión de administrador expiró o no es válida. Inicia sesión de nuevo.",
-    "session_banner": "Se cerró la sesión del panel admin. Vuelve a iniciar sesión para continuar."
+    "session_banner": "Se cerró la sesión del panel admin. Vuelve a iniciar sesión para continuar.",
+    "restricted_title": "Acceso restringido",
+    "restricted_subtitle": "Identifícate para gestionar el ecosistema.",
+    "email_label": "Correo de administrador",
+    "security_code_label": "Código de seguridad",
+    "submit": "Entrar al panel admin",
+    "back_to_user_area": "Volver al inicio de sesión de usuario",
+    "auth_not_configured": "El inicio de sesión de admin está desactivado en el servidor: configura ADMIN_EMAIL, ADMIN_SECURITY_CODE y JWT_SECRET en el entorno (p. ej. .env.production) y reinicia el contenedor de la app para cargar las variables.",
+    "login_fields_required": "Introduce el correo de admin y el código de seguridad.",
+    "login_failed_generic": "No se pudo iniciar sesión en el panel de administración."
   },
   "adminMiniPass": {
     "workflow_hint": "Guarda la temporada primero; luego añade recompensas por nivel y misiones abajo — mineros, POL, XP y juegos se configuran paso a paso en cada nivel."

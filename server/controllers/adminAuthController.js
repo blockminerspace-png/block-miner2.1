@@ -47,7 +47,11 @@ function pickFirstNonEmptyString(obj, keys) {
 export async function login(req, res) {
   try {
     if (!ADMIN_EMAIL || !ADMIN_SECURITY_CODE) {
-      return res.status(503).json({ ok: false, message: "Admin auth not configured" });
+      return res.status(503).json({
+        ok: false,
+        code: "ADMIN_AUTH_NOT_CONFIGURED",
+        message: "Admin auth not configured (set ADMIN_EMAIL and ADMIN_SECURITY_CODE)."
+      });
     }
 
     const body = req.body && typeof req.body === "object" ? req.body : {};
@@ -93,7 +97,11 @@ export async function login(req, res) {
 export async function check(req, res) {
   try {
     if (!JWT_SECRET) {
-      return res.status(503).json({ ok: false, message: "Admin auth not configured" });
+      return res.status(503).json({
+        ok: false,
+        code: "ADMIN_AUTH_NOT_CONFIGURED",
+        message: "Admin auth not configured (JWT_SECRET missing)."
+      });
     }
     const token = getAdminTokenFromRequest(req);
     if (!token) {

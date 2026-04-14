@@ -15,6 +15,12 @@ import {
   lockUserRowForUpdate,
 } from "../utils/transactionLocks.js";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
+import { advisoryXactTryLockOrThrow } from "../services/distributedLockService.js";
+import {
+  cancelCriticalMutation,
+  finalizeCriticalMutationSuccess,
+  resolveCriticalMutation,
+} from "../utils/criticalMutationIdempotency.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
@@ -44,12 +50,18 @@ export async function installInventoryItem(req, res) {
       );
     }
 
+    const idem = await resolveCriticalMutation(req, res);
+    if (!idem) return;
+    const { lease, ci } = idem;
+
     const now = new Date();
     /** @type {{ minerName: string } | null} */
     let notifyMeta = null;
 
-    await prisma.$transaction(async (tx) => {
-      await lockUserRowForUpdate(tx, req.user.id);
+    try {
+      await prisma.$transaction(async (tx) => {
+        await advisoryXactTryLockOrThrow(tx, `user_ops:${req.user.id}`);
+        await lockUserRowForUpdate(tx, req.user.id);
       const rowLocked = await lockUserInventoryRowForUpdate(tx, req.user.id, inventoryId);
       if (!rowLocked) {
         const err = new Error("NOT_FOUND");
@@ -148,7 +160,7 @@ export async function installInventoryItem(req, res) {
 
       await tx.userInventory.delete({ where: { id: inventoryId, userId: req.user.id } });
       notifyMeta = { minerName: inventoryItem.minerName };
-    });
+      });
 
     await syncUserBaseHashRate(req.user.id);
     const engine = getMiningEngine();
@@ -166,22 +178,29 @@ export async function installInventoryItem(req, res) {
       }
     }
 
-    res.json({ ok: true, message: "Machine installed successfully!" });
+      const payload = { ok: true, message: "Machine installed successfully!" };
+      await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
+      return res.json(payload);
+    } catch (error) {
+      await cancelCriticalMutation(lease);
+      if (error?.message === "NOT_FOUND" || error?.http === 404) {
+        return res.status(404).json({ ok: false, message: "Item not found in inventory." });
+      }
+      if (error?.message === "INVALID_SLOT") {
+        return res.status(400).json({
+          ok: false,
+          code: SecurityErrorCodes.INVALID_STATE,
+          messageKey: `errors.security.${SecurityErrorCodes.INVALID_STATE}`,
+          message: "Large machines must start on an even slot (1, 3, 5, 7 on UI).",
+        });
+      }
+      if (error?.code === "P2034" || error?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      console.error("Install Error:", error);
+      return res.status(500).json({ ok: false, message: "Internal server error during installation." });
+    }
   } catch (error) {
-    if (error?.message === "NOT_FOUND" || error?.http === 404) {
-      return res.status(404).json({ ok: false, message: "Item not found in inventory." });
-    }
-    if (error?.message === "INVALID_SLOT") {
-      return res.status(400).json({
-        ok: false,
-        code: SecurityErrorCodes.INVALID_STATE,
-        messageKey: `errors.security.${SecurityErrorCodes.INVALID_STATE}`,
-        message: "Large machines must start on an even slot (1, 3, 5, 7 on UI).",
-      });
-    }
-    if (error?.code === "P2034") {
-      return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
-    }
     console.error("Install Error:", error);
     res.status(500).json({ ok: false, message: "Internal server error during installation." });
   }
@@ -195,32 +214,45 @@ export async function removeInventoryItem(req, res) {
         buildSecurityErrorJson(SecurityErrorCodes.INVALID_STATE, { extra: { field: "inventoryId" } }),
       );
     }
-    await prisma.$transaction(async (tx) => {
-      await lockUserRowForUpdate(tx, req.user.id);
-      const rowLocked = await lockUserInventoryRowForUpdate(tx, req.user.id, inventoryId);
-      if (!rowLocked) {
-        throw new Error("NOT_FOUND");
-      }
-      const row = await tx.userInventory.findFirst({
-        where: { id: inventoryId, userId: req.user.id },
-        select: { id: true, ownedMachineId: true },
+
+    const idem = await resolveCriticalMutation(req, res);
+    if (!idem) return;
+    const { lease, ci } = idem;
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await advisoryXactTryLockOrThrow(tx, `user_ops:${req.user.id}`);
+        await lockUserRowForUpdate(tx, req.user.id);
+        const rowLocked = await lockUserInventoryRowForUpdate(tx, req.user.id, inventoryId);
+        if (!rowLocked) {
+          throw new Error("NOT_FOUND");
+        }
+        const row = await tx.userInventory.findFirst({
+          where: { id: inventoryId, userId: req.user.id },
+          select: { id: true, ownedMachineId: true },
+        });
+        if (!row) {
+          throw new Error("NOT_FOUND");
+        }
+        await tx.userInventory.delete({ where: { id: inventoryId, userId: req.user.id } });
+        if (row.ownedMachineId != null) {
+          await tx.userOwnedMachine.delete({ where: { id: row.ownedMachineId } });
+        }
       });
-      if (!row) {
-        throw new Error("NOT_FOUND");
+      const payload = { ok: true, message: "Item removed." };
+      await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
+      return res.json(payload);
+    } catch (error) {
+      await cancelCriticalMutation(lease);
+      if (error?.message === "NOT_FOUND") {
+        return res.status(404).json({ ok: false, message: "Item not found." });
       }
-      await tx.userInventory.delete({ where: { id: inventoryId, userId: req.user.id } });
-      if (row.ownedMachineId != null) {
-        await tx.userOwnedMachine.delete({ where: { id: row.ownedMachineId } });
+      if (error?.code === "P2034" || error?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-    });
-    res.json({ ok: true, message: "Item removed." });
+      return res.status(500).json({ ok: false, message: "Error removing item." });
+    }
   } catch (error) {
-    if (error?.message === "NOT_FOUND") {
-      return res.status(404).json({ ok: false, message: "Item not found." });
-    }
-    if (error?.code === "P2034") {
-      return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
-    }
     res.status(500).json({ ok: false, message: "Error removing item." });
   }
 }

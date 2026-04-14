@@ -1,4 +1,5 @@
 import prisma from "../src/db/prisma.js";
+import { advisoryXactTryLockOrThrow } from "./distributedLockService.js";
 import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { createNotification } from "../controllers/notificationController.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
@@ -60,6 +61,7 @@ export async function purchaseEventMinerForUser(userId, eventMinerId, quantity =
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await advisoryXactTryLockOrThrow(tx, `offer_purchase:${userId}`);
       const em = await tx.eventMiner.findUnique({
         where: { id: eventMinerId },
         include: { event: true }

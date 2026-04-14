@@ -6,15 +6,18 @@ import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { bulkCreateInventoryWithOwnedMachinesTx } from "../services/userOwnedMachineService.js";
 import { lockUserRowForUpdate } from "../utils/transactionLocks.js";
 import {
-  getShopIdempotencyPayload,
-  normalizeShopIdempotencyKey,
-  setShopIdempotencyPayload,
-} from "../services/shopIdempotencyStore.js";
-import {
   SecurityErrorCodes,
   buildSecurityErrorJson,
   securityMessageKeyForCode,
 } from "../utils/securityErrors.js";
+import { advisoryXactTryLockOrThrow } from "../services/distributedLockService.js";
+import {
+  abortIdempotencyLease,
+  beginIdempotencyLease,
+  commitIdempotencyResult,
+} from "../services/idempotencyService.js";
+import { logUserActivity } from "../utils/logger.js";
+import { logSecurityEvent } from "../utils/securityLogger.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
@@ -49,18 +52,15 @@ export async function listMiners(req, res) {
 }
 
 export async function purchaseMiner(req, res) {
+  const ci = req.criticalIdempotency;
+  if (!ci?.idempotencyKey || !ci.requestHash) {
+    return res.status(500).json({ ok: false, message: "Purchase route is not configured for idempotency." });
+  }
+
   try {
     const minerId = Number(req.body?.minerId);
     const quantity = Number(req.body?.quantity || 1);
     const maxBulk = Number(process.env.SHOP_MAX_BULK_QUANTITY || 25);
-    const rawKey = req.get("Idempotency-Key") || req.get("idempotency-key") || req.body?.idempotencyKey;
-    const idempotencyKey = normalizeShopIdempotencyKey(rawKey);
-
-    if (rawKey != null && String(rawKey).trim() !== "" && !idempotencyKey) {
-      return res
-        .status(400)
-        .json(buildSecurityErrorJson(SecurityErrorCodes.INVALID_STATE, { extra: { field: "idempotencyKey" } }));
-    }
 
     if (!Number.isInteger(minerId) || minerId <= 0) {
       res.status(400).json({ ok: false, message: "Invalid miner ID." });
@@ -71,73 +71,28 @@ export async function purchaseMiner(req, res) {
       return;
     }
 
-    const miner = await minersModel.getActiveMinerById(minerId);
-    if (!miner) {
-      res.status(404).json({ ok: false, message: "Miner not found." });
-      return;
-    }
-
-    const price = Number(miner.price || 0);
-    const totalPrice = price * quantity;
-    const baseHashRate = Number(miner.baseHashRate || 0);
-    const slotSize = Number(miner.slotSize || 1);
-    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(baseHashRate) || baseHashRate <= 0) {
-      res.status(500).json({ ok: false, message: "Miner data invalid." });
-      return;
-    }
-
-    if (!Number.isInteger(slotSize) || slotSize < 1 || slotSize > 2) {
-      res.status(500).json({ ok: false, message: "Miner slot size invalid." });
-      return;
-    }
-
-    const now = new Date();
-
-    const txResult = await prisma.$transaction(async (tx) => {
-      await lockUserRowForUpdate(tx, req.user.id);
-
-      if (idempotencyKey) {
-        const cached = getShopIdempotencyPayload(req.user.id, idempotencyKey);
-        if (cached) {
-          return { kind: "replay", payload: cached };
-        }
-      }
-
-      const user = await tx.user.findUnique({ where: { id: req.user.id } });
-      if (!user || Number(user.polBalance) < totalPrice) {
-        throw new Error("Insufficient balance.");
-      }
-
-      const newUser = await tx.user.update({
-        where: { id: req.user.id },
-        data: { polBalance: { decrement: totalPrice } },
-      });
-
-      await bulkCreateInventoryWithOwnedMachinesTx(
-        tx,
-        req.user.id,
-        {
-          minerId: miner.id,
-          minerName: miner.name,
-          level: 1,
-          hashRate: baseHashRate,
-          slotSize,
-          imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
-        },
-        quantity,
-        now,
-      );
-
-      return {
-        kind: "purchase",
-        newUser,
-        minerName: miner.name,
-        totalPrice,
-      };
+    const phase = await beginIdempotencyLease({
+      scope: "shop_purchase",
+      userId: req.user.id,
+      idempotencyKey: ci.idempotencyKey,
+      requestHash: ci.requestHash,
     });
 
-    if (txResult.kind === "replay") {
-      const p = txResult.payload;
+    if (phase.type === "mismatch") {
+      return res.status(400).json(buildSecurityErrorJson(SecurityErrorCodes.INVALID_REQUEST_SIGNATURE));
+    }
+    if (phase.type === "busy") {
+      return res
+        .status(409)
+        .json(
+          buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED, {
+            extra: { reason: "IDEMPOTENCY_IN_FLIGHT" },
+          }),
+        );
+    }
+    if (phase.type === "replay") {
+      logSecurityEvent("SHOP_IDEMPOTENCY_REPLAY", { minerId }, req);
+      const p = phase.responseJson;
       return res.json({
         ok: true,
         idempotent: true,
@@ -152,14 +107,92 @@ export async function purchaseMiner(req, res) {
       });
     }
 
-    if (idempotencyKey) {
-      setShopIdempotencyPayload(req.user.id, idempotencyKey, {
-        newBalance: Number(txResult.newUser?.polBalance || 0),
-        quantity,
-        minerName: txResult.minerName,
-        totalPrice: txResult.totalPrice,
-      });
+    const lease = phase;
+
+    const miner = await minersModel.getActiveMinerById(minerId);
+    if (!miner) {
+      await abortIdempotencyLease(lease);
+      res.status(404).json({ ok: false, message: "Miner not found." });
+      return;
     }
+
+    const price = Number(miner.price || 0);
+    const totalPrice = price * quantity;
+    const baseHashRate = Number(miner.baseHashRate || 0);
+    const slotSize = Number(miner.slotSize || 1);
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(baseHashRate) || baseHashRate <= 0) {
+      await abortIdempotencyLease(lease);
+      res.status(500).json({ ok: false, message: "Miner data invalid." });
+      return;
+    }
+
+    if (!Number.isInteger(slotSize) || slotSize < 1 || slotSize > 2) {
+      await abortIdempotencyLease(lease);
+      res.status(500).json({ ok: false, message: "Miner slot size invalid." });
+      return;
+    }
+
+    const now = new Date();
+
+    let txResult;
+    try {
+      txResult = await prisma.$transaction(async (tx) => {
+        await advisoryXactTryLockOrThrow(tx, `shop_purchase:${req.user.id}`);
+        await lockUserRowForUpdate(tx, req.user.id);
+
+          const user = await tx.user.findUnique({ where: { id: req.user.id } });
+          if (!user || Number(user.polBalance) < totalPrice) {
+            throw new Error("Insufficient balance.");
+          }
+
+          const newUser = await tx.user.update({
+            where: { id: req.user.id },
+            data: { polBalance: { decrement: totalPrice } },
+          });
+
+          await bulkCreateInventoryWithOwnedMachinesTx(
+            tx,
+            req.user.id,
+            {
+              minerId: miner.id,
+              minerName: miner.name,
+              level: 1,
+              hashRate: baseHashRate,
+              slotSize,
+              imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
+            },
+            quantity,
+            now,
+          );
+
+        return {
+          newUser,
+          minerName: miner.name,
+          totalPrice,
+        };
+      });
+    } catch (error) {
+      await abortIdempotencyLease(lease);
+      if (error.message === "Insufficient balance.") {
+        return res.status(400).json({ ok: false, message: "Insufficient balance." });
+      }
+      if (error?.code === "P2034") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      if (error?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      console.error("Error purchasing miner:", error);
+      return res.status(500).json({ ok: false, message: "Purchase error." });
+    }
+
+    const replayPayload = {
+      newBalance: Number(txResult.newUser?.polBalance || 0),
+      quantity,
+      minerName: txResult.minerName,
+      totalPrice: txResult.totalPrice,
+    };
+    await commitIdempotencyResult(lease, { requestHash: ci.requestHash, responseJson: replayPayload });
 
     applyUserBalanceDelta(req.user.id, -txResult.totalPrice);
 
@@ -171,18 +204,19 @@ export async function purchaseMiner(req, res) {
       io: getMiningEngine()?.io,
     });
 
+    logUserActivity("FIN_SHOP_PURCHASE", req, {
+      minerId,
+      quantity,
+      totalPrice: txResult.totalPrice,
+      newBalance: Number(txResult.newUser?.polBalance || 0),
+    });
+
     res.json({
       ok: true,
       message: `${quantity}x ${txResult.minerName} added to your inventory!`,
       newBalance: Number(txResult.newUser?.polBalance || 0),
     });
   } catch (error) {
-    if (error.message === "Insufficient balance.") {
-      return res.status(400).json({ ok: false, message: "Insufficient balance." });
-    }
-    if (error?.code === "P2034") {
-      return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
-    }
     console.error("Error purchasing miner:", error);
     res.status(500).json({ ok: false, message: "Purchase error." });
   }

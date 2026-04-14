@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/auth';
 import { Mail, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Gift } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
+import TurnstileField from '../components/auth/TurnstileField';
 import SiteFooter from '../components/SiteFooter';
 
 export default function Register() {
@@ -20,6 +21,7 @@ export default function Register() {
     acceptTerms: false
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [cfTurnstileToken, setCfTurnstileToken] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const termsCheckboxRef = useRef(null);
   const navigate = useNavigate();
@@ -73,7 +75,8 @@ export default function Register() {
       email: formData.email,
       password: formData.password,
       refCode: formData.refCode,
-      acceptTerms: formData.acceptTerms
+      acceptTerms: formData.acceptTerms,
+      cfTurnstileToken: cfTurnstileToken || undefined,
     });
 
     if (!result.success) {
@@ -270,6 +273,8 @@ export default function Register() {
                   </div>
                 </div>
               </div>
+
+              <TurnstileField onToken={setCfTurnstileToken} />
 
               <button
                 type="submit"

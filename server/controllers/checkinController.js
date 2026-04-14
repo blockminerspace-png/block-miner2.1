@@ -9,6 +9,7 @@ import {
 } from "../services/checkinMilestoneService.js";
 import { notifyMiniPassLoginDay } from "../services/miniPass/miniPassMissionHookService.js";
 import { notifyDailyTaskLoginDay } from "../services/dailyTasks/dailyTaskHookService.js";
+import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
 
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -43,6 +44,15 @@ function getReceiver() {
 
 function paymentCheckinEnabled() {
   return Boolean(getReceiver());
+}
+
+/** Exported for tests: when true, free `/checkin/claim` must be rejected. */
+export function isCheckinPaymentRequired() {
+  return paymentCheckinEnabled();
+}
+
+function jsonCheckinError(res, status, code, message) {
+  return res.status(status).json({ ok: false, code, message });
 }
 
 async function getTodayRow(userId) {
@@ -211,6 +221,21 @@ export async function getStatus(req, res) {
 export async function claimCheckin(req, res) {
   try {
     const userId = req.user.id;
+
+    if (paymentCheckinEnabled()) {
+      logSecurityWarn(
+        "checkin_free_claim_rejected_payment_required",
+        { userId, path: req.path },
+        req
+      );
+      return jsonCheckinError(
+        res,
+        400,
+        "PAYMENT_REQUIRED",
+        "On-chain POL payment is required. Use wallet check-in; the server verifies every transaction."
+      );
+    }
+
     const today = getBrazilCheckinDateKey();
     const txHash = syntheticFreeTxHash(userId, today);
 
@@ -273,10 +298,12 @@ export async function claimCheckin(req, res) {
 export async function confirmCheckin(req, res) {
   try {
     if (!paymentCheckinEnabled()) {
-      return res.status(400).json({
-        ok: false,
-        message: "Pagamento on-chain desativado. Usa o botão de check-in diário (sem POL)."
-      });
+      return jsonCheckinError(
+        res,
+        400,
+        "CHECKIN_PAYMENT_DISABLED",
+        "On-chain check-in payment is disabled. Use the free daily check-in instead."
+      );
     }
 
     const receiver = getReceiver();
@@ -285,7 +312,12 @@ export async function confirmCheckin(req, res) {
     try {
       txHash = assertValidTxHash(req.body?.txHash);
     } catch (e) {
-      return res.status(400).json({ ok: false, message: e.message || "Invalid transaction hash." });
+      logSecurityWarn(
+        "checkin_invalid_tx_hash",
+        { userId: req.user.id, code: e?.code },
+        req
+      );
+      return jsonCheckinError(res, 400, "INVALID_TRANSACTION", e.message || "Invalid transaction hash.");
     }
 
     const user = await prisma.user.findUnique({
@@ -294,10 +326,12 @@ export async function confirmCheckin(req, res) {
     });
     const wallet = user?.walletAddress?.trim();
     if (!wallet) {
-      return res.status(400).json({
-        ok: false,
-        message: "Link and verify your wallet in the Wallet page before check-in."
-      });
+      return jsonCheckinError(
+        res,
+        400,
+        "PAYMENT_REQUIRED",
+        "Link and verify your wallet on the Wallet page before check-in."
+      );
     }
     const userWalletLower = normalizeAddr(wallet);
 
@@ -312,13 +346,34 @@ export async function confirmCheckin(req, res) {
 
     const dup = await prisma.dailyCheckin.findUnique({ where: { txHash } });
     if (dup && dup.userId !== req.user.id) {
-      return res.status(400).json({ ok: false, message: "This transaction is already used by another account." });
+      logSecurityWarn(
+        "checkin_tx_reuse_other_user",
+        { userId: req.user.id, txHash: `${txHash.slice(0, 10)}…` },
+        req
+      );
+      return jsonCheckinError(
+        res,
+        400,
+        "TRANSACTION_ALREADY_USED",
+        "This transaction is already linked to another account."
+      );
     }
     if (dup && dup.userId === req.user.id && dup.checkinDate !== today) {
-      return res.status(400).json({
-        ok: false,
-        message: "This transaction was already used for a previous check-in day."
-      });
+      logSecurityWarn(
+        "checkin_tx_reuse_previous_day",
+        { userId: req.user.id, txHash: `${txHash.slice(0, 10)}…` },
+        req
+      );
+      return jsonCheckinError(
+        res,
+        400,
+        "TRANSACTION_ALREADY_USED",
+        "This transaction was already used for a previous check-in day."
+      );
+    }
+
+    if (dup && dup.userId === req.user.id && dup.checkinDate === today && dup.status === "confirmed") {
+      return res.json({ ok: true, alreadyCheckedIn: true, status: "confirmed" });
     }
 
     if (existing?.status === "pending" || existing?.status === "failed") {
@@ -339,28 +394,39 @@ export async function confirmCheckin(req, res) {
       });
     }
 
+    logSecurityEvent("checkin_payment_verify_attempt", { userId: req.user.id }, req);
+
     let ev;
     try {
       ev = await evaluateCheckinTx({
         txHash,
         userWalletLower,
         receiverLower: normalizeAddr(receiver),
-        minValueWei: minWei
+        minValueWei: minWei,
+        missingTxBehavior: "failed"
       });
     } catch (e) {
       console.error("Checkin RPC error:", e.message);
-      return res.json({
-        ok: true,
-        pending: true,
-        message: "Blockchain temporarily unavailable. Your check-in is saved; refresh in a moment."
-      });
+      logSecurityWarn(
+        "checkin_blockchain_verify_unavailable",
+        { userId: req.user.id, err: e.message },
+        req
+      );
+      return jsonCheckinError(
+        res,
+        503,
+        "BLOCKCHAIN_UNAVAILABLE",
+        "Blockchain verification is temporarily unavailable. Try again in a few minutes."
+      );
     }
 
     if (ev.state === "pending") {
-      return res.json({
-        ok: true,
+      return res.status(200).json({
+        ok: false,
+        code: "TRANSACTION_NOT_CONFIRMED",
         pending: true,
-        message: "Transaction received. Waiting for blockchain confirmation — you can leave this page; open Check-in again later."
+        message:
+          "Transaction found but not yet confirmed. Wait for block confirmations and open Check-in again — progress is saved."
       });
     }
 
@@ -369,7 +435,17 @@ export async function confirmCheckin(req, res) {
         where: { userId: req.user.id, checkinDate: today },
         data: { status: "failed" }
       });
-      return res.status(400).json({ ok: false, message: ev.reason || "Invalid transaction." });
+      logSecurityWarn(
+        "checkin_payment_validation_failed",
+        { userId: req.user.id, reason: ev.reason },
+        req
+      );
+      return jsonCheckinError(
+        res,
+        400,
+        "INVALID_TRANSACTION",
+        ev.reason || "Payment validation failed."
+      );
     }
 
     const updated = await prisma.dailyCheckin.update({
@@ -382,6 +458,8 @@ export async function confirmCheckin(req, res) {
       }
     });
 
+    logSecurityEvent("checkin_payment_confirmed", { userId: req.user.id }, req);
+
     await applyStreakMilestoneRewards(req.user.id);
     notifyMiniPassLoginDay(req.user.id, today).catch(() => {});
     notifyDailyTaskLoginDay(req.user.id, today).catch(() => {});
@@ -389,83 +467,15 @@ export async function confirmCheckin(req, res) {
     return res.json({ ok: true, status: "confirmed", txHash: updated.txHash });
   } catch (error) {
     console.error("Checkin error:", error);
-    res.status(500).json({ ok: false, message: "Unable to verify check-in." });
+    res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to verify check-in." });
   }
 }
 
 /**
- * Wallet-based check-in: Pay 0.01 POL via blockchain.
+ * Wallet-based check-in: same verification path as POST /checkin/confirm (single source of truth).
  */
 export async function checkinWallet(req, res) {
-  try {
-    const userId = req.user.id;
-    const { txHash } = req.body;
-
-    if (!txHash || typeof txHash !== "string") {
-      return res.status(400).json({ ok: false, message: "Invalid transaction hash." });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { walletAddress: true }
-    });
-
-    if (!user?.walletAddress) {
-      return res.status(400).json({ ok: false, message: "Wallet not linked." });
-    }
-
-    const today = getBrazilCheckinDateKey();
-    const existing = await prisma.dailyCheckin.findUnique({
-      where: { userId_checkinDate: { userId, checkinDate: today } }
-    });
-
-    if (existing?.status === "confirmed") {
-      return res.json({ ok: false, message: "Already checked in today." });
-    }
-
-    // Create pending row
-    const row = await prisma.dailyCheckin.upsert({
-      where: { userId_checkinDate: { userId, checkinDate: today } },
-      update: {
-        txHash,
-        status: "pending",
-        paymentMethod: "wallet",
-        amount: 0.01,
-        chainId: POLYGON_CHAIN_ID
-      },
-      create: {
-        userId,
-        checkinDate: today,
-        txHash,
-        status: "pending",
-        paymentMethod: "wallet",
-        amount: 0.01,
-        chainId: POLYGON_CHAIN_ID
-      }
-    });
-
-    // Try to finalize immediately
-    const finalized = await tryFinalizeCheckinRow({ ...row, user });
-
-    if (finalized.status === "confirmed") {
-      const streak = await computeCheckinStreak(userId);
-      return res.json({
-        ok: true,
-        message: "Check-in confirmed via wallet.",
-        streak,
-        txHash: finalized.txHash
-      });
-    } else {
-      return res.json({
-        ok: true,
-        message: "Check-in pending confirmation.",
-        txHash: row.txHash
-      });
-    }
-  } catch (e) {
-    console.error("Checkin wallet error", { error: e.message, userId: req.user.id });
-    res.status(500).json({ ok: false, message: "Wallet check-in failed." });
-  }
+  return confirmCheckin(req, res);
 }
 
 /**

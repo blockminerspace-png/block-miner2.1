@@ -53,6 +53,7 @@ function baseDirectives({ allowWebSockets }) {
     frameAncestors: ["'self'"],
     frameSrc: [
       "'self'",
+      "https://challenges.cloudflare.com",
       "https://verify.walletconnect.com",
       "https://verify.walletconnect.org",
       "https://secure.walletconnect.com",
@@ -63,7 +64,7 @@ function baseDirectives({ allowWebSockets }) {
       "https://zerads.com",
       "https://www.tradingview.com",
       "https://s.tradingview.com",
-      "https://*.tradingview.com",
+      "https://widget.tradingview.com",
       ...internalOfferwallFrameHosts
     ],
     objectSrc: ["'none'"],
@@ -90,18 +91,33 @@ function baseDirectives({ allowWebSockets }) {
       "https://fonts.reown.com",
       "data:"
     ],
-    scriptSrc: [
-      "'self'",
-      "'unsafe-inline'",
-      "'unsafe-eval'",
-      "https://cdn.jsdelivr.net",
-      "https://www.googletagmanager.com",
-      "https://www.youtube.com",
-      "https://s.ytimg.com",
-      "https://s3.tradingview.com",
-      "https://www.tradingview.com",
-      "https://s.tradingview.com"
-    ],
+    scriptSrc:
+      process.env.NODE_ENV === "production"
+        ? [
+            "'self'",
+            /** Per-request nonce set in server bootstrap (reduces XSS blast radius vs blanket unsafe-inline). */
+            (req, res) => `'nonce-${res.locals.cspNonce || ""}'`,
+            "'unsafe-eval'",
+            "https://cdn.jsdelivr.net",
+            "https://www.googletagmanager.com",
+            "https://www.youtube.com",
+            "https://s.ytimg.com",
+            "https://s3.tradingview.com",
+            "https://www.tradingview.com",
+            "https://s.tradingview.com",
+          ]
+        : [
+            "'self'",
+            "'unsafe-inline'",
+            "'unsafe-eval'",
+            "https://cdn.jsdelivr.net",
+            "https://www.googletagmanager.com",
+            "https://www.youtube.com",
+            "https://s.ytimg.com",
+            "https://s3.tradingview.com",
+            "https://www.tradingview.com",
+            "https://s.tradingview.com",
+          ],
     styleSrc: [
       "'self'",
       "'unsafe-inline'",

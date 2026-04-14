@@ -59,6 +59,8 @@ export default function Games() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [memoryCooldown, setMemoryCooldown] = useState(0);
   const [match3Cooldown, setMatch3Cooldown] = useState(0);
+  const [chain2048CdSec, setChain2048CdSec] = useState(0);
+  const [chain2048AllowStart, setChain2048AllowStart] = useState(true);
   const [gameTimerKey, setGameTimerKey] = useState(0);
   const activeGameRef = useRef(null);
 
@@ -117,6 +119,34 @@ export default function Games() {
     const id = setInterval(() => void fetchActiveGamePowers({ silent: true }), 50000);
     return () => clearInterval(id);
   }, [fetchActiveGamePowers]);
+
+  const fetchChain2048Arena = useCallback(async () => {
+    try {
+      const res = await api.get('/games/2048/status');
+      if (res.data?.ok) {
+        setChain2048CdSec(Math.max(0, Number(res.data.cooldownSecondsRemaining) || 0));
+        setChain2048AllowStart(Boolean(res.data.allowNewStart));
+      }
+    } catch {
+      // Leave previous values; card stays usable.
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchChain2048Arena();
+    const pollMs = activeGame ? 30000 : 8000;
+    const id = setInterval(() => void fetchChain2048Arena(), pollMs);
+    return () => clearInterval(id);
+  }, [fetchChain2048Arena, activeGame]);
+
+  const chain2048CdActive = chain2048CdSec > 0;
+  useEffect(() => {
+    if (!chain2048CdActive) return undefined;
+    const id = setInterval(() => {
+      setChain2048CdSec((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [chain2048CdActive]);
 
   useEffect(() => {
     if (prevGamePowerRef.current !== null && prevGamePowerRef.current !== totalGamePower) {
@@ -835,6 +865,10 @@ export default function Games() {
               icon={Grid3X3}
               color="from-emerald-600 to-teal-800"
               ctaLabel={t('game2048.open_game')}
+              disabled={chain2048CdSec > 0 || !chain2048AllowStart}
+              cooldownMinutes={
+                chain2048CdSec > 0 ? Math.max(1, Math.ceil(chain2048CdSec / 60)) : 0
+              }
             />
           </div>
         ) : (
@@ -961,27 +995,63 @@ function TemporaryPowerSummary({ t, totalGamePower, loading, errorKey, flash, on
   );
 }
 
-const GameCardLink = memo(function GameCardLink({ to, title, description, icon, color, ctaLabel }) {
-  return (
-    <Link
-      to={to}
-      className="group relative block overflow-hidden rounded-[4rem] border border-slate-800 bg-slate-900 p-12 text-left shadow-2xl transition-all duration-500 hover:-translate-y-4 hover:border-primary"
-    >
+const GameCardLink = memo(function GameCardLink({
+  to,
+  title,
+  description,
+  icon,
+  color,
+  ctaLabel,
+  disabled = false,
+  cooldownMinutes = 0,
+}) {
+  const { t } = useTranslation();
+  const base =
+    'group relative block overflow-hidden rounded-[4rem] border p-12 text-left shadow-2xl transition-all duration-500';
+  const activeCls = `${base} border-slate-800 bg-slate-900 hover:-translate-y-4 hover:border-primary`;
+  const disabledCls = `${base} cursor-not-allowed border-slate-800/80 bg-slate-950 opacity-[0.42] grayscale`;
+
+  const inner = (
+    <>
       <div
-        className={`absolute -right-12 -top-12 h-72 w-72 bg-gradient-to-br ${color} blur-[90px] transition-all duration-700 opacity-10 group-hover:opacity-30`}
+        className={`absolute -right-12 -top-12 h-72 w-72 bg-gradient-to-br ${color} blur-[90px] transition-all duration-700 ${disabled ? 'opacity-5' : 'opacity-10 group-hover:opacity-30'}`}
       />
       <div
-        className={`mb-12 flex h-28 w-28 items-center justify-center rounded-[3rem] border border-white/10 bg-gradient-to-br ${color} shadow-2xl transition-transform duration-500 group-hover:rotate-12`}
+        className={`mb-12 flex h-28 w-28 items-center justify-center rounded-[3rem] border border-white/10 bg-gradient-to-br ${color} shadow-2xl transition-transform duration-500 ${disabled ? '' : 'group-hover:rotate-12'}`}
       >
         {React.createElement(icon, { className: 'h-14 w-14 text-white', 'aria-hidden': true })}
       </div>
       <h3 className="mb-6 text-4xl font-black uppercase italic leading-none tracking-tighter text-white">{title}</h3>
-      <p className="mb-12 text-sm font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200">
+      <p className="mb-6 text-sm font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200">
         {description}
       </p>
-      <div className="flex translate-y-6 items-center gap-5 text-xs font-black uppercase tracking-[0.4em] text-primary opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
-        {ctaLabel} <Play className="h-4 w-4 fill-current" aria-hidden />
+      {disabled && cooldownMinutes > 0 ? (
+        <p className="mb-6 text-sm font-black uppercase tracking-wide text-amber-400/90">
+          {t('game2048.arena_cooldown_minutes', { minutes: cooldownMinutes })}
+        </p>
+      ) : null}
+      {disabled ? (
+        <div className="text-xs font-black uppercase tracking-[0.35em] text-slate-500">
+          {t('game2048.arena_unavailable')}
+        </div>
+      ) : (
+        <div className="flex translate-y-6 items-center gap-5 text-xs font-black uppercase tracking-[0.4em] text-primary opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
+          {ctaLabel} <Play className="h-4 w-4 fill-current" aria-hidden />
+        </div>
+      )}
+    </>
+  );
+
+  if (disabled) {
+    return (
+      <div className={disabledCls} aria-disabled="true">
+        {inner}
       </div>
+    );
+  }
+  return (
+    <Link to={to} className={activeCls}>
+      {inner}
     </Link>
   );
 });

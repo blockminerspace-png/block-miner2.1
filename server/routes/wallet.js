@@ -1,14 +1,33 @@
 import express from "express";
+import { getRequestIp } from "../utils/clientIp.js";
 import * as walletController from "../controllers/walletController.js";
 import * as blkWalletController from "../controllers/blkWalletController.js";
 import * as btcpayDepositController from "../controllers/btcpayDepositController.js";
 import { requireAuth } from "../middleware/auth.js";
-import { createRateLimiter } from "../middleware/rateLimit.js";
+import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 
 const walletRouter = express.Router();
-const walletLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
-const blkReadLimiter = createRateLimiter({ windowMs: 60_000, max: 40 });
-const blkConvertLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
+const walletLimiter = createDistributedRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  name: "wallet",
+  keyGenerator: (req) => `ip:${getRequestIp(req)}`,
+  secondaryKeyGenerator: (req) => (req.user?.id ? `uid:${req.user.id}` : null),
+});
+const blkReadLimiter = createDistributedRateLimiter({
+  windowMs: 60_000,
+  max: 40,
+  name: "wallet_blk_read",
+  keyGenerator: (req) => `ip:${getRequestIp(req)}`,
+  secondaryKeyGenerator: (req) => (req.user?.id ? `uid:${req.user.id}` : null),
+});
+const blkConvertLimiter = createDistributedRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  name: "wallet_blk_convert",
+  keyGenerator: (req) => `ip:${getRequestIp(req)}`,
+  secondaryKeyGenerator: (req) => (req.user?.id ? `uid:${req.user.id}` : null),
+});
 
 walletRouter.get("/balance", requireAuth, walletLimiter, walletController.getBalance);
 walletRouter.get("/pol-usd", requireAuth, walletLimiter, walletController.getWalletPolUsdPrice);

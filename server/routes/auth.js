@@ -8,18 +8,24 @@ import { getTokenFromRequest, getRefreshTokenFromRequest, ACCESS_COOKIE_NAME, RE
 import { signAccessToken, createRefreshToken, parseRefreshToken, verifyAccessToken } from "../utils/authTokens.js";
 import { createRefreshTokenRecord, getRefreshTokenById, revokeRefreshToken } from "../models/refreshTokenModel.js";
 import { updateUserLoginMeta } from "../models/userModel.js";
-import { createRateLimiter } from "../middleware/rateLimit.js";
+import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { validateBody } from "../middleware/validate.js";
+import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
+import { buildCsrfCookie } from "../middleware/csrf.js";
 import { requireAuth } from "../middleware/auth.js";
 import { enqueueAuditEvent, buildAuditEventFromHttpRequest } from "../src/audit/service.js";
 import { AuditEventType, AuditEventStatus } from "../src/audit/constants.js";
 import { getUserByRefCode, createReferral, listReferredUsers } from "../models/referralModel.js";
 import { getMinerBySlug } from "../models/minersModel.js";
 import { createInventoryWithOwnedMachineTx } from "../services/userOwnedMachineService.js";
-import { getAnonymizedRequestIp } from "../utils/clientIp.js";
+import { getRequestIp } from "../utils/clientIp.js";
+import { getAuthLockStatus, recordAuthLoginFailure, recordAuthLoginSuccess } from "../services/accountLockoutService.js";
+import { slidingWindowAllow } from "../services/slidingWindowRateLimit.js";
+import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
-import loggerLib from "../utils/logger.js";
+import loggerLib, { logUserActivity } from "../utils/logger.js";
+import { logSecurityEvent } from "../utils/securityLogger.js";
 
 const logger = loggerLib.child("AuthRoutes");
 export const authRouter = express.Router();
@@ -106,7 +112,8 @@ const registerSchema = z.object({
   refCode: z.string().trim().optional(),
   acceptTerms: z.boolean().refine((value) => value === true, {
     message: "validation.errors.termsRequired"
-  })
+  }),
+  cfTurnstileToken: z.string().trim().optional(),
 });
 
 import { authenticator } from "otplib";
@@ -114,10 +121,16 @@ import { authenticator } from "otplib";
 const loginSchema = z.object({
   identifier: z.string().trim().min(1, "Email ou username é obrigatório"),
   password: z.string().min(1, "Senha é obrigatória"),
-  twoFactorToken: z.string().optional()
+  twoFactorToken: z.string().optional(),
+  cfTurnstileToken: z.string().trim().optional(),
 });
 
-const authLimiter = createRateLimiter({ windowMs: 60_000, max: 12 });
+const authLimiter = createDistributedRateLimiter({
+  windowMs: 60_000,
+  max: 24,
+  name: "auth_login_ip",
+  keyGenerator: (req) => `ip:${getRequestIp(req)}`,
+});
 
 function normalizeIdentifier(value) {
   return String(value || "").trim();
@@ -185,12 +198,12 @@ async function findUserByIdentifier(identifier) {
   return user;
 }
 
-authRouter.post("/register", authLimiter, validateBody(registerSchema), async (req, res) => {
+authRouter.post("/register", authLimiter, validateBody(registerSchema), requireTurnstileWhenConfigured(), async (req, res) => {
   try {
     const { username, email, password, refCode: refCodeInput, acceptTerms } = req.body;
     const normalizedUsername = normalizeIdentifier(username);
     const normalizedEmail = normalizeEmail(email);
-    const clientIp = req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.ip;
+    const clientIp = getRequestIp(req);
 
     if (!acceptTerms) {
       return res.status(400).json({
@@ -322,7 +335,14 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
       }
     }
 
-    res.setHeader("Set-Cookie", [buildAccessCookie(accessToken), buildRefreshCookie(refreshToken.token, refreshToken.expiresAt)]);
+    const regCsrf = crypto.randomBytes(24).toString("base64url");
+    res.locals.csrfToken = regCsrf;
+    res.setHeader("Set-Cookie", [
+      buildAccessCookie(accessToken),
+      buildRefreshCookie(refreshToken.token, refreshToken.expiresAt),
+      buildCsrfCookie(regCsrf),
+    ]);
+    logUserActivity("AUTH_REGISTER_SUCCESS", req, { userId: result.id });
     res.status(201).json({ ok: true, user: { id: result.id, name: result.name, username: normalizedUsername, email: normalizedEmail } });
   } catch (error) {
     logger.error("Register error", { error: error.message });
@@ -330,14 +350,33 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
   }
 });
 
-authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, res) => {
+authRouter.post(
+  "/login",
+  authLimiter,
+  validateBody(loginSchema),
+  requireTurnstileWhenConfigured(),
+  async (req, res) => {
   try {
     const { identifier, password, twoFactorToken } = req.body;
-    const clientIp = req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.ip;
+    const clientIp = getRequestIp(req);
+
+    const ipLock = await getAuthLockStatus({ ip: clientIp, userId: null });
+    if (ipLock.locked) {
+      logUserActivity("AUTH_LOCKOUT_DENIED", req, { reason: "ip", lockedUntil: ipLock.until });
+      return res
+        .status(403)
+        .json(
+          buildSecurityErrorJson(SecurityErrorCodes.ACCOUNT_LOCKED, {
+            extra: { lockedUntil: ipLock.until },
+          }),
+        );
+    }
 
     const user = await findUserByIdentifier(identifier);
 
     if (!user) {
+      await recordAuthLoginFailure({ ip: clientIp, userId: null });
+      logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "IDENTIFIER_NOT_FOUND" });
       await enqueueAuditEvent({
         event: buildAuditEventFromHttpRequest({
           req,
@@ -352,8 +391,43 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
       return res.status(401).json({ ok: false, code: "IDENTIFIER_NOT_FOUND", message: "Email ou username não existe." });
     }
 
+    const combinedLock = await getAuthLockStatus({ ip: clientIp, userId: user.id });
+    if (combinedLock.locked) {
+      logUserActivity("AUTH_LOCKOUT_DENIED", req, {
+        reason: "user_or_ip",
+        userId: user.id,
+        lockedUntil: combinedLock.until,
+      });
+      return res
+        .status(403)
+        .json(
+          buildSecurityErrorJson(SecurityErrorCodes.ACCOUNT_LOCKED, {
+            extra: { lockedUntil: combinedLock.until },
+          }),
+        );
+    }
+
+    const perUserBurst = await slidingWindowAllow({
+      dedupeKey: String(user.id),
+      windowMs: 60_000,
+      max: 40,
+      redisPrefix: "rl:auth_login_user",
+    });
+    if (!perUserBurst.ok) {
+      logSecurityEvent("AUTH_RATE_LIMIT_USER", { userId: user.id, ip: clientIp }, req);
+      return res
+        .status(429)
+        .json(
+          buildSecurityErrorJson(SecurityErrorCodes.RATE_LIMIT_EXCEEDED, {
+            extra: { retryAfterSec: perUserBurst.retryAfterSec },
+          }),
+        );
+    }
+
     const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordMatch) {
+      await recordAuthLoginFailure({ ip: clientIp, userId: user.id });
+      logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "INVALID_CREDENTIALS", userId: user.id });
       await enqueueAuditEvent({
         event: buildAuditEventFromHttpRequest({
           req,
@@ -390,6 +464,8 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
 
       const isValid = authenticator.check(twoFactorToken, user.twoFactorSecret);
       if (!isValid) {
+        await recordAuthLoginFailure({ ip: clientIp, userId: user.id });
+        logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "INVALID_2FA", userId: user.id });
         await enqueueAuditEvent({
           event: buildAuditEventFromHttpRequest({
             req,
@@ -435,7 +511,17 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
     const refreshToken = createRefreshToken();
     await createRefreshTokenRecord({ userId: user.id, ...refreshToken, createdAt: Date.now() });
 
-    res.setHeader("Set-Cookie", [buildAccessCookie(accessToken), buildRefreshCookie(refreshToken.token, refreshToken.expiresAt)]);
+    await recordAuthLoginSuccess({ ip: clientIp, userId: user.id });
+
+    logUserActivity("AUTH_LOGIN_SUCCESS", req, { userId: user.id });
+
+    const newCsrf = crypto.randomBytes(24).toString("base64url");
+    res.locals.csrfToken = newCsrf;
+    res.setHeader("Set-Cookie", [
+      buildAccessCookie(accessToken),
+      buildRefreshCookie(refreshToken.token, refreshToken.expiresAt),
+      buildCsrfCookie(newCsrf),
+    ]);
     res.json({ ok: true, user: { id: user.id, name: user.name, username: user.username, email: user.email } });
   } catch (error) {
     res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Login failed." });
@@ -482,6 +568,7 @@ authRouter.post("/logout", async (req, res) => {
         }
       })
     });
+    logUserActivity("AUTH_LOGOUT", req, { userId });
   } catch (error) {
     // Audit failure should not prevent logout flow
   }

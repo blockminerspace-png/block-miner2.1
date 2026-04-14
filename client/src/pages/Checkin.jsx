@@ -52,6 +52,12 @@ function formatMilestoneReward(m, t) {
 
 export default function Checkin() {
     const { t } = useTranslation();
+    const translateCheckinApi = (code, fallbackMessage) => {
+        if (!code) return fallbackMessage || t('common.error');
+        const key = `checkin.errors.${code}`;
+        const txt = t(key);
+        return txt === key ? fallbackMessage || t('common.error') : txt;
+    };
     const { account, isConnected, isCorrectNetwork, connect, isConnecting, switchNetwork } = useWallet();
     const [status, setStatus] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -130,7 +136,8 @@ export default function Checkin() {
                 await fetchStatus();
             }
         } catch (err) {
-            toast.error(err.response?.data?.message || t('common.error'));
+            const code = err.response?.data?.code;
+            toast.error(translateCheckinApi(code, err.response?.data?.message));
         } finally {
             setIsClaiming(false);
         }
@@ -139,15 +146,26 @@ export default function Checkin() {
     const submitTxToServer = async (txHash) => {
         try {
             const res = await api.post('/checkin/confirm', { txHash });
-            if (res.data.ok && res.data.pending) {
-                toast.message(res.data.message || t('checkin.waiting_blockchain'));
+            const d = res.data;
+            if (!d.ok && d.pending) {
+                toast.message(translateCheckinApi(d.code, d.message));
+            } else if (!d.ok) {
+                toast.error(translateCheckinApi(d.code, d.message));
+            } else if (d.ok && d.pending) {
+                toast.message(d.message || t('checkin.waiting_blockchain'));
             }
             await fetchStatus();
-            return res.data;
+            return d;
         } catch (err) {
             const d = err.response?.data;
-            if (d?.pending) {
-                toast.message(d.message || t('checkin.waiting_blockchain'));
+            const status = err.response?.status;
+            if (d?.code) {
+                toast.error(translateCheckinApi(d.code, d.message));
+                await fetchStatus();
+                return d;
+            }
+            if (status === 503 && d?.message) {
+                toast.error(translateCheckinApi(d.code, d.message));
                 await fetchStatus();
                 return d;
             }
@@ -189,8 +207,12 @@ export default function Checkin() {
             if (!txHash || typeof txHash !== 'string') {
                 throw new Error('No transaction hash');
             }
-            await submitTxToServer(txHash.trim());
-            toast.success(t('checkin.tx_sent'));
+            const submitted = await submitTxToServer(txHash.trim());
+            if (submitted?.ok && submitted.status === 'confirmed') {
+                toast.success(
+                    t('checkin.reward_msg', { amount: `${formatPolFromWei(status.checkinAmountWei)} POL` })
+                );
+            }
         } catch (err) {
             if (err?.code === 4001) {
                 toast.error(t('checkin.rejected_wallet'));
@@ -211,16 +233,22 @@ export default function Checkin() {
         setIsConfirming(true);
         try {
             const res = await api.post('/checkin/confirm', { txHash: hash });
-            if (res.data.ok && res.data.alreadyCheckedIn) {
+            const d = res.data;
+            if (d.ok && d.alreadyCheckedIn) {
                 toast.success(t('checkin.claimed'));
-            } else if (res.data.ok && res.data.pending) {
-                toast.message(t('checkin.waiting_blockchain'));
-            } else if (res.data.ok && res.data.status === 'confirmed') {
-                toast.success(t('checkin.reward_msg', { amount: formatPolFromWei(status.checkinAmountWei) + ' POL' }));
+            } else if (!d.ok && d.pending) {
+                toast.message(translateCheckinApi(d.code, d.message));
+            } else if (d.ok && d.status === 'confirmed') {
+                toast.success(
+                    t('checkin.reward_msg', { amount: `${formatPolFromWei(status.checkinAmountWei)} POL` })
+                );
+            } else if (!d.ok) {
+                toast.error(translateCheckinApi(d.code, d.message));
             }
             await fetchStatus();
         } catch (err) {
-            toast.error(err.response?.data?.message || t('common.error'));
+            const code = err.response?.data?.code;
+            toast.error(translateCheckinApi(code, err.response?.data?.message));
         } finally {
             setIsConfirming(false);
         }
@@ -253,7 +281,7 @@ export default function Checkin() {
                     {
                         from: account,
                         to: status.checkinReceiver,
-                        value: weiHexFromDecimalString('10000000000000000')
+                        value: weiHexFromDecimalString(status.checkinAmountWei)
                     }
                 ]
             });
@@ -261,23 +289,28 @@ export default function Checkin() {
                 throw new Error('No transaction hash');
             }
             const res = await api.post('/checkin/wallet', { txHash: txHash.trim() });
-            if (res.data.ok) {
-                toast.success(t('checkin.claimed'));
-                setStatus((s) =>
-                    mergeStatus(s, {
-                        checkedIn: true,
-                        pending: false,
-                        failed: false,
-                        status: 'confirmed',
-                        streak: res.data.streak,
-                        recentCheckins: res.data.recentCheckins
-                    })
+            const d = res.data;
+            if (d.ok && d.status === 'confirmed') {
+                toast.success(
+                    t('checkin.reward_msg', { amount: `${formatPolFromWei(status.checkinAmountWei)} POL` })
                 );
+                await fetchStatus();
+            } else if (d.ok && d.alreadyCheckedIn) {
+                toast.success(t('checkin.claimed'));
+                await fetchStatus();
+            } else if (!d.ok && d.pending) {
+                toast.message(translateCheckinApi(d.code, d.message));
+                await fetchStatus();
+            } else if (!d.ok) {
+                toast.error(translateCheckinApi(d.code, d.message));
                 await fetchStatus();
             }
         } catch (err) {
             if (err?.code === 4001) {
                 toast.error(t('checkin.rejected_wallet'));
+            } else if (err.response?.data?.code) {
+                toast.error(translateCheckinApi(err.response.data.code, err.response.data.message));
+                await fetchStatus();
             } else {
                 toast.error(err?.message || t('common.error'));
             }

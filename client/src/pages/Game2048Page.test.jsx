@@ -33,9 +33,9 @@ describe("Game2048Page", () => {
         allowNewStart: true,
         cooldownSecondsRemaining: 0,
         activeSession: null,
-        rewardHashRate: 50,
+        rewardHashRate: 25,
         winTile: 2048,
-        minScore: 0,
+        minScore: 1000,
         powerDays: 7,
         cooldownMinutesHint: 3
       }

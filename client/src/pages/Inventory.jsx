@@ -902,12 +902,6 @@ export default function Inventory() {
                 {t("inventory.go_to_warehouse")}
               </button>
             </div>
-            <div className="mb-4 rounded-3xl border border-primary/20 bg-primary/5 p-3 space-y-2">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-primary">{t("inventory.tip_msg")}</p>
-              <p className="text-[10px] font-medium text-gray-500 normal-case tracking-normal leading-relaxed">
-                {t("inventory.backpack_help")}
-              </p>
-            </div>
             {inventory.length === 0 ? (
               <div className="py-12 flex flex-col items-center justify-center text-center px-4 bg-gray-800/20 rounded-2xl border border-dashed border-gray-800">
                 <AlertCircle className="w-10 h-10 text-gray-700 mb-3" />

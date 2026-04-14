@@ -128,16 +128,25 @@ function receiptSucceeded(receipt) {
 }
 
 /**
+ * @param {{ txHash: string, userWalletLower: string, receiverLower: string, minValueWei: bigint, missingTxBehavior?: 'pending' | 'failed' }} args
  * @returns {{ ok: true, state: 'confirmed' } | { ok: true, state: 'pending' } | { ok: false, state: 'failed', reason: string }}
  */
 export async function evaluateCheckinTx({
   txHash,
   userWalletLower,
   receiverLower,
-  minValueWei
+  minValueWei,
+  missingTxBehavior = "pending"
 }) {
   const { tx, source } = await getTxWithFallback(txHash);
   if (!tx) {
+    if (missingTxBehavior === "failed") {
+      return {
+        ok: false,
+        state: "failed",
+        reason: "Transaction not found on-chain. Wait a few seconds after sending and try again, or verify the hash."
+      };
+    }
     return { ok: true, state: "pending" };
   }
 

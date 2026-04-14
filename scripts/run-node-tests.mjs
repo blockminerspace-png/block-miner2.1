@@ -27,6 +27,7 @@ const result = spawnSync(
     cwd: root,
     env: {
       ...process.env,
+      NODE_ENV: process.env.NODE_ENV || "test",
       JWT_SECRET: process.env.JWT_SECRET || "testsecret"
     }
   }

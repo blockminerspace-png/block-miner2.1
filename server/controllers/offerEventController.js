@@ -1,6 +1,13 @@
 import prisma from "../src/db/prisma.js";
 import { isOfferEventActiveForPublic, hasEventMinerStock } from "../services/offerEventHelpers.js";
 import { purchaseEventMinerForUser } from "../services/offerEventPurchaseService.js";
+import {
+  cancelCriticalMutation,
+  finalizeCriticalMutationSuccess,
+  resolveCriticalMutation,
+} from "../utils/criticalMutationIdempotency.js";
+import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
+import { logUserActivity } from "../utils/logger.js";
 
 export function buildPublicOfferEventsWhere(now) {
   return {
@@ -131,12 +138,28 @@ export async function purchaseOfferMiner(req, res) {
 
     const quantity = Math.max(1, Math.min(25, parseInt(req.body?.quantity || 1) || 1));
 
-    const out = await purchaseEventMinerForUser(req.user.id, eventMinerId, quantity);
-    if (!out.ok) {
-      return res.status(out.status || 500).json({ ok: false, message: out.message, code: out.code });
-    }
+    const idem = await resolveCriticalMutation(req, res);
+    if (!idem) return;
+    const { lease, ci } = idem;
 
-    res.json({ ok: true, message: out.message, balances: out.balances });
+    try {
+      const out = await purchaseEventMinerForUser(req.user.id, eventMinerId, quantity);
+      if (!out.ok) {
+        await cancelCriticalMutation(lease);
+        return res.status(out.status || 500).json({ ok: false, message: out.message, code: out.code });
+      }
+      const payload = { ok: true, message: out.message, balances: out.balances };
+      await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
+      logUserActivity("FIN_OFFER_EVENT_PURCHASE", req, { eventMinerId, quantity });
+      return res.json(payload);
+    } catch (e) {
+      await cancelCriticalMutation(lease);
+      if (/** @type {any} */ (e)?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      console.error("purchaseOfferMiner", e);
+      return res.status(500).json({ ok: false, message: "Purchase failed." });
+    }
   } catch (e) {
     console.error("purchaseOfferMiner", e);
     res.status(500).json({ ok: false, message: "Purchase failed." });

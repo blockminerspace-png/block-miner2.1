@@ -11,6 +11,15 @@ import {
   ensureOwnedMachineForUserMinerTx,
   syncOwnedMachineSnapshotTx,
 } from "../services/userOwnedMachineService.js";
+import { advisoryXactTryLockOrThrow } from "../services/distributedLockService.js";
+import {
+  cancelCriticalMutation,
+  finalizeCriticalMutationSuccess,
+  resolveCriticalMutation,
+} from "../utils/criticalMutationIdempotency.js";
+import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
+import { lockUserRowForUpdate } from "../utils/transactionLocks.js";
+import { logUserActivity } from "../utils/logger.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
@@ -30,14 +39,32 @@ export async function toggleMachine(req, res) {
     const machine = await machineModel.getMachineById(req.user.id, machineId);
     if (!machine) return res.status(404).json({ ok: false, message: "Machine not found." });
 
-    await machineModel.updateMachineActive(machineId, isActive);
-
-    // Sync power
-    await syncUserBaseHashRate(req.user.id);
-    const engine = getMiningEngine();
-    if (engine) await engine.reloadMinerProfile(req.user.id);
-
-    res.json({ ok: true, message: isActive ? "Machine activated." : "Machine deactivated." });
+    const idem = await resolveCriticalMutation(req, res);
+    if (!idem) return;
+    const { lease, ci } = idem;
+    try {
+      await prisma.$transaction(async (tx) => {
+        await advisoryXactTryLockOrThrow(tx, `user_ops:${req.user.id}`);
+        await lockUserRowForUpdate(tx, req.user.id);
+        await tx.userMiner.update({
+          where: { id: machineId, userId: req.user.id },
+          data: { isActive },
+        });
+      });
+      await syncUserBaseHashRate(req.user.id);
+      const engine = getMiningEngine();
+      if (engine) await engine.reloadMinerProfile(req.user.id);
+      const payload = { ok: true, message: isActive ? "Machine activated." : "Machine deactivated." };
+      await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
+      logUserActivity("GAME_MACHINE_TOGGLE", req, { machineId, isActive });
+      return res.json(payload);
+    } catch (error) {
+      await cancelCriticalMutation(lease);
+      if (/** @type {any} */ (error)?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      throw error;
+    }
   } catch {
     res.status(500).json({ ok: false, message: "Unable to toggle machine." });
   }
@@ -52,42 +79,59 @@ export async function removeMachine(req, res) {
     });
     if (!fullMiner) return res.status(404).json({ ok: false, message: "Miner not found." });
 
+    const idem = await resolveCriticalMutation(req, res);
+    if (!idem) return;
+    const { lease, ci } = idem;
+
     const now = new Date();
 
-    await prisma.$transaction(async (tx) => {
-      await releaseUserMinerFromRacksTx(tx, req.user.id, machineId);
-      const displayName = fullMiner.miner?.name || "Miner";
-      const omId = await ensureOwnedMachineForUserMinerTx(tx, fullMiner, displayName);
-      await tx.userInventory.create({
-        data: {
-          userId: req.user.id,
-          minerName: displayName,
-          level: fullMiner.level,
-          hashRate: fullMiner.hashRate,
-          slotSize: fullMiner.slotSize,
-          minerId: fullMiner.minerId || null,
-          imageUrl: fullMiner.imageUrl || fullMiner.miner?.imageUrl || null,
-          acquiredAt: now,
-          ownedMachineId: omId,
-        },
+    try {
+      await prisma.$transaction(async (tx) => {
+        await advisoryXactTryLockOrThrow(tx, `user_ops:${req.user.id}`);
+        await lockUserRowForUpdate(tx, req.user.id);
+        await releaseUserMinerFromRacksTx(tx, req.user.id, machineId);
+          const displayName = fullMiner.miner?.name || "Miner";
+          const omId = await ensureOwnedMachineForUserMinerTx(tx, fullMiner, displayName);
+          await tx.userInventory.create({
+            data: {
+              userId: req.user.id,
+              minerName: displayName,
+              level: fullMiner.level,
+              hashRate: fullMiner.hashRate,
+              slotSize: fullMiner.slotSize,
+              minerId: fullMiner.minerId || null,
+              imageUrl: fullMiner.imageUrl || fullMiner.miner?.imageUrl || null,
+              acquiredAt: now,
+              ownedMachineId: omId,
+            },
+          });
+          await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.INVENTORY, {
+            minerId: fullMiner.minerId,
+            minerName: displayName,
+            level: fullMiner.level,
+            hashRate: fullMiner.hashRate,
+            slotSize: fullMiner.slotSize ?? 1,
+            imageUrl: fullMiner.imageUrl || fullMiner.miner?.imageUrl || null,
+          });
+        await tx.userMiner.delete({ where: { id: machineId } });
       });
-      await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.INVENTORY, {
-        minerId: fullMiner.minerId,
-        minerName: displayName,
-        level: fullMiner.level,
-        hashRate: fullMiner.hashRate,
-        slotSize: fullMiner.slotSize ?? 1,
-        imageUrl: fullMiner.imageUrl || fullMiner.miner?.imageUrl || null,
-      });
-      await tx.userMiner.delete({ where: { id: machineId } });
-    });
 
-    // Sync power
-    await syncUserBaseHashRate(req.user.id);
-    const engine = getMiningEngine();
-    if (engine) await engine.reloadMinerProfile(req.user.id);
+      await syncUserBaseHashRate(req.user.id);
+      const engine = getMiningEngine();
+      if (engine) await engine.reloadMinerProfile(req.user.id);
 
-    res.json({ ok: true, message: "Miner sent to inventory!" });
+      const payload = { ok: true, message: "Miner sent to inventory!" };
+      await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
+      logUserActivity("GAME_MACHINE_REMOVE_TO_INVENTORY", req, { machineId });
+      return res.json(payload);
+    } catch (error) {
+      await cancelCriticalMutation(lease);
+      if (/** @type {any} */ (error)?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      console.error("Error removing miner:", error);
+      return res.status(500).json({ ok: false, message: "Error removing miner." });
+    }
   } catch (error) {
     console.error("Error removing miner:", error);
     res.status(500).json({ ok: false, message: "Error removing miner." });
@@ -109,6 +153,10 @@ export async function moveMachine(req, res) {
       return res.status(400).json({ ok: false, message: "Large machines must start on an even slot." });
     }
 
+    const idem = await resolveCriticalMutation(req, res);
+    if (!idem) return;
+    const { lease, ci } = idem;
+
     // Check if slot is occupied
     const targetSlots = Array.from({ length: machine.slotSize }, (_, i) => targetSlotIndex + i);
     const existingMachines = await prisma.userMiner.findMany({
@@ -122,9 +170,12 @@ export async function moveMachine(req, res) {
 
     const now = new Date();
 
-    await prisma.$transaction(async (tx) => {
-      // 1. Send existing overlapping machines to inventory
-      if (existingMachines.length > 0) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await advisoryXactTryLockOrThrow(tx, `user_ops:${req.user.id}`);
+        await lockUserRowForUpdate(tx, req.user.id);
+        // 1. Send existing overlapping machines to inventory
+        if (existingMachines.length > 0) {
         for (const m of existingMachines) {
           await releaseUserMinerFromRacksTx(tx, req.user.id, m.id);
           await createInventoryWithOwnedMachineTx(tx, {
@@ -170,18 +221,28 @@ export async function moveMachine(req, res) {
       }
 
       // 2. Move the actual machine
-      await tx.userMiner.update({
-        where: { id: machineId },
-        data: { slotIndex: targetSlotIndex }
+        await tx.userMiner.update({
+          where: { id: machineId },
+          data: { slotIndex: targetSlotIndex },
+        });
       });
-    });
 
-    // Sync power and engine profile
     await syncUserBaseHashRate(req.user.id);
     const engine = getMiningEngine();
     if (engine) await engine.reloadMinerProfile(req.user.id);
 
-    res.json({ ok: true, message: "Machine moved successfully." });
+    const payload = { ok: true, message: "Machine moved successfully." };
+    await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
+    logUserActivity("GAME_MACHINE_MOVE_SLOT", req, { machineId, targetSlotIndex });
+    return res.json(payload);
+    } catch (error) {
+      await cancelCriticalMutation(lease);
+      if (/** @type {any} */ (error)?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      console.error("Move Error:", error);
+      return res.status(500).json({ ok: false, message: "Error moving machine." });
+    }
   } catch (error) {
     console.error("Move Error:", error);
     res.status(500).json({ ok: false, message: "Error moving machine." });

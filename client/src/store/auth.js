@@ -14,6 +14,25 @@ export const api = axios.create({
 });
 
 // Interceptor to attach Anti-Bot payload to every API request
+const IDEMPOTENCY_PATH_MARKERS = [
+    '/vault/',
+    '/inventory/install',
+    '/inventory/remove',
+    '/machines/toggle',
+    '/machines/remove',
+    '/machines/move',
+    '/shop/purchase',
+    '/offer-events/purchase',
+    '/rooms/rack/install',
+    '/rooms/rack/uninstall',
+    '/wallet/deposit',
+    '/wallet/deposit/submit',
+    '/wallet/withdraw',
+    '/wallet/blk/convert',
+    '/wallet/btcpay/invoice',
+    '/internal-offerwall/',
+];
+
 api.interceptors.request.use((config) => {
     // We only attach this for state-changing or critical requests, 
     // but attaching it everywhere is safer and simpler.
@@ -25,6 +44,18 @@ api.interceptors.request.use((config) => {
     } catch (e) {
         // Fallback if security module fails
         config.headers['X-Anti-Bot'] = '0';
+    }
+    const method = String(config.method || 'get').toLowerCase();
+    if (method === 'post' || method === 'put' || method === 'patch') {
+        const url = String(config.url || '');
+        const needsKey = IDEMPOTENCY_PATH_MARKERS.some((m) => url.includes(m));
+        if (needsKey && !config.headers['Idempotency-Key'] && !config.headers['idempotency-key']) {
+            const k =
+                typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+            config.headers['Idempotency-Key'] = k;
+        }
     }
     return config;
 }, (error) => {

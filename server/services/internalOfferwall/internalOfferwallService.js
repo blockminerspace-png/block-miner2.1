@@ -27,6 +27,7 @@ import {
 } from "./internalOfferwallLimitState.js";
 import { isAllowHttpIframe, validateIframeUrl } from "./validateIframeUrl.js";
 import { isInternalOfferwallEnabled } from "./internalOfferwallFeature.js";
+import { advisoryXactTryLockOrThrow } from "../distributedLockService.js";
 import { normalizeTaskMetadata } from "./internalOfferwallTaskMetadata.js";
 import {
   getIframeHostAllowlistCachedSync,
@@ -435,6 +436,7 @@ async function userStartOfferOnceSerializable(userId, offerId) {
 
   return prisma.$transaction(
     async (tx) => {
+      await advisoryXactTryLockOrThrow(tx, `internal_offerwall:${userId}`);
       const offer = await tx.internalOfferwallOffer.findFirst({
         where: { id: offerId, isActive: true }
       });
@@ -589,14 +591,57 @@ export async function userMarkPartnerOpened(userId, attemptId) {
   }
 
   const now = new Date();
-  await prisma.internalOfferwallAttempt.update({
-    where: { id: attemptId },
-    data: { partnerOpenedAt: now }
+  await prisma.$transaction(async (tx) => {
+    await advisoryXactTryLockOrThrow(tx, `internal_offerwall:${userId}`);
+    await tx.internalOfferwallAttempt.update({
+      where: { id: attemptId },
+      data: { partnerOpenedAt: now },
+    });
   });
   return {
     ok: true,
     partnerOpenedAt: now.toISOString()
   };
+}
+
+/**
+ * User-initiated exit: removes a STARTED attempt so the offer can be started again (same pattern as abandonStaleStartedAttempts).
+ * Does not remove PENDING_REVIEW (submitted for admin review).
+ *
+ * @param {number} userId
+ * @param {number} attemptId
+ */
+export async function userAbandonAttempt(userId, attemptId) {
+  if (!isInternalOfferwallEnabled()) {
+    return { ok: false, status: 403, code: "FEATURE_DISABLED", message: "This feature is disabled." };
+  }
+  if (!Number.isInteger(attemptId) || attemptId < 1) {
+    return { ok: false, status: 400, code: "INVALID_ATTEMPT", message: "Invalid attempt id." };
+  }
+
+  const attempt = await prisma.internalOfferwallAttempt.findFirst({
+    where: { id: attemptId, userId },
+    select: { id: true, status: true }
+  });
+  if (!attempt) {
+    return { ok: false, status: 404, code: "ATTEMPT_NOT_FOUND", message: "Attempt not found." };
+  }
+  if (attempt.status === ATTEMPT_STATUS_PENDING_REVIEW) {
+    return {
+      ok: false,
+      status: 400,
+      code: "CANNOT_ABANDON_PENDING_REVIEW",
+      message: "This submission is waiting for review and cannot be cancelled from here."
+    };
+  }
+  if (attempt.status !== ATTEMPT_STATUS_STARTED) {
+    return { ok: true, alreadyCleared: true };
+  }
+
+  const del = await prisma.internalOfferwallAttempt.deleteMany({
+    where: { id: attemptId, userId, status: ATTEMPT_STATUS_STARTED }
+  });
+  return { ok: true, deleted: del.count > 0 };
 }
 
 /**
@@ -664,6 +709,7 @@ export async function userSubmitAttempt(userId, attemptId) {
   const snap = await buildUserAuditSnapshotJson(userId);
   try {
     await prisma.$transaction(async (tx) => {
+      await advisoryXactTryLockOrThrow(tx, `internal_offerwall:${userId}`);
       const fresh = await tx.internalOfferwallAttempt.findFirst({
         where: { id: attemptId, userId, status: ATTEMPT_STATUS_STARTED }
       });
@@ -765,6 +811,7 @@ export async function adminApproveAttempt(attemptId) {
 
   const now = new Date();
   await prisma.$transaction(async (tx) => {
+    await advisoryXactTryLockOrThrow(tx, `internal_offerwall:${attempt.userId}`);
     const row = await tx.internalOfferwallAttempt.findFirst({
       where: { id: attemptId, status: ATTEMPT_STATUS_PENDING_REVIEW }
     });

@@ -3,7 +3,16 @@
     "security": {
       "RACE_CONDITION_DETECTED": "This action conflicted with another request. Refresh the page and try again.",
       "IDEMPOTENT_REPLAY": "This purchase was already confirmed. Showing the same result without charging again.",
-      "INVALID_STATE": "This resource is not in a valid state for the requested action."
+      "INVALID_STATE": "This resource is not in a valid state for the requested action.",
+      "ACCOUNT_LOCKED": "This account is temporarily locked after too many failed sign-in attempts. Try again later.",
+      "TOO_MANY_REQUESTS": "Too many requests. Please slow down and try again.",
+      "RATE_LIMIT_EXCEEDED": "Too many requests. Please slow down and try again.",
+      "TOO_MANY_ATTEMPTS": "Too many attempts for this action. Please wait before trying again.",
+      "INVALID_CSRF_TOKEN": "This action was blocked for security (CSRF). Please reload the page and try again.",
+      "CAPTCHA_REQUIRED": "Human verification is required for this action.",
+      "CAPTCHA_FAILED": "Human verification failed. Please try again.",
+      "INVALID_REQUEST_SIGNATURE": "The idempotency key does not match this request. Use a new key for a different action.",
+      "HTTPS_REQUIRED": "This server requires HTTPS. Update the URL to use https:// and try again."
     },
     "btcpay": {
       "PAYMENT_NOT_CONFIRMED": "Bitcoin payment is not confirmed yet. Keep this page open or return later; your balance updates automatically.",
@@ -687,6 +696,8 @@
     "cooldown_line": "Cooldown after claim: {{minutes}} min",
     "play_hint": "Use arrow keys or swipe.",
     "open_game": "Open game",
+    "arena_cooldown_minutes": "{{minutes}} min until you can play again",
+    "arena_unavailable": "On cooldown",
     "new_game": "New game",
     "claim": "Claim reward",
     "claiming": "Claiming…",
@@ -698,6 +709,8 @@
     "back_arena": "Back to Arena",
     "crypto_strip_aria": "Cryptocurrency artwork used in other arena games",
     "grid_aria": "2048 board",
+    "progress_label": "Progress",
+    "merge_path_aria": "Merge path — tiers from lowest to target tile",
     "tile_aria": "Tile row {{row}} column {{col}} value {{value}}",
     "errors": {
       "load_status": "Could not load game status.",
@@ -1023,7 +1036,15 @@
     "mode_admin": "Manual approval",
     "inactive_or_missing": "This task is not available or has been deactivated.",
     "target_regions": "Targeting (informational)",
-    "open_external_link": "Open related link"
+    "open_external_link": "Open related link",
+    "back_to_offerwall": "Back to offerwall",
+    "leave_task": "Cancel task",
+    "exit_task_confirm_title": "Return to the offerwall?",
+    "exit_task_confirm_body": "Your in-progress session for this offer will be cleared. You can start this offer again later if you still have executions left.",
+    "exit_task_confirm_leave": "Cancel task",
+    "exit_task_confirm_stay": "Stay",
+    "abandon_ok": "Task closed. You can start again when your limit allows.",
+    "cannot_abandon_pending_review": "This submission is waiting for team review. Use Back to offerwall to return to the list."
   },
   "admin_internal_offerwall": {
     "nav": "Internal offerwall",
@@ -1499,7 +1520,7 @@
     },
     "deposit_options": {
       "smart_contract": "Smart contract deposit",
-      "walletconnect": "WalletConnect (QR code)",
+      "walletconnect": "WalletConnect",
       "hint": "Choose how you connect your wallet, then sign the POL transfer.",
       "contract_required": "Smart contract deposit is not available in this environment. Use WalletConnect with the treasury address or contact support.",
       "walletconnect_hint": "Open WalletConnect to scan the QR code on your phone, stay on Polygon (137), then use Express deposit to sign.",
@@ -1668,7 +1689,14 @@
       "wallet_not_connected": "Wallet not connected. Please connect your wallet first.",
       "already_checked_in": "Already checked in today. Come back tomorrow!",
       "payment_failed": "Payment failed. Please try again.",
-      "verification_failed": "Payment verification failed. Please contact support if this persists."
+      "verification_failed": "Payment verification failed. Please contact support if this persists.",
+      "PAYMENT_REQUIRED": "A verified wallet and an on-chain POL payment are required before check-in can complete.",
+      "INVALID_TRANSACTION": "This transaction cannot be used for check-in (wrong amount, recipient, sender, or it failed on-chain).",
+      "TRANSACTION_NOT_CONFIRMED": "The transaction is not confirmed yet. Wait for Polygon confirmations and try again.",
+      "TRANSACTION_ALREADY_USED": "This transaction hash was already used for check-in (possibly on another day or account).",
+      "BLOCKCHAIN_UNAVAILABLE": "We could not reach the blockchain to verify payment. Try again in a few minutes.",
+      "CHECKIN_PAYMENT_DISABLED": "Paid check-in is turned off on the server. Use the free daily check-in instead.",
+      "CHECKIN_SERVER_ERROR": "Check-in failed due to a server error. Try again later."
     },
     "success": {
       "wallet_checkin": "Check-in confirmed via wallet! +{{streak}} day streak",
@@ -2192,7 +2220,16 @@
   },
   "adminAuth": {
     "session_invalid": "Your admin session expired or is invalid. Please sign in again.",
-    "session_banner": "You were signed out of the admin panel. Sign in again to continue."
+    "session_banner": "You were signed out of the admin panel. Sign in again to continue.",
+    "restricted_title": "Restricted access",
+    "restricted_subtitle": "Sign in to manage the ecosystem.",
+    "email_label": "Admin email",
+    "security_code_label": "Security code",
+    "submit": "Sign in to admin",
+    "back_to_user_area": "Back to user login",
+    "auth_not_configured": "Admin login is disabled on the server: set ADMIN_EMAIL, ADMIN_SECURITY_CODE, and JWT_SECRET in the runtime environment (e.g. .env.production), then restart the app container so variables load.",
+    "login_fields_required": "Enter the admin email and security code.",
+    "login_failed_generic": "Could not sign in to the admin panel."
   },
   "adminMiniPass": {
     "workflow_hint": "Save the season first, then configure level rewards and missions below — miners, POL, XP, and game missions are added step by step for each tier."

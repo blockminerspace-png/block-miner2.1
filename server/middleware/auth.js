@@ -2,6 +2,7 @@ import { getUserById } from "../models/userModel.js";
 import { verifyAccessToken } from "../utils/authTokens.js";
 import { getTokenFromRequest } from "../utils/token.js";
 import loggerNamespace from "../utils/logger.js";
+import { logSecurityEvent } from "../utils/securityLogger.js";
 
 const logger = loggerNamespace.child("AuthMiddleware");
 
@@ -15,6 +16,7 @@ export async function requireAuth(req, res, next) {
     const isAction = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method.toUpperCase());
 
     if (antiBotFlag === '1' && isAction) {
+      logSecurityEvent("AUTHZ_IRON_DOME_FLAG", { path: req.originalUrl || req.path }, req);
       logger.warn(`Iron Dome: Bot flag direct rejection for IP: ${req.ip} during ${req.method}`);
       return res.status(403).json({ ok: false, message: "Acesso negado. Automação detectada (Flag)." });
     }
@@ -33,12 +35,14 @@ export async function requireAuth(req, res, next) {
         // We only BLOCK if it's a confirmed bot doing an ACTION (POST/PUT/etc)
         // GET requests are allowed to proceed even if bot-flagged to ensure site loads
         if (isAction && isBot) {
+          logSecurityEvent("AUTHZ_IRON_DOME_BOT_PAYLOAD", { path: req.originalUrl || req.path }, req);
           logger.warn(`Iron Dome: Action REJECTED from ${req.ip} (Bot detected during ${req.method})`);
           return res.status(403).json({ ok: false, message: "Acesso negado. Automação detectada." });
         }
       } catch (err) {
         // If decryption fails, we only block if it's a critical POST action
         if (['POST', 'PUT', 'DELETE'].includes(req.method.toUpperCase())) {
+          logSecurityEvent("AUTHZ_IRON_DOME_DECRYPT_FAILED", { path: req.originalUrl || req.path }, req);
           logger.error("Iron Dome: Action decryption failed", { error: err.message });
           return res.status(403).json({ ok: false, message: "Sessão de segurança inválida." });
         }
@@ -72,11 +76,13 @@ export async function requireAuth(req, res, next) {
     const user = await getUserById(userId);
 
     if (!user) {
+      logSecurityEvent("AUTHZ_USER_NOT_FOUND", { userId }, req);
       res.status(401).json({ ok: false, message: "Session invalid." });
       return;
     }
 
     if (user.isBanned) {
+      logSecurityEvent("AUTHZ_BANNED_USER", { userId: user.id }, req);
       res.status(403).json({ ok: false, message: "Account disabled." });
       return;
     }

@@ -13,15 +13,16 @@ import {
 } from "../server/services/game2048Engine.js";
 
 describe("game2048Engine", () => {
-  it("uses an 8x8 board", () => {
+  it("uses a 4x4 board", () => {
     const b = emptyBoard();
     assert.equal(b.length, BOARD_SIZE);
     assert.equal(b[0].length, BOARD_SIZE);
+    assert.equal(BOARD_SIZE, 4);
   });
 
   it("mergeLineTowardZero merges adjacent equal tiles once per sweep", () => {
-    const { row, scoreAdd } = mergeLineTowardZero([2, 2, 2, 2, 0, 0, 0, 0]);
-    assert.deepEqual(row, [4, 4, 0, 0, 0, 0, 0, 0]);
+    const { row, scoreAdd } = mergeLineTowardZero([2, 2, 2, 2]);
+    assert.deepEqual(row, [4, 4, 0, 0]);
     assert.equal(scoreAdd, 8);
   });
 
@@ -41,10 +42,6 @@ describe("game2048Engine", () => {
     b[0][1] = 4;
     b[0][2] = 8;
     b[0][3] = 16;
-    b[0][4] = 32;
-    b[0][5] = 64;
-    b[0][6] = 128;
-    b[0][7] = 256;
     const { moved } = moveBoard(b, "left");
     assert.equal(moved, false);
   });
@@ -62,20 +59,23 @@ describe("game2048Engine", () => {
 
   it("maxTile finds peak", () => {
     const b = emptyBoard();
-    b[7][7] = 2048;
+    b[3][3] = 2048;
     assert.equal(maxTile(b), 2048);
   });
 
   it("parseBoard rejects invalid shapes", () => {
     assert.equal(parseBoard(null), null);
     assert.equal(parseBoard([[1, 2]]), null);
-    const four = [
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0]
-    ];
-    assert.equal(parseBoard(four), null);
+    const eight = Array.from({ length: 8 }, () => Array(8).fill(0));
+    assert.equal(parseBoard(eight), null);
+  });
+
+  it("parseBoard accepts valid 4x4 board", () => {
+    const valid = Array.from({ length: 4 }, () => Array(4).fill(0));
+    const parsed = parseBoard(valid);
+    assert.ok(parsed);
+    assert.equal(parsed.length, 4);
+    assert.equal(parsed[0].length, 4);
   });
 
   it("createInitialBoard places two non-zero tiles", () => {

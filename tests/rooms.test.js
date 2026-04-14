@@ -13,6 +13,7 @@ import * as roomsController from "../server/controllers/roomsController.js";
 import prisma from "../server/src/db/prisma.js";
 import * as miningRuntime from "../server/src/runtime/miningRuntime.js";
 import * as minerProfileModel from "../server/models/minerProfileModel.js";
+import { stableRequestHash } from "../server/utils/stableRequestHash.js";
 
 // â”€â”€ Helpers de req/res â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function createRes() {
@@ -26,6 +27,30 @@ function createRes() {
 
 function createReq(user, body = {}, query = {}) {
   return { user, body, query };
+}
+
+function attachRackInstallIdempotency(req) {
+  const path = "/api/rooms/rack/install";
+  req.path = path;
+  req.params = {};
+  const idempotencyKey = `abcd1234-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  req.criticalIdempotency = {
+    scope: "rooms_rack_install",
+    idempotencyKey,
+    requestHash: stableRequestHash({ body: req.body, params: {}, path }),
+  };
+}
+
+function attachRackUninstallIdempotency(req) {
+  const path = "/api/rooms/rack/uninstall";
+  req.path = path;
+  req.params = {};
+  const idempotencyKey = `abcd5678-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  req.criticalIdempotency = {
+    scope: "rooms_rack_uninstall",
+    idempotencyKey,
+    requestHash: stableRequestHash({ body: req.body, params: {}, path }),
+  };
 }
 
 // â”€â”€ Testes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -79,6 +104,7 @@ test("buyRoom compra sala 2 com saldo suficiente", async () => {
   prisma.user.findUnique = async () => ({ polBalance: 1000 });
   prisma.$transaction = async (fn) => {
     const fakeTx = {
+      $queryRaw: async () => [{ ok: true }],
       user: { update: async () => {} },
       userRoom: { create: async () => ({ id: 2, roomNumber: 2 }) },
       userRack: { createMany: async () => {} },
@@ -174,6 +200,7 @@ test("installMiner instala mÃ¡quina do inventÃ¡rio no rack vazio", async () 
   });
   prisma.$transaction = async (fn) => {
     const fakeTx = {
+      $queryRaw: async () => [{ ok: true }],
       userOwnedMachine: {
         create: async () => ({ id: 1001 }),
         update: async () => ({}),
@@ -191,6 +218,7 @@ test("installMiner instala mÃ¡quina do inventÃ¡rio no rack vazio", async () 
 
   try {
     const req = createReq({ id: 1 }, { rackId: 10, inventoryId: 99 });
+    attachRackInstallIdempotency(req);
     const res = createRes();
     await roomsController.installMiner(req, res);
 
@@ -221,6 +249,7 @@ test("installMiner retorna 400 quando rack jÃ¡ estÃ¡ ocupado", async () => {
 
   try {
     const req = createReq({ id: 1 }, { rackId: 10, inventoryId: 99 });
+    attachRackInstallIdempotency(req);
     const res = createRes();
     await roomsController.installMiner(req, res);
 
@@ -260,6 +289,7 @@ test("uninstallMiner remove mÃ¡quina do rack e devolve ao inventÃ¡rio", asyn
   });
   prisma.$transaction = async (fn) => {
     const fakeTx = {
+      $queryRaw: async () => [{ ok: true }],
       userOwnedMachine: {
         create: async () => ({ id: 2002 }),
         update: async () => ({}),
@@ -277,6 +307,7 @@ test("uninstallMiner remove mÃ¡quina do rack e devolve ao inventÃ¡rio", asyn
 
   try {
     const req = createReq({ id: 1 }, { rackId: 10 });
+    attachRackUninstallIdempotency(req);
     const res = createRes();
     await roomsController.uninstallMiner(req, res);
 
@@ -424,6 +455,7 @@ test("buyRoom desbloqueia sala 1 gratuitamente sem deduzir saldo", async () => {
   prisma.user.findUnique = async () => ({ polBalance: 0 });
   prisma.$transaction = async (fn) => {
     const fakeTx = {
+      $queryRaw: async () => [{ ok: true }],
       user: { update: async () => { userUpdateCalled = true; } },
       userRoom: { create: async () => ({ id: 1, roomNumber: 1 }) },
       userRack: { createMany: async () => {} },

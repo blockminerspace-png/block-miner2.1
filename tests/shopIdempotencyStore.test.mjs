@@ -1,15 +1,16 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { normalizeShopIdempotencyKey, __resetShopIdempotencyStoreForTests } from "../server/services/shopIdempotencyStore.js";
 import {
-  __resetShopIdempotencyStoreForTests,
-  getShopIdempotencyPayload,
-  normalizeShopIdempotencyKey,
-  setShopIdempotencyPayload,
-} from "../server/services/shopIdempotencyStore.js";
+  beginIdempotencyLease,
+  commitIdempotencyResult,
+  __resetIdempotencyMemoryForTests,
+} from "../server/services/idempotencyService.js";
 
-describe("shopIdempotencyStore", () => {
+describe("shop idempotency (shared service)", () => {
   beforeEach(() => {
     __resetShopIdempotencyStoreForTests();
+    __resetIdempotencyMemoryForTests();
   });
 
   it("normalizeShopIdempotencyKey accepts UUID-like keys", () => {
@@ -23,19 +24,45 @@ describe("shopIdempotencyStore", () => {
     assert.equal(normalizeShopIdempotencyKey(""), null);
   });
 
-  it("returns stored payload for same user and key", () => {
+  it("commits and replays the same successful payload for a user + key", async () => {
     const userId = 42;
     const key = "abcd1234-abcd-abcd-abcd-abcdefghijkl";
-    setShopIdempotencyPayload(userId, key, { newBalance: 10, quantity: 2, minerName: "X", totalPrice: 5 });
-    const got = getShopIdempotencyPayload(userId, key);
-    assert.deepEqual(got, { newBalance: 10, quantity: 2, minerName: "X", totalPrice: 5 });
+    const requestHash = "hash-a";
+    const phase = await beginIdempotencyLease({
+      scope: "shop_purchase",
+      userId,
+      idempotencyKey: key,
+      requestHash,
+    });
+    assert.equal(phase.type, "lease");
+    await commitIdempotencyResult(phase, {
+      requestHash,
+      responseJson: { newBalance: 10, quantity: 2, minerName: "X", totalPrice: 5 },
+    });
+    const again = await beginIdempotencyLease({
+      scope: "shop_purchase",
+      userId,
+      idempotencyKey: key,
+      requestHash,
+    });
+    assert.equal(again.type, "replay");
+    assert.deepEqual(again.responseJson, { newBalance: 10, quantity: 2, minerName: "X", totalPrice: 5 });
   });
 
-  it("isolates keys per user", () => {
+  it("isolates keys per user", async () => {
     const key = "abcd1234-abcd-abcd-abcd-abcdefghijkl";
-    setShopIdempotencyPayload(1, key, { newBalance: 1 });
-    setShopIdempotencyPayload(2, key, { newBalance: 2 });
-    assert.equal(getShopIdempotencyPayload(1, key).newBalance, 1);
-    assert.equal(getShopIdempotencyPayload(2, key).newBalance, 2);
+    const h = "h1";
+    const p1 = await beginIdempotencyLease({ scope: "shop_purchase", userId: 1, idempotencyKey: key, requestHash: h });
+    const p2 = await beginIdempotencyLease({ scope: "shop_purchase", userId: 2, idempotencyKey: key, requestHash: h });
+    assert.equal(p1.type, "lease");
+    assert.equal(p2.type, "lease");
+    await commitIdempotencyResult(p1, { requestHash: h, responseJson: { newBalance: 1 } });
+    await commitIdempotencyResult(p2, { requestHash: h, responseJson: { newBalance: 2 } });
+    const r1 = await beginIdempotencyLease({ scope: "shop_purchase", userId: 1, idempotencyKey: key, requestHash: h });
+    const r2 = await beginIdempotencyLease({ scope: "shop_purchase", userId: 2, idempotencyKey: key, requestHash: h });
+    assert.equal(r1.type, "replay");
+    assert.equal(r2.type, "replay");
+    assert.deepEqual(r1.responseJson, { newBalance: 1 });
+    assert.deepEqual(r2.responseJson, { newBalance: 2 });
   });
 });

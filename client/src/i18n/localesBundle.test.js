@@ -38,8 +38,14 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(es.checkin.cta_wallet_line2).toBeTruthy();
     expect(es.checkin.view_on_polygonscan).toBeTruthy();
 
+    expect(en.checkin.errors.PAYMENT_REQUIRED).toBeTruthy();
+    expect(pt.checkin.errors.TRANSACTION_NOT_CONFIRMED).toBeTruthy();
+    expect(es.checkin.errors.TRANSACTION_ALREADY_USED).toBeTruthy();
+
     expect(en.adminAuth.session_invalid).toBeTruthy();
     expect(pt.adminAuth.session_banner).toBeTruthy();
+    expect(es.adminAuth.auth_not_configured).toBeTruthy();
+    expect(en.adminAuth.submit).toBeTruthy();
     expect(es.adminMiniPass.workflow_hint).toBeTruthy();
 
     expect(en.wallet.hero_subtitle).toBeTruthy();
@@ -102,6 +108,9 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(pt.internalOfferwallPage.empty).toBeTruthy();
     expect(es.internalOfferwallPage.empty).toBeTruthy();
     expect(en.internalOfferwallPage.open_partner_new_window).toBeTruthy();
+    expect(en.internalOfferwallPage.back_to_offerwall).toBeTruthy();
+    expect(pt.internalOfferwallPage.exit_task_confirm_body).toBeTruthy();
+    expect(es.internalOfferwallPage.abandon_ok).toBeTruthy();
     expect(pt.internalOfferwallPage.ptc_new_window_hint).toBeTruthy();
     expect(es.internalOfferwallPage.popup_blocked).toBeTruthy();
     expect(en.internalOfferwallPage.partner_not_opened).toBeTruthy();
@@ -240,5 +249,17 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.errors.security.INVALID_STATE).toBeTruthy();
     expect(pt.errors.security.INVALID_STATE).toBeTruthy();
     expect(es.errors.security.INVALID_STATE).toBeTruthy();
+    expect(en.errors.security.ACCOUNT_LOCKED).toBeTruthy();
+    expect(pt.errors.security.ACCOUNT_LOCKED).toBeTruthy();
+    expect(es.errors.security.ACCOUNT_LOCKED).toBeTruthy();
+    expect(en.errors.security.TOO_MANY_REQUESTS).toBeTruthy();
+    expect(pt.errors.security.TOO_MANY_REQUESTS).toBeTruthy();
+    expect(es.errors.security.TOO_MANY_REQUESTS).toBeTruthy();
+    expect(en.errors.security.INVALID_REQUEST_SIGNATURE).toBeTruthy();
+    expect(pt.errors.security.INVALID_REQUEST_SIGNATURE).toBeTruthy();
+    expect(es.errors.security.INVALID_REQUEST_SIGNATURE).toBeTruthy();
+    expect(en.errors.security.HTTPS_REQUIRED).toBeTruthy();
+    expect(pt.errors.security.HTTPS_REQUIRED).toBeTruthy();
+    expect(es.errors.security.HTTPS_REQUIRED).toBeTruthy();
   });
 });
