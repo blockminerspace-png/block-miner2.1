@@ -12,7 +12,7 @@ export function startGamePowerCleanup({ engine }) {
     try {
       const now = new Date();
 
-      // 1. Cleanup expired inventory items (Faucet rewards, etc.)
+      // 1. Cleanup expired inventory rows (time-limited rewards that set expiresAt only)
       const expiredInventory = await prisma.userInventory.deleteMany({
         where: { expiresAt: { lt: now } }
       });

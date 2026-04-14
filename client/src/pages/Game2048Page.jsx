@@ -66,7 +66,6 @@ function Chain2048Tile({ value, row, col, t }) {
       <AnimatePresence mode="popLayout">
         {value > 0 && scheme ? (
           <motion.div
-            layout
             key={`${row}-${col}-${value}`}
             initial={{ scale: 0.88, opacity: 0.75 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -350,11 +349,6 @@ export default function Game2048Page() {
   const progressPct = mergeProgressPercent(best, winTile);
 
   const boardSize = board?.length || 0;
-  const boardBoxStyle = {
-    width: "min(calc(100vw - 6.5rem), min(88vw, 72dvh))",
-    maxWidth: "420px",
-    aspectRatio: "1",
-  };
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-[#020617]" style={{ direction: "ltr" }}>
@@ -475,15 +469,15 @@ export default function Game2048Page() {
               )}
 
               {session && board && boardSize > 0 && (
-                <div className="flex max-w-full flex-row items-stretch justify-center gap-1 sm:gap-2">
-                  <div
-                    role="grid"
-                    aria-label={t("game2048.grid_aria")}
-                    className="relative shrink-0 touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)]"
-                    style={boardBoxStyle}
-                    onTouchStart={onTouchStart}
-                    onTouchEnd={onTouchEnd}
-                  >
+                <div className="mx-auto grid w-full max-w-[min(492px,calc(100vw-1.25rem))] grid-cols-[minmax(0,1fr)_auto] items-start gap-2 sm:max-w-[min(500px,calc(100vw-1.5rem))]">
+                  <div className="flex min-w-0 justify-center">
+                    <div
+                      role="grid"
+                      aria-label={t("game2048.grid_aria")}
+                      className="relative aspect-square w-full max-w-[420px] touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)]"
+                      onTouchStart={onTouchStart}
+                      onTouchEnd={onTouchEnd}
+                    >
                     <div
                       className="grid h-full w-full gap-1.5 sm:gap-2"
                       style={{
@@ -507,6 +501,7 @@ export default function Game2048Page() {
                         </p>
                       </div>
                     )}
+                    </div>
                   </div>
                   <MergeLadder winTile={winTile} bestTile={best} t={t} />
                 </div>

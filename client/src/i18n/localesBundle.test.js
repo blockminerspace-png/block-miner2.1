@@ -47,6 +47,12 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(es.adminAuth.auth_not_configured).toBeTruthy();
     expect(en.adminAuth.submit).toBeTruthy();
     expect(es.adminMiniPass.workflow_hint).toBeTruthy();
+    expect(en.adminMiniPass.list.title).toBeTruthy();
+    expect(pt.adminMiniPass.list.title).toBeTruthy();
+    expect(es.adminMiniPass.list.title).toBeTruthy();
+    expect(en.adminMiniPass.sections.pass).toBeTruthy();
+    expect(pt.adminMiniPass.sections.pass).toBeTruthy();
+    expect(es.adminMiniPass.sections.pass).toBeTruthy();
 
     expect(en.wallet.hero_subtitle).toBeTruthy();
     expect(pt.wallet.ledger_title).toBeTruthy();
@@ -261,5 +267,11 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.errors.security.HTTPS_REQUIRED).toBeTruthy();
     expect(pt.errors.security.HTTPS_REQUIRED).toBeTruthy();
     expect(es.errors.security.HTTPS_REQUIRED).toBeTruthy();
+  });
+
+  it("exposes faucet permanent equipment note in en, pt-BR, and es", () => {
+    expect(en.faucet.permanent_equipment_note).toBeTruthy();
+    expect(pt.faucet.permanent_equipment_note).toBeTruthy();
+    expect(es.faucet.permanent_equipment_note).toBeTruthy();
   });
 });

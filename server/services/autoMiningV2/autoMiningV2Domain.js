@@ -11,10 +11,10 @@ export const MINING_MODES = Object.freeze({
 });
 
 /** Hashrate granted per successful 60s cycle in Normal mode (H/s). */
-export const NORMAL_HASH_PER_CYCLE = 10;
+export const NORMAL_HASH_PER_CYCLE = 5;
 
 /** Hashrate granted per successful 60s cycle in Turbo mode after banner click (H/s). */
-export const TURBO_HASH_PER_CYCLE = 20;
+export const TURBO_HASH_PER_CYCLE = 10;
 
 /** Seconds between eligible server-side claims. */
 export const CYCLE_SECONDS = 60;

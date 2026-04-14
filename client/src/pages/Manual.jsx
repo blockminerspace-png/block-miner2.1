@@ -368,6 +368,7 @@ export default function Manual() {
                                             <ul className="space-y-1.5 mt-2 text-[12px]">
                                                 <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span><strong className="text-white">Cooldown:</strong> 60 minutos entre resgates</span></li>
                                                 <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span><strong className="text-white">Prêmio:</strong> Minerador especial (hashrate definido pelo admin)</span></li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span><strong className="text-white">Permanente:</strong> o equipamento da faucet fica no inventário como máquina normal (não expira sozinho)</span></li>
                                                 <li className="flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /><span>Visite o link do parceiro e aguarde o tempo mínimo antes de resgatar</span></li>
                                             </ul>
                                         </>

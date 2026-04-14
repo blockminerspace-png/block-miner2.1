@@ -112,8 +112,8 @@ test("nextClaimAfterSuccess schedules exactly one cycle ahead", () => {
 });
 
 test("constants match product spec", () => {
-  assert.equal(NORMAL_HASH_PER_CYCLE, 10);
-  assert.equal(TURBO_HASH_PER_CYCLE, 20);
+  assert.equal(NORMAL_HASH_PER_CYCLE, 5);
+  assert.equal(TURBO_HASH_PER_CYCLE, 10);
   assert.equal(CYCLE_SECONDS, 60);
   assert.equal(DAILY_LIMIT_HASH, 1000);
 });

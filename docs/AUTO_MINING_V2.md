@@ -4,8 +4,8 @@
 
 Session-based temporary hashrate with **server-side cycle timing** (60 seconds), **24-hour TTL** per grant, and a **1000 H/s daily cap** counted in **UTC midnight** boundaries. Two modes:
 
-- **NORMAL**: +10 H/s per successful cycle (no banner).
-- **TURBO**: +20 H/s per cycle after a **registered banner click** and opening the partner URL in a new tab.
+- **NORMAL**: +5 H/s per successful cycle (no banner).
+- **TURBO**: +10 H/s per cycle after a **registered banner click** and opening the partner URL in a new tab.
 
 Legacy `auto_mining_gpu` rows (inventory GPU claims) remain supported in totals until they expire; v2 uses separate tables.
 

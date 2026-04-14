@@ -154,8 +154,8 @@ export async function claim(req, res) {
     const miner = reward.miner;
     
     await prisma.$transaction(async (tx) => {
-      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 Hours
-
+      // Permanent inventory (no expiresAt). Game power cleanup deletes rows with expiresAt < now;
+      // omitting expiresAt matches shop/shortlink miners and avoids silent 24h removal.
       await createInventoryWithOwnedMachineTx(tx, {
         userId,
         minerId: miner.id,
@@ -166,7 +166,6 @@ export async function claim(req, res) {
         imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
         acquiredAt: now,
         updatedAt: now,
-        expiresAt,
       });
 
       await tx.faucetClaim.upsert({

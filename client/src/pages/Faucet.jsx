@@ -282,6 +282,9 @@ export default function Faucet() {
                         <div className="space-y-2">
                             <h4 className="text-white text-xs font-black uppercase tracking-widest italic">{t('shop.how_it_works_title')}</h4>
                             <p className="text-[11px] text-gray-500 font-medium leading-relaxed">{t('faucet.how_it_works_msg')}</p>
+                            <p className="text-[11px] text-sky-300/90 font-medium leading-relaxed border-t border-blue-500/15 pt-3 mt-1">
+                                {t('faucet.permanent_equipment_note')}
+                            </p>
                         </div>
                     </div>
                 </div>
