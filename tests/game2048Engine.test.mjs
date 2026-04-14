@@ -10,7 +10,8 @@ import {
   mergeLineTowardZero,
   moveBoard,
   normalize2048Cell,
-  parseBoard
+  parseBoard,
+  unwrapBoardJson
 } from "../server/services/game2048Engine.js";
 
 describe("game2048Engine", () => {
@@ -97,6 +98,33 @@ describe("game2048Engine", () => {
     assert.ok(parsed);
     assert.equal(parsed[0][0], 2);
     assert.equal(parsed[1][1], 4);
+  });
+
+  it("unwrapBoardJson parses a JSON string grid", () => {
+    const grid = [
+      [2, 0, 0, 0],
+      [0, 4, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ];
+    const wrapped = JSON.stringify(grid);
+    const top = unwrapBoardJson(wrapped);
+    assert.ok(Array.isArray(top));
+    assert.deepEqual(parseBoard(wrapped), grid);
+  });
+
+  it("parseBoard accepts double JSON-encoded string", () => {
+    const grid = [
+      [2, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ];
+    const once = JSON.stringify(grid);
+    const twice = JSON.stringify(once);
+    const parsed = parseBoard(twice);
+    assert.ok(parsed);
+    assert.equal(parsed[0][0], 2);
   });
 
   it("moveBoard scores merges on boards loaded from string cells", () => {

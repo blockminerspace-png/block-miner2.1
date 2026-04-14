@@ -34,7 +34,9 @@ function useRoundSecondsRemaining(session) {
 }
 
 function Chain2048Tile({ value, row, col, t }) {
-  const slug = value > 0 ? cryptoSlugFor2048Tile(value) : null;
+  const num = typeof value === "number" ? value : Number(value);
+  const hasTile = Number.isFinite(num) && num > 0;
+  const slug = hasTile ? cryptoSlugFor2048Tile(num) : null;
   const scheme = slug ? COIN_COLORS[slug] || COIN_COLORS.ethereum : null;
   const iconSrc = slug ? CRYPTO_ICONS[slug] || CRYPTO_ICONS.ethereum : null;
   const [imgOk, setImgOk] = useState(true);
@@ -46,12 +48,12 @@ function Chain2048Tile({ value, row, col, t }) {
   return (
     <div
       className="relative flex aspect-square items-center justify-center overflow-hidden rounded border border-sky-500/35 bg-[#0a1628] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-      style={value === 0 ? { background: "#0c1929" } : undefined}
+      style={!hasTile ? { background: "#0c1929" } : undefined}
     >
       <AnimatePresence mode="popLayout">
-        {value > 0 && scheme ? (
+        {hasTile && scheme ? (
           <motion.div
-            key={`${row}-${col}-${value}`}
+            key={`${row}-${col}-${num}`}
             initial={{ scale: 0.88, opacity: 0.75 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.82, opacity: 0 }}
@@ -64,7 +66,7 @@ function Chain2048Tile({ value, row, col, t }) {
               background: `radial-gradient(circle at 30% 25%, ${scheme.bg}, rgba(6,10,18,0.95))`,
               boxShadow: `0 0 14px -4px ${scheme.glow}`,
             }}
-            aria-label={t("game2048.tile_aria", { row: row + 1, col: col + 1, value })}
+            aria-label={t("game2048.tile_aria", { row: row + 1, col: col + 1, value: num })}
           >
             {iconSrc && imgOk ? (
               <img
@@ -76,7 +78,7 @@ function Chain2048Tile({ value, row, col, t }) {
               />
             ) : (
               <span className="select-none font-mono text-[clamp(10px,3.5vmin,18px)] font-black tabular-nums text-white/90">
-                {value}
+                {num}
               </span>
             )}
           </motion.div>

@@ -5,6 +5,7 @@ describe("cryptoSlugFor2048Tile", () => {
   it("maps powers of two along the arena ladder", () => {
     expect(cryptoSlugFor2048Tile(2)).toBe("polygon");
     expect(cryptoSlugFor2048Tile(4)).toBe("cardano");
+    expect(cryptoSlugFor2048Tile("4")).toBe("cardano");
     expect(cryptoSlugFor2048Tile(8)).toBe("solana");
     expect(cryptoSlugFor2048Tile(16)).toBe("dogecoin");
     expect(cryptoSlugFor2048Tile(32)).toBe("polkadot");

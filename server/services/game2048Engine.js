@@ -177,14 +177,35 @@ export function normalize2048Cell(c) {
 }
 
 /**
+ * Some drivers / legacy writes store the full grid as a JSON string (or double-encoded).
+ * @param {unknown} json
+ * @returns {unknown[] | null} Four row arrays (not yet cell-normalized)
+ */
+export function unwrapBoardJson(json) {
+  let v = json;
+  for (let depth = 0; depth < 4 && typeof v === "string"; depth += 1) {
+    const t = v.trim();
+    if (!t) return null;
+    try {
+      v = JSON.parse(t);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(v) || v.length !== BOARD_SIZE) return null;
+  return v;
+}
+
+/**
  * @param {unknown} json
  * @returns {number[][] | null}
  */
 export function parseBoard(json) {
-  if (!Array.isArray(json) || json.length !== BOARD_SIZE) return null;
+  const top = unwrapBoardJson(json);
+  if (!top) return null;
   const out = [];
   for (let i = 0; i < BOARD_SIZE; i++) {
-    const row = json[i];
+    const row = top[i];
     if (!Array.isArray(row) || row.length !== BOARD_SIZE) return null;
     const r = [];
     for (let j = 0; j < BOARD_SIZE; j++) {

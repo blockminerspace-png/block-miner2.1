@@ -1,0 +1,33 @@
+---
+description: Disposable test VPS (BlockMiner v3 repo) — host defaults and secret handling; never commit credentials.
+alwaysApply: true
+---
+
+# Test VM deploy (89.167.114.67)
+
+When the user asks to deploy or sync the **test** environment (not production `89.167.119.164`):
+
+## Fixed defaults (override only when the user gives new values)
+
+- **Host:** `89.167.114.67`
+- **SSH user:** `root`
+- **Git remote:** `https://github.com/blockminerspace-png/block-miner-v3.git`
+- **Default branch:** `main` (unless the user or workflow specifies `develop`)
+- **Typical app path on the VM:** `/root/block-miner-v3` (matches `.github/workflows/deploy-test-vm.yml` defaults)
+
+## Credentials (mandatory hygiene)
+
+- **Never** commit root passwords, `vm_config_secret.py`, `.env.production`, or SSH keys to Git.
+- **Local / agent SSH:** use `scripts/vm_config_secret.py` (copy from `scripts/vm_config_secret.example.py`) or environment variables `VM_IP`, `VM_USER`, `VM_PASSWORD` — see `scripts/vm_config.py`.
+- **GitHub Actions:** use repository secret `TEST_VPS_PASSWORD` and variables `TEST_VPS_HOST` / `TEST_REPO_URL` as documented in `.github/workflows/deploy-test-vm.yml`.
+
+## Deploy procedure on the VM
+
+After `git push` to the branch the VM tracks:
+
+1. Ensure `/root/block-miner-v3/.env.production` exists on the server (create from `.env.example` / project docs if missing); the agent cannot invent production secrets.
+2. Run on the server (same idea as CI): `export APP_ROOT=/root/block-miner-v3 GIT_BRANCH=main SKIP_APP_TARBALL=1 DEPLOY_GIT_MODE=reset START_NGINX_PROXY=1 APP_HOST_PORT=3001` (or the port in `.env.production`), then `bash scripts/deploy-production-safe.sh`.
+
+## Tests
+
+- Run normal tests (`npm test`, client tests when UI changes). **Do not** run coverage unless the user asks (see `blockminer-testing-no-coverage-by-default.mdc`).

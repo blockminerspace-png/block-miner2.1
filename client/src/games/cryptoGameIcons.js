@@ -73,8 +73,9 @@ export function mergePathValues(winTile, maxSteps = 14) {
  * @returns {keyof typeof CRYPTO_ICONS}
  */
 export function cryptoSlugFor2048Tile(value) {
-  if (!Number.isFinite(value) || value < 2) return "polygon";
-  const log = Math.log2(value);
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 2) return "polygon";
+  const log = Math.log2(n);
   if (!Number.isInteger(log) || log < 1) return "polygon";
   const idx = log - 1;
   if (idx < 0) return "polygon";
