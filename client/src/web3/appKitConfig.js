@@ -1,4 +1,5 @@
 import { createAppKit } from '@reown/appkit/react';
+import { ApiController } from '@reown/appkit-controllers';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { polygon } from '@reown/appkit/networks';
 import { QueryClient } from '@tanstack/react-query';
@@ -18,7 +19,7 @@ export const wagmiAdapter = new WagmiAdapter({
   ssr: false,
 });
 
-createAppKit({
+const appKit = createAppKit({
   adapters: [wagmiAdapter],
   networks,
   projectId,
@@ -34,3 +35,15 @@ createAppKit({
     analytics: false,
   },
 });
+
+// AppKit only auto-prefetches the explorer in headless mode without injected wallets; with MetaMask
+// etc. the "All wallets" grid could stay on skeletons until this runs.
+void appKit.readyPromise?.then(() =>
+  ApiController.prefetch({
+    fetchNetworkImages: true,
+    fetchConnectorImages: true,
+    fetchWalletRanks: true,
+    fetchFeaturedWallets: true,
+    fetchRecommendedWallets: true,
+  })
+);

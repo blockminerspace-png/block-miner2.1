@@ -1177,6 +1177,7 @@
       "hint": "Abre el selector de carteras (WalletConnect en el móvil o extensión en PC), red Polygon (137). Luego usa «Depósito express» para firmar el envío de POL — el servidor acredita tras confirmaciones on-chain.",
       "express_safety": "Firmas el envío en tu cartera hacia la dirección de la plataforma. Envía solo POL en Polygon; otros activos pueden perderse.",
       "wc_missing_build": "Sin VITE_WALLETCONNECT_PROJECT_ID — WalletConnect no abrirá en el móvil. Añade el ID en deploy.secrets.local (se fusiona al desplegar) o en .env.production.vm-backup y redeploy.",
+      "wc_explorer_domains_hint": "Si la lista o la búsqueda de carteras (Reown) queda vacía, añade el origen exacto de este sitio (p. ej. https://tests.blockminer.space) en Allowed domains de tu proyecto en WalletConnect Cloud. Eso no lo controla el CORS de tu API.",
       "connect_browser": "Conectar cartera",
       "connect_wc": "WalletConnect",
       "connecting": "Conectando…",

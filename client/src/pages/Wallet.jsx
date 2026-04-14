@@ -1060,7 +1060,11 @@ export default function Wallet() {
                                                 <p className="text-[9px] text-amber-300/90 font-bold leading-relaxed">
                                                     {t('wallet.web3_deposit.wc_missing_build')}
                                                 </p>
-                                            ) : null}
+                                            ) : (
+                                                <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                                                    {t('wallet.web3_deposit.wc_explorer_domains_hint')}
+                                                </p>
+                                            )}
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex flex-col sm:flex-row gap-2">
                                                     <button

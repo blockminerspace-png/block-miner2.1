@@ -6,7 +6,6 @@ import { ArrowLeft, Clock, Coins, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../store/auth";
 import { CRYPTO_ICONS, COIN_COLORS, cryptoSlugFor2048Tile } from "../games/cryptoGameIcons.js";
-import { bestTileOnBoard, mergeProgressPercent } from "../games/game2048BoardUtils.js";
 
 function formatMmSs(totalSeconds) {
   const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
@@ -281,6 +280,7 @@ export default function Game2048Page() {
       const tag = el && typeof el.tagName === "string" ? el.tagName.toLowerCase() : "";
       if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
       e.preventDefault();
+      e.stopPropagation();
       if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
       let dir = null;
       if (key === "ArrowUp") dir = "up";
@@ -294,10 +294,23 @@ export default function Game2048Page() {
   );
 
   useEffect(() => {
-    const opts = { capture: true };
+    const opts = { capture: true, passive: false };
     window.addEventListener("keydown", onKeyDown, opts);
     return () => window.removeEventListener("keydown", onKeyDown, opts);
   }, [onKeyDown]);
+
+  /** Lock document scroll so arrow keys do not scroll the page or nested overflow regions. */
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
 
   const restartGame = useCallback(async () => {
     setBusy(true);
@@ -380,20 +393,10 @@ export default function Game2048Page() {
     else void sendMove(dy > 0 ? "down" : "up");
   };
 
-  const winTile = session?.winTile ?? status?.winTile ?? 2048;
-  const minScore = session?.minScore ?? status?.minScore ?? 1000;
-  const rewardHr = session?.rewardHashRate ?? status?.rewardHashRate ?? 25;
-  const powerDaysFull = status?.powerDaysFull ?? session?.powerDaysFull ?? status?.powerDays ?? 7;
-  const rewardPowerDays = status?.rewardPowerDays ?? session?.rewardPowerDays;
-  const rewardPowerHours = status?.rewardPowerHours ?? session?.rewardPowerHours;
-  const showRewardHours = rewardPowerHours != null && Number(rewardPowerHours) > 0;
   const cdSec = status?.cooldownSecondsRemaining ?? 0;
   const board = session?.board;
-  const best = bestTileOnBoard(board);
-  const cooldownMinutesDisplay = status?.cooldownMinutesHint || 3;
   const showTimer = (session?.timeLimitSeconds ?? 0) > 0 && session?.status === "ACTIVE" && !session?.gameOver;
   const overlayKind = session ? endOverlayKey(session) : null;
-  const progressPct = mergeProgressPercent(best, winTile);
 
   const boardSize = board?.length || 0;
   const hasBoard = Boolean(board && boardSize > 0);
@@ -405,7 +408,7 @@ export default function Game2048Page() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-[#020617]"
+      className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-[#020617]"
       style={{ direction: "ltr", overscrollBehavior: "none" }}
     >
       <>
@@ -468,46 +471,8 @@ export default function Game2048Page() {
             </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="shrink-0 space-y-1.5 border-b border-slate-800/80 bg-[#050a14]/90 px-2 py-2 sm:space-y-2 sm:px-4">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[9px] font-black uppercase tracking-widest text-sky-400/90">
-                  {t("game2048.progress_label")}
-                </span>
-                <span className="text-[9px] font-bold tabular-nums text-slate-500">
-                  {Math.round(progressPct)}%
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-800 ring-1 ring-sky-900/40">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-300 ease-out"
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
-              <p className="text-[10px] leading-snug text-slate-500 sm:text-[11px]">
-                {t("game2048.target_hint", { tile: winTile, minScore })} · {t("game2048.best_tile")}:{" "}
-                <span className="font-bold text-sky-400">{best}</span>
-              </p>
-              <p className="text-[10px] text-slate-500 sm:text-[11px]">
-                {showRewardHours
-                  ? t("game2048.reward_line_hours", {
-                      hr: rewardHr,
-                      hours: rewardPowerHours,
-                      days: powerDaysFull,
-                    })
-                  : t("game2048.reward_line", {
-                      hr: rewardHr,
-                      days: rewardPowerDays ?? status?.powerDays ?? 7,
-                    })}
-              </p>
-              {cooldownMinutesDisplay > 0 && (
-                <p className="text-[10px] text-slate-600 sm:text-[11px]">
-                  {t("game2048.cooldown_line", { minutes: cooldownMinutesDisplay })}
-                </p>
-              )}
-            </div>
-
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-4">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden overscroll-none">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden overscroll-none px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-4">
               <div className="flex flex-wrap justify-center gap-2">
                 {session?.canClaim && (
                   <button

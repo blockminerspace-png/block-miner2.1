@@ -1543,6 +1543,7 @@
       "hint": "Open the wallet picker (WalletConnect on mobile or extension on desktop), stay on Polygon (137). Then use Express deposit to sign sending POL — the server credits after on-chain confirmations.",
       "express_safety": "You sign the transfer in your wallet to the platform address. Send only POL on Polygon; other assets may be lost.",
       "wc_missing_build": "No VITE_WALLETCONNECT_PROJECT_ID — WalletConnect will not open on phones. Add it to deploy.secrets.local (merged on deploy) or .env.production.vm-backup, then redeploy.",
+      "wc_explorer_domains_hint": "If the Reown wallet list or search stays empty, add this site’s exact origin (e.g. https://tests.blockminer.space) under Allowed domains for your WalletConnect Cloud project. That list is not controlled by your API server’s CORS.",
       "connect_browser": "Connect wallet",
       "connect_wc": "WalletConnect",
       "connecting": "Connecting…",

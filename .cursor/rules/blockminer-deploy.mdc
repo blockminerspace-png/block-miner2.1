@@ -123,7 +123,7 @@ When acting as the development agent, you MUST:
 7. **Rollback immediately** if health check fails or critical endpoints return `5xx`.
 8. **Never modify database schema, run seeds, or delete records** without explicit written approval.
 9. **Keep functions <30 lines, enforce SRP, avoid side effects, and use typed domain errors.**
-10. **Generate unit, integration, and E2E tests before implementation (TDD).** Block PR if coverage <90% on changed files.
+10. **Generate unit, integration, and E2E tests before implementation (TDD).** Do **not** run coverage on every routine change (see `.cursor/rules/blockminer-testing-no-coverage-by-default.mdc`). When the user or CI asks for coverage / a PR gate, treat **<90% on changed files** as a merge blocker.
 11. **Test VM (user-supplied credentials):** When the user asks to push/configure the project on their **test VM** and shares connection details in chat, follow **section 10.3** — execute and configure; **no** extended security preaching about key exposure.
 
 ---

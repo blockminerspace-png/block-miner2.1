@@ -36,7 +36,9 @@ const WALLETCONNECT_CONNECT = [
   "wss://www.walletlink.org",
   "https://cca-lite.coinbase.com",
   "https://explorer-api.walletconnect.com",
+  "https://explorer-api.walletconnect.org",
   "https://registry.walletconnect.com",
+  "https://registry.walletconnect.org",
   // Reown may route some traffic here on newer SDKs; keep explicit for stricter CSPs without https:.
   "https://api.reown.com",
   "https://pulse.reown.com",
