@@ -28,7 +28,7 @@ LABEL maintainer="blockminer"
 # OpenSSL is required by Prisma. Xvfb + ffmpeg are required for admin RTMP capture (Playwright + x11grab).
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      openssl rclone ca-certificates netcat-openbsd \
+      openssl rclone ca-certificates netcat-openbsd postgresql-client \
       xvfb ffmpeg \
     && update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*

@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import loggerLib from "../utils/logger.js";
+import { getRequestIp } from "../utils/clientIp.js";
+import { createAuditLogBestEffort } from "../models/auditLogModel.js";
 import { ADMIN_SESSION_COOKIE, getAdminTokenFromRequest } from "../utils/token.js";
 
 const logger = loggerLib.child("AdminAuthController");
@@ -66,6 +68,13 @@ export async function login(req, res) {
     ]);
 
     if (!userEmailRaw || !rawCode) {
+      void createAuditLogBestEffort({
+        userId: null,
+        action: "ADMIN_LOGIN_FAILURE",
+        ip: getRequestIp(req),
+        userAgent: req.headers["user-agent"] || null,
+        details: { reason: "MISSING_FIELDS" },
+      });
       return res.status(400).json({ ok: false, message: "Email and code required" });
     }
 
@@ -76,6 +85,13 @@ export async function login(req, res) {
     const codeMatch = timingSafeStringEqual(userCode, ADMIN_SECURITY_CODE);
 
     if (!emailMatch || !codeMatch) {
+      void createAuditLogBestEffort({
+        userId: null,
+        action: "ADMIN_LOGIN_FAILURE",
+        ip: getRequestIp(req),
+        userAgent: req.headers["user-agent"] || null,
+        details: { reason: "INVALID_CREDENTIALS" },
+      });
       return res.status(401).json({ ok: false, message: "Invalid credentials" });
     }
 
@@ -86,6 +102,13 @@ export async function login(req, res) {
 
     const cookieSecure = adminCookieShouldBeSecure(req);
     res.setHeader("Set-Cookie", buildAdminCookie(token, { secure: cookieSecure }));
+    void createAuditLogBestEffort({
+      userId: null,
+      action: "ADMIN_LOGIN_SUCCESS",
+      ip: getRequestIp(req),
+      userAgent: req.headers["user-agent"] || null,
+      details: { email: userEmail },
+    });
     // Session is HttpOnly cookie only — do not return JWT in JSON (reduces XSS / log leakage).
     return res.json({ ok: true, message: "Authenticated" });
   } catch (error) {

@@ -7,6 +7,7 @@ import prisma from "../src/db/prisma.js";
 import { getTokenFromRequest, getRefreshTokenFromRequest, ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME } from "../utils/token.js";
 import { signAccessToken, createRefreshToken, parseRefreshToken, verifyAccessToken } from "../utils/authTokens.js";
 import { createRefreshTokenRecord, getRefreshTokenById, revokeRefreshToken } from "../models/refreshTokenModel.js";
+import { createAuditLogBestEffort } from "../models/auditLogModel.js";
 import { updateUserLoginMeta } from "../models/userModel.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { validateBody } from "../middleware/validate.js";
@@ -319,6 +320,14 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), requireT
       return user;
     });
 
+    void createAuditLogBestEffort({
+      userId: result.id,
+      action: "AUTH_REGISTER",
+      ip: clientIp,
+      userAgent: req.headers["user-agent"] || null,
+      details: { email: result.email, username: result.username },
+    });
+
     const accessToken = signAccessToken(result);
     const refreshToken = createRefreshToken();
     await createRefreshTokenRecord({ userId: result.id, ...refreshToken, createdAt: Date.now() });
@@ -388,6 +397,13 @@ authRouter.post(
           }
         })
       });
+      void createAuditLogBestEffort({
+        userId: null,
+        action: "AUTH_LOGIN_FAILURE",
+        ip: clientIp,
+        userAgent: req.headers["user-agent"] || null,
+        details: { reason: "IDENTIFIER_NOT_FOUND", identifier },
+      });
       return res.status(401).json({ ok: false, code: "IDENTIFIER_NOT_FOUND", message: "Email ou username não existe." });
     }
 
@@ -440,6 +456,13 @@ authRouter.post(
           }
         })
       });
+      void createAuditLogBestEffort({
+        userId: user.id,
+        action: "AUTH_LOGIN_FAILURE",
+        ip: clientIp,
+        userAgent: req.headers["user-agent"] || null,
+        details: { reason: "INVALID_CREDENTIALS", identifier },
+      });
       return res.status(401).json({ ok: false, code: "INVALID_CREDENTIALS", message: "Invalid credentials." });
     }
 
@@ -478,6 +501,13 @@ authRouter.post(
             }
           })
         });
+        void createAuditLogBestEffort({
+          userId: user.id,
+          action: "AUTH_2FA_FAILURE",
+          ip: clientIp,
+          userAgent: req.headers["user-agent"] || null,
+          details: { reason: "INVALID_2FA" },
+        });
         return res.status(401).json({ ok: false, code: "INVALID_2FA", message: "Código 2FA inválido." });
       }
     }
@@ -514,6 +544,14 @@ authRouter.post(
     await recordAuthLoginSuccess({ ip: clientIp, userId: user.id });
 
     logUserActivity("AUTH_LOGIN_SUCCESS", req, { userId: user.id });
+
+    void createAuditLogBestEffort({
+      userId: user.id,
+      action: "AUTH_LOGIN_SUCCESS",
+      ip: clientIp,
+      userAgent: req.headers["user-agent"] || null,
+      details: { email: user.email },
+    });
 
     const newCsrf = crypto.randomBytes(24).toString("base64url");
     res.locals.csrfToken = newCsrf;

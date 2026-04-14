@@ -54,6 +54,15 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(pt.adminMiniPass.sections.pass).toBeTruthy();
     expect(es.adminMiniPass.sections.pass).toBeTruthy();
 
+    expect(en.adminBackups.title).toBeTruthy();
+    expect(pt.adminBackups.title).toBeTruthy();
+    expect(es.adminBackups.title).toBeTruthy();
+    expect(en.adminBackups.status_success).toBeTruthy();
+
+    expect(en.adminLogs.title).toBeTruthy();
+    expect(pt.adminLogs.title).toBeTruthy();
+    expect(es.adminLogs.title).toBeTruthy();
+
     expect(en.wallet.hero_subtitle).toBeTruthy();
     expect(pt.wallet.ledger_title).toBeTruthy();
     expect(es.wallet.tx_inflow).toBeTruthy();

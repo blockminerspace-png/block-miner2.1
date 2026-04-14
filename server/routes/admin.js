@@ -23,6 +23,14 @@ import * as adminInternalOfferwallController from "../controllers/adminInternalO
 import { adminYoutubeStreamRouter } from "./admin-youtube-stream.js";
 import prisma from "../src/db/prisma.js";
 import { bulkCreateInventoryWithOwnedMachinesTx } from "../services/userOwnedMachineService.js";
+import {
+    createPostgresSqlBackup,
+    listSqlBackups,
+    deleteSqlBackup,
+    resolveBackupDownloadPath,
+} from "../services/databaseBackupService.js";
+import { listUnifiedAdminAuditLogs } from "../services/adminAuditListService.js";
+import loggerLib from "../utils/logger.js";
 import path from "path";
 import fs from "fs/promises";
 import { mkdirSync } from "fs";
@@ -31,6 +39,9 @@ import multer from "multer";
 import crypto from "crypto";
 
 export const adminRouter = express.Router();
+
+const backupLogger = loggerLib.child("AdminBackup");
+const adminAuditListLogger = loggerLib.child("AdminAuditList");
 
 const adminLimiter = createRateLimiter({
     windowMs: 1 * 60 * 1000,
@@ -552,18 +563,14 @@ adminRouter.get("/finance/activity", async (req, res) => {
     }
 });
 
-// Audit Logs
+// System / audit logs — merges `audit_logs` + `audit_events` (see adminAuditListService.js)
 adminRouter.get("/audit", async (req, res) => {
     try {
-        const limit = Number(req.query.limit) || 10;
-        const source = prisma.auditEvent ? prisma.auditEvent : prisma.auditLog;
-        const logs = await source.findMany({
-            orderBy: { createdAt: 'desc' },
-            take: limit
-        });
-        res.json({ ok: true, logs });
+        const payload = await listUnifiedAdminAuditLogs(req.query);
+        res.json(payload);
     } catch (error) {
-        res.status(500).json({ ok: false, message: "Error" });
+        adminAuditListLogger.error("admin_audit_list_failed", { message: error?.message || String(error) });
+        res.status(500).json({ ok: false, message: "Unable to load audit logs." });
     }
 });
 
@@ -596,35 +603,14 @@ adminRouter.get("/server-metrics", async (req, res) => {
     }
 });
 
-// Backups
+// Backups — full PostgreSQL logical dumps via pg_dump (see databaseBackupService.js)
 adminRouter.get("/backups", async (req, res) => {
     try {
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-        const backupsDir = path.join(__dirname, "../../backups");
-
-        try {
-            await fs.mkdir(backupsDir, { recursive: true });
-        } catch (e) { }
-
-        const files = await fs.readdir(backupsDir);
-        const backups = [];
-
-        for (const file of files) {
-            if (file.endsWith('.sql') || file.endsWith('.db')) {
-                const stat = await fs.stat(path.join(backupsDir, file));
-                backups.push({
-                    name: file,
-                    size: stat.size,
-                    created: stat.mtime
-                });
-            }
-        }
-
-        backups.sort((a, b) => b.created - a.created);
+        const { backups } = await listSqlBackups();
         res.json({ ok: true, backups });
     } catch (error) {
-        res.status(500).json({ ok: false, message: "Error" });
+        backupLogger.error("admin_backup_list_failed", { message: error?.message || String(error) });
+        res.status(500).json({ ok: false, message: "Unable to list backups." });
     }
 });
 
@@ -633,51 +619,43 @@ adminRouter.get("/backups/download", async (req, res) => {
         const { file } = req.query;
         if (!file) return res.status(400).send("File name required");
 
-        // Basic path traversal protection
-        if (file.includes("..") || file.includes("/")) return res.status(400).send("Invalid file name");
-
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-        const filePath = path.join(__dirname, "../../backups", file);
-
+        const filePath = await resolveBackupDownloadPath(String(file));
         res.download(filePath);
     } catch (error) {
+        if (error?.message === "Invalid backup filename") {
+            return res.status(400).send("Invalid file name");
+        }
+        if (error?.message === "Backup file not found") {
+            return res.status(404).send("Not found");
+        }
+        backupLogger.error("admin_backup_download_failed", { message: error?.message || String(error) });
         res.status(500).send("Download failed");
     }
 });
 
 adminRouter.post("/backups", async (req, res) => {
     try {
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-        const backupsDir = path.join(__dirname, "../../backups");
-        await fs.mkdir(backupsDir, { recursive: true });
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `backup-${timestamp}.sql`;
-
-        // Mocking a backup creation (normally pg_dump)
-        await fs.writeFile(path.join(backupsDir, filename), "-- Mock DB Backup\n");
-
-        res.json({ ok: true, message: "Backup created" });
+        const backup = await createPostgresSqlBackup({ prisma, logger: backupLogger });
+        res.json({ ok: true, message: "Backup created", backup });
     } catch (error) {
-        res.status(500).json({ ok: false, message: "Error" });
+        backupLogger.error("admin_backup_create_failed", { message: error?.message || String(error) });
+        res.status(500).json({ ok: false, message: error?.message || "Backup failed" });
     }
 });
 
 adminRouter.delete("/backups", async (req, res) => {
     try {
         const { filename } = req.body;
-        if (!filename) return res.status(400).json({ ok: false });
+        if (!filename) return res.status(400).json({ ok: false, message: "filename required" });
 
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-        const filePath = path.join(__dirname, "../../backups", filename);
-
-        await fs.unlink(filePath);
+        await deleteSqlBackup(String(filename));
         res.json({ ok: true, message: "Deleted" });
     } catch (error) {
-        res.status(500).json({ ok: false, message: "Error" });
+        if (error?.message === "Invalid backup filename") {
+            return res.status(400).json({ ok: false, message: "Invalid backup filename" });
+        }
+        backupLogger.error("admin_backup_delete_failed", { message: error?.message || String(error) });
+        res.status(500).json({ ok: false, message: "Unable to delete backup." });
     }
 });
 

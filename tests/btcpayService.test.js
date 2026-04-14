@@ -36,6 +36,9 @@ test("listBtcpayMissingEnvKeys reports all four when unset", () => {
     process.env.BTCPAY_COMING_SOON = "1";
     assert.equal(isBtcpayComingSoon(), true);
     assert.equal(isBtcpayInvoiceFlowEnabled(), false);
+    process.env.BTCPAY_COMING_SOON = "0";
+    assert.equal(isBtcpayComingSoon(), false);
+    assert.equal(isBtcpayInvoiceFlowEnabled(), true);
     delete process.env.BTCPAY_COMING_SOON;
     assert.equal(isBtcpayInvoiceFlowEnabled(), true);
   } finally {

@@ -2,17 +2,19 @@ export async function createAuditEventOutbox({ client, event }) {
   return client.auditEventOutbox.create({ data: event });
 }
 
+/**
+ * Rows ready to be promoted to `audit_events`.
+ * New outbox rows store the *event* status (SUCCESS / FAILED / PARTIAL), not a separate queue flag.
+ * Completed rows use `SENT`; exhausted retries use `DLQ`.
+ */
 export async function fetchPendingAuditOutbox({ client, limit = 25 }) {
   return client.auditEventOutbox.findMany({
     where: {
-      status: "PENDING",
-      OR: [
-        { nextRetryAt: null },
-        { nextRetryAt: { lte: new Date() } }
-      ]
+      status: { notIn: ["SENT", "DLQ"] },
+      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }],
     },
     orderBy: { createdAt: "asc" },
-    take: limit
+    take: limit,
   });
 }
 

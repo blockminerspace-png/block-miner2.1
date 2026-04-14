@@ -333,12 +333,12 @@ export default function AdminDashboard() {
                         </thead>
                         <tbody className="divide-y divide-slate-800 font-medium">
                             {auditLogs.map((log, i) => (
-                                <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="px-8 py-4 text-xs font-bold text-slate-300">{log.action}</td>
-                                    <td className="px-8 py-4 text-xs text-slate-500">{log.user_email || `User #${log.user_id}`}</td>
-                                    <td className="px-8 py-4 text-[10px] font-mono text-slate-600">{log.ip}</td>
+                                <tr key={log.id || i} className="hover:bg-slate-800/30 transition-colors">
+                                    <td className="px-8 py-4 text-xs font-bold text-slate-300">{log.action || "—"}</td>
+                                    <td className="px-8 py-4 text-xs text-slate-500">{log.user_email || (log.user_id != null ? `User #${log.user_id}` : "—")}</td>
+                                    <td className="px-8 py-4 text-[10px] font-mono text-slate-600">{log.ip || "—"}</td>
                                     <td className="px-8 py-4 text-right text-[10px] font-medium text-slate-500">
-                                        {new Date(log.created_at).toLocaleString()}
+                                        {new Date(log.created_at || log.createdAt).toLocaleString()}
                                     </td>
                                 </tr>
                             ))}

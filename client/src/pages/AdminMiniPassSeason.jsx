@@ -33,6 +33,11 @@ const REWARD_KINDS = ["NONE", "SHOP_MINER", "EVENT_MINER", "HASHRATE_TEMP", "BLK
 const CADENCES = ["EVENT", "DAILY", "WEEKLY"];
 const MISSION_TYPES = ["PLAY_GAMES", "MINE_BLK", "LOGIN_DAY"];
 
+const INPUT_BASE =
+  "w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/40";
+const INPUT_MT = `mt-2 ${INPUT_BASE}`;
+const TEXTAREA_MT = `mt-2 ${INPUT_BASE} resize-y min-h-[76px]`;
+
 function SectionCard({ icon: Icon, title, description, children, variant = "default" }) {
   const border = variant === "accent" ? "border-amber-500/25" : "border-slate-800";
   return (
@@ -56,11 +61,16 @@ function SectionCard({ icon: Icon, title, description, children, variant = "defa
 }
 
 function FieldLabel({ htmlFor, label, hint }) {
+  const labelClass = "block text-xs font-bold uppercase tracking-wider text-slate-400";
   return (
     <div className="space-y-1">
-      <label htmlFor={htmlFor} className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-        {label}
-      </label>
+      {htmlFor ? (
+        <label htmlFor={htmlFor} className={labelClass}>
+          {label}
+        </label>
+      ) : (
+        <span className={labelClass}>{label}</span>
+      )}
       {hint ? <p className="text-[11px] leading-snug text-slate-600">{hint}</p> : null}
     </div>
   );
@@ -731,24 +741,38 @@ export default function AdminMiniPassSeason() {
                   </div>
                 ) : null}
 
-                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t("adminMiniPass.rewards.add_title")}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5 md:p-6 space-y-8">
+                  <header className="space-y-1">
+                    <h3 className="text-sm font-bold text-white">{t("adminMiniPass.rewards.add_title")}</h3>
+                    <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">{t("adminMiniPass.rewards.form_help")}</p>
+                  </header>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.rewards.level")}</label>
+                      <FieldLabel
+                        htmlFor="mp-rwd-level"
+                        label={t("adminMiniPass.rewards.level")}
+                        hint={t("adminMiniPass.rewards.level_hint")}
+                      />
                       <input
+                        id="mp-rwd-level"
                         type="number"
                         min={1}
                         max={500}
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
+                        className={INPUT_MT}
                         value={rewardDraft.level}
                         onChange={(e) => setRewardDraft({ ...rewardDraft, level: e.target.value })}
                       />
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.rewards.kind")}</label>
+                    <div>
+                      <FieldLabel
+                        htmlFor="mp-rwd-kind"
+                        label={t("adminMiniPass.rewards.kind")}
+                        hint={t("adminMiniPass.rewards.kind_hint_short")}
+                      />
                       <select
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
+                        id="mp-rwd-kind"
+                        className={INPUT_MT}
                         value={rewardDraft.rewardKind}
                         onChange={(e) => setRewardDraft({ ...rewardDraft, rewardKind: e.target.value })}
                       >
@@ -758,89 +782,138 @@ export default function AdminMiniPassSeason() {
                           </option>
                         ))}
                       </select>
-                      <p className="text-[10px] text-slate-600 mt-1">{t(`adminMiniPass.reward_kind_hints.${rewardDraft.rewardKind}`)}</p>
+                      <p className="mt-3 text-xs text-slate-400 leading-snug border-l-2 border-amber-500/35 pl-3">
+                        {t(`adminMiniPass.reward_kind_hints.${rewardDraft.rewardKind}`)}
+                      </p>
                     </div>
                   </div>
 
-                  {(rewardDraft.rewardKind === "SHOP_MINER" || rewardDraft.rewardKind === "EVENT_MINER") && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {rewardDraft.rewardKind === "SHOP_MINER" ? (
-                        <div>
-                          <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.rewards.shop_miner_id")}</label>
-                          <input
-                            className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                            value={rewardDraft.minerId}
-                            onChange={(e) => setRewardDraft({ ...rewardDraft, minerId: e.target.value })}
-                            placeholder={t("adminMiniPass.placeholders.numeric_id")}
-                          />
+                  {rewardDraft.rewardKind !== "NONE" ? (
+                    <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-4 md:p-5 space-y-5">
+                      <p className="text-xs font-black uppercase tracking-wider text-amber-300/95">
+                        {t("adminMiniPass.rewards.payload_heading")}
+                      </p>
+
+                      {(rewardDraft.rewardKind === "SHOP_MINER" || rewardDraft.rewardKind === "EVENT_MINER") && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          {rewardDraft.rewardKind === "SHOP_MINER" ? (
+                            <div>
+                              <FieldLabel
+                                htmlFor="mp-rwd-shop-miner"
+                                label={t("adminMiniPass.rewards.shop_miner_id")}
+                                hint={t("adminMiniPass.rewards.shop_miner_hint")}
+                              />
+                              <input
+                                id="mp-rwd-shop-miner"
+                                className={INPUT_MT}
+                                value={rewardDraft.minerId}
+                                onChange={(e) => setRewardDraft({ ...rewardDraft, minerId: e.target.value })}
+                                placeholder={t("adminMiniPass.placeholders.numeric_id")}
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <FieldLabel
+                                htmlFor="mp-rwd-event-miner"
+                                label={t("adminMiniPass.rewards.event_miner_id")}
+                                hint={t("adminMiniPass.rewards.event_miner_hint")}
+                              />
+                              <input
+                                id="mp-rwd-event-miner"
+                                className={INPUT_MT}
+                                value={rewardDraft.eventMinerId}
+                                onChange={(e) => setRewardDraft({ ...rewardDraft, eventMinerId: e.target.value })}
+                                placeholder={t("adminMiniPass.placeholders.numeric_id")}
+                              />
+                            </div>
+                          )}
                         </div>
-                      ) : (
+                      )}
+
+                      {rewardDraft.rewardKind === "HASHRATE_TEMP" && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div>
+                            <FieldLabel
+                              htmlFor="mp-rwd-hr"
+                              label={t("adminMiniPass.rewards.hash_rate")}
+                              hint={t("adminMiniPass.rewards.hash_rate_hint")}
+                            />
+                            <input
+                              id="mp-rwd-hr"
+                              className={INPUT_MT}
+                              value={rewardDraft.hashRate}
+                              onChange={(e) => setRewardDraft({ ...rewardDraft, hashRate: e.target.value })}
+                              placeholder="25"
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel
+                              htmlFor="mp-rwd-hr-days"
+                              label={t("adminMiniPass.rewards.hash_days")}
+                              hint={t("adminMiniPass.rewards.hash_days_hint")}
+                            />
+                            <input
+                              id="mp-rwd-hr-days"
+                              className={INPUT_MT}
+                              value={rewardDraft.hashRateDays}
+                              onChange={(e) => setRewardDraft({ ...rewardDraft, hashRateDays: e.target.value })}
+                              placeholder="7"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {(rewardDraft.rewardKind === "BLK" || rewardDraft.rewardKind === "POL") && (
                         <div>
-                          <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.rewards.event_miner_id")}</label>
+                          <FieldLabel
+                            htmlFor="mp-rwd-token-amt"
+                            label={
+                              rewardDraft.rewardKind === "BLK"
+                                ? t("adminMiniPass.rewards.blk_amount")
+                                : t("adminMiniPass.rewards.pol_amount")
+                            }
+                            hint={t("adminMiniPass.rewards.token_amount_hint")}
+                          />
                           <input
-                            className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                            value={rewardDraft.eventMinerId}
-                            onChange={(e) => setRewardDraft({ ...rewardDraft, eventMinerId: e.target.value })}
-                            placeholder={t("adminMiniPass.placeholders.numeric_id")}
+                            id="mp-rwd-token-amt"
+                            className={INPUT_MT}
+                            value={rewardDraft.rewardKind === "BLK" ? rewardDraft.blkAmount : rewardDraft.polAmount}
+                            onChange={(e) =>
+                              setRewardDraft({
+                                ...rewardDraft,
+                                ...(rewardDraft.rewardKind === "BLK" ? { blkAmount: e.target.value } : { polAmount: e.target.value }),
+                              })
+                            }
+                            placeholder="0.5"
                           />
                         </div>
                       )}
                     </div>
-                  )}
+                  ) : null}
 
-                  {rewardDraft.rewardKind === "HASHRATE_TEMP" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.rewards.hash_rate")}</label>
-                        <input
-                          className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                          value={rewardDraft.hashRate}
-                          onChange={(e) => setRewardDraft({ ...rewardDraft, hashRate: e.target.value })}
-                          placeholder="25"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.rewards.hash_days")}</label>
-                        <input
-                          className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                          value={rewardDraft.hashRateDays}
-                          onChange={(e) => setRewardDraft({ ...rewardDraft, hashRateDays: e.target.value })}
-                          placeholder="7"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {(rewardDraft.rewardKind === "BLK" || rewardDraft.rewardKind === "POL") && (
-                    <div>
-                      <label className="text-[10px] uppercase text-slate-500">
-                        {rewardDraft.rewardKind === "BLK" ? t("adminMiniPass.rewards.blk_amount") : t("adminMiniPass.rewards.pol_amount")}
-                      </label>
-                      <input
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                        value={rewardDraft.rewardKind === "BLK" ? rewardDraft.blkAmount : rewardDraft.polAmount}
-                        onChange={(e) =>
-                          setRewardDraft({
-                            ...rewardDraft,
-                            ...(rewardDraft.rewardKind === "BLK" ? { blkAmount: e.target.value } : { polAmount: e.target.value }),
-                          })
-                        }
-                        placeholder="0.5"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-[10px] uppercase text-slate-500 mb-2">{t("adminMiniPass.rewards.optional_titles")}</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {["titleEn", "titlePtBR", "titleEs"].map((k, i) => (
-                        <input
-                          key={k}
-                          className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-xs text-white"
-                          placeholder={[t("adminMiniPass.locale.en"), t("adminMiniPass.locale.pt"), t("adminMiniPass.locale.es")][i]}
-                          value={rewardDraft[k]}
-                          onChange={(e) => setRewardDraft({ ...rewardDraft, [k]: e.target.value })}
-                        />
+                  <div className="space-y-3">
+                    <FieldLabel
+                      label={t("adminMiniPass.rewards.optional_titles")}
+                      hint={t("adminMiniPass.rewards.optional_titles_hint")}
+                    />
+                    <div className="grid grid-cols-1 gap-4">
+                      {[
+                        { key: "titleEn", lab: t("adminMiniPass.locale.en"), id: "mp-rwd-title-en" },
+                        { key: "titlePtBR", lab: t("adminMiniPass.locale.pt"), id: "mp-rwd-title-pt" },
+                        { key: "titleEs", lab: t("adminMiniPass.locale.es"), id: "mp-rwd-title-es" },
+                      ].map(({ key, lab, id }) => (
+                        <div key={key}>
+                          <label htmlFor={id} className="text-xs font-semibold text-slate-400">
+                            {lab}
+                          </label>
+                          <input
+                            id={id}
+                            className={INPUT_MT}
+                            placeholder={t("adminMiniPass.placeholders.reward_title_locale")}
+                            value={rewardDraft[key]}
+                            onChange={(e) => setRewardDraft({ ...rewardDraft, [key]: e.target.value })}
+                          />
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -852,9 +925,9 @@ export default function AdminMiniPassSeason() {
                   <button
                     type="button"
                     onClick={() => void addReward()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/90 text-slate-950 text-xs font-black uppercase"
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-500 text-slate-950 text-xs font-black uppercase tracking-wide hover:bg-amber-400"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-4 h-4 shrink-0" aria-hidden />
                     {t("adminMiniPass.rewards.add_button")}
                   </button>
                 </div>
@@ -896,108 +969,184 @@ export default function AdminMiniPassSeason() {
               </SectionCard>
 
               <SectionCard icon={Target} title={t("adminMiniPass.sections.missions")} description={t("adminMiniPass.sections.missions_desc")}>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.missions.cadence")}</label>
-                      <select
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                        value={missionDraft.cadence}
-                        onChange={(e) => setMissionDraft({ ...missionDraft, cadence: e.target.value })}
-                      >
-                        {CADENCES.map((c) => (
-                          <option key={c} value={c}>
-                            {t(`adminMiniPass.cadences.${c}`)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.missions.type")}</label>
-                      <select
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                        value={missionDraft.missionType}
-                        onChange={(e) => setMissionDraft({ ...missionDraft, missionType: e.target.value })}
-                      >
-                        {MISSION_TYPES.map((c) => (
-                          <option key={c} value={c}>
-                            {t(`adminMiniPass.mission_types.${c}`)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.missions.sort_order")}</label>
-                      <input
-                        type="number"
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                        value={missionDraft.sortOrder}
-                        onChange={(e) => setMissionDraft({ ...missionDraft, sortOrder: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.missions.target")}</label>
-                      <input
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                        value={missionDraft.targetValue}
-                        onChange={(e) => setMissionDraft({ ...missionDraft, targetValue: e.target.value })}
-                        placeholder="1"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.missions.xp_reward")}</label>
-                      <input
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                        value={missionDraft.xpReward}
-                        onChange={(e) => setMissionDraft({ ...missionDraft, xpReward: e.target.value })}
-                        placeholder="50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] uppercase text-slate-500">{t("adminMiniPass.missions.game_slug")}</label>
-                      <input
-                        className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-sm text-white"
-                        value={missionDraft.gameSlug}
-                        onChange={(e) => setMissionDraft({ ...missionDraft, gameSlug: e.target.value })}
-                        placeholder="memory-sync"
-                      />
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5 md:p-6 space-y-8">
+                  <header className="space-y-1">
+                    <h3 className="text-sm font-bold text-white">{t("adminMiniPass.missions.form_title")}</h3>
+                    <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">{t("adminMiniPass.missions.form_help")}</p>
+                  </header>
+
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-500 border-b border-slate-800 pb-2 mb-4">
+                      {t("adminMiniPass.missions.group_rules")}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <FieldLabel
+                          htmlFor="mp-msn-cadence"
+                          label={t("adminMiniPass.missions.cadence")}
+                          hint={t("adminMiniPass.missions.cadence_hint")}
+                        />
+                        <select
+                          id="mp-msn-cadence"
+                          className={INPUT_MT}
+                          value={missionDraft.cadence}
+                          onChange={(e) => setMissionDraft({ ...missionDraft, cadence: e.target.value })}
+                        >
+                          {CADENCES.map((c) => (
+                            <option key={c} value={c}>
+                              {t(`adminMiniPass.cadences.${c}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <FieldLabel
+                          htmlFor="mp-msn-type"
+                          label={t("adminMiniPass.missions.type")}
+                          hint={t("adminMiniPass.missions.type_hint")}
+                        />
+                        <select
+                          id="mp-msn-type"
+                          className={INPUT_MT}
+                          value={missionDraft.missionType}
+                          onChange={(e) => setMissionDraft({ ...missionDraft, missionType: e.target.value })}
+                        >
+                          {MISSION_TYPES.map((c) => (
+                            <option key={c} value={c}>
+                              {t(`adminMiniPass.mission_types.${c}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
+
                   <div>
-                    <p className="text-[10px] uppercase text-slate-500 mb-2">{t("adminMiniPass.missions.titles_required")}</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {["titleEn", "titlePtBR", "titleEs"].map((k, i) => (
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-500 border-b border-slate-800 pb-2 mb-4">
+                      {t("adminMiniPass.missions.group_numbers")}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div>
+                        <FieldLabel
+                          htmlFor="mp-msn-target"
+                          label={t("adminMiniPass.missions.target")}
+                          hint={t(`adminMiniPass.missions.target_hint_${missionDraft.missionType}`)}
+                        />
                         <input
-                          key={k}
-                          className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-xs text-white"
-                          placeholder={[t("adminMiniPass.locale.en"), t("adminMiniPass.locale.pt"), t("adminMiniPass.locale.es")][i]}
-                          value={missionDraft[k]}
-                          onChange={(e) => setMissionDraft({ ...missionDraft, [k]: e.target.value })}
+                          id="mp-msn-target"
+                          className={INPUT_MT}
+                          value={missionDraft.targetValue}
+                          onChange={(e) => setMissionDraft({ ...missionDraft, targetValue: e.target.value })}
+                          placeholder="1"
                         />
-                      ))}
+                      </div>
+                      <div>
+                        <FieldLabel
+                          htmlFor="mp-msn-xp"
+                          label={t("adminMiniPass.missions.xp_reward")}
+                          hint={t("adminMiniPass.missions.xp_hint")}
+                        />
+                        <input
+                          id="mp-msn-xp"
+                          className={INPUT_MT}
+                          value={missionDraft.xpReward}
+                          onChange={(e) => setMissionDraft({ ...missionDraft, xpReward: e.target.value })}
+                          placeholder="50"
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel
+                          htmlFor="mp-msn-sort"
+                          label={t("adminMiniPass.missions.sort_order")}
+                          hint={t("adminMiniPass.missions.sort_hint")}
+                        />
+                        <input
+                          id="mp-msn-sort"
+                          type="number"
+                          className={INPUT_MT}
+                          value={missionDraft.sortOrder}
+                          onChange={(e) => setMissionDraft({ ...missionDraft, sortOrder: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <FieldLabel
+                          htmlFor="mp-msn-game"
+                          label={t("adminMiniPass.missions.game_slug")}
+                          hint={t("adminMiniPass.missions.game_slug_hint")}
+                        />
+                        <input
+                          id="mp-msn-game"
+                          className={INPUT_MT}
+                          value={missionDraft.gameSlug}
+                          onChange={(e) => setMissionDraft({ ...missionDraft, gameSlug: e.target.value })}
+                          placeholder="memory-sync"
+                        />
+                      </div>
                     </div>
                   </div>
+
                   <div>
-                    <p className="text-[10px] uppercase text-slate-500 mb-2">{t("adminMiniPass.missions.descriptions_optional")}</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {["descriptionEn", "descriptionPtBR", "descriptionEs"].map((k, i) => (
-                        <textarea
-                          key={k}
-                          rows={2}
-                          className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-2 text-xs text-white resize-y"
-                          placeholder={[t("adminMiniPass.locale.en"), t("adminMiniPass.locale.pt"), t("adminMiniPass.locale.es")][i]}
-                          value={missionDraft[k]}
-                          onChange={(e) => setMissionDraft({ ...missionDraft, [k]: e.target.value })}
-                        />
-                      ))}
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-500 border-b border-slate-800 pb-2 mb-4">
+                      {t("adminMiniPass.missions.group_copy")}
+                    </p>
+                    <div className="space-y-4">
+                      <FieldLabel label={t("adminMiniPass.missions.titles_required")} hint={t("adminMiniPass.missions.titles_field_hint")} />
+                      <div className="grid grid-cols-1 gap-4">
+                        {[
+                          { key: "titleEn", lab: t("adminMiniPass.locale.en"), id: "mp-msn-title-en" },
+                          { key: "titlePtBR", lab: t("adminMiniPass.locale.pt"), id: "mp-msn-title-pt" },
+                          { key: "titleEs", lab: t("adminMiniPass.locale.es"), id: "mp-msn-title-es" },
+                        ].map(({ key, lab, id }) => (
+                          <div key={key}>
+                            <label htmlFor={id} className="text-xs font-semibold text-slate-400">
+                              {lab}
+                            </label>
+                            <input
+                              id={id}
+                              className={INPUT_MT}
+                              placeholder={t("adminMiniPass.placeholders.mission_title")}
+                              value={missionDraft[key]}
+                              onChange={(e) => setMissionDraft({ ...missionDraft, [key]: e.target.value })}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-3 mt-6">
+                      <FieldLabel
+                        label={t("adminMiniPass.missions.descriptions_optional")}
+                        hint={t("adminMiniPass.missions.descriptions_field_hint")}
+                      />
+                      <div className="grid grid-cols-1 gap-4">
+                        {[
+                          { key: "descriptionEn", lab: t("adminMiniPass.locale.en"), id: "mp-msn-desc-en" },
+                          { key: "descriptionPtBR", lab: t("adminMiniPass.locale.pt"), id: "mp-msn-desc-pt" },
+                          { key: "descriptionEs", lab: t("adminMiniPass.locale.es"), id: "mp-msn-desc-es" },
+                        ].map(({ key, lab, id }) => (
+                          <div key={key}>
+                            <label htmlFor={id} className="text-xs font-semibold text-slate-400">
+                              {lab}
+                            </label>
+                            <textarea
+                              id={id}
+                              rows={3}
+                              className={TEXTAREA_MT}
+                              placeholder={t("adminMiniPass.placeholders.mission_description")}
+                              value={missionDraft[key]}
+                              onChange={(e) => setMissionDraft({ ...missionDraft, [key]: e.target.value })}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
+
                   <button
                     type="button"
                     onClick={() => void addMission()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-white text-xs font-bold uppercase border border-slate-700"
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-100 text-slate-900 text-xs font-black uppercase tracking-wide border border-slate-200 hover:bg-white"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-4 h-4 shrink-0" aria-hidden />
                     {t("adminMiniPass.missions.add_button")}
                   </button>
                 </div>
