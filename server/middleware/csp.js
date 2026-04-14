@@ -36,7 +36,14 @@ const WALLETCONNECT_CONNECT = [
   "wss://www.walletlink.org",
   "https://cca-lite.coinbase.com",
   "https://explorer-api.walletconnect.com",
-  "https://registry.walletconnect.com"
+  "https://registry.walletconnect.com",
+  // Reown may route some traffic here on newer SDKs; keep explicit for stricter CSPs without https:.
+  "https://api.reown.com",
+  "https://pulse.reown.com",
+  "https://echo.reown.com",
+  "https://notify.reown.com",
+  "https://push.reown.com",
+  "https://keys.reown.com"
 ];
 
 function baseDirectives({ allowWebSockets }) {

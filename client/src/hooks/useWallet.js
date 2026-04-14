@@ -363,8 +363,9 @@ export function useWallet() {
             // Nunca desligar aqui só porque kitConnected — isso mata a sessão WC logo após o telemóvel
             // aprovar (kitConnected=true mas isConnected ainda false) ou se o utilizador toca "Conectar" outra vez.
 
-            // Abre direto a grelha "All Wallets" (mesmo UX que Web3Modal / AppKit padrão no mobile).
-            await open({ view: 'AllWallets' });
+            // Default "Connect" view runs AppKit prefetch (featured / recommended wallets). Opening
+            // "AllWallets" first can leave an empty skeleton grid if those requests have not started yet.
+            await open();
         } catch (e) {
             const message = String(e?.message || '');
             console.error(e);
