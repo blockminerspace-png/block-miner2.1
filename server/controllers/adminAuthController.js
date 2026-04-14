@@ -56,6 +56,14 @@ export async function login(req, res) {
       });
     }
 
+    if (!JWT_SECRET) {
+      return res.status(503).json({
+        ok: false,
+        code: "ADMIN_AUTH_NOT_CONFIGURED",
+        message: "Admin auth not configured (JWT_SECRET missing)."
+      });
+    }
+
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const userEmailRaw = pickFirstNonEmptyString(body, ["email", "Email", "adminEmail", "admin_email"]);
     const rawCode = pickFirstNonEmptyString(body, [

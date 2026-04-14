@@ -107,6 +107,8 @@ function Get-ViteEnvOverrideMap {
         'ADMIN_SECURITY_CODE',
         'ADMIN_JWT_EXPIRES_IN',
         'ADMIN_SESSION_COOKIE_SECURE',
+        # Same secret signs user JWTs and admin session cookies; allow override from secrets without editing vm-backup.
+        'JWT_SECRET',
         'VITE_WALLETCONNECT_PROJECT_ID',
         'VITE_PUBLIC_WALLET_APP_URL',
         'VITE_POLYGON_RPC_URL',
