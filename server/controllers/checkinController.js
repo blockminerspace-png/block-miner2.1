@@ -9,7 +9,7 @@ import {
 } from "../services/checkinMilestoneService.js";
 import { notifyMiniPassLoginDay } from "../services/miniPass/miniPassMissionHookService.js";
 import { notifyDailyTaskLoginDay } from "../services/dailyTasks/dailyTaskHookService.js";
-import { logSecurityWarn } from "../utils/securityLogger.js";
+import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
 
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -228,6 +228,7 @@ export async function claimCheckin(req, res) {
       select: { walletAddress: true }
     });
     if (!user?.walletAddress?.trim()) {
+      logSecurityWarn("checkin_claim_missing_wallet", { userId }, req);
       return jsonCheckinError(
         res,
         400,
@@ -295,6 +296,12 @@ export async function claimCheckin(req, res) {
 
     const streak = await computeCheckinStreak(userId);
     const recentCheckins = await loadRecentHistory(userId, 21);
+
+    logSecurityEvent(
+      "checkin_free_claim_success",
+      { userId, walletLinked: true, checkinDate: today },
+      req
+    );
 
     return res.json({
       ok: true,

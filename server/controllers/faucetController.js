@@ -1,8 +1,10 @@
 import prisma from '../src/db/prisma.js';
-import * as inventoryModel from "../models/inventoryModel.js";
-import * as minersModel from "../models/minersModel.js";
 import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 import { createInventoryWithOwnedMachineTx } from "../services/userOwnedMachineService.js";
+import loggerLib from "../utils/logger.js";
+import { logSecurityEvent } from "../utils/securityLogger.js";
+
+const faucetLogger = loggerLib.child("Faucet");
 
 const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 const DEFAULT_FAUCET_COOLDOWN_MS = 60 * 60 * 1000;
@@ -112,7 +114,10 @@ export async function getStatus(req, res) {
         name: reward.miner.name,
         hashRate: reward.miner.baseHashRate,
         slotSize: reward.miner.slotSize,
-        imageUrl: reward.miner.imageUrl || DEFAULT_MINER_IMAGE_URL
+        imageUrl: reward.miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
+        /** Inventory row has no expiresAt; aligns UI with backend cleanup rules. */
+        inventoryPermanent: true,
+        inventoryExpiresAt: null
       }
     });
   } catch (error) {
@@ -174,6 +179,18 @@ export async function claim(req, res) {
         create: { userId, claimedAt: now, totalClaims: 1, dayKey: normalized.todayKey }
       });
     });
+
+    faucetLogger.info("Faucet inventory reward created (permanent, no expiresAt)", {
+      userId,
+      minerId: miner.id,
+      minerName: miner.name,
+      inventoryExpiresAt: null
+    });
+    logSecurityEvent(
+      "faucet_inventory_reward_created",
+      { userId, minerId: miner.id, inventoryPermanent: true, inventoryExpiresAt: null },
+      req
+    );
 
     res.json({
       ok: true,

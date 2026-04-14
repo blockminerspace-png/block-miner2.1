@@ -15,3 +15,9 @@ test("faucet claim does not set 24h inventory TTL", () => {
     "faucet must not assign 24h expiresAt to inventory (silent cleanup removal)",
   );
 });
+
+test("faucet status exposes permanent inventory flags for UI alignment", () => {
+  const src = readFileSync(faucetControllerPath, "utf8");
+  assert.ok(src.includes("inventoryPermanent"), "status reward should declare permanent inventory");
+  assert.ok(src.includes("inventoryExpiresAt"), "status reward should expose expiresAt field (null)");
+});

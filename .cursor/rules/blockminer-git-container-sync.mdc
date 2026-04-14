@@ -1,0 +1,26 @@
+---
+description: After substantive changes, sync Git and deploy so the server matches the repo.
+alwaysApply: true
+---
+
+# Git, container sync, and deploy (mandatory closure)
+
+When the user asks to ship work, finish a feature, or explicitly requests deploy:
+
+1. **Working tree must be complete and intentional**
+   - Stage all project changes that belong in Git (source, tests, docs the user asked for, Cursor rules).
+   - Do **not** commit generated artifacts (e.g. `client/coverage/`, `coverage-server.txt`, local-only secrets) unless the user explicitly requests them.
+
+2. **Git: 100% up to date on the remote**
+   - Run tests relevant to the change (`npm test`, client `npm run test` when UI changed).
+   - `git status` must be clean after commit (except ignored locals).
+   - Commit with a clear English message; `git push` to the tracked default branch (usually `main`).
+
+3. **Container / VPS: 100% aligned with Git**
+   - Use the project deploy path (`deploy.py` on Windows per `docs/DEPLOYMENT.md`, or the workflow the repo documents).
+   - On the server: pull the same branch/commit you just pushed, install deps, build, restart the app process, then verify health.
+
+4. **Configuration**
+   - Ensure required server env vars exist for the target environment; never commit `.env` or passwords. Use existing secret injection (e.g. `deploy.secrets.local`, `BLOCKMINER_VPS_PW`, `.deploy-pw.txt` as documented in `deploy.py`).
+
+5. **If deploy cannot run** (missing SSH password, non-Windows host without documented alternative), push Git anyway and report the exact blocker so the user can run deploy locally.

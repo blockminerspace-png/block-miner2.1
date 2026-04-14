@@ -1586,6 +1586,9 @@
   "faucet": {
     "title": "Faucet de Equipamentos",
     "subtitle": "Ganhe mineradoras gratuitas a cada 60 minutos. Complete o passo do parceiro para desbloquear seu prêmio.",
+    "loading": "Carregando faucet…",
+    "reward_permanent": "Permanente (sem validade)",
+    "reward_temporary": "Por tempo limitado",
     "avail_prize": "Prêmio Disponível",
     "ghs": "H/s",
     "slots": "Slots",

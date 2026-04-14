@@ -1,19 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { 
-    Gift, 
-    Clock, 
-    Zap, 
-    AlertCircle, 
-    CheckCircle2, 
+import {
+    Gift,
+    Clock,
+    Zap,
+    AlertCircle,
+    CheckCircle2,
     Timer,
     Lock,
     Unlock,
     MousePointer2,
     Info,
     ExternalLink,
-    Loader2
+    Loader2,
+    Infinity
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -44,7 +45,7 @@ export default function Faucet() {
                 }
             }
         } catch (err) {
-            console.error("Erro ao buscar status do faucet", err);
+            console.error("Faucet status fetch failed", err);
         } finally {
             setIsLoading(false);
         }
@@ -132,7 +133,7 @@ export default function Faucet() {
     if (isLoading) return (
         <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Carregando Faucet...</p>
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">{t('faucet.loading')}</p>
         </div>
     );
 
@@ -168,8 +169,12 @@ export default function Faucet() {
                                     </div>
                                     <span className="w-1.5 h-1.5 rounded-full bg-gray-800" />
                                     <div className="flex items-center gap-2">
-                                        <Clock className="w-4 h-4" />
-                                        <span className="text-lg">1440m</span>
+                                        <Infinity className="w-4 h-4 shrink-0" aria-hidden />
+                                        <span className="text-lg">
+                                            {reward?.inventoryPermanent === false
+                                                ? t('faucet.reward_temporary')
+                                                : t('faucet.reward_permanent')}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

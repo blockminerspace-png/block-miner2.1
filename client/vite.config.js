@@ -11,6 +11,13 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      exclude: ['src/**/*.test.{js,jsx,ts,tsx}', 'src/**/__mocks__/**'],
+    },
   },
   define: {
     'process.env.APP_URL': JSON.stringify(blockminerOrigin),

@@ -1583,6 +1583,9 @@
   "faucet": {
     "title": "Equipment Faucet",
     "subtitle": "Earn free miners every 60 minutes. Complete the partner step to unlock your prize.",
+    "loading": "Loading faucet…",
+    "reward_permanent": "Permanent (no expiry)",
+    "reward_temporary": "Time-limited",
     "avail_prize": "Available Prize",
     "ghs": "H/s",
     "slots": "Slots",

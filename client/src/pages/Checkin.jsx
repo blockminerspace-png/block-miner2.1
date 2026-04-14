@@ -114,6 +114,10 @@ export default function Checkin() {
 
     const handleClaimFree = async () => {
         if (isClaiming) return;
+        if (!status?.walletLinked) {
+            toast.error(t('checkin.errors.WALLET_REQUIRED'));
+            return;
+        }
         setIsClaiming(true);
         try {
             const res = await api.post('/checkin/claim');
