@@ -85,7 +85,8 @@ def main() -> int:
         look_for_keys=False,
         allow_agent=False,
     )
-    stdin, stdout, stderr = client.exec_command("bash -s", get_pty=True)
+    # No PTY: avoids echoing the script into an interactive shell on some hosts.
+    stdin, stdout, stderr = client.exec_command("bash -s", get_pty=False)
     stdin.write(REMOTE_SCRIPT)
     stdin.close()
 
