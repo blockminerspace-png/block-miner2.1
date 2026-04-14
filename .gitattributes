@@ -1,0 +1,2 @@
+# Shell scripts must use LF so Linux/VPS shebangs run with bash, not dash (CRLF breaks #!/usr/bin/env bash).
+*.sh text eol=lf
