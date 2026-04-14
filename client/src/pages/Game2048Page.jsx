@@ -274,23 +274,29 @@ export default function Game2048Page() {
 
   const onKeyDown = useCallback(
     (e) => {
-      if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
       const key = e.key;
+      const isArrow = key === "ArrowUp" || key === "ArrowDown" || key === "ArrowLeft" || key === "ArrowRight";
+      if (!isArrow) return;
+      const el = e.target;
+      const tag = el && typeof el.tagName === "string" ? el.tagName.toLowerCase() : "";
+      if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
+      e.preventDefault();
+      if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
       let dir = null;
       if (key === "ArrowUp") dir = "up";
       else if (key === "ArrowDown") dir = "down";
       else if (key === "ArrowLeft") dir = "left";
       else if (key === "ArrowRight") dir = "right";
       if (!dir) return;
-      e.preventDefault();
       void sendMove(dir);
     },
     [session, busy, sendMove],
   );
 
   useEffect(() => {
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const opts = { capture: true };
+    window.addEventListener("keydown", onKeyDown, opts);
+    return () => window.removeEventListener("keydown", onKeyDown, opts);
   }, [onKeyDown]);
 
   const restartGame = useCallback(async () => {
@@ -329,12 +335,21 @@ export default function Game2048Page() {
         return;
       }
       if (!data.idempotent) {
-        toast.success(
-          t("game2048.claimed_toast", {
-            hr: data.rewardHashRate,
-            days: data.powerDays,
-          }),
-        );
+        if (data.rewardPowerHours != null && Number(data.rewardPowerHours) > 0) {
+          toast.success(
+            t("game2048.claimed_toast_hours", {
+              hr: data.rewardHashRate,
+              hours: data.rewardPowerHours,
+            }),
+          );
+        } else {
+          toast.success(
+            t("game2048.claimed_toast", {
+              hr: data.rewardHashRate,
+              days: data.rewardPowerDays ?? data.powerDays,
+            }),
+          );
+        }
       }
       await refreshStatus();
     } catch {
@@ -368,7 +383,10 @@ export default function Game2048Page() {
   const winTile = session?.winTile ?? status?.winTile ?? 2048;
   const minScore = session?.minScore ?? status?.minScore ?? 1000;
   const rewardHr = session?.rewardHashRate ?? status?.rewardHashRate ?? 25;
-  const powerDays = status?.powerDays ?? 7;
+  const powerDaysFull = status?.powerDaysFull ?? session?.powerDaysFull ?? status?.powerDays ?? 7;
+  const rewardPowerDays = status?.rewardPowerDays ?? session?.rewardPowerDays;
+  const rewardPowerHours = status?.rewardPowerHours ?? session?.rewardPowerHours;
+  const showRewardHours = rewardPowerHours != null && Number(rewardPowerHours) > 0;
   const cdSec = status?.cooldownSecondsRemaining ?? 0;
   const board = session?.board;
   const best = bestTileOnBoard(board);
@@ -386,7 +404,10 @@ export default function Game2048Page() {
       : "game2048.grid_placeholder_aria";
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#020617]" style={{ direction: "ltr" }}>
+    <div
+      className="fixed inset-0 z-[100] flex flex-col bg-[#020617]"
+      style={{ direction: "ltr", overscrollBehavior: "none" }}
+    >
       <>
         <span className="sr-only">{t("game2048.title")}</span>
         {loading && (
@@ -467,7 +488,18 @@ export default function Game2048Page() {
                 {t("game2048.target_hint", { tile: winTile, minScore })} · {t("game2048.best_tile")}:{" "}
                 <span className="font-bold text-sky-400">{best}</span>
               </p>
-              <p className="text-[10px] text-slate-500 sm:text-[11px]">{t("game2048.reward_line", { hr: rewardHr, days: powerDays })}</p>
+              <p className="text-[10px] text-slate-500 sm:text-[11px]">
+                {showRewardHours
+                  ? t("game2048.reward_line_hours", {
+                      hr: rewardHr,
+                      hours: rewardPowerHours,
+                      days: powerDaysFull,
+                    })
+                  : t("game2048.reward_line", {
+                      hr: rewardHr,
+                      days: rewardPowerDays ?? status?.powerDays ?? 7,
+                    })}
+              </p>
               {cooldownMinutesDisplay > 0 && (
                 <p className="text-[10px] text-slate-600 sm:text-[11px]">
                   {t("game2048.cooldown_line", { minutes: cooldownMinutesDisplay })}
@@ -475,7 +507,7 @@ export default function Game2048Page() {
               )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 overflow-y-auto overflow-x-hidden px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-4">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-4">
               <div className="flex flex-wrap justify-center gap-2">
                 {session?.canClaim && (
                   <button

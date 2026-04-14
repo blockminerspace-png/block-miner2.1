@@ -28,6 +28,34 @@ export function game2048PowerDays() {
   return Math.max(1, Math.min(365, Math.floor(Number.isFinite(n) ? n : 7)));
 }
 
+/** When the user has not completed daily check-in today, 2048 reward lasts this many hours (default 24). */
+export function game2048PowerHoursWhenNoDailyLogin() {
+  const n = Number(process.env.GAME2048_POWER_HOURS_NO_CHECKIN || 24);
+  const h = Math.floor(Number.isFinite(n) ? n : 24);
+  return Math.max(1, Math.min(720, h));
+}
+
+/**
+ * Full-week boost only after today's paid check-in is confirmed (Brazil calendar day).
+ * @param {boolean} checkedInTodayConfirmed
+ */
+export function rewardDurationFromCheckinToday(checkedInTodayConfirmed) {
+  if (checkedInTodayConfirmed) {
+    const days = game2048PowerDays();
+    return {
+      rewardPowerDays: days,
+      rewardPowerHours: null,
+      rewardTtlMs: days * 86_400_000
+    };
+  }
+  const hours = game2048PowerHoursWhenNoDailyLogin();
+  return {
+    rewardPowerDays: null,
+    rewardPowerHours: hours,
+    rewardTtlMs: hours * 3_600_000
+  };
+}
+
 /** Countdown round length in seconds; 0 disables the timer. */
 export function game2048TimeLimitSec() {
   const n = Number(process.env.GAME2048_TIME_LIMIT_SEC ?? 180);

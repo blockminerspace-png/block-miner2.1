@@ -42,6 +42,9 @@ const activeSessionPayload = {
   timeLimitSeconds: 0,
   startedAt: new Date().toISOString(),
   canClaim: false,
+  rewardPowerDays: 7,
+  rewardPowerHours: null,
+  powerDaysFull: 7,
 };
 
 describe("Game2048Page", () => {
@@ -57,6 +60,9 @@ describe("Game2048Page", () => {
         winTile: 2048,
         minScore: 1000,
         powerDays: 7,
+        powerDaysFull: 7,
+        rewardPowerDays: 7,
+        rewardPowerHours: null,
         cooldownMinutesHint: 3,
       },
     }));

@@ -331,6 +331,8 @@
     "best_tile": "Mejor ficha",
     "target_hint": "Alcanza la ficha {{tile}} para desbloquear la reclamación (puntuación mínima {{minScore}}).",
     "reward_line": "Recompensa: +{{hr}} H/s durante {{days}} días",
+    "reward_line_hours": "Recompensa: +{{hr}} H/s durante {{hours}} h · Check-in diario confirmado hoy = {{days}} días completos.",
+    "claimed_toast_hours": "+{{hr}} H/s durante {{hours}} h",
     "cooldown_line": "Enfriamiento tras reclamar: {{minutes}} min",
     "play_hint": "Usa las flechas o desliza.",
     "open_game": "Abrir juego",

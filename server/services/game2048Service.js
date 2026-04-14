@@ -13,6 +13,7 @@ import {
   parseBoard,
   spawnRandomTile
 } from "./game2048Engine.js";
+import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 import {
   GAME2048_GAME_SLUG,
   game2048CooldownMs,
@@ -20,7 +21,8 @@ import {
   game2048PowerDays,
   game2048RewardHashRate,
   game2048TimeLimitSec,
-  game2048WinTile
+  game2048WinTile,
+  rewardDurationFromCheckinToday
 } from "../utils/game2048Constants.js";
 
 const SESSION_ACTIVE = "ACTIVE";
@@ -65,6 +67,20 @@ async function getOrCreateGame2048GameId(tx) {
  */
 async function lockUserFor2048(tx, userId) {
   await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId} FOR UPDATE`;
+}
+
+/**
+ * @param {import("@prisma/client").Prisma.TransactionClient} tx
+ * @param {number} userId
+ * @param {Date} now
+ */
+async function userHasConfirmedCheckinBrazilToday(tx, userId, now) {
+  const todayKey = getBrazilCheckinDateKey(now);
+  const row = await tx.dailyCheckin.findUnique({
+    where: { userId_checkinDate: { userId, checkinDate: todayKey } },
+    select: { status: true }
+  });
+  return Boolean(row && row.status === "confirmed");
 }
 
 /**
@@ -137,7 +153,7 @@ async function finalizeTimedOutSession(tx, row, now) {
  * @param {object} row
  * @param {Date} now
  */
-function serializeSession(row, now) {
+function serializeSession(row, now, rewardHint) {
   const board = boardFromRow(row.board);
   const winTile = game2048WinTile();
   const minScore = game2048MinScore();
@@ -149,6 +165,7 @@ function serializeSession(row, now) {
     Number(row.score) >= minScore;
   const timeLimitSeconds = game2048TimeLimitSec();
   const secLeft = secondsRemainingForSession(row, now);
+  const rd = rewardHint != null ? rewardHint : rewardDurationFromCheckinToday(false);
 
   return {
     id: row.id,
@@ -163,6 +180,9 @@ function serializeSession(row, now) {
     minScore,
     gameOver: row.status === SESSION_ENDED || row.status === SESSION_CLAIMED || !hasMoves,
     rewardHashRate: game2048RewardHashRate(),
+    rewardPowerDays: rd.rewardPowerDays,
+    rewardPowerHours: rd.rewardPowerHours,
+    powerDaysFull: game2048PowerDays(),
     startedAt: new Date(row.createdAt).toISOString(),
     endedAt: row.endedAt ? new Date(row.endedAt).toISOString() : null,
     timeLimitSeconds,
@@ -175,9 +195,12 @@ function serializeSession(row, now) {
  * @param {Date} [now]
  */
 export async function getGame2048Status(userId, now = new Date()) {
-  const { cooldownEndsAt, active } = await prisma.$transaction(async (tx) => {
+  const { cooldownEndsAt, active, rewardDuration } = await prisma.$transaction(async (tx) => {
     await lockUserFor2048(tx, userId);
     await expireStaleActiveSessions(tx, userId, now);
+
+    const checkedInToday = await userHasConfirmedCheckinBrazilToday(tx, userId, now);
+    const rewardDuration = rewardDurationFromCheckinToday(checkedInToday);
 
     const lastClaimed = await tx.game2048Session.findFirst({
       where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
@@ -193,7 +216,7 @@ export async function getGame2048Status(userId, now = new Date()) {
       activeRow = await finalizeTimedOutSession(tx, activeRow, now);
     }
 
-    return { cooldownEndsAt: cd, active: activeRow };
+    return { cooldownEndsAt: cd, active: activeRow, rewardDuration };
   });
 
   const winTile = game2048WinTile();
@@ -209,11 +232,14 @@ export async function getGame2048Status(userId, now = new Date()) {
     cooldownSecondsRemaining: cooldownEndsAt
       ? Math.max(0, Math.ceil((cooldownEndsAt.getTime() - now.getTime()) / 1000))
       : 0,
-    activeSession: active ? serializeSession(active, now) : null,
+    activeSession: active ? serializeSession(active, now, rewardDuration) : null,
     rewardHashRate: game2048RewardHashRate(),
     winTile,
     minScore,
     powerDays: game2048PowerDays(),
+    rewardPowerDays: rewardDuration.rewardPowerDays,
+    rewardPowerHours: rewardDuration.rewardPowerHours,
+    powerDaysFull: game2048PowerDays(),
     cooldownMinutesHint
   };
 }
@@ -226,6 +252,9 @@ export async function startGame2048Session(userId, now = new Date()) {
   return prisma.$transaction(async (tx) => {
     await lockUserFor2048(tx, userId);
     await expireStaleActiveSessions(tx, userId, now);
+
+    const checkedInToday = await userHasConfirmedCheckinBrazilToday(tx, userId, now);
+    const rd = rewardDurationFromCheckinToday(checkedInToday);
 
     const lastClaimed = await tx.game2048Session.findFirst({
       where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
@@ -253,7 +282,7 @@ export async function startGame2048Session(userId, now = new Date()) {
       return {
         ok: true,
         reused: true,
-        session: serializeSession(existing, now)
+        session: serializeSession(existing, now, rd)
       };
     }
 
@@ -272,7 +301,7 @@ export async function startGame2048Session(userId, now = new Date()) {
     return {
       ok: true,
       reused: false,
-      session: serializeSession(row, now)
+      session: serializeSession(row, now, rd)
     };
   });
 }
@@ -286,6 +315,9 @@ export async function restartGame2048Session(userId, now = new Date()) {
   return prisma.$transaction(async (tx) => {
     await lockUserFor2048(tx, userId);
     await expireStaleActiveSessions(tx, userId, now);
+
+    const checkedInToday = await userHasConfirmedCheckinBrazilToday(tx, userId, now);
+    const rd = rewardDurationFromCheckinToday(checkedInToday);
 
     const lastClaimed = await tx.game2048Session.findFirst({
       where: { userId, rewardGranted: true, rewardClaimedAt: { not: null } },
@@ -325,7 +357,7 @@ export async function restartGame2048Session(userId, now = new Date()) {
       }
     });
 
-    return { ok: true, session: serializeSession(row, now) };
+    return { ok: true, session: serializeSession(row, now, rd) };
   });
 }
 
@@ -345,6 +377,9 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
     await lockUserFor2048(tx, userId);
     await expireStaleActiveSessions(tx, userId, now);
 
+    const checkedInToday = await userHasConfirmedCheckinBrazilToday(tx, userId, now);
+    const rd = rewardDurationFromCheckinToday(checkedInToday);
+
     let row = await tx.game2048Session.findFirst({
       where: { id: sid, userId }
     });
@@ -353,7 +388,7 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
     }
     row = await finalizeTimedOutSession(tx, row, now);
     if (row.status !== SESSION_ACTIVE) {
-      return { ok: false, code: "SESSION_NOT_ACTIVE", status: 409, session: serializeSession(row, now) };
+      return { ok: false, code: "SESSION_NOT_ACTIVE", status: 409, session: serializeSession(row, now, rd) };
     }
 
     const board = boardFromRow(row.board);
@@ -372,7 +407,7 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
       return {
         ok: true,
         moved: false,
-        session: serializeSession(row, now)
+        session: serializeSession(row, now, rd)
       };
     }
 
@@ -413,7 +448,7 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
     return {
       ok: true,
       moved: true,
-      session: serializeSession(updated, now)
+      session: serializeSession(updated, now, rd)
     };
   });
 }
@@ -435,11 +470,14 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
   const minScore = game2048MinScore();
   const winTile = game2048WinTile();
   const rewardHr = game2048RewardHashRate();
-  const powerDays = game2048PowerDays();
+  const powerDaysFull = game2048PowerDays();
 
   const result = await prisma.$transaction(async (tx) => {
     await lockUserFor2048(tx, userId);
     await expireStaleActiveSessions(tx, userId, now);
+
+    const checkedInToday = await userHasConfirmedCheckinBrazilToday(tx, userId, now);
+    const rd = rewardDurationFromCheckinToday(checkedInToday);
 
     const row = await tx.game2048Session.findFirst({
       where: { id: sid, userId }
@@ -458,7 +496,9 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
         ok: true,
         idempotent: true,
         rewardHashRate: rewardHr,
-        powerDays,
+        powerDays: powerDaysFull,
+        rewardPowerDays: rd.rewardPowerDays,
+        rewardPowerHours: rd.rewardPowerHours,
         nextClaimAllowedAt: cd ? cd.toISOString() : null,
         cooldownSecondsRemaining: cd ? Math.max(0, Math.ceil((cd.getTime() - now.getTime()) / 1000)) : 0
       };
@@ -545,7 +585,9 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
       ok: true,
       idempotent: false,
       rewardHashRate: rewardHr,
-      powerDays,
+      powerDays: powerDaysFull,
+      rewardPowerDays: rd.rewardPowerDays,
+      rewardPowerHours: rd.rewardPowerHours,
       userPowerGameId: powerRow.id,
       nextClaimAllowedAt: cd ? cd.toISOString() : null,
       cooldownSecondsRemaining: cd ? Math.max(0, Math.ceil((cd.getTime() - now.getTime()) / 1000)) : 0

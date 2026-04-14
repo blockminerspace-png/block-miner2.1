@@ -695,6 +695,8 @@
     "best_tile": "Best tile",
     "target_hint": "Reach tile {{tile}} to unlock claim (minimum score {{minScore}}).",
     "reward_line": "Reward: +{{hr}} H/s for {{days}} days",
+    "reward_line_hours": "Reward: +{{hr}} H/s for {{hours}} h · Confirm today's check-in for {{days}} full days.",
+    "claimed_toast_hours": "+{{hr}} H/s for {{hours}} h",
     "cooldown_line": "Cooldown after claim: {{minutes}} min",
     "play_hint": "Use arrow keys or swipe.",
     "open_game": "Open game",

@@ -264,6 +264,12 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.game2048.grid_placeholder_aria).toBeTruthy();
     expect(pt.game2048.grid_placeholder_aria).toBeTruthy();
     expect(es.game2048.grid_placeholder_aria).toBeTruthy();
+    expect(en.game2048.reward_line_hours).toBeTruthy();
+    expect(pt.game2048.reward_line_hours).toBeTruthy();
+    expect(es.game2048.reward_line_hours).toBeTruthy();
+    expect(en.game2048.claimed_toast_hours).toBeTruthy();
+    expect(pt.game2048.claimed_toast_hours).toBeTruthy();
+    expect(es.game2048.claimed_toast_hours).toBeTruthy();
   });
 
   it("exposes security API error strings in en, pt-BR, and es", () => {
