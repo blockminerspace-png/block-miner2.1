@@ -6,6 +6,7 @@ import os from "os";
 import {
   scanPlainPgDumpForCopyLines,
   metaPathForSqlFile,
+  sanitizeDatabaseUrlForPgDump,
   CRITICAL_PUBLIC_TABLES,
 } from "../server/services/databaseBackupService.js";
 
@@ -42,5 +43,23 @@ describe("databaseBackupService", () => {
   it("metaPathForSqlFile uses stem next to .sql file", () => {
     const p = metaPathForSqlFile("/data/backups", "backup-2026-04-13T12-00-00-000Z.sql");
     assert.equal(p, path.join("/data/backups", "backup-2026-04-13T12-00-00-000Z.meta.json"));
+  });
+
+  it("sanitizeDatabaseUrlForPgDump removes Prisma schema query param", () => {
+    const raw =
+      "postgresql://user:secret@db:5432/blockminer_db?schema=public";
+    assert.equal(
+      sanitizeDatabaseUrlForPgDump(raw),
+      "postgresql://user:secret@db:5432/blockminer_db",
+    );
+  });
+
+  it("sanitizeDatabaseUrlForPgDump keeps other query params", () => {
+    const raw =
+      "postgresql://user:secret@db:5432/blockminer_db?schema=public&sslmode=require";
+    assert.equal(
+      sanitizeDatabaseUrlForPgDump(raw),
+      "postgresql://user:secret@db:5432/blockminer_db?sslmode=require",
+    );
   });
 });

@@ -35,6 +35,28 @@ export function metaPathForSqlFile(backupsDir, sqlFileName) {
   return path.join(backupsDir, `${stem}.meta.json`);
 }
 
+/**
+ * Prisma appends `?schema=public` (and similar) to `DATABASE_URL`. libpq used by `pg_dump` rejects
+ * unknown URI query parameters such as `schema` with: invalid uri query parameter "schema".
+ * @param {string} raw
+ * @returns {string}
+ */
+export function sanitizeDatabaseUrlForPgDump(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return s;
+  try {
+    const u = new URL(s);
+    u.searchParams.delete("schema");
+    return u.toString();
+  } catch {
+    return s
+      .replace(/[?&]schema=[^&]*/gi, "")
+      .replace(/\?&/, "?")
+      .replace(/&&/g, "&")
+      .replace(/\?$/, "");
+  }
+}
+
 function safeBackupSqlName(name) {
   if (!name || typeof name !== "string") return null;
   if (name.includes("..") || name.includes("/") || name.includes("\\")) return null;
@@ -136,7 +158,7 @@ function runPgDumpToFile({ pgDumpPath, databaseUrl, outFile }) {
 export async function createPostgresSqlBackup(opts) {
   const { prisma, logger } = opts;
   const started = Date.now();
-  const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+  const databaseUrl = sanitizeDatabaseUrlForPgDump(String(process.env.DATABASE_URL || "").trim());
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is not set");
   }
