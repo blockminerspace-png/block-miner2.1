@@ -11,6 +11,72 @@ export function emptyBoard() {
 }
 
 /**
+ * Coerces a JSON cell to a valid non-negative integer tile value, or null if invalid.
+ * Some storage layers deserialize numeric JSON as strings; accept integer strings.
+ * @param {unknown} c
+ * @returns {number | null}
+ */
+export function normalize2048Cell(c) {
+  if (typeof c === "number" && Number.isFinite(c) && Number.isInteger(c) && c >= 0 && c <= 1_048_576) {
+    return c;
+  }
+  if (typeof c === "string") {
+    const t = c.trim();
+    if (!/^-?\d+$/.test(t)) return null;
+    const n = Number(t);
+    if (Number.isFinite(n) && Number.isInteger(n) && n >= 0 && n <= 1_048_576) return n;
+  }
+  return null;
+}
+
+/**
+ * Some drivers / legacy writes store the full grid as a JSON string (or double-encoded).
+ * @param {unknown} json
+ * @returns {unknown[] | null} Four row arrays (not yet cell-normalized)
+ */
+export function unwrapBoardJson(json) {
+  let v = json;
+  for (let depth = 0; depth < 4 && typeof v === "string"; depth += 1) {
+    const t = v.trim();
+    if (!t) return null;
+    try {
+      v = JSON.parse(t);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(v) || v.length !== BOARD_SIZE) return null;
+  return v;
+}
+
+/**
+ * @param {unknown} json
+ * @returns {number[][] | null}
+ */
+export function parseBoard(json) {
+  const top = unwrapBoardJson(json);
+  if (!top) return null;
+  const out = [];
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    const row = top[i];
+    if (!Array.isArray(row) || row.length !== BOARD_SIZE) return null;
+    const r = [];
+    for (let j = 0; j < BOARD_SIZE; j++) {
+      const v = normalize2048Cell(row[j]);
+      if (v === null) return null;
+      r.push(v);
+    }
+    out.push(r);
+  }
+  return out;
+}
+
+function cellNum(c) {
+  const n = normalize2048Cell(c);
+  return n === null ? 0 : n;
+}
+
+/**
  * @param {number[][]} board
  * @returns {number}
  */
@@ -18,7 +84,7 @@ export function maxTile(board) {
   let m = 0;
   for (let i = 0; i < BOARD_SIZE; i++) {
     for (let j = 0; j < BOARD_SIZE; j++) {
-      const v = board[i][j];
+      const v = cellNum(board[i][j]);
       if (v > m) m = v;
     }
   }
@@ -26,11 +92,16 @@ export function maxTile(board) {
 }
 
 /**
- * @param {number[]} line
+ * @param {unknown[]} line One row or column of the board (length BOARD_SIZE).
  * @returns {{ row: number[]; scoreAdd: number }}
  */
 export function mergeLineTowardZero(line) {
-  const nums = line.filter((x) => x !== 0);
+  /** Coerce every cell so e.g. 2 and "2" still merge and score (crypto tiles are numeric tiers). */
+  const nums = [];
+  for (const cell of line) {
+    const n = normalize2048Cell(cell);
+    if (n !== null && n !== 0) nums.push(n);
+  }
   const merged = [];
   let scoreAdd = 0;
   let i = 0;
@@ -57,7 +128,7 @@ export function mergeLineTowardZero(line) {
 export function boardsEqual(a, b) {
   for (let i = 0; i < BOARD_SIZE; i++) {
     for (let j = 0; j < BOARD_SIZE; j++) {
-      if (a[i][j] !== b[i][j]) return false;
+      if (cellNum(a[i][j]) !== cellNum(b[i][j])) return false;
     }
   }
   return true;
@@ -121,7 +192,7 @@ export function spawnRandomTile(board, rng = Math.random) {
   const empties = [];
   for (let i = 0; i < BOARD_SIZE; i++) {
     for (let j = 0; j < BOARD_SIZE; j++) {
-      if (board[i][j] === 0) empties.push([i, j]);
+      if (cellNum(board[i][j]) === 0) empties.push([i, j]);
     }
   }
   if (empties.length === 0) return false;
@@ -148,72 +219,11 @@ export function createInitialBoard(rng = Math.random) {
 export function hasValidMove(board) {
   for (let i = 0; i < BOARD_SIZE; i++) {
     for (let j = 0; j < BOARD_SIZE; j++) {
-      if (board[i][j] === 0) return true;
-      const v = board[i][j];
-      if (j + 1 < BOARD_SIZE && board[i][j + 1] === v) return true;
-      if (i + 1 < BOARD_SIZE && board[i + 1][j] === v) return true;
+      if (cellNum(board[i][j]) === 0) return true;
+      const v = cellNum(board[i][j]);
+      if (j + 1 < BOARD_SIZE && cellNum(board[i][j + 1]) === v) return true;
+      if (i + 1 < BOARD_SIZE && cellNum(board[i + 1][j]) === v) return true;
     }
   }
   return false;
-}
-
-/**
- * Coerces a JSON cell to a valid non-negative integer tile value, or null if invalid.
- * Some storage layers deserialize numeric JSON as strings; accept integer strings.
- * @param {unknown} c
- * @returns {number | null}
- */
-export function normalize2048Cell(c) {
-  if (typeof c === "number" && Number.isFinite(c) && Number.isInteger(c) && c >= 0 && c <= 1_048_576) {
-    return c;
-  }
-  if (typeof c === "string") {
-    const t = c.trim();
-    if (!/^-?\d+$/.test(t)) return null;
-    const n = Number(t);
-    if (Number.isFinite(n) && Number.isInteger(n) && n >= 0 && n <= 1_048_576) return n;
-  }
-  return null;
-}
-
-/**
- * Some drivers / legacy writes store the full grid as a JSON string (or double-encoded).
- * @param {unknown} json
- * @returns {unknown[] | null} Four row arrays (not yet cell-normalized)
- */
-export function unwrapBoardJson(json) {
-  let v = json;
-  for (let depth = 0; depth < 4 && typeof v === "string"; depth += 1) {
-    const t = v.trim();
-    if (!t) return null;
-    try {
-      v = JSON.parse(t);
-    } catch {
-      return null;
-    }
-  }
-  if (!Array.isArray(v) || v.length !== BOARD_SIZE) return null;
-  return v;
-}
-
-/**
- * @param {unknown} json
- * @returns {number[][] | null}
- */
-export function parseBoard(json) {
-  const top = unwrapBoardJson(json);
-  if (!top) return null;
-  const out = [];
-  for (let i = 0; i < BOARD_SIZE; i++) {
-    const row = top[i];
-    if (!Array.isArray(row) || row.length !== BOARD_SIZE) return null;
-    const r = [];
-    for (let j = 0; j < BOARD_SIZE; j++) {
-      const v = normalize2048Cell(row[j]);
-      if (v === null) return null;
-      r.push(v);
-    }
-    out.push(r);
-  }
-  return out;
 }

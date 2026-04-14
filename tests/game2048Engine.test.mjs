@@ -28,6 +28,29 @@ describe("game2048Engine", () => {
     assert.equal(scoreAdd, 8);
   });
 
+  it("mergeLineTowardZero merges numeric 2 with string 2 and scores +4 (every merge)", () => {
+    const first = mergeLineTowardZero([2, "2", 0, 0]);
+    assert.deepEqual(first.row, [4, 0, 0, 0]);
+    assert.equal(first.scoreAdd, 4);
+    const second = mergeLineTowardZero([2, "2", 0, 0]);
+    assert.equal(second.scoreAdd, 4);
+  });
+
+  it("moveBoard scores each 2+2 pair in one sweep including string cells", () => {
+    const b = [
+      [2, "2", "2", "2"],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ];
+    const board = parseBoard(b);
+    assert.ok(board);
+    const { board: after, moved, scoreDelta } = moveBoard(board, "left");
+    assert.equal(moved, true);
+    assert.equal(scoreDelta, 8);
+    assert.deepEqual(after[0], [4, 4, 0, 0]);
+  });
+
   it("moveBoard merges left", () => {
     const b = emptyBoard();
     b[0][0] = 2;
@@ -46,6 +69,16 @@ describe("game2048Engine", () => {
     b[0][3] = 16;
     const { moved } = moveBoard(b, "left");
     assert.equal(moved, false);
+  });
+
+  it("hasValidMove treats 2 and string 2 as mergeable neighbors", () => {
+    const b = [
+      [2, "2", 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ];
+    assert.equal(hasValidMove(b), true);
   });
 
   it("hasValidMove detects empties and merges", () => {
