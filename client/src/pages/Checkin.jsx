@@ -63,7 +63,6 @@ export default function Checkin() {
     const [isLoading, setIsLoading] = useState(true);
     const [isPaying, setIsPaying] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
-    const [isClaiming, setIsClaiming] = useState(false);
     const pollRef = useRef(null);
 
     const fetchStatus = useCallback(async () => {
@@ -111,41 +110,6 @@ export default function Checkin() {
             if (pollRef.current) clearInterval(pollRef.current);
         };
     }, [status, fetchStatus]);
-
-    const handleClaimFree = async () => {
-        if (isClaiming) return;
-        if (!status?.walletLinked) {
-            toast.error(t('checkin.errors.WALLET_REQUIRED'));
-            return;
-        }
-        setIsClaiming(true);
-        try {
-            const res = await api.post('/checkin/claim');
-            if (res.data.ok) {
-                if (res.data.alreadyCheckedIn) {
-                    toast.success(t('checkin.claimed'));
-                } else {
-                    toast.success(t('checkin.claim_success'));
-                }
-                setStatus((s) =>
-                    mergeStatus(s, {
-                        checkedIn: true,
-                        pending: false,
-                        failed: false,
-                        status: 'confirmed',
-                        streak: res.data.streak,
-                        recentCheckins: res.data.recentCheckins
-                    })
-                );
-                await fetchStatus();
-            }
-        } catch (err) {
-            const code = err.response?.data?.code;
-            toast.error(translateCheckinApi(code, err.response?.data?.message));
-        } finally {
-            setIsClaiming(false);
-        }
-    };
 
     const submitTxToServer = async (txHash) => {
         try {
@@ -347,7 +311,8 @@ export default function Checkin() {
     const totalConfirmed = status.totalConfirmed ?? 0;
     const recentCheckins = status.recentCheckins || [];
     const milestones = Array.isArray(status.milestones) ? status.milestones : [];
-    const paymentMode = Boolean(status.paymentRequired && status.checkinReceiver);
+    const paymentMode = Boolean(status.paymentRequired);
+    const paymentConfigured = Boolean(status.checkinReceiver && status.checkinAmountWei);
     const explorerTx = status.txHash ? `https://polygonscan.com/tx/${status.txHash}` : null;
 
     return (
@@ -416,6 +381,11 @@ export default function Checkin() {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
+                                    {!paymentConfigured ? (
+                                        <p className="text-center text-sm text-red-400">
+                                            {t('checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED')}
+                                        </p>
+                                    ) : null}
                                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
                                         <div className="flex items-center justify-center gap-2 text-center font-bold text-amber-400 text-sm tracking-tight">
                                             <Zap className="h-4 w-4 shrink-0" aria-hidden />
@@ -450,7 +420,7 @@ export default function Checkin() {
                                     <button
                                         type="button"
                                         onClick={handleCheckinWallet}
-                                        disabled={isPaying || !isConnected || isConnecting || status.pending}
+                                        disabled={isPaying || !isConnected || isConnecting || status.pending || !paymentConfigured}
                                         className="flex w-full min-h-[4.5rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-[2rem] bg-amber-500 px-5 py-4 text-slate-950 shadow-xl shadow-amber-500/20 hover:bg-amber-600 disabled:opacity-50"
                                     >
                                         {isPaying ? (
@@ -491,31 +461,8 @@ export default function Checkin() {
                             )}
                         </>
                     ) : (
-                        <div className="space-y-4">
-                            {!status.walletLinked ? (
-                                <div className="text-center space-y-4">
-                                    <p className="text-gray-400 text-sm">{t('checkin.link_wallet_hint')}</p>
-                                    <Link
-                                        to="/wallet"
-                                        className="inline-flex items-center justify-center gap-2 w-full py-4 bg-primary text-white rounded-2xl font-bold"
-                                    >
-                                        {t('checkin.open_wallet')}
-                                    </Link>
-                                </div>
-                            ) : (
-                                <>
-                                    <p className="text-center text-sm text-gray-400">{t('checkin.free_hint')}</p>
-                                    <button
-                                        type="button"
-                                        onClick={handleClaimFree}
-                                        disabled={isClaiming}
-                                        className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
-                                    >
-                                        {isClaiming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
-                                        {t('checkin.claim_today')}
-                                    </button>
-                                </>
-                            )}
+                        <div className="space-y-4 text-center">
+                            <p className="text-sm text-red-400">{t('checkin.errors.PAYMENT_REQUIRED')}</p>
                         </div>
                     )}
                 </div>

@@ -25,20 +25,47 @@ vi.mock("react-i18next", () => ({
   })
 }));
 
+const activeSessionPayload = {
+  id: 1,
+  status: "ACTIVE",
+  gameOver: false,
+  hasMoves: true,
+  board: [
+    [2, 0, 0, 0],
+    [0, 2, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+  ],
+  score: 0,
+  winTile: 2048,
+  minScore: 1000,
+  timeLimitSeconds: 0,
+  startedAt: new Date().toISOString(),
+  canClaim: false,
+};
+
 describe("Game2048Page", () => {
   beforeEach(() => {
-    vi.mocked(api.get).mockResolvedValue({
+    let roundStarted = false;
+    vi.mocked(api.get).mockImplementation(async () => ({
       data: {
         ok: true,
         allowNewStart: true,
         cooldownSecondsRemaining: 0,
-        activeSession: null,
+        activeSession: roundStarted ? activeSessionPayload : null,
         rewardHashRate: 25,
         winTile: 2048,
         minScore: 1000,
         powerDays: 7,
-        cooldownMinutesHint: 3
+        cooldownMinutesHint: 3,
+      },
+    }));
+    vi.mocked(api.post).mockImplementation(async (path) => {
+      if (path === "/games/2048/start") {
+        roundStarted = true;
+        return { data: { ok: true, session: activeSessionPayload } };
       }
+      return { data: { ok: false } };
     });
   });
 
@@ -55,5 +82,16 @@ describe("Game2048Page", () => {
     );
     await waitFor(() => expect(api.get).toHaveBeenCalledWith("/games/2048/status"));
     expect(screen.getByText("game2048.title")).toBeInTheDocument();
+  });
+
+  it("auto-starts a round when status has no active session", async () => {
+    render(
+      <MemoryRouter>
+        <Game2048Page />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/games/2048/start"));
+    await waitFor(() => expect(screen.getByRole("grid", { name: "game2048.grid_aria" })).toBeInTheDocument());
+    expect(screen.queryByText("game2048.new_game")).not.toBeInTheDocument();
   });
 });

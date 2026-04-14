@@ -92,11 +92,11 @@ function Chain2048Tile({ value, row, col, t }) {
   );
 }
 
-function MergeLadder({ winTile, bestTile, t }) {
+function MergeLadder({ winTile, bestTile, t, className = "" }) {
   const steps = useMemo(() => mergePathValues(winTile, 14), [winTile]);
   return (
     <aside
-      className="flex w-[52px] shrink-0 flex-col gap-1.5 border-l border-sky-500/20 pl-2 sm:w-[60px]"
+      className={`flex shrink-0 flex-col gap-1.5 border-sky-500/20 max-sm:mx-auto max-sm:w-full max-sm:max-w-[min(420px,92vw)] max-sm:flex-row max-sm:flex-nowrap max-sm:justify-start max-sm:overflow-x-auto max-sm:border-t max-sm:border-l-0 max-sm:pt-3 sm:w-[60px] sm:flex-nowrap sm:border-l sm:border-t-0 sm:pl-2 sm:pt-0 ${className}`}
       aria-label={t("game2048.merge_path_aria")}
     >
       {steps.map((tileVal, i) => {
@@ -106,7 +106,7 @@ function MergeLadder({ winTile, bestTile, t }) {
         return (
           <div
             key={`${tileVal}-${i}`}
-            className={`flex aspect-square items-center justify-center rounded border p-0.5 transition-colors ${
+            className={`flex aspect-square items-center justify-center rounded border p-0.5 transition-colors max-sm:h-9 max-sm:w-9 max-sm:shrink-0 ${
               active
                 ? "border-amber-400/70 bg-amber-500/15 ring-1 ring-amber-400/40"
                 : "border-sky-600/25 bg-[#0a1628]/80 opacity-70"
@@ -122,6 +122,34 @@ function MergeLadder({ winTile, bestTile, t }) {
         );
       })}
     </aside>
+  );
+}
+
+function Game2048BoardSkeleton({ t, labelKey }) {
+  const n = 4;
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
+      aria-label={t(labelKey)}
+      className="relative aspect-square w-full max-w-[min(420px,calc(100vw-2.5rem))] animate-pulse touch-none overflow-hidden rounded-xl border border-sky-600/25 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:max-w-[420px]"
+    >
+      <div
+        className="grid h-full w-full gap-1.5 sm:gap-2"
+        style={{
+          gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${n}, minmax(0, 1fr))`,
+        }}
+      >
+        {Array.from({ length: n * n }, (_, i) => (
+          <div
+            key={`sk-${i}`}
+            className="rounded border border-sky-800/35 bg-[#0c1929]/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -145,6 +173,7 @@ export default function Game2048Page() {
   const [session, setSession] = useState(null);
   const touchRef = useRef(null);
   const timeoutRefreshRef = useRef(false);
+  const autoStartInFlightRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -164,6 +193,67 @@ export default function Game2048Page() {
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus]);
+
+  const startGame = useCallback(async ({ silent = false } = {}) => {
+    setBusy(true);
+    try {
+      const { data } = await api.post("/games/2048/start");
+      if (!data?.ok) {
+        if (!silent && data?.code === "COOLDOWN_ACTIVE") {
+          toast.error(t("game2048.errors.COOLDOWN_ACTIVE"));
+        } else if (!silent) {
+          toast.error(t("game2048.errors.start_failed"));
+        }
+        await refreshStatus();
+        return { ok: false, code: data?.code || "START_FAILED" };
+      }
+      if (data.session) setSession(data.session);
+      await refreshStatus();
+      return { ok: true };
+    } catch {
+      if (!silent) toast.error(t("game2048.errors.start_failed"));
+      return { ok: false, code: "START_FAILED" };
+    } finally {
+      setBusy(false);
+    }
+  }, [t, refreshStatus]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!status || status.ok === false) return;
+    if (session?.status === "ACTIVE" && !session?.gameOver) return;
+    if (!status.allowNewStart || (status.cooldownSecondsRemaining ?? 0) > 0) return;
+    if (busy || autoStartInFlightRef.current) return;
+
+    autoStartInFlightRef.current = true;
+    void startGame({ silent: true }).finally(() => {
+      autoStartInFlightRef.current = false;
+    });
+  }, [loading, status, session, busy, startGame]);
+
+  useEffect(() => {
+    return () => {
+      autoStartInFlightRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const sessionBoardSize = Array.isArray(session?.board) ? session.board.length : 0;
+    const sessionHasBoard = sessionBoardSize > 0;
+    if (!loading && !sessionHasBoard && !busy && status?.allowNewStart && (status?.cooldownSecondsRemaining ?? 0) === 0) {
+      // Keep trying to bootstrap an initial board if the first auto-start race fails.
+      const retryId = setTimeout(() => {
+        if (!autoStartInFlightRef.current) {
+          autoStartInFlightRef.current = true;
+          void startGame({ silent: true }).finally(() => {
+            autoStartInFlightRef.current = false;
+          });
+        }
+      }, 1200);
+      return () => clearTimeout(retryId);
+    }
+    return undefined;
+  }, [loading, session, busy, status, startGame]);
 
   const roundSeconds = useRoundSecondsRemaining(session);
 
@@ -241,29 +331,7 @@ export default function Game2048Page() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onKeyDown]);
 
-  const startGame = async () => {
-    setBusy(true);
-    try {
-      const { data } = await api.post("/games/2048/start");
-      if (!data?.ok) {
-        if (data?.code === "COOLDOWN_ACTIVE") {
-          toast.error(t("game2048.errors.COOLDOWN_ACTIVE"));
-        } else {
-          toast.error(t("game2048.errors.start_failed"));
-        }
-        await refreshStatus();
-        return;
-      }
-      if (data.session) setSession(data.session);
-      await refreshStatus();
-    } catch {
-      toast.error(t("game2048.errors.start_failed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const restartGame = async () => {
+  const restartGame = useCallback(async () => {
     setBusy(true);
     try {
       const { data } = await api.post("/games/2048/restart");
@@ -283,9 +351,9 @@ export default function Game2048Page() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [t, refreshStatus]);
 
-  const claimReward = async () => {
+  const claimReward = useCallback(async () => {
     if (!session?.id || busy) return;
     setBusy(true);
     try {
@@ -312,7 +380,7 @@ export default function Game2048Page() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [session, busy, t, refreshStatus]);
 
   const onTouchStart = (e) => {
     const t0 = e.changedTouches?.[0];
@@ -340,7 +408,6 @@ export default function Game2048Page() {
   const rewardHr = session?.rewardHashRate ?? status?.rewardHashRate ?? 25;
   const powerDays = status?.powerDays ?? 7;
   const cdSec = status?.cooldownSecondsRemaining ?? 0;
-  const canStartNew = Boolean(status?.allowNewStart) && (!session || session.status !== "ACTIVE");
   const board = session?.board;
   const best = bestTileOnBoard(board);
   const cooldownMinutesDisplay = status?.cooldownMinutesHint || 3;
@@ -349,15 +416,23 @@ export default function Game2048Page() {
   const progressPct = mergeProgressPercent(best, winTile);
 
   const boardSize = board?.length || 0;
+  const hasBoard = Boolean(board && boardSize > 0);
+  const skeletonLabelKey = loading
+    ? "game2048.grid_loading_aria"
+    : busy
+      ? "game2048.starting"
+      : "game2048.grid_placeholder_aria";
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-[#020617]" style={{ direction: "ltr" }}>
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center text-slate-400">{t("game2048.loading")}</div>
-      ) : (
-        <>
-          <span className="sr-only">{t("game2048.title")}</span>
-          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-[#050a14] px-2 py-2 sm:px-4">
+      <>
+        <span className="sr-only">{t("game2048.title")}</span>
+        {loading && (
+          <span className="sr-only" aria-live="polite">
+            {t("game2048.loading")}
+          </span>
+        )}
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-[#050a14] px-2 py-2 sm:px-4">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <Link
                 to="/games"
@@ -408,9 +483,9 @@ export default function Game2048Page() {
                 </button>
               )}
             </div>
-          </header>
+        </header>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="shrink-0 space-y-2 border-b border-slate-800/80 bg-[#050a14]/90 px-3 py-2 sm:px-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[9px] font-black uppercase tracking-widest text-sky-400/90">
@@ -438,18 +513,8 @@ export default function Game2048Page() {
               )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-y-auto p-3">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-start gap-3 overflow-y-auto p-3 sm:justify-center sm:py-4">
               <div className="flex flex-wrap justify-center gap-2">
-                {canStartNew && (
-                  <button
-                    type="button"
-                    onClick={() => void startGame()}
-                    disabled={busy || !status?.allowNewStart}
-                    className="min-h-11 rounded-xl bg-sky-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-sky-900/30 transition-opacity hover:opacity-95 disabled:opacity-50"
-                  >
-                    {t("game2048.new_game")}
-                  </button>
-                )}
                 {session?.canClaim && (
                   <button
                     type="button"
@@ -468,51 +533,56 @@ export default function Game2048Page() {
                 </p>
               )}
 
-              {session && board && boardSize > 0 && (
-                <div className="mx-auto grid w-full max-w-[min(492px,calc(100vw-1.25rem))] grid-cols-[minmax(0,1fr)_auto] items-start gap-2 sm:max-w-[min(500px,calc(100vw-1.5rem))]">
-                  <div className="flex min-w-0 justify-center">
+              <div className="mx-auto flex w-full max-w-[min(560px,calc(100vw-1rem))] flex-col items-center gap-3 sm:max-w-[min(640px,calc(100vw-2rem))] sm:flex-row sm:items-start sm:justify-center sm:gap-4">
+                <div className="flex w-full min-w-0 flex-1 justify-center sm:max-w-[min(420px,55vw)]">
+                  {hasBoard ? (
                     <div
                       role="grid"
                       aria-label={t("game2048.grid_aria")}
-                      className="relative aspect-square w-full max-w-[420px] touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)]"
+                      className="relative aspect-square w-full max-w-[min(420px,calc(100vw-2.5rem))] touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:max-w-[420px]"
                       onTouchStart={onTouchStart}
                       onTouchEnd={onTouchEnd}
                     >
-                    <div
-                      className="grid h-full w-full gap-1.5 sm:gap-2"
-                      style={{
-                        gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
-                        gridTemplateRows: `repeat(${boardSize}, minmax(0, 1fr))`,
-                      }}
-                    >
-                      {board.map((row, ri) =>
-                        row.map((value, ci) => (
-                          <Chain2048Tile key={`cell-${ri}-${ci}`} value={value} row={ri} col={ci} t={t} />
-                        )),
+                      <div
+                        className="grid h-full w-full gap-1.5 sm:gap-2"
+                        style={{
+                          gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+                          gridTemplateRows: `repeat(${boardSize}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {board.map((row, ri) =>
+                          row.map((value, ci) => (
+                            <Chain2048Tile key={`cell-${ri}-${ci}`} value={value} row={ri} col={ci} t={t} />
+                          )),
+                        )}
+                      </div>
+                      {session.gameOver && (
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[#03050a]/88 p-4 text-center backdrop-blur-[2px]">
+                          <p className="text-base font-black uppercase leading-tight text-white sm:text-lg">
+                            {overlayKind === "won" && t("game2048.you_won")}
+                            {overlayKind === "time" && t("game2048.time_up")}
+                            {overlayKind === "closed" && t("game2048.round_closed")}
+                            {overlayKind === "lost" && t("game2048.game_over")}
+                          </p>
+                        </div>
                       )}
                     </div>
-                    {session.gameOver && (
-                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[#03050a]/88 p-4 text-center backdrop-blur-[2px]">
-                        <p className="text-base font-black uppercase leading-tight text-white sm:text-lg">
-                          {overlayKind === "won" && t("game2048.you_won")}
-                          {overlayKind === "time" && t("game2048.time_up")}
-                          {overlayKind === "closed" && t("game2048.round_closed")}
-                          {overlayKind === "lost" && t("game2048.game_over")}
-                        </p>
-                      </div>
-                    )}
-                    </div>
-                  </div>
-                  <MergeLadder winTile={winTile} bestTile={best} t={t} />
+                  ) : (
+                    <Game2048BoardSkeleton t={t} labelKey={skeletonLabelKey} />
+                  )}
                 </div>
-              )}
+                <MergeLadder winTile={winTile} bestTile={hasBoard ? best : 0} t={t} />
+              </div>
 
               <p className="text-center text-[11px] text-slate-600">{t("game2048.play_hint")}</p>
-              {busy && <p className="text-center text-[11px] text-slate-600">{t("game2048.syncing")}</p>}
+              {busy && (
+                <p className="text-center text-[11px] text-slate-600">
+                  {hasBoard ? t("game2048.syncing") : t("game2048.starting")}
+                </p>
+              )}
             </div>
-          </div>
-        </>
-      )}
+        </div>
+      </>
     </div>
   );
 }

@@ -340,6 +340,9 @@
     "claim": "Reclamar recompensa",
     "claiming": "Reclamando…",
     "loading": "Cargando…",
+    "starting": "Iniciando partida…",
+    "grid_loading_aria": "Cargando el tablero",
+    "grid_placeholder_aria": "Aún no hay una partida activa en el tablero",
     "syncing": "Sincronizando…",
     "game_over": "No quedan movimientos",
     "you_won": "Objetivo alcanzado — puedes reclamar si cumples la puntuación mínima.",
@@ -1342,6 +1345,7 @@
       "BLOCKCHAIN_UNAVAILABLE": "No pudimos contactar la blockchain para verificar el pago. Inténtalo en unos minutos.",
       "WALLET_REQUIRED": "Vincula y verifica tu cartera en la página Cartera antes de hacer check-in.",
       "CHECKIN_PAYMENT_DISABLED": "El check-in de pago está desactivado en el servidor. Usa el check-in diario gratuito.",
+      "CHECKIN_RECEIVER_NOT_CONFIGURED": "La dirección de pago del check-in no está configurada en el servidor.",
       "CHECKIN_SERVER_ERROR": "El check-in falló por un error del servidor. Inténtalo más tarde."
     },
     "success": {

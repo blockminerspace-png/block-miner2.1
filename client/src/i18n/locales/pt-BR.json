@@ -705,6 +705,9 @@
     "claim": "Reclamar recompensa",
     "claiming": "A reclamar…",
     "loading": "A carregar…",
+    "starting": "A iniciar a ronda…",
+    "grid_loading_aria": "A carregar o tabuleiro",
+    "grid_placeholder_aria": "Ainda não há ronda ativa no tabuleiro",
     "syncing": "A sincronizar…",
     "game_over": "Sem jogadas possíveis",
     "you_won": "Alvo atingido — podes reclamar se cumprires a pontuação mínima.",
@@ -1713,6 +1716,7 @@
       "BLOCKCHAIN_UNAVAILABLE": "Não foi possível contactar a blockchain para verificar o pagamento. Tente de novo em alguns minutos.",
       "WALLET_REQUIRED": "Associe e verifique a sua carteira na página Carteira antes de fazer check-in.",
       "CHECKIN_PAYMENT_DISABLED": "O check-in pago está desativado no servidor. Use o check-in diário gratuito.",
+      "CHECKIN_RECEIVER_NOT_CONFIGURED": "O endereço de pagamento do check-in não está configurado no servidor.",
       "CHECKIN_SERVER_ERROR": "O check-in falhou por erro no servidor. Tente mais tarde."
     },
     "success": {

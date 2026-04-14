@@ -704,6 +704,9 @@
     "claim": "Claim reward",
     "claiming": "Claiming…",
     "loading": "Loading…",
+    "starting": "Starting round…",
+    "grid_loading_aria": "Loading game board",
+    "grid_placeholder_aria": "No active round on the board yet",
     "syncing": "Syncing…",
     "game_over": "No moves left",
     "you_won": "Target tile reached — you can claim if you meet the minimum score.",
@@ -1708,6 +1711,7 @@
       "BLOCKCHAIN_UNAVAILABLE": "We could not reach the blockchain to verify payment. Try again in a few minutes.",
       "WALLET_REQUIRED": "Link and verify your wallet on the Wallet page before check-in.",
       "CHECKIN_PAYMENT_DISABLED": "Paid check-in is turned off on the server. Use the free daily check-in instead.",
+      "CHECKIN_RECEIVER_NOT_CONFIGURED": "Check-in payment receiver is not configured on the server.",
       "CHECKIN_SERVER_ERROR": "Check-in failed due to a server error. Try again later."
     },
     "success": {

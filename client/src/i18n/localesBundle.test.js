@@ -41,6 +41,9 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.checkin.errors.PAYMENT_REQUIRED).toBeTruthy();
     expect(pt.checkin.errors.TRANSACTION_NOT_CONFIRMED).toBeTruthy();
     expect(es.checkin.errors.TRANSACTION_ALREADY_USED).toBeTruthy();
+    expect(en.checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED).toBeTruthy();
+    expect(pt.checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED).toBeTruthy();
+    expect(es.checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED).toBeTruthy();
 
     expect(en.adminAuth.session_invalid).toBeTruthy();
     expect(pt.adminAuth.session_banner).toBeTruthy();
@@ -252,6 +255,15 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.game2048.open_game).toBeTruthy();
     expect(pt.game2048.open_game).toBeTruthy();
     expect(es.game2048.open_game).toBeTruthy();
+    expect(en.game2048.starting).toBeTruthy();
+    expect(pt.game2048.starting).toBeTruthy();
+    expect(es.game2048.starting).toBeTruthy();
+    expect(en.game2048.grid_loading_aria).toBeTruthy();
+    expect(pt.game2048.grid_loading_aria).toBeTruthy();
+    expect(es.game2048.grid_loading_aria).toBeTruthy();
+    expect(en.game2048.grid_placeholder_aria).toBeTruthy();
+    expect(pt.game2048.grid_placeholder_aria).toBeTruthy();
+    expect(es.game2048.grid_placeholder_aria).toBeTruthy();
   });
 
   it("exposes security API error strings in en, pt-BR, and es", () => {
