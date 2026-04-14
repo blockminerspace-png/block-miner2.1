@@ -1300,7 +1300,7 @@
     "claim_success": "¡Check-in de hoy guardado!",
     "total_days": "Total de días con check-in",
     "history_title": "Últimos check-ins confirmados",
-    "free_hint": "Sin pago en POL — un toque al día mantiene la racha.",
+    "free_hint": "Con la cartera vinculada en la página Cartera, un toque al día registra el check-in (sin transacción on-chain). La racha queda en tu cuenta.",
     "server_note_free": "Al volver al sitio, la racha y el historial se cargan desde la base de datos.",
     "server_note": "El servidor valida importe, destinatario y remitente en la blockchain. Las transacciones pendientes se revisan automáticamente.",
     "error_already_today": "Ya hiciste check-in hoy. Vuelve mañana.",

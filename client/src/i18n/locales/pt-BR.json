@@ -1671,7 +1671,7 @@
     "claim_success": "Check-in de hoje registado!",
     "total_days": "Total de dias com check-in",
     "history_title": "Últimos check-ins confirmados",
-    "free_hint": "Sem pagamento em POL — um toque por dia mantém a sequência.",
+    "free_hint": "Com a carteira vinculada na página Carteira, um toque por dia regista o check-in (sem transação na blockchain). A sequência fica na tua conta.",
     "server_note_free": "Ao reabrir o site, o estado vem da base de dados (sequência + dias anteriores).",
     "server_note": "O servidor valida valor, destino e remetente na blockchain. Transações pendentes são verificadas automaticamente em segundo plano.",
     "error_already_today": "Já fizeste check-in hoje. Volta amanhã.",
