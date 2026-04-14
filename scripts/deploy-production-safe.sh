@@ -12,6 +12,7 @@
 #   export SKIP_APP_TARBALL=1   # optional; skip full-app tar (disk / CI)
 #   export DEPLOY_GIT_MODE=reset|ff-only   # default reset (CI-safe); ff-only keeps pull --ff-only
 #   export START_NGINX_PROXY=1   # optional; docker compose --profile proxy up -d nginx
+#   export BLOCKMINER_DOCKER_BUILD_NO_CACHE=1   # optional; docker compose build --no-cache app (slower, no layer reuse)
 #   ./scripts/deploy-production-safe.sh
 #
 set -euo pipefail
@@ -25,6 +26,7 @@ RUN_PG_DUMP="${RUN_PG_DUMP:-0}"
 SKIP_APP_TARBALL="${SKIP_APP_TARBALL:-0}"
 DEPLOY_GIT_MODE="${DEPLOY_GIT_MODE:-reset}"
 START_NGINX_PROXY="${START_NGINX_PROXY:-0}"
+BLOCKMINER_DOCKER_BUILD_NO_CACHE="${BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}"
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
@@ -79,8 +81,14 @@ if command -v docker >/dev/null 2>&1; then
     compose+=(--env-file .env.production)
   fi
 
-  log "Docker Compose: build app; up db + app (env-file if present)"
-  "${compose[@]}" build app
+  if [[ "$BLOCKMINER_DOCKER_BUILD_NO_CACHE" == "1" ]]; then
+    log "Docker Compose: build --no-cache app (BLOCKMINER_DOCKER_BUILD_NO_CACHE=1)"
+    "${compose[@]}" build --no-cache app
+  else
+    log "Docker Compose: build app (cached layers)"
+    "${compose[@]}" build app
+  fi
+  log "Docker Compose: up db + app (env-file if present)"
   "${compose[@]}" up -d db app
 
   if [[ "$START_NGINX_PROXY" == "1" ]]; then

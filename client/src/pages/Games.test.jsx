@@ -108,6 +108,26 @@ describe("Games page", () => {
     expect(screen.getByText("game2048.arena_unavailable")).toBeInTheDocument();
   });
 
+  it("keeps Chain 2048 card open when allowNewStart is false but an active session exists (continue round)", async () => {
+    vi.mocked(api.get).mockImplementation(async (url) => {
+      if (url === "/games/2048/status") {
+        return {
+          data: {
+            ok: true,
+            allowNewStart: false,
+            cooldownSecondsRemaining: 0,
+            activeSession: { id: 42, status: "ACTIVE", board: [[2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]] },
+          },
+        };
+      }
+      return { data: { ok: true, totalHashRate: 0 } };
+    });
+    renderWithRouter(<Games />);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("/games/2048/status"));
+    expect(screen.queryByText("game2048.arena_unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByText(/game2048\.arena_cooldown_minutes/)).not.toBeInTheDocument();
+  });
+
   it("shows translated toast for coded game:error", async () => {
     renderWithRouter(<Games />);
     await waitFor(() => expect(socketHandlers["game:error"]).toBeTypeOf("function"));

@@ -61,6 +61,8 @@ export default function Games() {
   const [match3Cooldown, setMatch3Cooldown] = useState(0);
   const [chain2048CdSec, setChain2048CdSec] = useState(0);
   const [chain2048AllowStart, setChain2048AllowStart] = useState(true);
+  /** Server sets allowNewStart=false when a round is ACTIVE (continue), not only on cooldown. */
+  const [chain2048HasActiveSession, setChain2048HasActiveSession] = useState(false);
   const [gameTimerKey, setGameTimerKey] = useState(0);
   const activeGameRef = useRef(null);
 
@@ -126,6 +128,7 @@ export default function Games() {
       if (res.data?.ok) {
         setChain2048CdSec(Math.max(0, Number(res.data.cooldownSecondsRemaining) || 0));
         setChain2048AllowStart(Boolean(res.data.allowNewStart));
+        setChain2048HasActiveSession(Boolean(res.data.activeSession));
       }
     } catch {
       // Leave previous values; card stays usable.
@@ -138,6 +141,9 @@ export default function Games() {
     const id = setInterval(() => void fetchChain2048Arena(), pollMs);
     return () => clearInterval(id);
   }, [fetchChain2048Arena, activeGame]);
+
+  const chain2048CardBlocked =
+    chain2048CdSec > 0 || (!chain2048AllowStart && !chain2048HasActiveSession);
 
   const chain2048CdActive = chain2048CdSec > 0;
   useEffect(() => {
@@ -865,7 +871,7 @@ export default function Games() {
               icon={Grid3X3}
               color="from-emerald-600 to-teal-800"
               ctaLabel={t('game2048.open_game')}
-              disabled={chain2048CdSec > 0 || !chain2048AllowStart}
+              disabled={chain2048CardBlocked}
               cooldownMinutes={
                 chain2048CdSec > 0 ? Math.max(1, Math.ceil(chain2048CdSec / 60)) : 0
               }

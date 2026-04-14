@@ -4,6 +4,10 @@ SSH deploy to the BlockMiner test VPS (see .cursor/rules/blockminer-test-vm.mdc)
 
 Reads credentials from scripts/vm_config_secret.py (gitignored) or env VM_IP / VM_USER / VM_PASSWORD.
 Streams remote output until the remote bash session ends (long docker builds supported).
+
+Env:
+  BLOCKMINER_DOCKER_BUILD_NO_CACHE=1  — remote `deploy-production-safe.sh` runs `docker compose build --no-cache app`
+  DEPLOY_TEST_VM_TIMEOUT_SEC          — max wait seconds (default 7200)
 """
 from __future__ import annotations
 
@@ -23,7 +27,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 SECRET = SCRIPT_DIR / "vm_config_secret.py"
 
-REMOTE_SCRIPT = r"""set -euo pipefail
+
+def _docker_no_cache_enabled() -> bool:
+    v = os.environ.get("BLOCKMINER_DOCKER_BUILD_NO_CACHE", "").strip().lower()
+    return v in ("1", "true", "yes", "y", "on")
+
+
+def build_remote_script() -> str:
+    prefix = "export BLOCKMINER_DOCKER_BUILD_NO_CACHE=1\n" if _docker_no_cache_enabled() else ""
+    return prefix + r"""set -euo pipefail
 APP_ROOT=/root/block-miner-v3
 REPO=https://github.com/blockminerspace-png/block-miner-v3.git
 BRANCH=main
@@ -87,7 +99,7 @@ def main() -> int:
     )
     # No PTY: avoids echoing the script into an interactive shell on some hosts.
     stdin, stdout, stderr = client.exec_command("bash -s", get_pty=False)
-    stdin.write(REMOTE_SCRIPT)
+    stdin.write(build_remote_script())
     stdin.close()
 
     start = time.monotonic()

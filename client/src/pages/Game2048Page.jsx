@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowLeft, Clock, Coins, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../store/auth";
@@ -34,12 +34,16 @@ function useRoundSecondsRemaining(session) {
 }
 
 function Chain2048Tile({ value, row, col, t }) {
+  const reduceMotion = useReducedMotion();
   const num = typeof value === "number" ? value : Number(value);
   const hasTile = Number.isFinite(num) && num > 0;
   const slug = hasTile ? cryptoSlugFor2048Tile(num) : null;
   const scheme = slug ? COIN_COLORS[slug] || COIN_COLORS.ethereum : null;
   const iconSrc = slug ? CRYPTO_ICONS[slug] || CRYPTO_ICONS.ethereum : null;
   const [imgOk, setImgOk] = useState(true);
+  const tileTransition = reduceMotion
+    ? { duration: 0.12 }
+    : { type: "spring", stiffness: 420, damping: 28 };
 
   useEffect(() => {
     setImgOk(true);
@@ -54,10 +58,10 @@ function Chain2048Tile({ value, row, col, t }) {
         {hasTile && scheme ? (
           <motion.div
             key={`${row}-${col}-${num}`}
-            initial={{ scale: 0.88, opacity: 0.75 }}
+            initial={reduceMotion ? { opacity: 0.9 } : { scale: 0.88, opacity: 0.75 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.82, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 420, damping: 28 }}
+            exit={reduceMotion ? { opacity: 0 } : { scale: 0.82, opacity: 0 }}
+            transition={tileTransition}
             className="relative flex h-[78%] w-[78%] items-center justify-center overflow-hidden rounded-full shadow-inner"
             style={{
               borderWidth: 2,
@@ -134,7 +138,9 @@ export default function Game2048Page() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
   const [session, setSession] = useState(null);
-  const touchRef = useRef(null);
+  /** Touch / pen swipe tracking (pointer id + capture — fixes iOS lost touchend). */
+  const pointerSwipeRef = useRef(null);
+  const boardGridRef = useRef(null);
   const timeoutRefreshRef = useRef(false);
   const autoStartInFlightRef = useRef(false);
 
@@ -374,26 +380,74 @@ export default function Game2048Page() {
     }
   }, [session, busy, t, refreshStatus]);
 
-  const onTouchStart = (e) => {
-    const t0 = e.changedTouches?.[0];
-    if (!t0) return;
-    touchRef.current = { x: t0.clientX, y: t0.clientY, t: Date.now() };
-  };
+  const minSwipePx = useMemo(() => {
+    if (typeof window === "undefined") return 32;
+    return Math.round(Math.max(28, Math.min(52, window.innerWidth * 0.07)));
+  }, []);
 
-  const onTouchEnd = (e) => {
-    const start = touchRef.current;
-    touchRef.current = null;
-    if (!start || !session || session.status !== "ACTIVE" || session.gameOver || busy) return;
-    const t1 = e.changedTouches?.[0];
-    if (!t1) return;
-    const dx = t1.clientX - start.x;
-    const dy = t1.clientY - start.y;
-    const ax = Math.abs(dx);
-    const ay = Math.abs(dy);
-    if (Math.max(ax, ay) < 24) return;
-    if (ax > ay) void sendMove(dx > 0 ? "right" : "left");
-    else void sendMove(dy > 0 ? "down" : "up");
-  };
+  const onBoardPointerDown = useCallback(
+    (e) => {
+      if (busy) return;
+      if (!session || session.status !== "ACTIVE" || session.gameOver) return;
+      if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+      pointerSwipeRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Some browsers reject capture on non-interactive stacking; swipe still works if finger stays on grid.
+      }
+    },
+    [session, busy],
+  );
+
+  const clearPointerSwipe = useCallback((target, pointerId) => {
+    pointerSwipeRef.current = null;
+    try {
+      if (target && typeof target.hasPointerCapture === "function" && target.hasPointerCapture(pointerId)) {
+        target.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const onBoardPointerUp = useCallback(
+    (e) => {
+      const start = pointerSwipeRef.current;
+      if (!start || start.id !== e.pointerId) return;
+      clearPointerSwipe(e.currentTarget, e.pointerId);
+
+      if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
+      if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      const ax = Math.abs(dx);
+      const ay = Math.abs(dy);
+      if (Math.max(ax, ay) < minSwipePx) return;
+      if (ax > ay) void sendMove(dx > 0 ? "right" : "left");
+      else void sendMove(dy > 0 ? "down" : "up");
+    },
+    [session, busy, sendMove, minSwipePx, clearPointerSwipe],
+  );
+
+  const onBoardPointerCancel = useCallback(
+    (e) => {
+      if (pointerSwipeRef.current?.id === e.pointerId) {
+        clearPointerSwipe(e.currentTarget, e.pointerId);
+      }
+    },
+    [clearPointerSwipe],
+  );
+
+  const onBoardLostPointerCapture = useCallback(
+    (e) => {
+      if (pointerSwipeRef.current?.id === e.pointerId) {
+        pointerSwipeRef.current = null;
+      }
+    },
+    [],
+  );
 
   const cdSec = status?.cooldownSecondsRemaining ?? 0;
   const board = session?.board;
@@ -402,6 +456,17 @@ export default function Game2048Page() {
 
   const boardSize = board?.length || 0;
   const hasBoard = Boolean(board && boardSize > 0);
+
+  useEffect(() => {
+    const el = boardGridRef.current;
+    if (!el || !hasBoard) return undefined;
+    const blockNativeScroll = (ev) => {
+      if (ev.cancelable) ev.preventDefault();
+    };
+    el.addEventListener("touchmove", blockNativeScroll, { passive: false });
+    return () => el.removeEventListener("touchmove", blockNativeScroll);
+  }, [hasBoard]);
+
   const skeletonLabelKey = loading
     ? "game2048.grid_loading_aria"
     : busy
@@ -410,7 +475,7 @@ export default function Game2048Page() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-[#020617]"
+      className="fixed inset-0 z-[100] flex min-h-[100dvh] touch-manipulation flex-col overflow-hidden bg-[#020617] pt-[env(safe-area-inset-top)]"
       style={{ direction: "ltr", overscrollBehavior: "none" }}
     >
       <>
@@ -498,11 +563,15 @@ export default function Game2048Page() {
                 <div className="flex w-full min-w-0 justify-center">
                   {hasBoard ? (
                     <div
+                      ref={boardGridRef}
                       role="grid"
                       aria-label={t("game2048.grid_aria")}
-                      className="relative aspect-square w-full max-w-full touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-1.5 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:p-2"
-                      onTouchStart={onTouchStart}
-                      onTouchEnd={onTouchEnd}
+                      className="relative aspect-square w-full max-w-full touch-none select-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-1.5 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:p-2"
+                      style={{ touchAction: "none" }}
+                      onPointerDown={onBoardPointerDown}
+                      onPointerUp={onBoardPointerUp}
+                      onPointerCancel={onBoardPointerCancel}
+                      onLostPointerCapture={onBoardLostPointerCapture}
                     >
                       <div
                         className="grid h-full w-full gap-1.5 sm:gap-2"
@@ -534,7 +603,6 @@ export default function Game2048Page() {
                 </div>
               </div>
 
-              <p className="text-center text-[11px] text-slate-600">{t("game2048.play_hint")}</p>
               {busy && (
                 <p className="text-center text-[11px] text-slate-600">
                   {hasBoard ? t("game2048.syncing") : t("game2048.starting")}

@@ -699,7 +699,6 @@
     "reward_line_hours": "Recompensa: +{{hr}} H/s por {{hours}} h · Check-in diário confirmado hoje dá {{days}} dias completos.",
     "claimed_toast_hours": "+{{hr}} H/s por {{hours}} h",
     "cooldown_line": "Cooldown após reclamar: {{minutes}} min",
-    "play_hint": "Usa as setas ou desliza no ecrã.",
     "open_game": "Abrir jogo",
     "arena_cooldown_minutes": "Faltam {{minutes}} min para jogar de novo",
     "arena_unavailable": "Em cooldown",

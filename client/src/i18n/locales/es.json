@@ -334,7 +334,6 @@
     "reward_line_hours": "Recompensa: +{{hr}} H/s durante {{hours}} h · Check-in diario confirmado hoy = {{days}} días completos.",
     "claimed_toast_hours": "+{{hr}} H/s durante {{hours}} h",
     "cooldown_line": "Enfriamiento tras reclamar: {{minutes}} min",
-    "play_hint": "Usa las flechas o desliza.",
     "open_game": "Abrir juego",
     "arena_cooldown_minutes": "Quedan {{minutes}} min para volver a jugar",
     "arena_unavailable": "En enfriamiento",
