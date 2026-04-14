@@ -5,12 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Clock, Coins, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../store/auth";
-import {
-  CRYPTO_ICONS,
-  COIN_COLORS,
-  cryptoSlugFor2048Tile,
-  mergePathValues,
-} from "../games/cryptoGameIcons.js";
+import { CRYPTO_ICONS, COIN_COLORS, cryptoSlugFor2048Tile } from "../games/cryptoGameIcons.js";
 import { bestTileOnBoard, mergeProgressPercent } from "../games/game2048BoardUtils.js";
 
 function formatMmSs(totalSeconds) {
@@ -92,39 +87,6 @@ function Chain2048Tile({ value, row, col, t }) {
   );
 }
 
-function MergeLadder({ winTile, bestTile, t, className = "" }) {
-  const steps = useMemo(() => mergePathValues(winTile, 14), [winTile]);
-  return (
-    <aside
-      className={`flex shrink-0 flex-col gap-1.5 border-sky-500/20 max-sm:mx-auto max-sm:w-full max-sm:max-w-[min(420px,92vw)] max-sm:flex-row max-sm:flex-nowrap max-sm:justify-start max-sm:overflow-x-auto max-sm:border-t max-sm:border-l-0 max-sm:pt-3 sm:w-[60px] sm:flex-nowrap sm:border-l sm:border-t-0 sm:pl-2 sm:pt-0 ${className}`}
-      aria-label={t("game2048.merge_path_aria")}
-    >
-      {steps.map((tileVal, i) => {
-        const slug = cryptoSlugFor2048Tile(tileVal);
-        const src = CRYPTO_ICONS[slug];
-        const active = bestTile >= tileVal;
-        return (
-          <div
-            key={`${tileVal}-${i}`}
-            className={`flex aspect-square items-center justify-center rounded border p-0.5 transition-colors max-sm:h-9 max-sm:w-9 max-sm:shrink-0 ${
-              active
-                ? "border-amber-400/70 bg-amber-500/15 ring-1 ring-amber-400/40"
-                : "border-sky-600/25 bg-[#0a1628]/80 opacity-70"
-            }`}
-            title={`${tileVal}`}
-          >
-            {src ? (
-              <img src={src} alt="" className="h-[72%] w-[72%] object-contain" draggable={false} />
-            ) : (
-              <span className="text-[8px] font-bold text-slate-500">{tileVal}</span>
-            )}
-          </div>
-        );
-      })}
-    </aside>
-  );
-}
-
 function Game2048BoardSkeleton({ t, labelKey }) {
   const n = 4;
   return (
@@ -133,7 +95,7 @@ function Game2048BoardSkeleton({ t, labelKey }) {
       aria-busy="true"
       aria-live="polite"
       aria-label={t(labelKey)}
-      className="relative aspect-square w-full max-w-[min(420px,calc(100vw-2.5rem))] animate-pulse touch-none overflow-hidden rounded-xl border border-sky-600/25 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:max-w-[420px]"
+      className="relative aspect-square w-full max-w-[min(420px,min(calc(100dvw-1.5rem),calc(100vw-1.5rem)))] animate-pulse touch-none overflow-hidden rounded-xl border border-sky-600/25 bg-[#060d18] p-1.5 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:p-2 sm:max-w-[420px]"
     >
       <div
         className="grid h-full w-full gap-1.5 sm:gap-2"
@@ -432,7 +394,7 @@ export default function Game2048Page() {
             {t("game2048.loading")}
           </span>
         )}
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-[#050a14] px-2 py-2 sm:px-4">
+        <header className="flex shrink-0 items-center justify-between gap-1.5 border-b border-slate-800 bg-[#050a14] px-2 py-2 sm:gap-2 sm:px-4">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <Link
                 to="/games"
@@ -486,7 +448,7 @@ export default function Game2048Page() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="shrink-0 space-y-2 border-b border-slate-800/80 bg-[#050a14]/90 px-3 py-2 sm:px-4">
+            <div className="shrink-0 space-y-1.5 border-b border-slate-800/80 bg-[#050a14]/90 px-2 py-2 sm:space-y-2 sm:px-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[9px] font-black uppercase tracking-widest text-sky-400/90">
                   {t("game2048.progress_label")}
@@ -513,7 +475,7 @@ export default function Game2048Page() {
               )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-start gap-3 overflow-y-auto p-3 sm:justify-center sm:py-4">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 overflow-y-auto overflow-x-hidden px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-4">
               <div className="flex flex-wrap justify-center gap-2">
                 {session?.canClaim && (
                   <button
@@ -533,13 +495,13 @@ export default function Game2048Page() {
                 </p>
               )}
 
-              <div className="mx-auto flex w-full max-w-[min(560px,calc(100vw-1rem))] flex-col items-center gap-3 sm:max-w-[min(640px,calc(100vw-2rem))] sm:flex-row sm:items-start sm:justify-center sm:gap-4">
-                <div className="flex w-full min-w-0 flex-1 justify-center sm:max-w-[min(420px,55vw)]">
+              <div className="mx-auto flex w-full max-w-[min(420px,min(calc(100dvw-1rem),calc(100vw-1rem)))] flex-col items-center sm:max-w-[420px]">
+                <div className="flex w-full min-w-0 justify-center">
                   {hasBoard ? (
                     <div
                       role="grid"
                       aria-label={t("game2048.grid_aria")}
-                      className="relative aspect-square w-full max-w-[min(420px,calc(100vw-2.5rem))] touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-2 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:max-w-[420px]"
+                      className="relative aspect-square w-full max-w-full touch-none overflow-hidden rounded-xl border border-sky-600/30 bg-[#060d18] p-1.5 shadow-[inset_0_0_24px_rgba(0,0,0,0.45)] sm:p-2"
                       onTouchStart={onTouchStart}
                       onTouchEnd={onTouchEnd}
                     >
@@ -571,7 +533,6 @@ export default function Game2048Page() {
                     <Game2048BoardSkeleton t={t} labelKey={skeletonLabelKey} />
                   )}
                 </div>
-                <MergeLadder winTile={winTile} bestTile={hasBoard ? best : 0} t={t} />
               </div>
 
               <p className="text-center text-[11px] text-slate-600">{t("game2048.play_hint")}</p>
