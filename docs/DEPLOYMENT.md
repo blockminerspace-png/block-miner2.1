@@ -32,6 +32,13 @@ Compose binds the app to `127.0.0.1:${APP_HOST_PORT:-3000}:3000`. The deploy scr
 
 4. **Nginx profile** — `docker compose up -d nginx` uses profile `proxy`. If nginx fails to start, check `nginx/certs` and `nginx/nginx.conf`; app health on `127.0.0.1:<APP_HOST_PORT>` bypasses nginx.
 
+5. **Site still shows an old UI after deploy** — The SPA ships from **`client/dist` inside the `app` image** (built in Docker). Nginx only reverse-proxies; it does not ship an old copy from disk unless the **container image** is old. Check in order:
+   - **Wrong hostname:** production (`blockminer.space`) vs staging (`tests.blockminer.space`) vs raw VM IP — each can point at different commits or VMs.
+   - **Git on the VM:** `cd $REMOTE_PATH && git log -1 --oneline` must match the commit you expect after `deploy.py` runs `git reset --hard origin/<branch>`.
+   - **Image not rebuilt:** Default deploy runs `docker compose up -d --build`. If layers were reused incorrectly, run a full rebuild: `python deploy.py --no-cache` (Windows) or on the VM `docker compose --env-file .env.production build --no-cache app` then `up -d --no-deps app`.
+   - **CDN / browser cache:** If Cloudflare (or similar) caches HTML, purge cache or disable “cache everything” for `/`. Users should hard-refresh once (`Ctrl+Shift+R` / empty cache). The Node app already sends **`Cache-Control: no-store`** on the HTML shell (`server/server.js` catch-all for `index.html`).
+   - **Confirm headers:** `curl -sI https://<host>/ | findstr /i cache` (Windows) or `curl -sI https://<host>/ | grep -i cache` — expect `no-store` / `no-cache` on the document response from origin.
+
 ## Live streaming admin (`STREAM_ENCRYPTION_KEY`)
 
 Saving RTMP destinations encrypts stream keys with **AES-256-GCM** using `STREAM_ENCRYPTION_KEY` (exactly **64 hex characters**, i.e. 32 bytes). If this variable is missing on the API host, the admin UI returns HTTP 503.

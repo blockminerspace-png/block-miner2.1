@@ -11,6 +11,7 @@ import {
   cryptoSlugFor2048Tile,
   mergePathValues,
 } from "../games/cryptoGameIcons.js";
+import { bestTileOnBoard, mergeProgressPercent } from "../games/game2048BoardUtils.js";
 
 function formatMmSs(totalSeconds) {
   const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
@@ -36,16 +37,6 @@ function useRoundSecondsRemaining(session) {
     const end = new Date(startedAt).getTime() + limit * 1000;
     return Math.max(0, Math.ceil((end - Date.now()) / 1000));
   }, [startedAt, limit, tick]);
-}
-
-function mergeProgressPercent(bestTile, winTile) {
-  if (!winTile || winTile < 2) return 0;
-  if (!bestTile || bestTile < 2) return 0;
-  if (bestTile >= winTile) return 100;
-  const num = Math.log2(bestTile);
-  const den = Math.log2(winTile);
-  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return 0;
-  return Math.min(100, Math.max(0, (num / den) * 100));
 }
 
 function Chain2048Tile({ value, row, col, t }) {
@@ -176,6 +167,19 @@ export default function Game2048Page() {
 
   const roundSeconds = useRoundSecondsRemaining(session);
 
+  /** Prefer the smaller of client tick and server snapshot so the timer never runs ahead of the authority clock. */
+  const displaySeconds = useMemo(() => {
+    const limit = session?.timeLimitSeconds ?? 0;
+    if (limit <= 0) return 0;
+    const server = session?.secondsRemaining;
+    if (typeof server === "number" && roundSeconds != null) {
+      return Math.max(0, Math.min(server, roundSeconds));
+    }
+    if (roundSeconds != null) return roundSeconds;
+    if (typeof server === "number") return Math.max(0, server);
+    return 0;
+  }, [session?.timeLimitSeconds, session?.secondsRemaining, roundSeconds]);
+
   useEffect(() => {
     if (roundSeconds !== 0 || !session || session.status !== "ACTIVE" || session.gameOver) {
       timeoutRefreshRef.current = false;
@@ -191,7 +195,6 @@ export default function Game2048Page() {
     async (direction) => {
       if (!session?.id || busy) return;
       if (session.status !== "ACTIVE" || session.gameOver) return;
-      if ((session.timeLimitSeconds ?? 0) > 0 && roundSeconds === 0) return;
       setBusy(true);
       try {
         const { data } = await api.post("/games/2048/move", {
@@ -214,13 +217,12 @@ export default function Game2048Page() {
         setBusy(false);
       }
     },
-    [session, busy, t, roundSeconds],
+    [session, busy, t],
   );
 
   const onKeyDown = useCallback(
     (e) => {
       if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
-      if ((session.timeLimitSeconds ?? 0) > 0 && roundSeconds === 0) return;
       const key = e.key;
       let dir = null;
       if (key === "ArrowUp") dir = "up";
@@ -231,7 +233,7 @@ export default function Game2048Page() {
       e.preventDefault();
       void sendMove(dir);
     },
-    [session, busy, sendMove, roundSeconds],
+    [session, busy, sendMove],
   );
 
   useEffect(() => {
@@ -322,7 +324,6 @@ export default function Game2048Page() {
     const start = touchRef.current;
     touchRef.current = null;
     if (!start || !session || session.status !== "ACTIVE" || session.gameOver || busy) return;
-    if ((session.timeLimitSeconds ?? 0) > 0 && roundSeconds === 0) return;
     const t1 = e.changedTouches?.[0];
     if (!t1) return;
     const dx = t1.clientX - start.x;
@@ -341,9 +342,8 @@ export default function Game2048Page() {
   const cdSec = status?.cooldownSecondsRemaining ?? 0;
   const canStartNew = Boolean(status?.allowNewStart) && (!session || session.status !== "ACTIVE");
   const board = session?.board;
-  const best = board ? Math.max(...board.flat()) : 0;
+  const best = bestTileOnBoard(board);
   const cooldownMinutesDisplay = status?.cooldownMinutesHint || 3;
-  const displaySeconds = roundSeconds ?? session?.secondsRemaining ?? 0;
   const showTimer = (session?.timeLimitSeconds ?? 0) > 0 && session?.status === "ACTIVE" && !session?.gameOver;
   const overlayKind = session ? endOverlayKey(session) : null;
   const progressPct = mergeProgressPercent(best, winTile);
@@ -373,7 +373,7 @@ export default function Game2048Page() {
                     {t("game2048.score")}
                   </span>
                   <span className="text-lg font-black tabular-nums leading-none text-amber-50 sm:text-xl">
-                    {session?.score ?? 0}
+                    {Number(session?.score) || 0}
                   </span>
                 </div>
               </div>

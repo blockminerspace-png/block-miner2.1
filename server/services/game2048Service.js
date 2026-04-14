@@ -1,4 +1,5 @@
 import prisma from "../src/db/prisma.js";
+import loggerLib from "../utils/logger.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { notifyMiniPassGamePlayed } from "./miniPass/miniPassMissionHookService.js";
@@ -27,6 +28,8 @@ const SESSION_ENDED = "ENDED";
 const SESSION_CLAIMED = "CLAIMED";
 
 const STALE_ACTIVE_MS = 48 * 60 * 60 * 1000;
+
+const game2048Log = loggerLib.child("Game2048");
 
 /**
  * @param {Date | null | undefined} claimedAt
@@ -86,7 +89,18 @@ async function expireStaleActiveSessions(tx, userId, now) {
  * @returns {number[][] | null}
  */
 function boardFromRow(boardJson) {
-  return parseBoard(boardJson);
+  const parsed = parseBoard(boardJson);
+  if (!parsed && boardJson != null) {
+    const snippet = (() => {
+      try {
+        return JSON.stringify(boardJson).slice(0, 160);
+      } catch {
+        return "[unserializable]";
+      }
+    })();
+    game2048Log.warn("game2048_board_parse_failed", { snippet });
+  }
+  return parsed;
 }
 
 /**
@@ -349,6 +363,12 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
 
     const { board: afterMove, scoreDelta, moved } = moveBoard(board, direction);
     if (!moved) {
+      game2048Log.debug("game2048_move_noop", {
+        userId,
+        sessionId: sid,
+        direction,
+        score: Number(row.score) || 0
+      });
       return {
         ok: true,
         moved: false,
@@ -377,6 +397,17 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
         status: nextStatus,
         endedAt
       }
+    });
+
+    game2048Log.info("game2048_move_applied", {
+      userId,
+      sessionId: sid,
+      direction,
+      scoreDelta,
+      scoreAfter: nextScore,
+      maxTileAfter: maxTile(nextBoard),
+      won,
+      status: nextStatus
     });
 
     return {
@@ -482,6 +513,15 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
         rewardClaimedAt: playedAt,
         endedAt: row.endedAt ?? playedAt
       }
+    });
+
+    game2048Log.info("game2048_reward_claimed", {
+      userId,
+      sessionId: row.id,
+      score: Number(row.score) || 0,
+      winTile,
+      rewardHashRate: rewardHr,
+      userPowerGameId: powerRow.id
     });
 
     await tx.auditLog.create({

@@ -9,6 +9,7 @@ import {
   maxTile,
   mergeLineTowardZero,
   moveBoard,
+  normalize2048Cell,
   parseBoard
 } from "../server/services/game2048Engine.js";
 
@@ -76,6 +77,41 @@ describe("game2048Engine", () => {
     assert.ok(parsed);
     assert.equal(parsed.length, 4);
     assert.equal(parsed[0].length, 4);
+  });
+
+  it("normalize2048Cell accepts integer strings from JSON", () => {
+    assert.equal(normalize2048Cell("128"), 128);
+    assert.equal(normalize2048Cell("  64 "), 64);
+    assert.equal(normalize2048Cell("1.5"), null);
+    assert.equal(normalize2048Cell("abc"), null);
+  });
+
+  it("parseBoard accepts boards with stringified integers", () => {
+    const rows = [
+      ["2", "0", "0", "0"],
+      ["0", "4", "0", "0"],
+      ["0", "0", "0", "0"],
+      ["0", "0", "0", "0"]
+    ];
+    const parsed = parseBoard(rows);
+    assert.ok(parsed);
+    assert.equal(parsed[0][0], 2);
+    assert.equal(parsed[1][1], 4);
+  });
+
+  it("moveBoard scores merges on boards loaded from string cells", () => {
+    const b = [
+      ["2", "2", "0", "0"],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ];
+    const board = parseBoard(b);
+    assert.ok(board);
+    const { board: after, moved, scoreDelta } = moveBoard(board, "left");
+    assert.equal(moved, true);
+    assert.equal(scoreDelta, 4);
+    assert.equal(after[0][0], 4);
   });
 
   it("createInitialBoard places two non-zero tiles", () => {

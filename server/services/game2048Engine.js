@@ -158,6 +158,25 @@ export function hasValidMove(board) {
 }
 
 /**
+ * Coerces a JSON cell to a valid non-negative integer tile value, or null if invalid.
+ * Some storage layers deserialize numeric JSON as strings; accept integer strings.
+ * @param {unknown} c
+ * @returns {number | null}
+ */
+export function normalize2048Cell(c) {
+  if (typeof c === "number" && Number.isFinite(c) && Number.isInteger(c) && c >= 0 && c <= 1_048_576) {
+    return c;
+  }
+  if (typeof c === "string") {
+    const t = c.trim();
+    if (!/^-?\d+$/.test(t)) return null;
+    const n = Number(t);
+    if (Number.isFinite(n) && Number.isInteger(n) && n >= 0 && n <= 1_048_576) return n;
+  }
+  return null;
+}
+
+/**
  * @param {unknown} json
  * @returns {number[][] | null}
  */
@@ -169,11 +188,9 @@ export function parseBoard(json) {
     if (!Array.isArray(row) || row.length !== BOARD_SIZE) return null;
     const r = [];
     for (let j = 0; j < BOARD_SIZE; j++) {
-      const c = row[j];
-      if (typeof c !== "number" || !Number.isFinite(c) || !Number.isInteger(c) || c < 0 || c > 1_048_576) {
-        return null;
-      }
-      r.push(c);
+      const v = normalize2048Cell(row[j]);
+      if (v === null) return null;
+      r.push(v);
     }
     out.push(r);
   }
