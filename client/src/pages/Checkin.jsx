@@ -488,16 +488,30 @@ export default function Checkin() {
                         </>
                     ) : (
                         <div className="space-y-4">
-                            <p className="text-center text-sm text-gray-400">{t('checkin.free_hint')}</p>
-                            <button
-                                type="button"
-                                onClick={handleClaimFree}
-                                disabled={isClaiming}
-                                className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
-                            >
-                                {isClaiming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
-                                {t('checkin.claim_today')}
-                            </button>
+                            {!status.walletLinked ? (
+                                <div className="text-center space-y-4">
+                                    <p className="text-gray-400 text-sm">{t('checkin.link_wallet_hint')}</p>
+                                    <Link
+                                        to="/wallet"
+                                        className="inline-flex items-center justify-center gap-2 w-full py-4 bg-primary text-white rounded-2xl font-bold"
+                                    >
+                                        {t('checkin.open_wallet')}
+                                    </Link>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-center text-sm text-gray-400">{t('checkin.free_hint')}</p>
+                                    <button
+                                        type="button"
+                                        onClick={handleClaimFree}
+                                        disabled={isClaiming}
+                                        className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
+                                    >
+                                        {isClaiming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
+                                        {t('checkin.claim_today')}
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>

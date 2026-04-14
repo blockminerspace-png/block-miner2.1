@@ -2,14 +2,14 @@ import crypto from "crypto";
 import prisma from "../src/db/prisma.js";
 import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 import { computeCheckinStreak } from "../utils/checkinStreak.js";
-import { assertValidTxHash, evaluateCheckinTx, normalizeAddr, parseCheckinAmountWei } from "../services/checkinChain.js";
+import { evaluateCheckinTx, normalizeAddr, parseCheckinAmountWei } from "../services/checkinChain.js";
 import {
   applyStreakMilestoneRewards,
   buildMilestoneStatusForUser
 } from "../services/checkinMilestoneService.js";
 import { notifyMiniPassLoginDay } from "../services/miniPass/miniPassMissionHookService.js";
 import { notifyDailyTaskLoginDay } from "../services/dailyTasks/dailyTaskHookService.js";
-import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
+import { logSecurityWarn } from "../utils/securityLogger.js";
 
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -43,7 +43,8 @@ function getReceiver() {
 }
 
 function paymentCheckinEnabled() {
-  return Boolean(getReceiver());
+  const enabled = String(process.env.CHECKIN_PAYMENT_ENABLED || "").trim().toLowerCase();
+  return enabled === "true" && Boolean(getReceiver());
 }
 
 /** Exported for tests: when true, free `/checkin/claim` must be rejected. */
@@ -222,6 +223,19 @@ export async function claimCheckin(req, res) {
   try {
     const userId = req.user.id;
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { walletAddress: true }
+    });
+    if (!user?.walletAddress?.trim()) {
+      return jsonCheckinError(
+        res,
+        400,
+        "WALLET_REQUIRED",
+        "Link and verify your wallet on the Wallet page before check-in."
+      );
+    }
+
     if (paymentCheckinEnabled()) {
       logSecurityWarn(
         "checkin_free_claim_rejected_payment_required",
@@ -296,186 +310,18 @@ export async function claimCheckin(req, res) {
 
 /** On-chain POL check-in when a treasury address is configured (CHECKIN_RECEIVER or DEPOSIT_WALLET_ADDRESS). */
 export async function confirmCheckin(req, res) {
-  try {
-    if (!paymentCheckinEnabled()) {
-      return jsonCheckinError(
-        res,
-        400,
-        "CHECKIN_PAYMENT_DISABLED",
-        "On-chain check-in payment is disabled. Use the free daily check-in instead."
-      );
-    }
-
-    const receiver = getReceiver();
-    const minWei = parseCheckinAmountWei();
-    let txHash;
-    try {
-      txHash = assertValidTxHash(req.body?.txHash);
-    } catch (e) {
-      logSecurityWarn(
-        "checkin_invalid_tx_hash",
-        { userId: req.user.id, code: e?.code },
-        req
-      );
-      return jsonCheckinError(res, 400, "INVALID_TRANSACTION", e.message || "Invalid transaction hash.");
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { walletAddress: true }
-    });
-    const wallet = user?.walletAddress?.trim();
-    if (!wallet) {
-      return jsonCheckinError(
-        res,
-        400,
-        "PAYMENT_REQUIRED",
-        "Link and verify your wallet on the Wallet page before check-in."
-      );
-    }
-    const userWalletLower = normalizeAddr(wallet);
-
-    const today = getBrazilCheckinDateKey();
-    const existing = await prisma.dailyCheckin.findUnique({
-      where: { userId_checkinDate: { userId: req.user.id, checkinDate: today } }
-    });
-
-    if (existing?.status === "confirmed") {
-      return res.json({ ok: true, alreadyCheckedIn: true, status: "confirmed" });
-    }
-
-    const dup = await prisma.dailyCheckin.findUnique({ where: { txHash } });
-    if (dup && dup.userId !== req.user.id) {
-      logSecurityWarn(
-        "checkin_tx_reuse_other_user",
-        { userId: req.user.id, txHash: `${txHash.slice(0, 10)}…` },
-        req
-      );
-      return jsonCheckinError(
-        res,
-        400,
-        "TRANSACTION_ALREADY_USED",
-        "This transaction is already linked to another account."
-      );
-    }
-    if (dup && dup.userId === req.user.id && dup.checkinDate !== today) {
-      logSecurityWarn(
-        "checkin_tx_reuse_previous_day",
-        { userId: req.user.id, txHash: `${txHash.slice(0, 10)}…` },
-        req
-      );
-      return jsonCheckinError(
-        res,
-        400,
-        "TRANSACTION_ALREADY_USED",
-        "This transaction was already used for a previous check-in day."
-      );
-    }
-
-    if (dup && dup.userId === req.user.id && dup.checkinDate === today && dup.status === "confirmed") {
-      return res.json({ ok: true, alreadyCheckedIn: true, status: "confirmed" });
-    }
-
-    if (existing?.status === "pending" || existing?.status === "failed") {
-      await prisma.dailyCheckin.update({
-        where: { id: existing.id },
-        data: { txHash, status: "pending", confirmedAt: null }
-      });
-    } else if (!existing) {
-      await prisma.dailyCheckin.create({
-        data: {
-          userId: req.user.id,
-          checkinDate: today,
-          txHash,
-          status: "pending",
-          chainId: POLYGON_CHAIN_ID,
-          amount: Number(minWei) / 1e18
-        }
-      });
-    }
-
-    logSecurityEvent("checkin_payment_verify_attempt", { userId: req.user.id }, req);
-
-    let ev;
-    try {
-      ev = await evaluateCheckinTx({
-        txHash,
-        userWalletLower,
-        receiverLower: normalizeAddr(receiver),
-        minValueWei: minWei,
-        missingTxBehavior: "failed"
-      });
-    } catch (e) {
-      console.error("Checkin RPC error:", e.message);
-      logSecurityWarn(
-        "checkin_blockchain_verify_unavailable",
-        { userId: req.user.id, err: e.message },
-        req
-      );
-      return jsonCheckinError(
-        res,
-        503,
-        "BLOCKCHAIN_UNAVAILABLE",
-        "Blockchain verification is temporarily unavailable. Try again in a few minutes."
-      );
-    }
-
-    if (ev.state === "pending") {
-      return res.status(200).json({
-        ok: false,
-        code: "TRANSACTION_NOT_CONFIRMED",
-        pending: true,
-        message:
-          "Transaction found but not yet confirmed. Wait for block confirmations and open Check-in again — progress is saved."
-      });
-    }
-
-    if (ev.state === "failed") {
-      await prisma.dailyCheckin.updateMany({
-        where: { userId: req.user.id, checkinDate: today },
-        data: { status: "failed" }
-      });
-      logSecurityWarn(
-        "checkin_payment_validation_failed",
-        { userId: req.user.id, reason: ev.reason },
-        req
-      );
-      return jsonCheckinError(
-        res,
-        400,
-        "INVALID_TRANSACTION",
-        ev.reason || "Payment validation failed."
-      );
-    }
-
-    const updated = await prisma.dailyCheckin.update({
-      where: { userId_checkinDate: { userId: req.user.id, checkinDate: today } },
-      data: {
-        status: "confirmed",
-        confirmedAt: new Date(),
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      }
-    });
-
-    logSecurityEvent("checkin_payment_confirmed", { userId: req.user.id }, req);
-
-    await applyStreakMilestoneRewards(req.user.id);
-    notifyMiniPassLoginDay(req.user.id, today).catch(() => {});
-    notifyDailyTaskLoginDay(req.user.id, today).catch(() => {});
-
-    return res.json({ ok: true, status: "confirmed", txHash: updated.txHash });
-  } catch (error) {
-    console.error("Checkin error:", error);
-    res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to verify check-in." });
-  }
+  return res.status(410).json({
+    ok: false,
+    code: "CHECKIN_PAYMENT_DISABLED",
+    message: "On-chain check-in payment is disabled. Use wallet daily check-in."
+  });
 }
 
 /**
  * Wallet-based check-in: same verification path as POST /checkin/confirm (single source of truth).
  */
 export async function checkinWallet(req, res) {
-  return confirmCheckin(req, res);
+  return claimCheckin(req, res);
 }
 
 /**
@@ -485,6 +331,6 @@ export async function checkinBalance(_req, res) {
   return res.status(410).json({
     ok: false,
     code: "CHECKIN_BALANCE_DISABLED",
-    message: "Balance check-in is disabled. Pay 0.01 POL from your wallet on Polygon; the server verifies on-chain."
+    message: "Balance check-in is disabled. Use wallet daily check-in."
   });
 }

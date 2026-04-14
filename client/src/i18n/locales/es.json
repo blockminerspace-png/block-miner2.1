@@ -1337,6 +1337,7 @@
       "TRANSACTION_NOT_CONFIRMED": "La transacción aún no está confirmada. Espera las confirmaciones en Polygon e inténtalo de nuevo.",
       "TRANSACTION_ALREADY_USED": "Este hash de transacción ya se usó en un check-in (otro día u otra cuenta).",
       "BLOCKCHAIN_UNAVAILABLE": "No pudimos contactar la blockchain para verificar el pago. Inténtalo en unos minutos.",
+      "WALLET_REQUIRED": "Vincula y verifica tu cartera en la página Cartera antes de hacer check-in.",
       "CHECKIN_PAYMENT_DISABLED": "El check-in de pago está desactivado en el servidor. Usa el check-in diario gratuito.",
       "CHECKIN_SERVER_ERROR": "El check-in falló por un error del servidor. Inténtalo más tarde."
     },

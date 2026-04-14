@@ -1703,6 +1703,7 @@
       "TRANSACTION_NOT_CONFIRMED": "The transaction is not confirmed yet. Wait for Polygon confirmations and try again.",
       "TRANSACTION_ALREADY_USED": "This transaction hash was already used for check-in (possibly on another day or account).",
       "BLOCKCHAIN_UNAVAILABLE": "We could not reach the blockchain to verify payment. Try again in a few minutes.",
+      "WALLET_REQUIRED": "Link and verify your wallet on the Wallet page before check-in.",
       "CHECKIN_PAYMENT_DISABLED": "Paid check-in is turned off on the server. Use the free daily check-in instead.",
       "CHECKIN_SERVER_ERROR": "Check-in failed due to a server error. Try again later."
     },
