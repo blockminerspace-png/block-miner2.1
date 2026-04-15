@@ -8,9 +8,16 @@ import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErr
 
 const logger = loggerLib.child("Turnstile");
 
+/** Cloudflare Turnstile dummy secret — only when TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS is enabled (test/staging). */
+const CLOUDFLARE_TURNSTILE_DUMMY_SECRET = "1x0000000000000000000000000000000AA";
+
 function envFlag(name) {
   const raw = String(process.env[name] ?? "").trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+function useCloudflareDummyTurnstileKeys() {
+  return envFlag("TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS");
 }
 
 /** @typedef {'login' | 'register' | undefined} TurnstilePurpose */
@@ -23,6 +30,9 @@ function envFlag(name) {
  * @returns {string}
  */
 export function resolveTurnstileSecret(purpose) {
+  if (useCloudflareDummyTurnstileKeys()) {
+    return CLOUDFLARE_TURNSTILE_DUMMY_SECRET;
+  }
   const fallback = String(process.env.TURNSTILE_SECRET_KEY || "").trim();
   if (purpose === "login") {
     return String(process.env.TURNSTILE_SECRET_KEY_LOGIN || "").trim() || fallback;

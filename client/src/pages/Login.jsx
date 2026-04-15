@@ -7,11 +7,9 @@ import { toast } from 'sonner';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import TurnstileField, { prefetchTurnstileScript } from '../components/auth/TurnstileField';
+import { resolveTurnstileSiteKeyLogin } from '../constants/turnstilePublic';
 
-/** Empty = hide widget. Site keys are hostname-scoped in Cloudflare; do not hardcode fallbacks. */
-const TURNSTILE_LOGIN_SITE_KEY = String(
-  import.meta.env.VITE_TURNSTILE_SITE_KEY_LOGIN || import.meta.env.VITE_TURNSTILE_SITE_KEY || '',
-).trim();
+const TURNSTILE_LOGIN_SITE_KEY = resolveTurnstileSiteKeyLogin();
 
 export default function Login() {
     const { t } = useTranslation();

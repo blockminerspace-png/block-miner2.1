@@ -7,6 +7,7 @@ import { Mail, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Gift } fro
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import TurnstileField, { prefetchTurnstileScript } from '../components/auth/TurnstileField';
+import { resolveTurnstileSiteKeyRegister } from '../constants/turnstilePublic';
 import SiteFooter from '../components/SiteFooter';
 import {
   REGISTER_USERNAME_MIN,
@@ -35,10 +36,7 @@ function clipRefCodeFromQuery(raw) {
     .slice(0, REGISTER_REF_CODE_MAX_LEN);
 }
 
-/** Empty = hide widget. Site keys are hostname-scoped in Cloudflare; do not hardcode fallbacks. */
-const TURNSTILE_REGISTER_SITE_KEY = String(
-  import.meta.env.VITE_TURNSTILE_SITE_KEY_REGISTER || import.meta.env.VITE_TURNSTILE_SITE_KEY || '',
-).trim();
+const TURNSTILE_REGISTER_SITE_KEY = resolveTurnstileSiteKeyRegister();
 
 export default function Register() {
   const { t } = useTranslation();
