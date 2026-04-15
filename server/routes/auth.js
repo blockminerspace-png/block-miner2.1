@@ -199,7 +199,12 @@ async function findUserByIdentifier(identifier) {
   return user;
 }
 
-authRouter.post("/register", authLimiter, validateBody(registerSchema), requireTurnstileWhenConfigured(), async (req, res) => {
+authRouter.post(
+  "/register",
+  authLimiter,
+  validateBody(registerSchema),
+  requireTurnstileWhenConfigured({ purpose: "register" }),
+  async (req, res) => {
   try {
     const { username, email, password, refCode: refCodeInput, acceptTerms } = req.body;
     const normalizedUsername = normalizeIdentifier(username);
@@ -363,7 +368,7 @@ authRouter.post(
   "/login",
   authLimiter,
   validateBody(loginSchema),
-  requireTurnstileWhenConfigured(),
+  requireTurnstileWhenConfigured({ purpose: "login" }),
   async (req, res) => {
   try {
     const { identifier, password, twoFactorToken } = req.body;
