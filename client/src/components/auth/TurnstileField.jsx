@@ -9,15 +9,57 @@ import { useTranslation } from "react-i18next";
 
 let turnstileScriptPromise;
 
+function isTurnstileRenderable() {
+  return (
+    typeof window !== "undefined" &&
+    window.turnstile &&
+    typeof window.turnstile.render === "function"
+  );
+}
+
 function loadTurnstileScript() {
   if (typeof window === "undefined") return Promise.resolve();
-  if (window.turnstile) return Promise.resolve();
+  // Do not trust `window.turnstile` alone — CF may expose a stub before api.js finishes (calling
+  // turnstile.ready() then triggers: "ready() would break if called *before* api.js is loaded".
+  if (isTurnstileRenderable()) return Promise.resolve();
   if (turnstileScriptPromise) return turnstileScriptPromise;
-  turnstileScriptPromise = new Promise((resolve, reject) => {
+  const p = new Promise((resolve, reject) => {
+    const finish = () => {
+      if (isTurnstileRenderable()) {
+        resolve();
+        return;
+      }
+      // api.js sometimes attaches `render` on the next task after `load`.
+      setTimeout(() => {
+        if (isTurnstileRenderable()) resolve();
+        else reject(new Error("Turnstile API not ready after script load"));
+      }, 0);
+    };
     const existing = document.querySelector('script[src*="turnstile/v0/api.js"]');
     if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Turnstile script load failed")));
+      if (isTurnstileRenderable()) {
+        finish();
+        return;
+      }
+      const onLoad = () => {
+        existing.removeEventListener("load", onLoad);
+        existing.removeEventListener("error", onError);
+        finish();
+      };
+      const onError = () => {
+        existing.removeEventListener("load", onLoad);
+        existing.removeEventListener("error", onError);
+        turnstileScriptPromise = null;
+        reject(new Error("Turnstile script load failed"));
+      };
+      existing.addEventListener("load", onLoad);
+      existing.addEventListener("error", onError);
+      // Load may have already completed (e.g. prefetch finished before this listener ran).
+      if (isTurnstileRenderable()) {
+        existing.removeEventListener("load", onLoad);
+        existing.removeEventListener("error", onError);
+        finish();
+      }
       return;
     }
     const s = document.createElement("script");
@@ -26,9 +68,16 @@ function loadTurnstileScript() {
     s.defer = true;
     const cspNonce = typeof window !== "undefined" ? window.__BLOCKMINER_CSP_NONCE__ : "";
     if (cspNonce) s.setAttribute("nonce", cspNonce);
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Turnstile script load failed"));
+    s.onload = () => finish();
+    s.onerror = () => {
+      turnstileScriptPromise = null;
+      reject(new Error("Turnstile script load failed"));
+    };
     document.head.appendChild(s);
+  });
+  turnstileScriptPromise = p.catch((e) => {
+    turnstileScriptPromise = null;
+    throw e;
   });
   return turnstileScriptPromise;
 }
@@ -36,24 +85,6 @@ function loadTurnstileScript() {
 /** Start loading Turnstile early (e.g. on /login mount) so the widget appears sooner. */
 export function prefetchTurnstileScript() {
   return loadTurnstileScript();
-}
-
-function turnstileReadyPromise() {
-  return new Promise((resolve, reject) => {
-    if (!window.turnstile) {
-      reject(new Error("Turnstile API missing"));
-      return;
-    }
-    if (typeof window.turnstile.ready === "function") {
-      try {
-        window.turnstile.ready(() => resolve());
-      } catch (e) {
-        reject(e);
-      }
-    } else {
-      resolve();
-    }
-  });
 }
 
 /**
@@ -92,8 +123,6 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
     const mountWidget = async () => {
       try {
         await loadTurnstileScript();
-        if (cancelled) return;
-        await turnstileReadyPromise();
         if (cancelled) return;
         if (!hostRef.current || !window.turnstile) {
           setBootState("error");
