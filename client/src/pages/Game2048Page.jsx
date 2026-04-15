@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowLeft, Clock, Coins, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../store/auth";
+import { moveBoard, parseBoard } from "@game2048/engine";
 import { CRYPTO_ICONS, COIN_COLORS, cryptoSlugFor2048Tile } from "../games/cryptoGameIcons.js";
 
 function formatMmSs(totalSeconds) {
@@ -42,8 +43,8 @@ function Chain2048Tile({ value, row, col, t }) {
   const iconSrc = slug ? CRYPTO_ICONS[slug] || CRYPTO_ICONS.ethereum : null;
   const [imgOk, setImgOk] = useState(true);
   const tileTransition = reduceMotion
-    ? { duration: 0.12 }
-    : { type: "spring", stiffness: 420, damping: 28 };
+    ? { duration: 0.06 }
+    : { type: "tween", duration: 0.1, ease: [0.25, 0.1, 0.25, 1] };
 
   useEffect(() => {
     setImgOk(true);
@@ -57,10 +58,10 @@ function Chain2048Tile({ value, row, col, t }) {
       <AnimatePresence mode="popLayout">
         {hasTile && scheme ? (
           <motion.div
-            key={`${row}-${col}-${num}`}
-            initial={reduceMotion ? { opacity: 0.9 } : { scale: 0.88, opacity: 0.75 }}
+            key={`slot-${row}-${col}`}
+            initial={reduceMotion ? { opacity: 0.95 } : { scale: 0.94, opacity: 0.88 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={reduceMotion ? { opacity: 0 } : { scale: 0.82, opacity: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { scale: 0.9, opacity: 0 }}
             transition={tileTransition}
             className="relative flex h-[78%] w-[78%] items-center justify-center overflow-hidden rounded-full shadow-inner"
             style={{
@@ -151,6 +152,8 @@ export default function Game2048Page() {
     /** @param {"up"|"down"|"left"|"right"} _d */ (_d) => {},
   );
   const [moveSync, setMoveSync] = useState(false);
+  /** Snapshot before optimistic board apply; restored on move API failure. */
+  const moveRevertRef = useRef(null);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -262,18 +265,51 @@ export default function Game2048Page() {
     async (direction) => {
       if (!session?.id) return;
       if (session.status !== "ACTIVE" || session.gameOver) return;
+
+      const parsedBoard = parseBoard(session.board);
+      let optimisticBoard = null;
+      let optimisticScoreDelta = 0;
+      if (parsedBoard) {
+        const { board: afterSlide, scoreDelta, moved } = moveBoard(
+          parsedBoard.map((r) => [...r]),
+          direction,
+        );
+        if (!moved) return;
+        optimisticBoard = afterSlide;
+        optimisticScoreDelta = scoreDelta;
+      }
+
       if (moveInFlightRef.current) {
         pendingSwipeDirRef.current = direction;
         return;
       }
       moveInFlightRef.current = true;
       setMoveSync(true);
+
+      moveRevertRef.current =
+        session.board && Array.isArray(session.board)
+          ? { ...session, board: session.board.map((r) => [...r]) }
+          : { ...session };
+
+      if (optimisticBoard) {
+        setSession((s) => {
+          if (!s || s.id !== session.id || s.status !== "ACTIVE" || s.gameOver) return s;
+          return {
+            ...s,
+            board: optimisticBoard,
+            score: (Number(s.score) || 0) + optimisticScoreDelta,
+          };
+        });
+      }
+
       try {
         const { data } = await api.post("/games/2048/move", {
           sessionId: session.id,
           direction,
         });
         if (!data?.ok) {
+          const rev = moveRevertRef.current;
+          if (rev) setSession(rev);
           const code = data?.code;
           const msg = code
             ? t(`game2048.errors.${code}`, { defaultValue: t("game2048.errors.move_failed") })
@@ -284,8 +320,11 @@ export default function Game2048Page() {
         }
         if (data.session) setSession(data.session);
       } catch {
+        const rev = moveRevertRef.current;
+        if (rev) setSession(rev);
         toast.error(t("game2048.errors.move_failed"));
       } finally {
+        moveRevertRef.current = null;
         moveInFlightRef.current = false;
         setMoveSync(false);
         const next = pendingSwipeDirRef.current;

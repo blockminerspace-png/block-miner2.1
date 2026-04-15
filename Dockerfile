@@ -18,6 +18,8 @@ ENV VITE_LIVE_SERVER_YOUTUBE_ID=$VITE_LIVE_SERVER_YOUTUBE_ID
 COPY client/package*.json ./
 RUN npm install --no-audit --no-fund
 COPY client/ ./
+# Vite resolves `@game2048/engine` to this copy (client-only context in this stage).
+COPY server/services/game2048Engine.js ./engine/game2048Engine.js
 RUN npm run build
 
 # Stage 2: Serve Backend

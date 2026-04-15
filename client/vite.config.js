@@ -1,6 +1,15 @@
 /// <reference types="vitest/config" />
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+/** Docker frontend stage copies engine here; dev uses repo `server/services` (see Dockerfile). */
+const game2048EngineEntry = fs.existsSync(path.resolve(__dirname, 'engine/game2048Engine.js'))
+  ? path.resolve(__dirname, 'engine/game2048Engine.js')
+  : path.resolve(__dirname, '../server/services/game2048Engine.js')
 
 // https://vite.dev/config/
 const blockminerOrigin =
@@ -9,6 +18,11 @@ const blockminerOrigin =
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@game2048/engine': game2048EngineEntry,
+    },
+  },
   test: {
     environment: 'jsdom',
     coverage: {
