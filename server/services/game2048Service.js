@@ -158,11 +158,11 @@ function serializeSession(row, now, rewardHint) {
   const winTile = game2048WinTile();
   const minScore = game2048MinScore();
   const hasMoves = board ? hasValidMove(board) : false;
+  const scoreReached = (Number(row.score) || 0) >= minScore;
   const canClaim =
-    Boolean(row.won) &&
+    scoreReached &&
     !row.rewardGranted &&
-    row.status !== SESSION_CLAIMED &&
-    Number(row.score) >= minScore;
+    row.status !== SESSION_CLAIMED;
   const timeLimitSeconds = game2048TimeLimitSec();
   const secLeft = secondsRemainingForSession(row, now);
   const rd = rewardHint != null ? rewardHint : rewardDurationFromCheckinToday(false);
@@ -172,7 +172,7 @@ function serializeSession(row, now, rewardHint) {
     status: row.status,
     board: board || emptyBoard(),
     score: Number(row.score) || 0,
-    won: Boolean(row.won),
+    won: Boolean(row.won) || scoreReached,
     rewardGranted: Boolean(row.rewardGranted),
     hasMoves,
     canClaim,
@@ -415,10 +415,14 @@ export async function applyGame2048Move(userId, sessionId, direction, now = new 
     spawnRandomTile(nextBoard);
     const nextScore = (Number(row.score) || 0) + scoreDelta;
     const winTile = game2048WinTile();
-    const won = Boolean(row.won) || maxTile(nextBoard) >= winTile;
+    const minScore = game2048MinScore();
+    const won = Boolean(row.won) || maxTile(nextBoard) >= winTile || nextScore >= minScore;
     let nextStatus = SESSION_ACTIVE;
     let endedAt = row.endedAt;
-    if (!hasValidMove(nextBoard)) {
+    if (won) {
+      nextStatus = SESSION_ENDED;
+      endedAt = now;
+    } else if (!hasValidMove(nextBoard)) {
       nextStatus = SESSION_ENDED;
       endedAt = now;
     }
@@ -504,9 +508,6 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
       };
     }
 
-    if (!row.won) {
-      return { ok: false, code: "WIN_REQUIRED", status: 400 };
-    }
     if ((Number(row.score) || 0) < minScore) {
       return { ok: false, code: "SCORE_TOO_LOW", status: 400 };
     }
