@@ -26,6 +26,7 @@ import { slidingWindowAllow } from "../services/slidingWindowRateLimit.js";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
+import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../services/emailTwoFactorService.js";
 import loggerLib, { logUserActivity } from "../utils/logger.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
 
@@ -107,12 +108,11 @@ function clearAuthCookies() {
   return [buildCookie(ACCESS_COOKIE_NAME, "", 0), buildCookie(REFRESH_COOKIE_NAME, "", 0)];
 }
 
-import { authenticator } from "otplib";
-
 const loginSchema = z.object({
   identifier: z.string().trim().min(1, "Email ou username é obrigatório"),
   password: z.string().min(1, "Senha é obrigatória"),
-  twoFactorToken: z.string().optional(),
+  twoFactorToken: z.string().trim().optional(),
+  twoFactorChallengeToken: z.string().trim().optional(),
   cfTurnstileToken: z.string().trim().optional(),
 });
 
@@ -361,7 +361,7 @@ authRouter.post(
   requireTurnstileWhenConfigured({ purpose: "login" }),
   async (req, res) => {
   try {
-    const { identifier, password, twoFactorToken } = req.body;
+    const { identifier, password, twoFactorToken, twoFactorChallengeToken } = req.body;
     const clientIp = getRequestIp(req);
 
     const ipLock = await getAuthLockStatus({ ip: clientIp, userId: null });
@@ -464,7 +464,26 @@ authRouter.post(
     if (user.isBanned) return res.status(403).json({ ok: false, message: "Account disabled." });
 
     if (user.isTwoFactorEnabled) {
-      if (!twoFactorToken) {
+      if (!twoFactorToken || !twoFactorChallengeToken) {
+        if (!isSmtpConfigured()) {
+          return res.status(503).json({
+            ok: false,
+            code: "EMAIL_2FA_UNAVAILABLE",
+            message: "Email 2FA is unavailable. SMTP is not configured.",
+          });
+        }
+        const challenge = await issueEmailTwoFactorChallenge({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+        });
+        if (!challenge.ok) {
+          return res.status(503).json({
+            ok: false,
+            code: "EMAIL_2FA_UNAVAILABLE",
+            message: "Unable to issue email 2FA challenge.",
+          });
+        }
         await enqueueAuditEvent({
           event: buildAuditEventFromHttpRequest({
             req,
@@ -473,15 +492,27 @@ authRouter.post(
               eventType: AuditEventType.AUTH_2FA_CHALLENGE,
               status: AuditEventStatus.PARTIAL,
               resultCode: "REQUIRE_2FA",
-              payload: {}
+              payload: { method: "email" }
             }
           })
         });
-        return res.json({ ok: false, code: "REQUIRE_2FA", require2FA: true, message: "2FA token required." });
+        return res.json({
+          ok: false,
+          code: "REQUIRE_2FA",
+          require2FA: true,
+          twoFactorMethod: "email",
+          twoFactorChallengeToken: challenge.challengeToken,
+          twoFactorTtlMinutes: challenge.ttlMinutes,
+          message: "2FA token required.",
+        });
       }
 
-      const isValid = authenticator.check(twoFactorToken, user.twoFactorSecret);
-      if (!isValid) {
+      const twoFactorResult = verifyEmailTwoFactorChallenge({
+        challengeToken: twoFactorChallengeToken,
+        code: twoFactorToken,
+        userId: user.id,
+      });
+      if (!twoFactorResult.ok) {
         await recordAuthLoginFailure({ ip: clientIp, userId: user.id });
         logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "INVALID_2FA", userId: user.id });
         await enqueueAuditEvent({
@@ -492,7 +523,7 @@ authRouter.post(
               eventType: AuditEventType.AUTH_2FA_FAILURE,
               status: AuditEventStatus.FAILED,
               resultCode: "INVALID_2FA",
-              payload: {}
+              payload: { method: "email", reason: twoFactorResult.reason }
             }
           })
         });

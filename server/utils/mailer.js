@@ -81,3 +81,47 @@ export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes })
 
   logger.info("Password reset email sent", { to });
 }
+
+export async function sendLoginTwoFactorCodeEmail({ to, name, code, ttlMinutes }) {
+  const tx = getTransporter();
+  if (!tx) {
+    throw new Error("SMTP not configured");
+  }
+
+  const safeName = name || "Miner";
+  const safeCode = String(code || "").trim();
+  const safeTtl = Number(ttlMinutes || 10);
+
+  const html = `
+  <div style="font-family:Arial,Helvetica,sans-serif;background:#020617;color:#e2e8f0;padding:24px;">
+    <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:24px;">
+      <h2 style="margin:0 0 8px 0;color:#22c55e;">BlockMiner - Login verification code</h2>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Hello, ${safeName}.</p>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Use the code below to complete your login:</p>
+      <p style="margin:0 0 18px 0;font-size:28px;letter-spacing:4px;font-weight:700;color:#f8fafc;">${safeCode}</p>
+      <p style="margin:0 0 6px 0;color:#94a3b8;">This code expires in ${safeTtl} minutes.</p>
+      <p style="margin:0;color:#64748b;font-size:12px;">If this was not you, ignore this email and change your password.</p>
+    </div>
+  </div>`;
+
+  const text = [
+    "BlockMiner - Login verification code",
+    "",
+    `Hello, ${safeName}.`,
+    "Use this code to complete your login:",
+    safeCode,
+    "",
+    `This code expires in ${safeTtl} minutes.`,
+    "If this was not you, ignore this email and change your password.",
+  ].join("\n");
+
+  await tx.sendMail({
+    from: SMTP_FROM,
+    to,
+    subject: "BlockMiner - Login verification code",
+    text,
+    html,
+  });
+
+  logger.info("Login 2FA email sent", { to });
+}
