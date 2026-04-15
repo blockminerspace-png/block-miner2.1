@@ -182,6 +182,9 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.admin_daily_tasks.crud_hint).toBeTruthy();
     expect(pt.admin_daily_tasks.crud_hint).toBeTruthy();
     expect(es.admin_daily_tasks.crud_hint).toBeTruthy();
+    expect(en.admin_daily_tasks.cadence_select_aria).toBeTruthy();
+    expect(pt.admin_daily_tasks.cadence_select_aria).toBeTruthy();
+    expect(es.admin_daily_tasks.cadence_select_aria).toBeTruthy();
     expect(en.admin_daily_tasks.create_task).toBeTruthy();
     expect(en.admin_daily_tasks.delete_task).toBeTruthy();
     expect(en.sidebar.settings).toBeTruthy();

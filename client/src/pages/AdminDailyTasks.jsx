@@ -121,6 +121,13 @@ export default function AdminDailyTasks() {
     patchDefinition(id, { isActive });
   };
 
+  const onCadenceChange = (id, nextCadence, previousCadence) => {
+    const next = String(nextCadence || 'DAILY').toUpperCase();
+    const prev = String(previousCadence || 'DAILY').toUpperCase();
+    if (next === prev) return;
+    patchDefinition(id, { resetCadence: next });
+  };
+
   const onSaveOrder = (id) => {
     const raw = orderDraft[id];
     const n = parseInt(String(raw), 10);
@@ -441,7 +448,21 @@ export default function AdminDailyTasks() {
                 <tr key={r.id} className="hover:bg-slate-800/30">
                   <td className="px-4 py-3 font-mono text-xs text-amber-500/90">{r.slug}</td>
                   <td className="px-4 py-3">{r.taskType}</td>
-                  <td className="px-4 py-3">{t(`admin_daily_tasks.cadence_${String(r.resetCadence || 'DAILY').toUpperCase()}`)}</td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={String(r.resetCadence || 'DAILY').toUpperCase()}
+                      disabled={patching[r.id]}
+                      aria-label={t('admin_daily_tasks.cadence_select_aria')}
+                      onChange={(e) => onCadenceChange(r.id, e.target.value, r.resetCadence)}
+                      className="max-w-[9.5rem] rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white disabled:opacity-40"
+                    >
+                      {RESET_CADENCES.map((c) => (
+                        <option key={c} value={c}>
+                          {t(`admin_daily_tasks.cadence_${c}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs">{String(r.targetValue)}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-400">{r.translationKey}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">

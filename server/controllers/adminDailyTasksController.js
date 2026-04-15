@@ -18,7 +18,7 @@ export async function listDefinitions(_req, res) {
 }
 
 /**
- * Partial update: `isActive` and/or `sortOrder` (validated).
+ * Partial update: `isActive`, `sortOrder`, `resetCadence`, `internalOfferwallOfferId` (validated).
  */
 export async function patchDefinition(req, res) {
   try {

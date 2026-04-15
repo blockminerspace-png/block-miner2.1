@@ -514,6 +514,7 @@
     "cadence_DAILY": "Diaria",
     "cadence_WEEKLY": "Semanal",
     "cadence_MONTHLY": "Mensual",
+    "cadence_select_aria": "Cadencia de reinicio de la tarea",
     "reward_BLK": "BLK",
     "reward_POL": "POL",
     "reward_HASHRATE_TEMP": "Hashrate temporal",

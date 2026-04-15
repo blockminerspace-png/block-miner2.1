@@ -879,6 +879,7 @@
     "cadence_DAILY": "Diária",
     "cadence_WEEKLY": "Semanal",
     "cadence_MONTHLY": "Mensal",
+    "cadence_select_aria": "Cadência de reset da tarefa",
     "reward_BLK": "BLK",
     "reward_POL": "POL",
     "reward_HASHRATE_TEMP": "Hashrate temporário",
