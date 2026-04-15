@@ -36,6 +36,24 @@ export function prefetchTurnstileScript() {
   return loadTurnstileScript();
 }
 
+function turnstileReadyPromise() {
+  return new Promise((resolve, reject) => {
+    if (!window.turnstile) {
+      reject(new Error("Turnstile API missing"));
+      return;
+    }
+    if (typeof window.turnstile.ready === "function") {
+      try {
+        window.turnstile.ready(() => resolve());
+      } catch (e) {
+        reject(e);
+      }
+    } else {
+      resolve();
+    }
+  });
+}
+
 /**
  * Renders Cloudflare Turnstile when a site key is provided.
  * Ref exposes `reset()` to clear the token and ask for a new challenge (e.g. after a failed login).
@@ -73,6 +91,8 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
       try {
         await loadTurnstileScript();
         if (cancelled) return;
+        await turnstileReadyPromise();
+        if (cancelled) return;
         if (!hostRef.current || !window.turnstile) {
           setBootState("error");
           onTokenRef.current?.("");
@@ -89,7 +109,6 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
         widgetId.current = window.turnstile.render(hostRef.current, {
           sitekey: resolvedSiteKey,
           appearance: "always",
-          "refresh-expired": "auto",
           callback: (token) => onTokenRef.current?.(token),
           "expired-callback": () => onTokenRef.current?.(""),
           "error-callback": () => onTokenRef.current?.(""),

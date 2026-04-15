@@ -107,6 +107,7 @@ function baseDirectives({ allowWebSockets }) {
             /** Per-request nonce set in server bootstrap (reduces XSS blast radius vs blanket unsafe-inline). */
             (req, res) => `'nonce-${res.locals.cspNonce || ""}'`,
             "'unsafe-eval'",
+            "https://challenges.cloudflare.com",
             "https://cdn.jsdelivr.net",
             "https://www.googletagmanager.com",
             "https://www.youtube.com",
@@ -119,6 +120,7 @@ function baseDirectives({ allowWebSockets }) {
             "'self'",
             "'unsafe-inline'",
             "'unsafe-eval'",
+            "https://challenges.cloudflare.com",
             "https://cdn.jsdelivr.net",
             "https://www.googletagmanager.com",
             "https://www.youtube.com",
