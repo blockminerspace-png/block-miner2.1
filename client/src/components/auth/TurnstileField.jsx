@@ -140,6 +140,8 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
         widgetId.current = window.turnstile.render(hostRef.current, {
           sitekey: resolvedSiteKey,
           appearance: "always",
+          /** Fills parent width so the widget aligns with form fields inside narrow cards (mobile). */
+          size: "flexible",
           "refresh-expired": "auto",
           callback: (token) => onTokenRef.current?.(token),
           "expired-callback": () => onTokenRef.current?.(""),
@@ -172,8 +174,11 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
   if (!resolvedSiteKey) return null;
 
   return (
-    <div className="relative my-3 w-full min-h-[72px] flex justify-center items-center rounded-2xl border border-gray-800/80 bg-background/40">
-      <div ref={hostRef} className="flex min-h-[65px] w-full justify-center items-center py-1" />
+    <div className="relative my-3 w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-gray-800/80 bg-background/40">
+      <div
+        ref={hostRef}
+        className="flex min-h-[68px] w-full max-w-full min-w-0 justify-center items-center py-2 px-1 [&_iframe]:max-w-full"
+      />
       {bootState === "loading" && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-[1px]"
