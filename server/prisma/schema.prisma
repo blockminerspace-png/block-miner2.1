@@ -117,6 +117,7 @@ model DailyTaskDefinition {
   id                   Int       @id @default(autoincrement())
   slug                 String    @unique
   taskType             String    @map("task_type")
+  resetCadence         String    @default("DAILY") @map("reset_cadence")
   targetValue          Decimal   @map("target_value") @db.Decimal(24, 8)
   translationKey       String    @map("translation_key")
   rewardKind           String    @map("reward_kind")

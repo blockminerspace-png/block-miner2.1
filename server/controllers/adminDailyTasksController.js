@@ -1,5 +1,9 @@
 import prisma from "../src/db/prisma.js";
 import { parseCreateDailyTaskDefinition } from "../services/dailyTasks/dailyTaskDefinitionAdminValidation.js";
+import {
+  DAILY_TASK_RESET_CADENCES,
+  normalizeDailyTaskResetCadence
+} from "../services/dailyTasks/dailyTaskPeriod.js";
 
 export async function listDefinitions(_req, res) {
   try {
@@ -33,6 +37,13 @@ export async function patchDefinition(req, res) {
         return res.status(400).json({ ok: false, message: "Invalid sort order." });
       }
       data.sortOrder = n;
+    }
+    if (body.resetCadence !== undefined) {
+      const cadence = normalizeDailyTaskResetCadence(body.resetCadence);
+      if (!DAILY_TASK_RESET_CADENCES.includes(cadence)) {
+        return res.status(400).json({ ok: false, message: "Invalid reset cadence." });
+      }
+      data.resetCadence = cadence;
     }
     if (body.internalOfferwallOfferId !== undefined) {
       if (body.internalOfferwallOfferId === null || body.internalOfferwallOfferId === "") {

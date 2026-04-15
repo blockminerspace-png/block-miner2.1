@@ -1,6 +1,6 @@
 import { Prisma } from "../../src/db/prismaNamespace.js";
 import prisma from "../../src/db/prisma.js";
-import { getDailyTaskPeriodKey } from "./dailyTaskPeriod.js";
+import { getDailyTaskPeriodKey, normalizeDailyTaskResetCadence } from "./dailyTaskPeriod.js";
 import { TASK_INTERNAL_OFFERWALL } from "./dailyTaskConstants.js";
 
 /**
@@ -96,7 +96,6 @@ export async function bumpDailyTasksForUser(
   if (!Number.isFinite(d) || d <= 0) return;
 
   const now = new Date();
-  const periodKey = getDailyTaskPeriodKey(now);
   const defs = await prisma.dailyTaskDefinition.findMany({
     where: activeDefinitionWhere(taskType, now),
     orderBy: { sortOrder: "asc" }
@@ -114,6 +113,8 @@ export async function bumpDailyTasksForUser(
     if (def.gameSlug) {
       if (!gameSlug || def.gameSlug !== gameSlug) continue;
     }
+    const cadence = normalizeDailyTaskResetCadence(def.resetCadence);
+    const periodKey = getDailyTaskPeriodKey(now, cadence);
     await prisma.$transaction(async (tx) => {
       const ok = await tryConsumeDedupe(tx, def.id, dedupeKey);
       if (!ok) return;

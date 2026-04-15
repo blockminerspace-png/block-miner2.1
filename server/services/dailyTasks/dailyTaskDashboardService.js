@@ -10,7 +10,11 @@ import {
   TASK_INTERNAL_OFFERWALL,
   TASK_LOGIN_DAY
 } from "./dailyTaskConstants.js";
-import { getDailyTaskPeriodKey, getNextDailyTaskResetAt } from "./dailyTaskPeriod.js";
+import {
+  getDailyTaskPeriodKey,
+  getNextDailyTaskResetAt,
+  normalizeDailyTaskResetCadence
+} from "./dailyTaskPeriod.js";
 
 const CHECKIN_APP_PATH = SIDEBAR_ITEM_REGISTRY.checkin.path;
 const INTERNAL_OFFERWALL_PATH = SIDEBAR_ITEM_REGISTRY.internal_offerwall.path;
@@ -70,7 +74,7 @@ function rewardSummary(def) {
  */
 export async function getDailyTasksDashboard(userId) {
   const now = new Date();
-  const periodKey = getDailyTaskPeriodKey(now);
+  const defaultPeriodKey = getDailyTaskPeriodKey(now);
   const visiblePaths = await getVisibleSidebarPaths();
   const defsRaw = await prisma.dailyTaskDefinition.findMany({
     where: {
@@ -84,22 +88,41 @@ export async function getDailyTasksDashboard(userId) {
   });
   const defs = filterDailyTaskDefsForSidebar(defsRaw, visiblePaths);
 
+  const periodByDef = new Map();
+  const periodKeys = new Set();
+  let nextResetAtMs = Number.POSITIVE_INFINITY;
+  for (const def of defs) {
+    const cadence = normalizeDailyTaskResetCadence(def.resetCadence);
+    const key = getDailyTaskPeriodKey(now, cadence);
+    periodByDef.set(def.id, key);
+    periodKeys.add(key);
+    const resetAt = getNextDailyTaskResetAt(now, cadence).getTime();
+    if (Number.isFinite(resetAt) && resetAt < nextResetAtMs) nextResetAtMs = resetAt;
+  }
+
   const progressRows = await prisma.userDailyTaskProgress.findMany({
-    where: { userId, periodKey }
+    where: {
+      userId,
+      periodKey: { in: Array.from(periodKeys) }
+    }
   });
-  const byDef = new Map(progressRows.map((p) => [p.taskDefinitionId, p]));
+  const byDefPeriod = new Map(progressRows.map((p) => [`${p.taskDefinitionId}:${p.periodKey}`, p]));
 
   const tasks = defs.map((def) => {
-    const row = byDef.get(def.id) || null;
+    const periodKey = periodByDef.get(def.id) || defaultPeriodKey;
+    const row = byDefPeriod.get(`${def.id}:${periodKey}`) || null;
     const target = Number(new Prisma.Decimal(def.targetValue.toString()));
     const current = row
       ? Number(new Prisma.Decimal(row.currentValue.toString()))
       : 0;
+    const resetCadence = normalizeDailyTaskResetCadence(def.resetCadence);
     return {
       id: def.id,
       slug: def.slug,
       taskType: def.taskType,
+      resetCadence,
       translationKey: def.translationKey,
+      periodKey,
       targetValue: target,
       currentValue: current,
       status: deriveStatus(row),
@@ -109,9 +132,10 @@ export async function getDailyTasksDashboard(userId) {
   });
 
   return {
-    periodKey,
+    periodKey: defaultPeriodKey,
     serverTime: now.toISOString(),
-    nextResetAt: getNextDailyTaskResetAt(now).toISOString(),
+    nextResetAt:
+      Number.isFinite(nextResetAtMs) ? new Date(nextResetAtMs).toISOString() : getNextDailyTaskResetAt(now).toISOString(),
     tasks
   };
 }

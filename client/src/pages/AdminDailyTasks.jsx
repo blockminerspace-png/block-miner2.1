@@ -6,11 +6,13 @@ import { api } from '../store/auth';
 
 const TASK_TYPES = ['LOGIN_DAY', 'MINE_BLK', 'PLAY_GAMES', 'WATCH_YOUTUBE', 'INTERNAL_OFFERWALL'];
 const REWARD_KINDS = ['BLK', 'POL', 'HASHRATE_TEMP', 'SHOP_MINER', 'EVENT_MINER'];
+const RESET_CADENCES = ['DAILY', 'WEEKLY', 'MONTHLY'];
 
 function defaultCreateForm() {
   return {
     slug: '',
     taskType: 'MINE_BLK',
+    resetCadence: 'DAILY',
     targetValue: '0.05',
     translationKey: 'dailyTasks.tasks.custom',
     rewardKind: 'BLK',
@@ -32,6 +34,7 @@ function buildCreateBody(f) {
   const body = {
     slug: f.slug.trim(),
     taskType: f.taskType,
+    resetCadence: f.resetCadence,
     targetValue: parseFloat(String(f.targetValue).replace(',', '.')),
     translationKey: f.translationKey.trim(),
     rewardKind: f.rewardKind,
@@ -234,6 +237,20 @@ export default function AdminDailyTasks() {
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
               />
             </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reset_cadence')}</span>
+              <select
+                value={createForm.resetCadence}
+                onChange={(e) => setCreateForm((f) => ({ ...f, resetCadence: e.target.value }))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+              >
+                {RESET_CADENCES.map((c) => (
+                  <option key={c} value={c}>
+                    {t(`admin_daily_tasks.cadence_${c}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block space-y-1 sm:col-span-2">
               <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_i18n_key')}</span>
               <input
@@ -408,6 +425,7 @@ export default function AdminDailyTasks() {
               <tr>
                 <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_slug')}</th>
                 <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_type')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_cadence')}</th>
                 <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_target')}</th>
                 <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_i18n_key')}</th>
                 <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_io_offer')}</th>
@@ -423,6 +441,7 @@ export default function AdminDailyTasks() {
                 <tr key={r.id} className="hover:bg-slate-800/30">
                   <td className="px-4 py-3 font-mono text-xs text-amber-500/90">{r.slug}</td>
                   <td className="px-4 py-3">{r.taskType}</td>
+                  <td className="px-4 py-3">{t(`admin_daily_tasks.cadence_${String(r.resetCadence || 'DAILY').toUpperCase()}`)}</td>
                   <td className="px-4 py-3 font-mono text-xs">{String(r.targetValue)}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-400">{r.translationKey}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">

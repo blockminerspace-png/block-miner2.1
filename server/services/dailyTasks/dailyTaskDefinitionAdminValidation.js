@@ -1,5 +1,9 @@
 import { Prisma } from "../../src/db/prismaNamespace.js";
 import {
+  DAILY_TASK_RESET_CADENCES,
+  normalizeDailyTaskResetCadence
+} from "./dailyTaskPeriod.js";
+import {
   TASK_INTERNAL_OFFERWALL,
   TASK_LOGIN_DAY,
   TASK_MINE_BLK,
@@ -38,6 +42,11 @@ export function parseCreateDailyTaskDefinition(body) {
   const taskType = typeof b.taskType === "string" ? b.taskType.trim().toUpperCase() : "";
   if (!ADMIN_CREATE_TASK_TYPES.includes(taskType)) {
     return { ok: false, status: 400, message: "Invalid task type." };
+  }
+
+  const resetCadence = normalizeDailyTaskResetCadence(b.resetCadence);
+  if (!DAILY_TASK_RESET_CADENCES.includes(resetCadence)) {
+    return { ok: false, status: 400, message: "Invalid reset cadence." };
   }
 
   const targetRaw = b.targetValue;
@@ -98,6 +107,7 @@ export function parseCreateDailyTaskDefinition(body) {
   const data = {
     slug,
     taskType,
+    resetCadence,
     targetValue: new Prisma.Decimal(String(targetNum)),
     translationKey,
     rewardKind,

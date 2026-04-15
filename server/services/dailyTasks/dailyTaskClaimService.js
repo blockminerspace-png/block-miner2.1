@@ -8,7 +8,7 @@ import {
   syncMiningAfterMiniPassReward
 } from "../miniPass/miniPassRewardFulfillmentService.js";
 import { TASK_LOGIN_DAY } from "./dailyTaskConstants.js";
-import { getDailyTaskPeriodKey } from "./dailyTaskPeriod.js";
+import { getDailyTaskPeriodKey, normalizeDailyTaskResetCadence } from "./dailyTaskPeriod.js";
 
 const CHECKIN_APP_PATH = SIDEBAR_ITEM_REGISTRY.checkin.path;
 
@@ -34,7 +34,6 @@ function rewardPayloadFromDefinition(def) {
  */
 export async function claimDailyTaskReward(userId, taskDefinitionId) {
   try {
-    const periodKey = getDailyTaskPeriodKey();
     const visiblePaths = await getVisibleSidebarPaths();
     const checkinEnabled = visiblePaths.has(CHECKIN_APP_PATH);
     const out = await prisma.$transaction(async (tx) => {
@@ -58,6 +57,8 @@ export async function claimDailyTaskReward(userId, taskDefinitionId) {
         err.code = "NOT_FOUND";
         throw err;
       }
+      const cadence = normalizeDailyTaskResetCadence(def.resetCadence);
+      const periodKey = getDailyTaskPeriodKey(new Date(), cadence);
 
       const progress = await tx.userDailyTaskProgress.findUnique({
         where: {
