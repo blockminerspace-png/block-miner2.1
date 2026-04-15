@@ -52,7 +52,8 @@ model User {
   auditLogs     AuditLog[]
   sessions      Session[]
   refreshTokens RefreshToken[]
-  checkins      DailyCheckin[]
+  checkins           DailyCheckin[]
+  periodicCheckins   PeriodicCheckin[]
   faucetClaims  FaucetClaim?
   faucetVisits  FaucetPartnerVisit[]
   gamePowers    UserPowerGame[]
@@ -726,6 +727,26 @@ model DailyCheckin {
 
   @@unique([userId, checkinDate])
   @@map("daily_checkins")
+}
+
+/// On-chain check-ins with cadence weekly or monthly (daily uses DailyCheckin).
+model PeriodicCheckin {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  cadence     String    @map("cadence")
+  periodKey   String    @map("period_key")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  txHash      String    @unique @map("tx_hash")
+  status      String    @default("pending")
+  amount      Float     @default(0.01)
+  chainId     Int       @map("chain_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cadence, periodKey])
+  @@index([status, createdAt])
+  @@map("periodic_checkins")
 }
 
 model CheckinStreakMilestone {

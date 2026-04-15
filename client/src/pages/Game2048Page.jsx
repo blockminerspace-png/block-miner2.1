@@ -140,9 +140,17 @@ export default function Game2048Page() {
   const [session, setSession] = useState(null);
   /** Touch / pen swipe tracking (pointer id + capture — fixes iOS lost touchend). */
   const pointerSwipeRef = useRef(null);
+  const boardGestureActiveRef = useRef(false);
   const boardGridRef = useRef(null);
   const timeoutRefreshRef = useRef(false);
   const autoStartInFlightRef = useRef(false);
+  /** Moves do not use global `busy` so swipes are not ignored while the API round-trip runs. */
+  const moveInFlightRef = useRef(false);
+  const pendingSwipeDirRef = useRef(null);
+  const sendMoveRef = useRef(
+    /** @param {"up"|"down"|"left"|"right"} _d */ (_d) => {},
+  );
+  const [moveSync, setMoveSync] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -252,9 +260,14 @@ export default function Game2048Page() {
 
   const sendMove = useCallback(
     async (direction) => {
-      if (!session?.id || busy) return;
+      if (!session?.id) return;
       if (session.status !== "ACTIVE" || session.gameOver) return;
-      setBusy(true);
+      if (moveInFlightRef.current) {
+        pendingSwipeDirRef.current = direction;
+        return;
+      }
+      moveInFlightRef.current = true;
+      setMoveSync(true);
       try {
         const { data } = await api.post("/games/2048/move", {
           sessionId: session.id,
@@ -273,11 +286,19 @@ export default function Game2048Page() {
       } catch {
         toast.error(t("game2048.errors.move_failed"));
       } finally {
-        setBusy(false);
+        moveInFlightRef.current = false;
+        setMoveSync(false);
+        const next = pendingSwipeDirRef.current;
+        pendingSwipeDirRef.current = null;
+        if (next) queueMicrotask(() => void sendMoveRef.current(next));
       }
     },
-    [session, busy, t],
+    [session, t],
   );
+
+  useEffect(() => {
+    sendMoveRef.current = sendMove;
+  }, [sendMove]);
 
   const onKeyDown = useCallback(
     (e) => {
@@ -289,7 +310,7 @@ export default function Game2048Page() {
       if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
       e.preventDefault();
       e.stopPropagation();
-      if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
+      if (!session || session.status !== "ACTIVE" || session.gameOver) return;
       let dir = null;
       if (key === "ArrowUp") dir = "up";
       else if (key === "ArrowDown") dir = "down";
@@ -298,7 +319,7 @@ export default function Game2048Page() {
       if (!dir) return;
       void sendMove(dir);
     },
-    [session, busy, sendMove],
+    [session, sendMove],
   );
 
   useEffect(() => {
@@ -343,7 +364,7 @@ export default function Game2048Page() {
   }, [t, refreshStatus]);
 
   const claimReward = useCallback(async () => {
-    if (!session?.id || busy) return;
+    if (!session?.id || busy || moveSync) return;
     setBusy(true);
     try {
       const { data } = await api.post("/games/2048/claim", { sessionId: session.id });
@@ -378,18 +399,18 @@ export default function Game2048Page() {
     } finally {
       setBusy(false);
     }
-  }, [session, busy, t, refreshStatus]);
+  }, [session, busy, moveSync, t, refreshStatus]);
 
   const minSwipePx = useMemo(() => {
-    if (typeof window === "undefined") return 32;
-    return Math.round(Math.max(28, Math.min(52, window.innerWidth * 0.07)));
+    if (typeof window === "undefined") return 24;
+    return Math.round(Math.max(22, Math.min(44, window.innerWidth * 0.055)));
   }, []);
 
   const onBoardPointerDown = useCallback(
     (e) => {
-      if (busy) return;
       if (!session || session.status !== "ACTIVE" || session.gameOver) return;
       if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+      boardGestureActiveRef.current = true;
       pointerSwipeRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -397,10 +418,11 @@ export default function Game2048Page() {
         // Some browsers reject capture on non-interactive stacking; swipe still works if finger stays on grid.
       }
     },
-    [session, busy],
+    [session],
   );
 
   const clearPointerSwipe = useCallback((target, pointerId) => {
+    boardGestureActiveRef.current = false;
     pointerSwipeRef.current = null;
     try {
       if (target && typeof target.hasPointerCapture === "function" && target.hasPointerCapture(pointerId)) {
@@ -417,7 +439,7 @@ export default function Game2048Page() {
       if (!start || start.id !== e.pointerId) return;
       clearPointerSwipe(e.currentTarget, e.pointerId);
 
-      if (!session || session.status !== "ACTIVE" || session.gameOver || busy) return;
+      if (!session || session.status !== "ACTIVE" || session.gameOver) return;
       if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
 
       const dx = e.clientX - start.x;
@@ -428,7 +450,7 @@ export default function Game2048Page() {
       if (ax > ay) void sendMove(dx > 0 ? "right" : "left");
       else void sendMove(dy > 0 ? "down" : "up");
     },
-    [session, busy, sendMove, minSwipePx, clearPointerSwipe],
+    [session, sendMove, minSwipePx, clearPointerSwipe],
   );
 
   const onBoardPointerCancel = useCallback(
@@ -443,6 +465,7 @@ export default function Game2048Page() {
   const onBoardLostPointerCapture = useCallback(
     (e) => {
       if (pointerSwipeRef.current?.id === e.pointerId) {
+        boardGestureActiveRef.current = false;
         pointerSwipeRef.current = null;
       }
     },
@@ -464,7 +487,11 @@ export default function Game2048Page() {
       if (ev.cancelable) ev.preventDefault();
     };
     el.addEventListener("touchmove", blockNativeScroll, { passive: false });
-    return () => el.removeEventListener("touchmove", blockNativeScroll);
+    el.addEventListener("pointermove", blockNativeScroll, { passive: false });
+    return () => {
+      el.removeEventListener("touchmove", blockNativeScroll);
+      el.removeEventListener("pointermove", blockNativeScroll);
+    };
   }, [hasBoard]);
 
   const skeletonLabelKey = loading
@@ -528,7 +555,7 @@ export default function Game2048Page() {
                 <button
                   type="button"
                   onClick={() => void restartGame()}
-                  disabled={busy}
+                  disabled={busy || moveSync}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-500/30 bg-red-500/20 text-red-400 transition-all hover:bg-red-500/40 disabled:opacity-40"
                   aria-label={t("game2048.reset_aria")}
                 >
@@ -545,7 +572,7 @@ export default function Game2048Page() {
                   <button
                     type="button"
                     onClick={() => void claimReward()}
-                    disabled={busy}
+                    disabled={busy || moveSync}
                     className="min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-5 py-3 text-xs font-black uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
                   >
                     {busy ? t("game2048.claiming") : t("game2048.claim")}
@@ -603,10 +630,8 @@ export default function Game2048Page() {
                 </div>
               </div>
 
-              {busy && (
-                <p className="text-center text-[11px] text-slate-600">
-                  {hasBoard ? t("game2048.syncing") : t("game2048.starting")}
-                </p>
+              {busy && !hasBoard && (
+                <p className="text-center text-[11px] text-slate-600">{t("game2048.starting")}</p>
               )}
             </div>
         </div>

@@ -36,6 +36,49 @@ function mergeStatus(prev, incoming) {
     return { ...prev, ...incoming };
 }
 
+const CADENCE_ORDER = ['daily', 'weekly', 'monthly'];
+
+const CADENCE_META = {
+    daily: { comeBackKey: 'checkin.come_back' },
+    weekly: { comeBackKey: 'checkin.come_back_weekly' },
+    monthly: { comeBackKey: 'checkin.come_back_monthly' }
+};
+
+function getCadenceSlice(status, key) {
+    const from = status?.cadenceStatus?.[key];
+    if (from) return from;
+    if (key === 'daily') {
+        return {
+            periodKey: '',
+            checkedIn: Boolean(status?.checkedIn),
+            pending: Boolean(status?.pending),
+            failed: Boolean(status?.failed),
+            status: status?.status ?? null,
+            txHash: status?.txHash ?? null
+        };
+    }
+    return {
+        periodKey: '',
+        checkedIn: false,
+        pending: false,
+        failed: false,
+        status: null,
+        txHash: null
+    };
+}
+
+function cadenceSliceNeedsPoll(cs) {
+    return Boolean(cs?.pending || (cs?.txHash && !cs?.checkedIn && !cs?.failed));
+}
+
+function statusNeedsCheckinPoll(s) {
+    if (!s?.paymentRequired || !s) return false;
+    if (s.cadenceStatus) {
+        return CADENCE_ORDER.some((k) => cadenceSliceNeedsPoll(getCadenceSlice(s, k)));
+    }
+    return Boolean(s.pending || (s.txHash && !s.checkedIn && !s.failed));
+}
+
 function formatMilestoneReward(m, t) {
     const rt = String(m.rewardType || '').toLowerCase();
     if (rt === 'pol' && Number(m.rewardValue) > 0) {
@@ -61,8 +104,7 @@ export default function Checkin() {
     const { account, isConnected, isCorrectNetwork, connect, isConnecting, switchNetwork } = useWallet();
     const [status, setStatus] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isPaying, setIsPaying] = useState(false);
-    const [isConfirming, setIsConfirming] = useState(false);
+    const [payingCadence, setPayingCadence] = useState(null);
     const pollRef = useRef(null);
 
     const fetchStatus = useCallback(async () => {
@@ -92,10 +134,7 @@ export default function Checkin() {
 
     useEffect(() => {
         const pay = status?.paymentRequired;
-        const needPoll =
-            pay &&
-            status &&
-            (status.pending || (status.txHash && !status.checkedIn && !status.failed));
+        const needPoll = pay && status && statusNeedsCheckinPoll(status);
         if (!needPoll) {
             if (pollRef.current) {
                 clearInterval(pollRef.current);
@@ -111,9 +150,9 @@ export default function Checkin() {
         };
     }, [status, fetchStatus]);
 
-    const submitTxToServer = async (txHash) => {
+    const submitTxToServer = async (txHash, cadence = 'daily') => {
         try {
-            const res = await api.post('/checkin/confirm', { txHash });
+            const res = await api.post('/checkin/confirm', { txHash, cadence });
             const d = res.data;
             if (!d.ok && d.pending) {
                 toast.message(translateCheckinApi(d.code, d.message));
@@ -141,7 +180,7 @@ export default function Checkin() {
         }
     };
 
-    const handlePay = async () => {
+    const handleWalletCadence = async (cadence) => {
         if (!status?.checkinReceiver || !status?.checkinAmountWei) {
             toast.error(t('common.error'));
             return;
@@ -160,7 +199,7 @@ export default function Checkin() {
             toast.error(t('checkin.no_wallet'));
             return;
         }
-        setIsPaying(true);
+        setPayingCadence(cadence);
         try {
             const txHash = await provider.request({
                 method: 'eth_sendTransaction',
@@ -175,88 +214,10 @@ export default function Checkin() {
             if (!txHash || typeof txHash !== 'string') {
                 throw new Error('No transaction hash');
             }
-            const submitted = await submitTxToServer(txHash.trim());
-            if (submitted?.ok && submitted.status === 'confirmed') {
-                toast.success(
-                    t('checkin.reward_msg', { amount: `${formatPolFromWei(status.checkinAmountWei)} POL` })
-                );
-            }
-        } catch (err) {
-            if (err?.code === 4001) {
-                toast.error(t('checkin.rejected_wallet'));
-            } else {
-                toast.error(err?.message || t('common.error'));
-            }
-        } finally {
-            setIsPaying(false);
-        }
-    };
-
-    const handleCompleteCheckin = async () => {
-        const hash = status?.txHash;
-        if (!hash) {
-            toast.error(t('checkin.no_tx_yet'));
-            return;
-        }
-        setIsConfirming(true);
-        try {
-            const res = await api.post('/checkin/confirm', { txHash: hash });
-            const d = res.data;
-            if (d.ok && d.alreadyCheckedIn) {
-                toast.success(t('checkin.claimed'));
-            } else if (!d.ok && d.pending) {
-                toast.message(translateCheckinApi(d.code, d.message));
-            } else if (d.ok && d.status === 'confirmed') {
-                toast.success(
-                    t('checkin.reward_msg', { amount: `${formatPolFromWei(status.checkinAmountWei)} POL` })
-                );
-            } else if (!d.ok) {
-                toast.error(translateCheckinApi(d.code, d.message));
-            }
-            await fetchStatus();
-        } catch (err) {
-            const code = err.response?.data?.code;
-            toast.error(translateCheckinApi(code, err.response?.data?.message));
-        } finally {
-            setIsConfirming(false);
-        }
-    };
-
-    const handleCheckinWallet = async () => {
-        if (!status?.checkinReceiver || !status?.checkinAmountWei) {
-            toast.error(t('common.error'));
-            return;
-        }
-        if (!isConnected || !account) {
-            toast.error(t('checkin.link_wallet_first'));
-            return;
-        }
-        if (!isCorrectNetwork) {
-            await switchNetwork();
-            toast.message(t('checkin.wrong_network'));
-            return;
-        }
-        const provider = getBrowserEthereumProvider();
-        if (!provider) {
-            toast.error(t('checkin.no_wallet'));
-            return;
-        }
-        setIsPaying(true);
-        try {
-            const txHash = await provider.request({
-                method: 'eth_sendTransaction',
-                params: [
-                    {
-                        from: account,
-                        to: status.checkinReceiver,
-                        value: weiHexFromDecimalString(status.checkinAmountWei)
-                    }
-                ]
+            const res = await api.post('/checkin/wallet', {
+                txHash: txHash.trim(),
+                cadence
             });
-            if (!txHash || typeof txHash !== 'string') {
-                throw new Error('No transaction hash');
-            }
-            const res = await api.post('/checkin/wallet', { txHash: txHash.trim() });
             const d = res.data;
             if (d.ok && d.status === 'confirmed') {
                 toast.success(
@@ -283,7 +244,7 @@ export default function Checkin() {
                 toast.error(err?.message || t('common.error'));
             }
         } finally {
-            setIsPaying(false);
+            setPayingCadence(null);
         }
     };
 
@@ -310,10 +271,11 @@ export default function Checkin() {
     const streak = status.streak ?? 0;
     const totalConfirmed = status.totalConfirmed ?? 0;
     const recentCheckins = status.recentCheckins || [];
+    const recentWeekly = status.recentWeekly || [];
+    const recentMonthly = status.recentMonthly || [];
     const milestones = Array.isArray(status.milestones) ? status.milestones : [];
     const paymentMode = Boolean(status.paymentRequired);
     const paymentConfigured = Boolean(status.checkinReceiver && status.checkinAmountWei);
-    const explorerTx = status.txHash ? `https://polygonscan.com/tx/${status.txHash}` : null;
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -343,6 +305,7 @@ export default function Checkin() {
                                 <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">
                                     {t('checkin.streak_sub')}
                                 </p>
+                                <p className="text-[10px] text-slate-600 mt-2 leading-relaxed">{t('checkin.streak_daily_note')}</p>
                                 {totalConfirmed > 0 && (
                                     <p className="text-[10px] text-slate-600 mt-2">
                                         {t('checkin.total_days')}: <span className="text-slate-400 font-mono">{totalConfirmed}</span>
@@ -354,116 +317,143 @@ export default function Checkin() {
                     <div className="absolute bottom-0 right-0 w-48 h-48 bg-amber-500/5 rounded-tl-[100px] -z-0" />
                 </div>
 
-                <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-10 shadow-xl flex flex-col justify-center space-y-6">
-                    {status.checkedIn ? (
-                        <div className="text-center space-y-6">
-                            <div className="flex justify-center">
-                                <div className="w-20 h-20 rounded-full bg-emerald-500/10 border-4 border-emerald-500/20 flex items-center justify-center">
-                                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-                                </div>
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-black text-white">{t('checkin.claimed')}</h3>
-                                <p className="text-sm text-gray-500 font-medium mt-2">{t('checkin.come_back')}</p>
-                            </div>
-                        </div>
-                    ) : paymentMode ? (
-                        <>
-                            {!status.walletLinked ? (
-                                <div className="text-center space-y-4">
-                                    <p className="text-gray-400 text-sm">{t('checkin.link_wallet_hint')}</p>
-                                    <Link
-                                        to="/wallet"
-                                        className="inline-flex items-center justify-center gap-2 w-full py-4 bg-primary text-white rounded-2xl font-bold"
-                                    >
-                                        {t('checkin.open_wallet')}
-                                    </Link>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {!paymentConfigured ? (
-                                        <p className="text-center text-sm text-red-400">
-                                            {t('checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED')}
-                                        </p>
-                                    ) : null}
-                                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-                                        <div className="flex items-center justify-center gap-2 text-center font-bold text-amber-400 text-sm tracking-tight">
-                                            <Zap className="h-4 w-4 shrink-0" aria-hidden />
-                                            <span>{t('checkin.wallet_pay_line')}</span>
-                                        </div>
-                                    </div>
-
-                                    {status.failed && (
-                                        <p className="text-red-400 text-sm text-center">{t('checkin.failed_retry')}</p>
-                                    )}
-
-                                    {status.pending && (
-                                        <div className="flex flex-col items-center gap-2 text-amber-400 text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                {t('checkin.waiting_blockchain')}
-                                            </div>
-                                            {explorerTx ? (
-                                                <a
-                                                    href={explorerTx}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-400 hover:text-sky-300"
-                                                >
-                                                    <ExternalLink className="h-3.5 w-3.5" />
-                                                    {t('checkin.view_on_polygonscan')}
-                                                </a>
-                                            ) : null}
-                                        </div>
-                                    )}
-
-                                    <button
-                                        type="button"
-                                        onClick={handleCheckinWallet}
-                                        disabled={isPaying || !isConnected || isConnecting || status.pending || !paymentConfigured}
-                                        className="flex w-full min-h-[4.5rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-[2rem] bg-amber-500 px-5 py-4 text-slate-950 shadow-xl shadow-amber-500/20 hover:bg-amber-600 disabled:opacity-50"
-                                    >
-                                        {isPaying ? (
-                                            <Loader2 className="h-6 w-6 animate-spin shrink-0" />
-                                        ) : (
-                                            <Zap className="h-6 w-6 shrink-0 fill-current" aria-hidden />
-                                        )}
-                                        <span className="flex flex-col items-center justify-center gap-0.5 text-center leading-tight">
-                                            <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.12em]">
-                                                {t('checkin.cta_wallet_line1')}
-                                            </span>
-                                            <span className="text-sm sm:text-base font-black tracking-wide normal-case">
-                                                {t('checkin.cta_wallet_line2')}
-                                            </span>
-                                        </span>
-                                    </button>
-
-                                    {!isConnected && (
-                                        <button
-                                            type="button"
-                                            onClick={() => connect()}
-                                            disabled={isConnecting}
-                                            className="w-full rounded-xl border border-primary/40 py-3 text-sm text-primary"
-                                        >
-                                            {isConnecting ? t('common.loading') : t('checkin.connect_browser_wallet')}
-                                        </button>
-                                    )}
-                                    {isConnected && !isCorrectNetwork && (
-                                        <button
-                                            type="button"
-                                            onClick={() => switchNetwork()}
-                                            className="w-full rounded-xl border border-amber-500/30 py-3 text-sm text-amber-400"
-                                        >
-                                            {t('checkin.switch_polygon')}
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="space-y-4 text-center">
+                <div className="space-y-5">
+                    {!paymentMode ? (
+                        <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-8 shadow-xl text-center">
                             <p className="text-sm text-red-400">{t('checkin.errors.PAYMENT_REQUIRED')}</p>
                         </div>
+                    ) : !status.walletLinked ? (
+                        <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-10 shadow-xl text-center space-y-4">
+                            <p className="text-gray-400 text-sm">{t('checkin.link_wallet_hint')}</p>
+                            <Link
+                                to="/wallet"
+                                className="inline-flex items-center justify-center gap-2 w-full py-4 bg-primary text-white rounded-2xl font-bold"
+                            >
+                                {t('checkin.open_wallet')}
+                            </Link>
+                        </div>
+                    ) : (
+                        CADENCE_ORDER.map((cadenceKey) => {
+                            const cs = getCadenceSlice(status, cadenceKey);
+                            const comeBackKey = CADENCE_META[cadenceKey].comeBackKey;
+                            const explorerCadence = cs.txHash
+                                ? `https://polygonscan.com/tx/${cs.txHash}`
+                                : null;
+                            const busy = payingCadence === cadenceKey;
+                            const payLocked = payingCadence !== null;
+
+                            return (
+                                <div
+                                    key={cadenceKey}
+                                    className="bg-surface border border-gray-800/50 rounded-[2rem] p-6 shadow-xl space-y-4"
+                                >
+                                    <div>
+                                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em]">
+                                            {t(`checkin.cadence.${cadenceKey}`)}
+                                        </h3>
+                                        <p className="text-sm font-mono text-amber-500/90 mt-1">{cs.periodKey || '—'}</p>
+                                        <p className="text-[11px] text-slate-600 mt-1">{t(`checkin.cadence.${cadenceKey}_hint`)}</p>
+                                    </div>
+
+                                    {cs.checkedIn ? (
+                                        <div className="text-center space-y-3 py-1">
+                                            <div className="flex justify-center">
+                                                <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/25 flex items-center justify-center">
+                                                    <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                                                </div>
+                                            </div>
+                                            <p className="text-lg font-black text-white">{t('checkin.claimed')}</p>
+                                            <p className="text-xs text-gray-500 font-medium">{t(comeBackKey)}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {!paymentConfigured ? (
+                                                <p className="text-center text-sm text-red-400">
+                                                    {t('checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED')}
+                                                </p>
+                                            ) : null}
+                                            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                                                <div className="flex items-center justify-center gap-2 text-center font-bold text-amber-400 text-sm tracking-tight">
+                                                    <Zap className="h-4 w-4 shrink-0" aria-hidden />
+                                                    <span>{t('checkin.wallet_pay_line')}</span>
+                                                </div>
+                                            </div>
+
+                                            {cs.failed && (
+                                                <p className="text-red-400 text-sm text-center">{t('checkin.failed_retry')}</p>
+                                            )}
+
+                                            {cs.pending && (
+                                                <div className="flex flex-col items-center gap-2 text-amber-400 text-sm">
+                                                    <div className="flex items-center gap-2">
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                        {t('checkin.waiting_blockchain')}
+                                                    </div>
+                                                    {explorerCadence ? (
+                                                        <a
+                                                            href={explorerCadence}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-400 hover:text-sky-300"
+                                                        >
+                                                            <ExternalLink className="h-3.5 w-3.5" />
+                                                            {t('checkin.view_on_polygonscan')}
+                                                        </a>
+                                                    ) : null}
+                                                </div>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleWalletCadence(cadenceKey)}
+                                                disabled={
+                                                    payLocked ||
+                                                    !isConnected ||
+                                                    isConnecting ||
+                                                    cs.pending ||
+                                                    !paymentConfigured
+                                                }
+                                                className="flex w-full min-h-[3.75rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-2xl bg-amber-500 px-4 py-3 text-slate-950 shadow-lg shadow-amber-500/15 hover:bg-amber-600 disabled:opacity-50"
+                                            >
+                                                {busy ? (
+                                                    <Loader2 className="h-5 w-5 animate-spin shrink-0" />
+                                                ) : (
+                                                    <Zap className="h-5 w-5 shrink-0 fill-current" aria-hidden />
+                                                )}
+                                                <span className="flex flex-col items-center justify-center gap-0.5 text-center leading-tight">
+                                                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.12em]">
+                                                        {t('checkin.cta_wallet_line1')}
+                                                    </span>
+                                                    <span className="text-xs sm:text-sm font-black tracking-wide normal-case">
+                                                        {t('checkin.cta_wallet_line2')}
+                                                    </span>
+                                                </span>
+                                            </button>
+
+                                            {!isConnected && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => connect()}
+                                                    disabled={isConnecting}
+                                                    className="w-full rounded-xl border border-primary/40 py-3 text-sm text-primary"
+                                                >
+                                                    {isConnecting ? t('common.loading') : t('checkin.connect_browser_wallet')}
+                                                </button>
+                                            )}
+                                            {isConnected && !isCorrectNetwork && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => switchNetwork()}
+                                                    className="w-full rounded-xl border border-amber-500/30 py-3 text-sm text-amber-400"
+                                                >
+                                                    {t('checkin.switch_polygon')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                     )}
                 </div>
             </div>
@@ -481,6 +471,44 @@ export default function Checkin() {
                                 className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-emerald-400/90"
                             >
                                 {row.date}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {recentWeekly.length > 0 && (
+                <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-8 shadow-xl">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                        <History className="w-4 h-4 text-sky-500" />
+                        {t('checkin.history_weekly')}
+                    </h3>
+                    <ul className="flex flex-wrap gap-2">
+                        {recentWeekly.map((row) => (
+                            <li
+                                key={row.periodKey}
+                                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-sky-400/90"
+                            >
+                                {row.periodKey}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {recentMonthly.length > 0 && (
+                <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-8 shadow-xl">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                        <History className="w-4 h-4 text-violet-400" />
+                        {t('checkin.history_monthly')}
+                    </h3>
+                    <ul className="flex flex-wrap gap-2">
+                        {recentMonthly.map((row) => (
+                            <li
+                                key={row.periodKey}
+                                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-violet-300/90"
+                            >
+                                {row.periodKey}
                             </li>
                         ))}
                     </ul>
