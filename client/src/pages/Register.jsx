@@ -8,6 +8,32 @@ import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import TurnstileField from '../components/auth/TurnstileField';
 import SiteFooter from '../components/SiteFooter';
+import {
+  REGISTER_USERNAME_MIN,
+  REGISTER_USERNAME_MAX,
+  REGISTER_EMAIL_MAX_LEN,
+  REGISTER_PASSWORD_MIN_LEN,
+  REGISTER_PASSWORD_MAX_LEN,
+  REGISTER_REF_CODE_MAX_LEN,
+} from '../constants/registerFieldLimits';
+
+const USERNAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+const REF_CODE_PATTERN = /^[a-zA-Z0-9]*$/;
+
+const FIELD_MAX_LEN = {
+  username: REGISTER_USERNAME_MAX,
+  email: REGISTER_EMAIL_MAX_LEN,
+  password: REGISTER_PASSWORD_MAX_LEN,
+  confirmPassword: REGISTER_PASSWORD_MAX_LEN,
+  refCode: REGISTER_REF_CODE_MAX_LEN,
+};
+
+/** Query ?ref= may be long or contain junk; keep only safe alnum prefix for lookup. */
+function clipRefCodeFromQuery(raw) {
+  return String(raw ?? '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, REGISTER_REF_CODE_MAX_LEN);
+}
 
 const DEFAULT_TURNSTILE_REGISTER_SITE_KEY = '0x4AAAAAACB3D7JD8YhWNZyQtilBU7kQ3Zk';
 const TURNSTILE_REGISTER_SITE_KEY =
@@ -22,7 +48,7 @@ export default function Register() {
     email: '',
     password: '',
     confirmPassword: '',
-    refCode: searchParams.get('ref') || '',
+    refCode: clipRefCodeFromQuery(searchParams.get('ref')),
     acceptTerms: false
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -40,7 +66,14 @@ export default function Register() {
 
   const handleChange = (e) => {
     const { id, value, type, checked } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: type === 'checkbox' ? checked : value }));
+    let next = type === 'checkbox' ? checked : value;
+    if (type !== 'checkbox' && FIELD_MAX_LEN[id]) {
+      next = String(next).slice(0, FIELD_MAX_LEN[id]);
+    }
+    if (id === 'refCode' && typeof next === 'string' && !REF_CODE_PATTERN.test(next)) {
+      return;
+    }
+    setFormData((prev) => ({ ...prev, [id]: next }));
     setFieldErrors((prev) => {
       if (!prev[id]) return prev;
       const next = { ...prev };
@@ -64,8 +97,42 @@ export default function Register() {
       return;
     }
 
-    if (formData.password.length < 8) {
+    const u = formData.username.trim();
+    if (u.length < REGISTER_USERNAME_MIN) {
+      toast.error(t('auth.register.errors.username_too_short'));
+      return;
+    }
+    if (u.length > REGISTER_USERNAME_MAX) {
+      toast.error(t('auth.register.errors.username_too_long'));
+      return;
+    }
+    if (!USERNAME_PATTERN.test(u)) {
+      toast.error(t('auth.register.errors.username_invalid'));
+      return;
+    }
+
+    const em = formData.email.trim();
+    if (!em || em.length > REGISTER_EMAIL_MAX_LEN) {
+      toast.error(t(em ? 'auth.register.errors.email_too_long' : 'auth.register.errors.email_invalid'));
+      return;
+    }
+
+    if (formData.password.length < REGISTER_PASSWORD_MIN_LEN) {
       toast.error(t('auth.register.errors.password_min'));
+      return;
+    }
+    if (formData.password.length > REGISTER_PASSWORD_MAX_LEN) {
+      toast.error(t('auth.register.errors.password_max'));
+      return;
+    }
+    if (formData.confirmPassword.length > REGISTER_PASSWORD_MAX_LEN) {
+      toast.error(t('auth.register.errors.password_max'));
+      return;
+    }
+
+    const ref = formData.refCode.trim();
+    if (ref && (ref.length > REGISTER_REF_CODE_MAX_LEN || !/^[a-zA-Z0-9]+$/.test(ref))) {
+      toast.error(t('auth.register.errors.ref_code_invalid'));
       return;
     }
 
@@ -76,10 +143,10 @@ export default function Register() {
     }
 
     const result = await register({
-      username: formData.username,
-      email: formData.email,
+      username: u,
+      email: em,
       password: formData.password,
-      refCode: formData.refCode,
+      refCode: ref,
       acceptTerms: formData.acceptTerms,
       cfTurnstileToken: cfTurnstileToken || undefined,
     });
@@ -150,7 +217,9 @@ export default function Register() {
                     id="username"
                     type="text"
                     required
-                    minLength={3}
+                    minLength={REGISTER_USERNAME_MIN}
+                    maxLength={REGISTER_USERNAME_MAX}
+                    autoComplete="username"
                     value={formData.username}
                     onChange={handleChange}
                     className="block w-full pl-12 pr-4 py-3.5 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
@@ -171,6 +240,8 @@ export default function Register() {
                     id="email"
                     type="email"
                     required
+                    maxLength={REGISTER_EMAIL_MAX_LEN}
+                    autoComplete="email"
                     value={formData.email}
                     onChange={handleChange}
                     className="block w-full pl-12 pr-4 py-3.5 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
@@ -189,7 +260,9 @@ export default function Register() {
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       required
-                      minLength={8}
+                      minLength={REGISTER_PASSWORD_MIN_LEN}
+                      maxLength={REGISTER_PASSWORD_MAX_LEN}
+                      autoComplete="new-password"
                       value={formData.password}
                       onChange={handleChange}
                       className="block w-full px-4 py-3.5 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
@@ -206,7 +279,9 @@ export default function Register() {
                       id="confirmPassword"
                       type={showPassword ? 'text' : 'password'}
                       required
-                      minLength={8}
+                      minLength={REGISTER_PASSWORD_MIN_LEN}
+                      maxLength={REGISTER_PASSWORD_MAX_LEN}
+                      autoComplete="new-password"
                       value={formData.confirmPassword}
                       onChange={handleChange}
                       className="block w-full px-4 py-3.5 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
@@ -238,6 +313,7 @@ export default function Register() {
                   <input
                     id="refCode"
                     type="text"
+                    maxLength={REGISTER_REF_CODE_MAX_LEN}
                     value={formData.refCode}
                     onChange={handleChange}
                     readOnly={Boolean(searchParams.get('ref'))}

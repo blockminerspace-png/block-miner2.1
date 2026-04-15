@@ -11,6 +11,7 @@ import { createAuditLogBestEffort } from "../models/auditLogModel.js";
 import { updateUserLoginMeta } from "../models/userModel.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { validateBody } from "../middleware/validate.js";
+import { registerBodySchema } from "../validation/registerBodySchema.js";
 import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
 import { buildCsrfCookie } from "../middleware/csrf.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -106,17 +107,6 @@ function clearAuthCookies() {
   return [buildCookie(ACCESS_COOKIE_NAME, "", 0), buildCookie(REFRESH_COOKIE_NAME, "", 0)];
 }
 
-const registerSchema = z.object({
-  username: z.string().trim().min(3, "auth.register.errors.username_too_short").max(24, "auth.register.errors.username_too_long").regex(/^[a-zA-Z0-9._-]+$/, "auth.register.errors.username_invalid"),
-  email: z.string().trim().email("auth.register.errors.email_invalid"),
-  password: z.string().min(8, "auth.register.errors.password_min"),
-  refCode: z.string().trim().optional(),
-  acceptTerms: z.boolean().refine((value) => value === true, {
-    message: "validation.errors.termsRequired"
-  }),
-  cfTurnstileToken: z.string().trim().optional(),
-});
-
 import { authenticator } from "otplib";
 
 const loginSchema = z.object({
@@ -202,7 +192,7 @@ async function findUserByIdentifier(identifier) {
 authRouter.post(
   "/register",
   authLimiter,
-  validateBody(registerSchema),
+  validateBody(registerBodySchema),
   requireTurnstileWhenConfigured({ purpose: "register" }),
   async (req, res) => {
   try {

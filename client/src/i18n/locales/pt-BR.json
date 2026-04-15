@@ -626,6 +626,10 @@
       "errors": {
         "password_mismatch": "As senhas não coincidem.",
         "password_min": "A senha deve ter no mínimo 8 caracteres.",
+        "password_max": "A senha deve ter no máximo 72 caracteres (limite do bcrypt).",
+        "email_too_long": "O e-mail deve ter no máximo 254 caracteres.",
+        "ref_code_too_long": "O código de indicação é longo demais.",
+        "ref_code_invalid": "O código de indicação só pode conter letras e números.",
         "user_already_exists": "Usuário já existe.",
         "registration_limit_reached": "Limite de cadastro atingido para esta conexão.",
         "registration_failed": "Falha no cadastro.",

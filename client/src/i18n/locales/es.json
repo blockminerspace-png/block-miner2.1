@@ -262,6 +262,10 @@
       "errors": {
         "password_mismatch": "Las contraseñas no coinciden.",
         "password_min": "La contraseña debe tener al menos 8 caracteres.",
+        "password_max": "La contraseña debe tener como máximo 72 caracteres (límite de bcrypt).",
+        "email_too_long": "El correo debe tener como máximo 254 caracteres.",
+        "ref_code_too_long": "El código de referido es demasiado largo.",
+        "ref_code_invalid": "El código de referido solo puede contener letras y números.",
         "user_already_exists": "El usuario ya existe.",
         "registration_limit_reached": "Límite de registros alcanzado para esta conexión.",
         "registration_failed": "El registro falló.",
