@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/auth';
 import { Mail, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Gift } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
-import TurnstileField from '../components/auth/TurnstileField';
+import TurnstileField, { prefetchTurnstileScript } from '../components/auth/TurnstileField';
 import SiteFooter from '../components/SiteFooter';
 import {
   REGISTER_USERNAME_MIN,
@@ -64,6 +64,12 @@ export default function Register() {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
+
+  useLayoutEffect(() => {
+    if (!TURNSTILE_REGISTER_SITE_KEY) return undefined;
+    void prefetchTurnstileScript();
+    return undefined;
+  }, []);
 
   const handleChange = (e) => {
     const { id, value, type, checked } = e.target;

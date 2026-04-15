@@ -1,4 +1,11 @@
-import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
+import {
+  useLayoutEffect,
+  useImperativeHandle,
+  useRef,
+  forwardRef,
+  useState,
+} from "react";
+import { useTranslation } from "react-i18next";
 
 let turnstileScriptPromise;
 
@@ -24,17 +31,24 @@ function loadTurnstileScript() {
   return turnstileScriptPromise;
 }
 
+/** Start loading Turnstile early (e.g. on /login mount) so the widget appears sooner. */
+export function prefetchTurnstileScript() {
+  return loadTurnstileScript();
+}
+
 /**
  * Renders Cloudflare Turnstile when a site key is provided.
  * Ref exposes `reset()` to clear the token and ask for a new challenge (e.g. after a failed login).
  * @param {{ onToken: (token: string) => void, siteKey?: string }} props
  */
 const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, ref) {
+  const { t } = useTranslation();
   const hostRef = useRef(null);
   const widgetId = useRef(null);
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
   const resolvedSiteKey = String(siteKey || "").trim();
+  const [bootState, setBootState] = useState("loading");
 
   useImperativeHandle(ref, () => ({
     reset: () => {
@@ -49,14 +63,29 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
     },
   }));
 
-  useEffect(() => {
-    if (!resolvedSiteKey || !hostRef.current) return undefined;
+  useLayoutEffect(() => {
+    if (!resolvedSiteKey) return undefined;
 
     let cancelled = false;
-    void (async () => {
+    setBootState("loading");
+
+    const mountWidget = async () => {
       try {
         await loadTurnstileScript();
-        if (cancelled || !hostRef.current || !window.turnstile) return;
+        if (cancelled) return;
+        if (!hostRef.current || !window.turnstile) {
+          setBootState("error");
+          onTokenRef.current?.("");
+          return;
+        }
+        if (widgetId.current != null && window.turnstile?.remove) {
+          try {
+            window.turnstile.remove(widgetId.current);
+          } catch {
+            /* ignore */
+          }
+          widgetId.current = null;
+        }
         widgetId.current = window.turnstile.render(hostRef.current, {
           sitekey: resolvedSiteKey,
           appearance: "always",
@@ -65,10 +94,16 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
           "expired-callback": () => onTokenRef.current?.(""),
           "error-callback": () => onTokenRef.current?.(""),
         });
+        if (!cancelled) setBootState("ready");
       } catch {
-        onTokenRef.current?.("");
+        if (!cancelled) {
+          setBootState("error");
+          onTokenRef.current?.("");
+        }
       }
-    })();
+    };
+
+    void mountWidget();
 
     return () => {
       cancelled = true;
@@ -84,7 +119,30 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
   }, [resolvedSiteKey]);
 
   if (!resolvedSiteKey) return null;
-  return <div ref={hostRef} className="my-3 flex justify-center" />;
+
+  return (
+    <div className="relative my-3 w-full min-h-[72px] flex justify-center items-center rounded-2xl border border-gray-800/80 bg-background/40">
+      <div ref={hostRef} className="flex min-h-[65px] w-full justify-center items-center py-1" />
+      {bootState === "loading" && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-[1px]"
+          aria-busy="true"
+          aria-live="polite"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 animate-pulse">
+            {t("auth.turnstile.loading")}
+          </span>
+        </div>
+      )}
+      {bootState === "error" && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/85 px-3">
+          <p className="text-center text-[10px] font-semibold leading-relaxed text-red-400">
+            {t("auth.turnstile.load_failed")}
+          </p>
+        </div>
+      )}
+    </div>
+  );
 });
 
 TurnstileField.displayName = "TurnstileField";

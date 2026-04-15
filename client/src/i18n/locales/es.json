@@ -227,6 +227,10 @@
     }
   },
   "auth": {
+    "turnstile": {
+      "loading": "Cargando verificación de seguridad…",
+      "load_failed": "No se pudo cargar la verificación de seguridad. Actualiza la página o inténtalo de nuevo."
+    },
     "login": {
       "title": "¡Bienvenido de nuevo!",
       "subtitle": "Inicia sesión para seguir construyendo tu imperio minero.",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../store/auth';
@@ -6,7 +6,7 @@ import { Mail, Lock, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, ShieldChec
 import { toast } from 'sonner';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
-import TurnstileField from '../components/auth/TurnstileField';
+import TurnstileField, { prefetchTurnstileScript } from '../components/auth/TurnstileField';
 
 /** Empty = hide widget. Site keys are hostname-scoped in Cloudflare; do not hardcode fallbacks. */
 const TURNSTILE_LOGIN_SITE_KEY = String(
@@ -40,6 +40,12 @@ export default function Login() {
             navigate('/dashboard');
         }
     }, [isAuthenticated, navigate]);
+
+    useLayoutEffect(() => {
+        if (!TURNSTILE_LOGIN_SITE_KEY) return undefined;
+        void prefetchTurnstileScript();
+        return undefined;
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

@@ -591,6 +591,10 @@
     }
   },
   "auth": {
+    "turnstile": {
+      "loading": "Carregando verificação de segurança…",
+      "load_failed": "Não foi possível carregar a verificação de segurança. Atualize a página ou tente novamente."
+    },
     "login": {
       "title": "Bem-vindo de volta!",
       "subtitle": "Acesse sua conta para gerenciar sua mineração.",

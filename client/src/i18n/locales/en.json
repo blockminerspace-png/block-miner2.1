@@ -591,6 +591,10 @@
     }
   },
   "auth": {
+    "turnstile": {
+      "loading": "Loading security check…",
+      "load_failed": "Could not load the security check. Refresh the page or try again."
+    },
     "login": {
       "title": "Welcome back!",
       "subtitle": "Sign in to continue building your mining empire.",
