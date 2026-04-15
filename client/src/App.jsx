@@ -115,19 +115,14 @@ const ProtectedLayout = () => {
 };
 
 function App() {
-  const { checkSession, authHydrated } = useAuthStore();
+  const { checkSession } = useAuthStore();
 
   useEffect(() => {
     void checkSession();
   }, [checkSession]);
 
-  if (!authHydrated) {
-    return (
-      <div className="min-h-screen bg-background flex justify-center items-center">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  // Do not gate the whole SPA on session resolution: /login and other public routes should paint
+  // immediately. ProtectedLayout already shows a spinner while resolving auth for private pages.
 
   return (
     <BrowserRouter>

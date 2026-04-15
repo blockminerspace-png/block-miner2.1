@@ -137,16 +137,26 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
           }
           widgetId.current = null;
         }
-        widgetId.current = window.turnstile.render(hostRef.current, {
+        const baseOpts = {
           sitekey: resolvedSiteKey,
           appearance: "always",
-          /** Fills parent width so the widget aligns with form fields inside narrow cards (mobile). */
-          size: "flexible",
           "refresh-expired": "auto",
           callback: (token) => onTokenRef.current?.(token),
           "expired-callback": () => onTokenRef.current?.(""),
           "error-callback": () => onTokenRef.current?.(""),
-        });
+        };
+        try {
+          widgetId.current = window.turnstile.render(hostRef.current, {
+            ...baseOpts,
+            /** Fills parent width on supported widget types; falls back below if CF rejects. */
+            size: "flexible",
+          });
+        } catch {
+          widgetId.current = window.turnstile.render(hostRef.current, {
+            ...baseOpts,
+            size: "normal",
+          });
+        }
         if (!cancelled) setBootState("ready");
       } catch {
         if (!cancelled) {
