@@ -8,6 +8,11 @@ import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import TurnstileField from '../components/auth/TurnstileField';
 
+const DEFAULT_TURNSTILE_LOGIN_SITE_KEY = '0x4AAAAAACB3D1o46QZ5q1kl';
+const TURNSTILE_LOGIN_SITE_KEY =
+  String(import.meta.env.VITE_TURNSTILE_SITE_KEY_LOGIN || import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim() ||
+  DEFAULT_TURNSTILE_LOGIN_SITE_KEY;
+
 export default function Login() {
     const { t } = useTranslation();
         const [identifier, setIdentifier] = useState('');
@@ -252,7 +257,7 @@ export default function Login() {
                                         </button>
                                     </div>
                                 </div>
-                                <TurnstileField onToken={setCfTurnstileToken} />
+                                <TurnstileField siteKey={TURNSTILE_LOGIN_SITE_KEY} onToken={setCfTurnstileToken} />
                             </>
                         ) : (
                             <div className="space-y-4 animate-in fade-in zoom-in duration-300">

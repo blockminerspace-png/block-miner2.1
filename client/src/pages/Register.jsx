@@ -9,6 +9,11 @@ import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import TurnstileField from '../components/auth/TurnstileField';
 import SiteFooter from '../components/SiteFooter';
 
+const DEFAULT_TURNSTILE_REGISTER_SITE_KEY = '0x4AAAAAACB3D7JD8YhWNZyQtilBU7kQ3Zk';
+const TURNSTILE_REGISTER_SITE_KEY =
+  String(import.meta.env.VITE_TURNSTILE_SITE_KEY_REGISTER || import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim() ||
+  DEFAULT_TURNSTILE_REGISTER_SITE_KEY;
+
 export default function Register() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
@@ -274,7 +279,7 @@ export default function Register() {
                 </div>
               </div>
 
-              <TurnstileField onToken={setCfTurnstileToken} />
+              <TurnstileField siteKey={TURNSTILE_REGISTER_SITE_KEY} onToken={setCfTurnstileToken} />
 
               <button
                 type="submit"

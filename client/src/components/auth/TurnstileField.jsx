@@ -1,7 +1,5 @@
 import { useEffect, useRef } from "react";
 
-const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
-
 let turnstileScriptPromise;
 
 function loadTurnstileScript() {
@@ -27,15 +25,16 @@ function loadTurnstileScript() {
 }
 
 /**
- * Renders Cloudflare Turnstile when VITE_TURNSTILE_SITE_KEY is set.
- * @param {{ onToken: (token: string) => void }} props
+ * Renders Cloudflare Turnstile when a site key is provided.
+ * @param {{ onToken: (token: string) => void, siteKey?: string }} props
  */
-export default function TurnstileField({ onToken }) {
+export default function TurnstileField({ onToken, siteKey }) {
   const hostRef = useRef(null);
   const widgetId = useRef(null);
+  const resolvedSiteKey = String(siteKey || "").trim();
 
   useEffect(() => {
-    if (!SITE_KEY || !hostRef.current) return undefined;
+    if (!resolvedSiteKey || !hostRef.current) return undefined;
 
     let cancelled = false;
     void (async () => {
@@ -43,7 +42,7 @@ export default function TurnstileField({ onToken }) {
         await loadTurnstileScript();
         if (cancelled || !hostRef.current || !window.turnstile) return;
         widgetId.current = window.turnstile.render(hostRef.current, {
-          sitekey: SITE_KEY,
+          sitekey: resolvedSiteKey,
           callback: (token) => onToken?.(token),
           "expired-callback": () => onToken?.(""),
           "error-callback": () => onToken?.(""),
@@ -64,8 +63,8 @@ export default function TurnstileField({ onToken }) {
       }
       widgetId.current = null;
     };
-  }, [onToken]);
+  }, [onToken, resolvedSiteKey]);
 
-  if (!SITE_KEY) return null;
+  if (!resolvedSiteKey) return null;
   return <div ref={hostRef} className="my-3 flex justify-center" />;
 }
