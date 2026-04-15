@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
@@ -139,6 +139,8 @@ export default function Game2048Page() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
   const [session, setSession] = useState(null);
+  /** Latest session for async handlers (avoids stale closures + out-of-order move responses). */
+  const sessionRef = useRef(null);
   /** Touch / pen swipe tracking (pointer id + capture — fixes iOS lost touchend). */
   const pointerSwipeRef = useRef(null);
   const boardGestureActiveRef = useRef(false);
@@ -155,13 +157,22 @@ export default function Game2048Page() {
   /** Snapshot before optimistic board apply; restored on move API failure. */
   const moveRevertRef = useRef(null);
 
+  useLayoutEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   const refreshStatus = useCallback(async () => {
     try {
       const { data } = await api.get("/games/2048/status");
       if (data?.ok) {
         setStatus(data);
-        if (data.activeSession) setSession(data.activeSession);
-        else setSession(null);
+        if (data.activeSession) {
+          sessionRef.current = data.activeSession;
+          setSession(data.activeSession);
+        } else {
+          sessionRef.current = null;
+          setSession(null);
+        }
       }
     } catch {
       toast.error(t("game2048.errors.load_status"));
@@ -187,7 +198,10 @@ export default function Game2048Page() {
         await refreshStatus();
         return { ok: false, code: data?.code || "START_FAILED" };
       }
-      if (data.session) setSession(data.session);
+      if (data.session) {
+        sessionRef.current = data.session;
+        setSession(data.session);
+      }
       await refreshStatus();
       return { ok: true };
     } catch {
@@ -261,79 +275,108 @@ export default function Game2048Page() {
     void refreshStatus();
   }, [roundSeconds, session, refreshStatus]);
 
-  const sendMove = useCallback(
-    async (direction) => {
-      if (!session?.id) return;
-      if (session.status !== "ACTIVE" || session.gameOver) return;
+  const sendMove = useCallback(async (direction) => {
+    const s0 = sessionRef.current;
+    if (!s0?.id) return;
+    if (s0.status !== "ACTIVE" || s0.gameOver) return;
 
-      const parsedBoard = parseBoard(session.board);
-      let optimisticBoard = null;
-      let optimisticScoreDelta = 0;
-      if (parsedBoard) {
-        const { board: afterSlide, scoreDelta, moved } = moveBoard(
-          parsedBoard.map((r) => [...r]),
-          direction,
-        );
-        if (!moved) return;
-        optimisticBoard = afterSlide;
-        optimisticScoreDelta = scoreDelta;
-      }
+    const moveTargetId = s0.id;
 
-      if (moveInFlightRef.current) {
-        pendingSwipeDirRef.current = direction;
-        return;
-      }
-      moveInFlightRef.current = true;
-      setMoveSync(true);
+    const parsedBoard = parseBoard(s0.board);
+    let optimisticBoard = null;
+    let optimisticScoreDelta = 0;
+    if (parsedBoard) {
+      const { board: afterSlide, scoreDelta, moved } = moveBoard(
+        parsedBoard.map((r) => [...r]),
+        direction,
+      );
+      if (!moved) return;
+      optimisticBoard = afterSlide;
+      optimisticScoreDelta = scoreDelta;
+    }
 
-      moveRevertRef.current =
-        session.board && Array.isArray(session.board)
-          ? { ...session, board: session.board.map((r) => [...r]) }
-          : { ...session };
+    if (moveInFlightRef.current) {
+      pendingSwipeDirRef.current = direction;
+      return;
+    }
+    moveInFlightRef.current = true;
+    setMoveSync(true);
 
-      if (optimisticBoard) {
-        setSession((s) => {
-          if (!s || s.id !== session.id || s.status !== "ACTIVE" || s.gameOver) return s;
-          return {
-            ...s,
-            board: optimisticBoard,
-            score: (Number(s.score) || 0) + optimisticScoreDelta,
-          };
-        });
-      }
+    moveRevertRef.current =
+      s0.board && Array.isArray(s0.board)
+        ? { ...s0, board: s0.board.map((r) => [...r]) }
+        : { ...s0 };
 
-      try {
-        const { data } = await api.post("/games/2048/move", {
-          sessionId: session.id,
-          direction,
-        });
-        if (!data?.ok) {
+    if (optimisticBoard) {
+      setSession((s) => {
+        if (!s || s.id !== moveTargetId || s.status !== "ACTIVE" || s.gameOver) return s;
+        const next = {
+          ...s,
+          board: optimisticBoard,
+          score: (Number(s.score) || 0) + optimisticScoreDelta,
+        };
+        sessionRef.current = next;
+        return next;
+      });
+    }
+
+    try {
+      const { data } = await api.post("/games/2048/move", {
+        sessionId: moveTargetId,
+        direction,
+      });
+      const stillThisRound = sessionRef.current?.id === moveTargetId;
+
+      if (!data?.ok) {
+        if (stillThisRound) {
           const rev = moveRevertRef.current;
-          if (rev) setSession(rev);
+          if (rev) {
+            sessionRef.current = rev;
+            setSession(rev);
+          }
           const code = data?.code;
           const msg = code
             ? t(`game2048.errors.${code}`, { defaultValue: t("game2048.errors.move_failed") })
             : t("game2048.errors.move_failed");
           toast.error(msg);
-          if (data?.session) setSession(data.session);
-          return;
         }
-        if (data.session) setSession(data.session);
-      } catch {
-        const rev = moveRevertRef.current;
-        if (rev) setSession(rev);
-        toast.error(t("game2048.errors.move_failed"));
-      } finally {
-        moveRevertRef.current = null;
-        moveInFlightRef.current = false;
-        setMoveSync(false);
-        const next = pendingSwipeDirRef.current;
-        pendingSwipeDirRef.current = null;
-        if (next) queueMicrotask(() => void sendMoveRef.current(next));
+        if (data?.session?.id === moveTargetId && sessionRef.current?.id === moveTargetId) {
+          sessionRef.current = data.session;
+          setSession(data.session);
+        }
+        return;
       }
-    },
-    [session, t],
-  );
+      if (
+        data.session &&
+        data.session.id === moveTargetId &&
+        sessionRef.current?.id === moveTargetId
+      ) {
+        sessionRef.current = data.session;
+        setSession(data.session);
+      }
+    } catch {
+      if (sessionRef.current?.id === moveTargetId) {
+        const rev = moveRevertRef.current;
+        if (rev) {
+          sessionRef.current = rev;
+          setSession(rev);
+        }
+        toast.error(t("game2048.errors.move_failed"));
+      }
+    } finally {
+      moveRevertRef.current = null;
+      moveInFlightRef.current = false;
+      setMoveSync(false);
+      const next = pendingSwipeDirRef.current;
+      pendingSwipeDirRef.current = null;
+      if (next) {
+        queueMicrotask(() => {
+          const cur = sessionRef.current;
+          if (cur?.status === "ACTIVE" && !cur.gameOver) void sendMoveRef.current(next);
+        });
+      }
+    }
+  }, [t]);
 
   useEffect(() => {
     sendMoveRef.current = sendMove;
@@ -349,7 +392,8 @@ export default function Game2048Page() {
       if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
       e.preventDefault();
       e.stopPropagation();
-      if (!session || session.status !== "ACTIVE" || session.gameOver) return;
+      const s = sessionRef.current;
+      if (!s || s.status !== "ACTIVE" || s.gameOver) return;
       let dir = null;
       if (key === "ArrowUp") dir = "up";
       else if (key === "ArrowDown") dir = "down";
@@ -358,7 +402,7 @@ export default function Game2048Page() {
       if (!dir) return;
       void sendMove(dir);
     },
-    [session, sendMove],
+    [sendMove],
   );
 
   useEffect(() => {
@@ -393,7 +437,10 @@ export default function Game2048Page() {
         await refreshStatus();
         return;
       }
-      if (data.session) setSession(data.session);
+      if (data.session) {
+        sessionRef.current = data.session;
+        setSession(data.session);
+      }
       await refreshStatus();
     } catch {
       toast.error(t("game2048.errors.restart_failed"));
@@ -447,7 +494,8 @@ export default function Game2048Page() {
 
   const onBoardPointerDown = useCallback(
     (e) => {
-      if (!session || session.status !== "ACTIVE" || session.gameOver) return;
+      const s = sessionRef.current;
+      if (!s || s.status !== "ACTIVE" || s.gameOver) return;
       if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
       boardGestureActiveRef.current = true;
       pointerSwipeRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
@@ -457,7 +505,7 @@ export default function Game2048Page() {
         // Some browsers reject capture on non-interactive stacking; swipe still works if finger stays on grid.
       }
     },
-    [session],
+    [],
   );
 
   const clearPointerSwipe = useCallback((target, pointerId) => {
@@ -478,7 +526,8 @@ export default function Game2048Page() {
       if (!start || start.id !== e.pointerId) return;
       clearPointerSwipe(e.currentTarget, e.pointerId);
 
-      if (!session || session.status !== "ACTIVE" || session.gameOver) return;
+      const s = sessionRef.current;
+      if (!s || s.status !== "ACTIVE" || s.gameOver) return;
       if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
 
       const dx = e.clientX - start.x;
@@ -489,7 +538,7 @@ export default function Game2048Page() {
       if (ax > ay) void sendMove(dx > 0 ? "right" : "left");
       else void sendMove(dy > 0 ? "down" : "up");
     },
-    [session, sendMove, minSwipePx, clearPointerSwipe],
+    [sendMove, minSwipePx, clearPointerSwipe],
   );
 
   const onBoardPointerCancel = useCallback(
@@ -594,7 +643,7 @@ export default function Game2048Page() {
                 <button
                   type="button"
                   onClick={() => void restartGame()}
-                  disabled={busy || moveSync}
+                  disabled={busy}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-500/30 bg-red-500/20 text-red-400 transition-all hover:bg-red-500/40 disabled:opacity-40"
                   aria-label={t("game2048.reset_aria")}
                 >
