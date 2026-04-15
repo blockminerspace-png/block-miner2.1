@@ -90,12 +90,12 @@ import {
   buildSocketIoCorsConfig
 } from "./utils/corsConfig.js";
 import { createHttpRequestLogger } from "./middleware/httpRequestLogger.js";
-import { logTurnstileStartupWarnings } from "./middleware/turnstile.js";
+import { runTurnstileStartupChecks } from "./middleware/turnstile.js";
 
 const logger = loggerLib.child("Server");
 
 if (process.env.NODE_ENV !== "test") {
-  logTurnstileStartupWarnings();
+  runTurnstileStartupChecks();
 }
 
 if (process.env.NODE_ENV !== "test") {

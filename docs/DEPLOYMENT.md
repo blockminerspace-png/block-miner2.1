@@ -81,3 +81,5 @@ docker compose --env-file .env.production up -d --no-deps app
 ```
 
 If you only change server secrets but not `VITE_*`, the browser still loads the old site key from the previous build.
+
+**Production safety:** With `NODE_ENV=production`, the API process **exits on startup** if `TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS` is enabled, unless you set `ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION=1` (emergency escape hatch only). Use real Turnstile keys instead.

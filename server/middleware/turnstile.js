@@ -47,12 +47,46 @@ export function isTurnstileEnforced() {
   return resolveTurnstileSecret(undefined).length > 0;
 }
 
-/** Logs once at boot if dummy Turnstile keys are enabled (pink test-only banner in the widget). */
-export function logTurnstileStartupWarnings() {
+function isNodeProduction() {
+  return String(process.env.NODE_ENV || "").toLowerCase() === "production";
+}
+
+/**
+ * If non-empty, the process must not continue (Turnstile dummy keys in production without escape hatch).
+ * @returns {string}
+ */
+export function getTurnstileBootFatalError() {
+  if (!isNodeProduction()) return "";
+  if (!useCloudflareDummyTurnstileKeys()) return "";
+  if (envFlag("ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION")) return "";
+  return (
+    "Refusing to start: NODE_ENV=production with TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS enabled uses Cloudflare test " +
+      "secrets only (pink test banner, not real security). Unset TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS and " +
+      "VITE_TURNSTILE_DUMMY_FALLBACK, set TURNSTILE_SECRET_KEY_LOGIN + VITE_TURNSTILE_SITE_KEY_LOGIN, rebuild the app image. " +
+      "Emergency only: ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION=1."
+  );
+}
+
+/**
+ * Production: exit if dummy Turnstile is on (unless ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION).
+ * Non-production: warn when dummy is on.
+ */
+export function runTurnstileStartupChecks() {
+  const fatal = getTurnstileBootFatalError();
+  if (fatal) {
+    logger.error(fatal);
+    process.exit(1);
+  }
   if (!useCloudflareDummyTurnstileKeys()) return;
+  if (isNodeProduction() && envFlag("ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION")) {
+    logger.warn(
+      "ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION is set: Turnstile still uses Cloudflare dummy keys (test-only banner)."
+    );
+    return;
+  }
   logger.warn(
     "TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS is enabled: Cloudflare shows the test-only banner in the widget. " +
-      "For production-like hosts, unset it and set TURNSTILE_SECRET_KEY_LOGIN (and matching site key in the client build via VITE_TURNSTILE_SITE_KEY_LOGIN), then rebuild the app image."
+      "Unset it and set real TURNSTILE_SECRET_KEY_LOGIN + VITE_TURNSTILE_SITE_KEY_LOGIN for production-like hosts, then rebuild the app image."
   );
 }
 

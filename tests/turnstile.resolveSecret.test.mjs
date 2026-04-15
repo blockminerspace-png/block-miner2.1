@@ -54,3 +54,48 @@ describe("resolveTurnstileSecret", () => {
     assert.equal(resolveTurnstileSecret(undefined), "1x0000000000000000000000000000000AA");
   });
 });
+
+describe("getTurnstileBootFatalError", () => {
+  const snapshot = { ...process.env };
+
+  afterEach(() => {
+    for (const k of [
+      "NODE_ENV",
+      "TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS",
+      "ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION",
+    ]) {
+      if (snapshot[k] === undefined) delete process.env[k];
+      else process.env[k] = snapshot[k];
+    }
+  });
+
+  it("empty when not production", async () => {
+    process.env.NODE_ENV = "test";
+    process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS = "1";
+    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    assert.equal(getTurnstileBootFatalError(), "");
+  });
+
+  it("empty in production when dummy flag is off", async () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS;
+    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    assert.equal(getTurnstileBootFatalError(), "");
+  });
+
+  it("non-empty in production when dummy keys on without allow", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS = "1";
+    delete process.env.ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION;
+    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    assert.ok(getTurnstileBootFatalError().includes("Refusing to start"));
+  });
+
+  it("empty in production when dummy on but allow escape is set", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS = "1";
+    process.env.ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION = "1";
+    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    assert.equal(getTurnstileBootFatalError(), "");
+  });
+});
