@@ -433,6 +433,17 @@ app.get("/{*all}", async (req, res) => {
     const indexPath = path.join(publicPath, "index.html");
     let html = await fs.readFile(indexPath, "utf8");
 
+    const nonce = res.locals.cspNonce || "";
+    const nonceAttr = nonce ? ` nonce="${nonce}"` : "";
+
+    // CSP nonce for Turnstile (Cloudflare: put nonce on api.js; Turnstile propagates to child resources).
+    html = html.replace(
+      "<!--__BM_CSP_NONCE_BOOT__-->",
+      nonce
+        ? `<script${nonceAttr}>window.__BLOCKMINER_CSP_NONCE__=${JSON.stringify(nonce)}<\/script>`
+        : "",
+    );
+
     // WalletConnect: SPA may be built without VITE_*; Node still has .env.production at runtime.
     const wcId = String(process.env.VITE_WALLETCONNECT_PROJECT_ID || "").trim();
     const wcAppUrl = String(
@@ -445,7 +456,7 @@ app.get("/{*all}", async (req, res) => {
         VITE_WALLETCONNECT_PROJECT_ID: wcId,
         ...(wcAppUrl ? { VITE_PUBLIC_WALLET_APP_URL: wcAppUrl } : {}),
       });
-      const injectScript = `<script>window.__BLOCKMINER_ENV__=${payload.replace(/</g, "\\u003c")}</script>`;
+      const injectScript = `<script${nonceAttr}>window.__BLOCKMINER_ENV__=${payload.replace(/</g, "\\u003c")}<\/script>`;
       if (html.includes("<!--__BM_RUNTIME_CONFIG__-->")) {
         html = html.replace("<!--__BM_RUNTIME_CONFIG__-->", injectScript);
       } else if (!html.includes("__BLOCKMINER_ENV__")) {
@@ -456,7 +467,6 @@ app.get("/{*all}", async (req, res) => {
     }
 
     // Inject the nonce into all script and style tags that have the placeholder
-    const nonce = res.locals.cspNonce || "";
     html = html.replace(/__CSP_NONCE__/g, nonce);
 
     // Avoid stale index.html after deploy (prevents "Failed to fetch dynamically imported module" for old chunk hashes)

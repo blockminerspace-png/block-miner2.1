@@ -24,6 +24,8 @@ function loadTurnstileScript() {
     s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     s.async = true;
     s.defer = true;
+    const cspNonce = typeof window !== "undefined" ? window.__BLOCKMINER_CSP_NONCE__ : "";
+    if (cspNonce) s.setAttribute("nonce", cspNonce);
     s.onload = () => resolve();
     s.onerror = () => reject(new Error("Turnstile script load failed"));
     document.head.appendChild(s);
@@ -109,6 +111,7 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
         widgetId.current = window.turnstile.render(hostRef.current, {
           sitekey: resolvedSiteKey,
           appearance: "always",
+          "refresh-expired": "auto",
           callback: (token) => onTokenRef.current?.(token),
           "expired-callback": () => onTokenRef.current?.(""),
           "error-callback": () => onTokenRef.current?.(""),
