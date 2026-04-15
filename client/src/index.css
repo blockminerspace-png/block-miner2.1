@@ -68,3 +68,12 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-500;
 }
+
+/* Cloudflare Turnstile: default iframe width (~300px) overflows narrow auth cards */
+.auth-turnstile-host .cf-turnstile {
+  width: 100% !important;
+  max-width: 100%;
+}
+.auth-turnstile-host iframe {
+  max-width: 100% !important;
+}

@@ -145,17 +145,15 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
           "expired-callback": () => onTokenRef.current?.(""),
           "error-callback": () => onTokenRef.current?.(""),
         };
+        /** Prefer compact in auth cards; "flexible" often exceeds narrow mobile card width. */
         try {
-          widgetId.current = window.turnstile.render(hostRef.current, {
-            ...baseOpts,
-            /** Fills parent width on supported widget types; falls back below if CF rejects. */
-            size: "flexible",
-          });
+          widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "compact" });
         } catch {
-          widgetId.current = window.turnstile.render(hostRef.current, {
-            ...baseOpts,
-            size: "normal",
-          });
+          try {
+            widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "normal" });
+          } catch {
+            widgetId.current = window.turnstile.render(hostRef.current, baseOpts);
+          }
         }
         if (!cancelled) setBootState("ready");
       } catch {
@@ -185,10 +183,12 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
 
   return (
     <div className="relative my-3 w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-gray-800/80 bg-background/40">
-      <div
-        ref={hostRef}
-        className="flex min-h-[68px] w-full max-w-full min-w-0 justify-center items-center py-2 px-1 [&_iframe]:max-w-full"
-      />
+      <div className="flex w-full justify-center px-1 py-2 [zoom:0.82] min-[400px]:[zoom:0.9] sm:[zoom:0.95] md:[zoom:1]">
+        <div
+          ref={hostRef}
+          className="auth-turnstile-host flex min-h-[56px] w-full max-w-[min(100%,300px)] shrink-0 justify-center items-center"
+        />
+      </div>
       {bootState === "loading" && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-[1px]"
