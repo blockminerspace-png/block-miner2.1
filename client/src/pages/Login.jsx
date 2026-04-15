@@ -8,10 +8,10 @@ import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 import TurnstileField from '../components/auth/TurnstileField';
 
-const DEFAULT_TURNSTILE_LOGIN_SITE_KEY = '0x4AAAAAACB3D1o46QZ5q1kl';
-const TURNSTILE_LOGIN_SITE_KEY =
-  String(import.meta.env.VITE_TURNSTILE_SITE_KEY_LOGIN || import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim() ||
-  DEFAULT_TURNSTILE_LOGIN_SITE_KEY;
+/** Empty = hide widget. Site keys are hostname-scoped in Cloudflare; do not hardcode fallbacks. */
+const TURNSTILE_LOGIN_SITE_KEY = String(
+  import.meta.env.VITE_TURNSTILE_SITE_KEY_LOGIN || import.meta.env.VITE_TURNSTILE_SITE_KEY || '',
+).trim();
 
 export default function Login() {
     const { t } = useTranslation();

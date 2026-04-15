@@ -35,10 +35,10 @@ function clipRefCodeFromQuery(raw) {
     .slice(0, REGISTER_REF_CODE_MAX_LEN);
 }
 
-const DEFAULT_TURNSTILE_REGISTER_SITE_KEY = '0x4AAAAAACB3D7JD8YhWNZyQtilBU7kQ3Zk';
-const TURNSTILE_REGISTER_SITE_KEY =
-  String(import.meta.env.VITE_TURNSTILE_SITE_KEY_REGISTER || import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim() ||
-  DEFAULT_TURNSTILE_REGISTER_SITE_KEY;
+/** Empty = hide widget. Site keys are hostname-scoped in Cloudflare; do not hardcode fallbacks. */
+const TURNSTILE_REGISTER_SITE_KEY = String(
+  import.meta.env.VITE_TURNSTILE_SITE_KEY_REGISTER || import.meta.env.VITE_TURNSTILE_SITE_KEY || '',
+).trim();
 
 export default function Register() {
   const { t } = useTranslation();
