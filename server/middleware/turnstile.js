@@ -47,6 +47,15 @@ export function isTurnstileEnforced() {
   return resolveTurnstileSecret(undefined).length > 0;
 }
 
+/** Logs once at boot if dummy Turnstile keys are enabled (pink test-only banner in the widget). */
+export function logTurnstileStartupWarnings() {
+  if (!useCloudflareDummyTurnstileKeys()) return;
+  logger.warn(
+    "TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS is enabled: Cloudflare shows the test-only banner in the widget. " +
+      "For production-like hosts, unset it and set TURNSTILE_SECRET_KEY_LOGIN (and matching site key in the client build via VITE_TURNSTILE_SITE_KEY_LOGIN), then rebuild the app image."
+  );
+}
+
 /**
  * @param {string | undefined | null} token
  * @param {string | undefined} remoteIp

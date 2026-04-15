@@ -90,8 +90,13 @@ import {
   buildSocketIoCorsConfig
 } from "./utils/corsConfig.js";
 import { createHttpRequestLogger } from "./middleware/httpRequestLogger.js";
+import { logTurnstileStartupWarnings } from "./middleware/turnstile.js";
 
 const logger = loggerLib.child("Server");
+
+if (process.env.NODE_ENV !== "test") {
+  logTurnstileStartupWarnings();
+}
 
 if (process.env.NODE_ENV !== "test") {
   process.on("unhandledRejection", (reason) => {

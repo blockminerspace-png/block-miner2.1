@@ -64,3 +64,20 @@ openssl rand -hex 32
 - `.env.production.vm-backup` — base env merged with `VITE_*` overrides before upload.
 
 See `deploy-credentials.local.example.md` for GitHub Actions test VM variables.
+
+## Cloudflare Turnstile (pink “testing only” banner)
+
+That banner is rendered by **Cloudflare** when the widget uses their [dummy / testing site key](https://developers.cloudflare.com/turnstile/troubleshooting/testing/). It cannot be hidden in CSS; you must use **real** Turnstile keys.
+
+On the VM (same directory as `docker-compose.yml`):
+
+1. Edit `.env.production`: set `VITE_TURNSTILE_SITE_KEY_LOGIN` (and `TURNSTILE_SECRET_KEY_LOGIN` to the matching secret from the Turnstile dashboard). Add the same for register if you use separate widgets.
+2. **Unset** or delete `TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS` and `VITE_TURNSTILE_DUMMY_FALLBACK` (do not set them to `1` on hosts you treat as real).
+3. Rebuild the SPA inside the image (Vite reads `VITE_*` at build time):
+
+```bash
+docker compose --env-file .env.production build app
+docker compose --env-file .env.production up -d --no-deps app
+```
+
+If you only change server secrets but not `VITE_*`, the browser still loads the old site key from the previous build.
