@@ -252,9 +252,15 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.game2048.errors.COOLDOWN_ACTIVE).toBeTruthy();
     expect(pt.game2048.errors.COOLDOWN_ACTIVE).toBeTruthy();
     expect(es.game2048.errors.COOLDOWN_ACTIVE).toBeTruthy();
+    expect(en.game2048.errors.SESSION_NOT_FINISHED).toBeTruthy();
+    expect(pt.game2048.errors.SESSION_NOT_FINISHED).toBeTruthy();
+    expect(es.game2048.errors.SESSION_NOT_FINISHED).toBeTruthy();
     expect(en.game2048.open_game).toBeTruthy();
     expect(pt.game2048.open_game).toBeTruthy();
     expect(es.game2048.open_game).toBeTruthy();
+    expect(en.auth.turnstile.human_prompt).toBeTruthy();
+    expect(pt.auth.turnstile.human_prompt).toBeTruthy();
+    expect(es.auth.turnstile.human_prompt).toBeTruthy();
     expect(en.game2048.starting).toBeTruthy();
     expect(pt.game2048.starting).toBeTruthy();
     expect(es.game2048.starting).toBeTruthy();

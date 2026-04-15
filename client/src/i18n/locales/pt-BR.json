@@ -592,6 +592,7 @@
   },
   "auth": {
     "turnstile": {
+      "human_prompt": "Deixe-nos saber que você é humano.",
       "loading": "Carregando verificação de segurança…",
       "load_failed": "Não foi possível carregar a verificação de segurança. Atualize a página ou tente novamente."
     },
@@ -702,7 +703,7 @@
     "subtitle": "Atinge o alvo no tabuleiro validado pelo servidor. Movimentos, fusões e pontuação são confirmados no servidor. Reclama um bónus temporário de hashrate quando fores elegível.",
     "score": "Pontuação",
     "best_tile": "Melhor peça",
-    "target_hint": "Atinge a peça {{tile}} para desbloquear a reclamação (pontuação mínima {{minScore}}).",
+    "target_hint": "Atinge a peça {{tile}} ou a pontuação {{minScore}} para desbloquear a reclamação.",
     "reward_line": "Recompensa: +{{hr}} H/s por {{days}} dias",
     "reward_line_hours": "Recompensa: +{{hr}} H/s por {{hours}} h · Check-in diário confirmado hoje dá {{days}} dias completos.",
     "claimed_toast_hours": "+{{hr}} H/s por {{hours}} h",
@@ -719,7 +720,7 @@
     "grid_placeholder_aria": "Ainda não há ronda ativa no tabuleiro",
     "syncing": "A sincronizar…",
     "game_over": "Sem jogadas possíveis",
-    "you_won": "Alvo atingido — podes reclamar se cumprires a pontuação mínima.",
+    "you_won": "Elegível — podes reclamar a recompensa.",
     "claimed_toast": "+{{hr}} H/s por {{days}} dias",
     "back_arena": "Voltar à Arena",
     "crypto_strip_aria": "Ícones de criptomoedas usados nos outros jogos da arena",
@@ -736,7 +737,8 @@
       "SESSION_NOT_FOUND": "Sessão não encontrada.",
       "SESSION_NOT_ACTIVE": "Esta sessão já não está ativa.",
       "WIN_REQUIRED": "Atinge o alvo antes de reclamar.",
-      "SCORE_TOO_LOW": "A pontuação está abaixo do mínimo para reclamar.",
+      "SESSION_NOT_FINISHED": "Termina a ronda antes de reclamar.",
+      "SCORE_TOO_LOW": "Precisas da peça-alvo ou da pontuação mínima para reclamar.",
       "INVALID_BODY": "Pedido inválido.",
       "restart_failed": "Não foi possível reiniciar a ronda."
     }

@@ -123,6 +123,8 @@ export async function postClaim(req, res) {
       idempotent: Boolean(r.idempotent),
       rewardHashRate: r.rewardHashRate,
       powerDays: r.powerDays,
+      rewardPowerDays: r.rewardPowerDays,
+      rewardPowerHours: r.rewardPowerHours,
       nextClaimAllowedAt: r.nextClaimAllowedAt,
       cooldownSecondsRemaining: r.cooldownSecondsRemaining
     });

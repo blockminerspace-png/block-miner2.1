@@ -8,8 +8,8 @@ export function game2048WinTile() {
 }
 
 export function game2048MinScore() {
-  const n = Number(process.env.GAME2048_MIN_SCORE || 1000);
-  return Math.max(0, Math.min(10_000_000, Math.floor(Number.isFinite(n) ? n : 1000)));
+  const n = Number(process.env.GAME2048_MIN_SCORE || 500);
+  return Math.max(0, Math.min(10_000_000, Math.floor(Number.isFinite(n) ? n : 500)));
 }
 
 export function game2048RewardHashRate() {

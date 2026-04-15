@@ -159,10 +159,13 @@ function serializeSession(row, now, rewardHint) {
   const minScore = game2048MinScore();
   const hasMoves = board ? hasValidMove(board) : false;
   const scoreReached = (Number(row.score) || 0) >= minScore;
+  const tileReached = board ? maxTile(board) >= winTile : false;
+  const rewardEligible = scoreReached || tileReached;
   const canClaim =
-    scoreReached &&
+    rewardEligible &&
     !row.rewardGranted &&
-    row.status !== SESSION_CLAIMED;
+    row.status !== SESSION_CLAIMED &&
+    row.status !== SESSION_ACTIVE;
   const timeLimitSeconds = game2048TimeLimitSec();
   const secLeft = secondsRemainingForSession(row, now);
   const rd = rewardHint != null ? rewardHint : rewardDurationFromCheckinToday(false);
@@ -172,7 +175,7 @@ function serializeSession(row, now, rewardHint) {
     status: row.status,
     board: board || emptyBoard(),
     score: Number(row.score) || 0,
-    won: Boolean(row.won) || scoreReached,
+    won: Boolean(row.won) || scoreReached || tileReached,
     rewardGranted: Boolean(row.rewardGranted),
     hasMoves,
     canClaim,
@@ -508,8 +511,16 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
       };
     }
 
-    if ((Number(row.score) || 0) < minScore) {
+    const board = boardFromRow(row.board);
+    const maxT = board ? maxTile(board) : 0;
+    const scoreOk = (Number(row.score) || 0) >= minScore;
+    const tileOk = maxT >= winTile;
+    if (!scoreOk && !tileOk) {
       return { ok: false, code: "SCORE_TOO_LOW", status: 400 };
+    }
+
+    if (row.status === SESSION_ACTIVE) {
+      return { ok: false, code: "SESSION_NOT_FINISHED", status: 400 };
     }
 
     const lastClaimed = await tx.game2048Session.findFirst({
@@ -534,7 +545,7 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
 
     const gameId = await getOrCreateGame2048GameId(tx);
     const playedAt = now;
-    const expiresAt = new Date(playedAt.getTime() + powerDays * 86_400_000);
+    const expiresAt = new Date(playedAt.getTime() + rd.rewardTtlMs);
 
     const powerRow = await tx.userPowerGame.create({
       data: {

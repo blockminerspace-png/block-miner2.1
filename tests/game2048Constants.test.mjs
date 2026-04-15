@@ -32,9 +32,9 @@ describe("game2048Constants", () => {
     assert.equal(game2048TimeLimitSec(), 3600);
   });
 
-  it("game2048MinScore defaults to 1000", () => {
+  it("game2048MinScore defaults to 500", () => {
     delete process.env.GAME2048_MIN_SCORE;
-    assert.equal(game2048MinScore(), 1000);
+    assert.equal(game2048MinScore(), 500);
   });
 
   it("game2048RewardHashRate defaults to 25", () => {

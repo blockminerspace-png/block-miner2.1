@@ -140,17 +140,18 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
         const baseOpts = {
           sitekey: resolvedSiteKey,
           appearance: "always",
+          theme: "light",
           "refresh-expired": "auto",
           callback: (token) => onTokenRef.current?.(token),
           "expired-callback": () => onTokenRef.current?.(""),
           "error-callback": () => onTokenRef.current?.(""),
         };
-        /** Prefer compact in auth cards; "flexible" often exceeds narrow mobile card width. */
+        /** Classic light checkbox layout: prefer normal; fall back to compact on narrow cards. */
         try {
-          widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "compact" });
+          widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "normal" });
         } catch {
           try {
-            widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "normal" });
+            widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "compact" });
           } catch {
             widgetId.current = window.turnstile.render(hostRef.current, baseOpts);
           }
@@ -182,27 +183,30 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
   if (!resolvedSiteKey) return null;
 
   return (
-    <div className="relative my-3 w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-gray-800/80 bg-background/40">
-      <div className="flex w-full justify-center px-1 py-2 [zoom:0.82] min-[400px]:[zoom:0.9] sm:[zoom:0.95] md:[zoom:1]">
+    <div className="relative my-3 w-full max-w-full min-w-0 overflow-hidden rounded-xl border border-slate-200/95 bg-white shadow-sm">
+      <p className="px-3 pt-2.5 text-center text-[11px] font-medium leading-snug text-slate-600">
+        {t("auth.turnstile.human_prompt")}
+      </p>
+      <div className="flex w-full justify-center px-1 pb-2 pt-1 [zoom:0.9] min-[400px]:[zoom:0.95] sm:[zoom:1]">
         <div
           ref={hostRef}
-          className="auth-turnstile-host flex min-h-[56px] w-full max-w-[min(100%,300px)] shrink-0 justify-center items-center"
+          className="auth-turnstile-host flex min-h-[56px] w-full max-w-[min(100%,320px)] shrink-0 items-center justify-center"
         />
       </div>
       {bootState === "loading" && (
         <div
-          className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-[1px]"
+          className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80 backdrop-blur-[1px]"
           aria-busy="true"
           aria-live="polite"
         >
-          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 animate-pulse">
+          <span className="animate-pulse text-[10px] font-bold uppercase tracking-widest text-slate-500">
             {t("auth.turnstile.loading")}
           </span>
         </div>
       )}
       {bootState === "error" && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/85 px-3">
-          <p className="text-center text-[10px] font-semibold leading-relaxed text-red-400">
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/90 px-3">
+          <p className="text-center text-[10px] font-semibold leading-relaxed text-red-600">
             {t("auth.turnstile.load_failed")}
           </p>
         </div>

@@ -592,6 +592,7 @@
   },
   "auth": {
     "turnstile": {
+      "human_prompt": "Let us know you are human.",
       "loading": "Loading security check…",
       "load_failed": "Could not load the security check. Refresh the page or try again."
     },
@@ -701,7 +702,7 @@
     "subtitle": "Reach the target tile on the server-side board. Moves, merges, and score are validated on the server. Claim a temporary hashrate bonus when you qualify.",
     "score": "Score",
     "best_tile": "Best tile",
-    "target_hint": "Reach tile {{tile}} to unlock claim (minimum score {{minScore}}).",
+    "target_hint": "Reach tile {{tile}} or score {{minScore}} to unlock claim.",
     "reward_line": "Reward: +{{hr}} H/s for {{days}} days",
     "reward_line_hours": "Reward: +{{hr}} H/s for {{hours}} h · Confirm today's check-in for {{days}} full days.",
     "claimed_toast_hours": "+{{hr}} H/s for {{hours}} h",
@@ -718,7 +719,7 @@
     "grid_placeholder_aria": "No active round on the board yet",
     "syncing": "Syncing…",
     "game_over": "No moves left",
-    "you_won": "Target tile reached — you can claim if you meet the minimum score.",
+    "you_won": "You qualified — claim your reward.",
     "claimed_toast": "+{{hr}} H/s for {{days}} days",
     "back_arena": "Back to Arena",
     "crypto_strip_aria": "Cryptocurrency artwork used in other arena games",
@@ -735,7 +736,8 @@
       "SESSION_NOT_FOUND": "Session not found.",
       "SESSION_NOT_ACTIVE": "This session is no longer active.",
       "WIN_REQUIRED": "Reach the target tile before claiming.",
-      "SCORE_TOO_LOW": "Score is below the minimum required to claim.",
+      "SESSION_NOT_FINISHED": "Finish the round before claiming.",
+      "SCORE_TOO_LOW": "You need the target tile or the minimum score to claim.",
       "INVALID_BODY": "Invalid request.",
       "restart_failed": "Could not restart the round."
     }

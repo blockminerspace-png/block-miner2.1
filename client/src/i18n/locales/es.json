@@ -228,6 +228,7 @@
   },
   "auth": {
     "turnstile": {
+      "human_prompt": "Indícanos que eres humano.",
       "loading": "Cargando verificación de seguridad…",
       "load_failed": "No se pudo cargar la verificación de seguridad. Actualiza la página o inténtalo de nuevo."
     },
@@ -337,7 +338,7 @@
     "subtitle": "Alcanza la ficha objetivo en el tablero validado por el servidor. Movimientos, fusiones y puntuación se confirman en el servidor. Reclama un bonus temporal de hashrate cuando cumplas los requisitos.",
     "score": "Puntuación",
     "best_tile": "Mejor ficha",
-    "target_hint": "Alcanza la ficha {{tile}} para desbloquear la reclamación (puntuación mínima {{minScore}}).",
+    "target_hint": "Alcanza la ficha {{tile}} o la puntuación {{minScore}} para desbloquear la reclamación.",
     "reward_line": "Recompensa: +{{hr}} H/s durante {{days}} días",
     "reward_line_hours": "Recompensa: +{{hr}} H/s durante {{hours}} h · Check-in diario confirmado hoy = {{days}} días completos.",
     "claimed_toast_hours": "+{{hr}} H/s durante {{hours}} h",
@@ -354,7 +355,7 @@
     "grid_placeholder_aria": "Aún no hay una partida activa en el tablero",
     "syncing": "Sincronizando…",
     "game_over": "No quedan movimientos",
-    "you_won": "Objetivo alcanzado — puedes reclamar si cumples la puntuación mínima.",
+    "you_won": "Calificaste — reclama tu recompensa.",
     "claimed_toast": "+{{hr}} H/s durante {{days}} días",
     "back_arena": "Volver a la Arena",
     "crypto_strip_aria": "Arte de criptomonedas como en los demás juegos de la arena",
@@ -371,7 +372,8 @@
       "SESSION_NOT_FOUND": "Sesión no encontrada.",
       "SESSION_NOT_ACTIVE": "Esta sesión ya no está activa.",
       "WIN_REQUIRED": "Alcanza la ficha objetivo antes de reclamar.",
-      "SCORE_TOO_LOW": "La puntuación está por debajo del mínimo para reclamar.",
+      "SESSION_NOT_FINISHED": "Termina la ronda antes de reclamar.",
+      "SCORE_TOO_LOW": "Necesitas la ficha objetivo o la puntuación mínima para reclamar.",
       "INVALID_BODY": "Solicitud no válida.",
       "restart_failed": "No se pudo reiniciar la ronda."
     }
