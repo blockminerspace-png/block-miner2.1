@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../store/auth';
-import { Cpu, Mail, Lock, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
@@ -24,6 +24,7 @@ export default function Login() {
     const [twoFactorToken, setTwoFactorToken] = useState('');
     const [localError, setLocalError] = useState('');
     const [cfTurnstileToken, setCfTurnstileToken] = useState('');
+    const turnstileRef = useRef(null);
     
     // Legacy Reset States
     const [showLegacyReset, setShowLegacyReset] = useState(false);
@@ -53,6 +54,8 @@ export default function Login() {
             });
 
             if (res.data.require2FA) {
+                // Server may require a fresh Turnstile token on the second POST; reset challenge for 2FA step.
+                turnstileRef.current?.reset();
                 setRequires2FA(true);
                 return;
             }
@@ -68,6 +71,7 @@ export default function Login() {
             }
         } catch (err) {
             if (err.response?.data?.require2FA) {
+                turnstileRef.current?.reset();
                 setRequires2FA(true);
             } else if (err.response?.data?.needsLegacyReset) {
                 setShowLegacyReset(true);
@@ -98,6 +102,7 @@ export default function Login() {
                         err.response?.data?.message ||
                         t('auth.login.errors.login_failed'),
                 );
+                turnstileRef.current?.reset();
             }
         }
     };
@@ -257,7 +262,6 @@ export default function Login() {
                                         </button>
                                     </div>
                                 </div>
-                                <TurnstileField siteKey={TURNSTILE_LOGIN_SITE_KEY} onToken={setCfTurnstileToken} />
                             </>
                         ) : (
                             <div className="space-y-4 animate-in fade-in zoom-in duration-300">
@@ -279,11 +283,22 @@ export default function Login() {
                                     className="block w-full text-center tracking-[0.5em] font-mono text-2xl py-4 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium"
                                     placeholder="000000"
                                 />
-                                <button type="button" onClick={() => setRequires2FA(false)} className="w-full text-center text-xs text-gray-500 hover:text-white transition-colors">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setRequires2FA(false);
+                                        turnstileRef.current?.reset();
+                                    }}
+                                    className="w-full text-center text-xs text-gray-500 hover:text-white transition-colors"
+                                >
                                     Voltar
                                 </button>
                             </div>
                         )}
+
+                        {TURNSTILE_LOGIN_SITE_KEY ? (
+                            <TurnstileField ref={turnstileRef} siteKey={TURNSTILE_LOGIN_SITE_KEY} onToken={setCfTurnstileToken} />
+                        ) : null}
 
                         <button
                             type="submit"

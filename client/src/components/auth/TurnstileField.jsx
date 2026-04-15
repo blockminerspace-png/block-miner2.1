@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 
 let turnstileScriptPromise;
 
@@ -26,12 +26,28 @@ function loadTurnstileScript() {
 
 /**
  * Renders Cloudflare Turnstile when a site key is provided.
+ * Ref exposes `reset()` to clear the token and ask for a new challenge (e.g. after a failed login).
  * @param {{ onToken: (token: string) => void, siteKey?: string }} props
  */
-export default function TurnstileField({ onToken, siteKey }) {
+const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, ref) {
   const hostRef = useRef(null);
   const widgetId = useRef(null);
+  const onTokenRef = useRef(onToken);
+  onTokenRef.current = onToken;
   const resolvedSiteKey = String(siteKey || "").trim();
+
+  useImperativeHandle(ref, () => ({
+    reset: () => {
+      try {
+        if (widgetId.current != null && window.turnstile?.reset) {
+          window.turnstile.reset(widgetId.current);
+        }
+      } catch {
+        /* ignore */
+      }
+      onTokenRef.current?.("");
+    },
+  }));
 
   useEffect(() => {
     if (!resolvedSiteKey || !hostRef.current) return undefined;
@@ -43,12 +59,14 @@ export default function TurnstileField({ onToken, siteKey }) {
         if (cancelled || !hostRef.current || !window.turnstile) return;
         widgetId.current = window.turnstile.render(hostRef.current, {
           sitekey: resolvedSiteKey,
-          callback: (token) => onToken?.(token),
-          "expired-callback": () => onToken?.(""),
-          "error-callback": () => onToken?.(""),
+          appearance: "always",
+          "refresh-expired": "auto",
+          callback: (token) => onTokenRef.current?.(token),
+          "expired-callback": () => onTokenRef.current?.(""),
+          "error-callback": () => onTokenRef.current?.(""),
         });
       } catch {
-        onToken?.("");
+        onTokenRef.current?.("");
       }
     })();
 
@@ -63,8 +81,12 @@ export default function TurnstileField({ onToken, siteKey }) {
       }
       widgetId.current = null;
     };
-  }, [onToken, resolvedSiteKey]);
+  }, [resolvedSiteKey]);
 
   if (!resolvedSiteKey) return null;
   return <div ref={hostRef} className="my-3 flex justify-center" />;
-}
+});
+
+TurnstileField.displayName = "TurnstileField";
+
+export default TurnstileField;

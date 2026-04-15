@@ -55,6 +55,7 @@ export default function Register() {
   const [cfTurnstileToken, setCfTurnstileToken] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const termsCheckboxRef = useRef(null);
+  const turnstileRef = useRef(null);
   const navigate = useNavigate();
   const { register, error, isLoading, isAuthenticated } = useAuthStore();
 
@@ -164,6 +165,7 @@ export default function Register() {
       } else if (result.message) {
         toast.error(t(result.message, { defaultValue: result.message }));
       }
+      turnstileRef.current?.reset();
       return;
     }
 
@@ -355,7 +357,7 @@ export default function Register() {
                 </div>
               </div>
 
-              <TurnstileField siteKey={TURNSTILE_REGISTER_SITE_KEY} onToken={setCfTurnstileToken} />
+              <TurnstileField ref={turnstileRef} siteKey={TURNSTILE_REGISTER_SITE_KEY} onToken={setCfTurnstileToken} />
 
               <button
                 type="submit"
