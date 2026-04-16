@@ -336,7 +336,6 @@ export default function Wallet() {
 
     useEffect(() => {
         if (depositChannel !== 'polygon_hd') {
-            setPolygonHdTxHash('');
             setPolygonHdLoadError('');
             return undefined;
         }
