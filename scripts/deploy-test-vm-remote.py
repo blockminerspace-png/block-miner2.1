@@ -16,6 +16,12 @@ Env:
 
 If `origin` is HTTPS, Git may prompt for username/password: use a GitHub **Personal Access Token**
 as the password (not your account password), or run `gh auth login`, or switch `origin` to an SSH URL.
+
+**Private repo / no Git on the server:** deploy from your machine with SSH + tarball (no `git fetch` on the VM):
+
+  python3 scripts/vm-deploy-local-over-ssh.py
+
+See `scripts/vm-deploy-local-over-ssh.py` docstring for credentials and env vars.
 """
 from __future__ import annotations
 
