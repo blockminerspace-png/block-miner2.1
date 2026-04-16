@@ -765,6 +765,12 @@
     "loading": "Loading...",
     "videoError": "Video unavailable"
   },
+  "adminLayout": {
+    "title": "Control panel",
+    "subtitle": "Administrator mode active",
+    "open_menu": "Open navigation menu",
+    "close_menu": "Close navigation menu"
+  },
   "adminSidebar": {
     "brand_admin": "Admin",
     "brand_panel": "Panel",
@@ -915,6 +921,8 @@
   "dailyTasks": {
     "title": "Daily Tasks",
     "empty": "No daily tasks are configured right now.",
+    "load_error_body": "We could not load your daily tasks from the server. Check your connection, refresh the page, or sign in again if your session expired.",
+    "retry": "Try again",
     "subtitle": "Complete objectives every day and claim rewards. Progress resets at midnight (Brazil time).",
     "period_label": "Today",
     "next_reset": "Next reset",
@@ -936,6 +944,8 @@
     "errors": {
       "load_failed": "Could not load daily tasks",
       "network": "Network error",
+      "unauthorized": "Session expired or not signed in. Refresh the page or sign in again.",
+      "server": "Server error while loading tasks. Please try again shortly.",
       "claim_failed": "Could not claim reward",
       "not_completed": "Finish the task first",
       "already_claimed": "Already claimed today"

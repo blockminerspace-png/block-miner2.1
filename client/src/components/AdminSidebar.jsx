@@ -57,7 +57,7 @@ const ADMIN_MENU_ITEMS = [
   { icon: Bell, labelKey: 'adminSidebar.nav.broadcast', path: '/admin/broadcast' },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ mobileOpen = false, onNavigate } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -65,10 +65,20 @@ export default function AdminSidebar() {
   const handleLogout = () => {
     // Clear admin session token here when wired to auth storage.
     navigate('/admin/login');
+    onNavigate?.();
   };
 
+  const go = (path) => {
+    navigate(path);
+    onNavigate?.();
+  };
+
+  const slideClass = mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0';
+
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 p-6 shrink-0 flex flex-col self-stretch min-h-0 max-h-[100dvh] h-[100dvh] shadow-2xl relative z-20 overflow-hidden">
+    <aside
+      className={`bg-slate-900 border-r border-slate-800 p-4 sm:p-6 shrink-0 flex flex-col self-stretch min-h-0 max-h-[100dvh] h-[100dvh] shadow-2xl overflow-hidden w-[min(18rem,90vw)] sm:w-64 max-w-sm fixed inset-y-0 left-0 z-40 lg:static lg:inset-auto lg:max-w-none transition-transform duration-200 ease-out will-change-transform ${slideClass}`}
+    >
       <div className="flex items-center gap-3 mb-6 px-2 shrink-0">
         <div className="w-10 h-10 bg-gradient-to-tr from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
           <ShieldAlert className="text-white w-6 h-6" aria-hidden />
@@ -80,6 +90,7 @@ export default function AdminSidebar() {
       </div>
 
       <nav
+        id="admin-main-nav"
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth space-y-1 pr-1 py-0.5 [scrollbar-gutter:stable]"
         aria-label={t('adminSidebar.aria_main_nav', 'Main navigation')}
       >
@@ -95,7 +106,7 @@ export default function AdminSidebar() {
             <button
               key={item.path}
               type="button"
-              onClick={() => navigate(item.path)}
+              onClick={() => go(item.path)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
                 isActive
                   ? 'bg-amber-500/10 text-amber-500 shadow-sm'

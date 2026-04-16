@@ -766,6 +766,12 @@
     "loading": "Carregando...",
     "videoError": "Vídeo indisponível"
   },
+  "adminLayout": {
+    "title": "Painel de controle",
+    "subtitle": "Modo administrador ativo",
+    "open_menu": "Abrir menu de navegação",
+    "close_menu": "Fechar menu de navegação"
+  },
   "adminSidebar": {
     "brand_admin": "Admin",
     "brand_panel": "Painel",
@@ -916,6 +922,8 @@
   "dailyTasks": {
     "title": "Tarefas diárias",
     "empty": "Não há tarefas diárias configuradas no momento.",
+    "load_error_body": "Não foi possível carregar as tarefas diárias no servidor. Verifique a conexão, atualize a página ou entre novamente se a sessão expirou.",
+    "retry": "Tentar de novo",
     "subtitle": "Complete objetivos todos os dias e resgate recompensas. O progresso reinicia à meia-noite (horário de Brasília).",
     "period_label": "Hoje",
     "next_reset": "Próximo reset",
@@ -937,6 +945,8 @@
     "errors": {
       "load_failed": "Não foi possível carregar as tarefas diárias",
       "network": "Erro de rede",
+      "unauthorized": "Sessão expirada ou não autenticado. Atualize a página ou entre novamente.",
+      "server": "Erro no servidor ao carregar as tarefas. Tente de novo em instantes.",
       "claim_failed": "Não foi possível resgatar a recompensa",
       "not_completed": "Conclua a tarefa primeiro",
       "already_claimed": "Já resgatado hoje"

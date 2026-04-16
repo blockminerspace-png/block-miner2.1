@@ -140,18 +140,18 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
         const baseOpts = {
           sitekey: resolvedSiteKey,
           appearance: "always",
-          theme: "light",
+          theme: "auto",
           "refresh-expired": "auto",
           callback: (token) => onTokenRef.current?.(token),
           "expired-callback": () => onTokenRef.current?.(""),
           "error-callback": () => onTokenRef.current?.(""),
         };
-        /** Classic light checkbox layout: prefer normal; fall back to compact on narrow cards. */
+        /** Standard horizontal bar: flexible (full width of host, min 300×65) or normal (300×65). Never compact (150×140). */
         try {
-          widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "normal" });
+          widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "flexible" });
         } catch {
           try {
-            widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "compact" });
+            widgetId.current = window.turnstile.render(hostRef.current, { ...baseOpts, size: "normal" });
           } catch {
             widgetId.current = window.turnstile.render(hostRef.current, baseOpts);
           }
@@ -183,14 +183,18 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
   if (!resolvedSiteKey) return null;
 
   return (
-    <div className="relative my-3 w-full max-w-full min-w-0 overflow-hidden rounded-xl border border-slate-200/95 bg-white shadow-sm">
+    <div className="relative my-3 w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200/95 bg-white shadow-sm">
       <p className="px-3 pt-2.5 text-center text-[11px] font-medium leading-snug text-slate-600">
         {t("auth.turnstile.human_prompt")}
       </p>
-      <div className="flex w-full justify-center px-1 pb-2 pt-1 [zoom:0.9] min-[400px]:[zoom:0.95] sm:[zoom:1]">
+      <div className="w-full px-1 pb-2 pt-1 [zoom:0.9] min-[400px]:[zoom:0.95] sm:[zoom:1]">
+        {/*
+          Host must be block-level full width so Turnstile `size: flexible` can span the form.
+          A flex + justify-center wrapper keeps the iframe at ~300px and looks like a square tile on mobile/desktop.
+        */}
         <div
           ref={hostRef}
-          className="auth-turnstile-host flex min-h-[56px] w-full max-w-[min(100%,320px)] shrink-0 items-center justify-center"
+          className="auth-turnstile-host min-h-[65px] w-full min-w-[300px] max-w-full"
         />
       </div>
       {bootState === "loading" && (

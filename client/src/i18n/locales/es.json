@@ -401,6 +401,12 @@
     "loading": "Cargando...",
     "videoError": "Video no disponible"
   },
+  "adminLayout": {
+    "title": "Panel de control",
+    "subtitle": "Modo administrador activo",
+    "open_menu": "Abrir menú de navegación",
+    "close_menu": "Cerrar menú de navegación"
+  },
   "adminSidebar": {
     "brand_admin": "Admin",
     "brand_panel": "Panel",
@@ -551,6 +557,8 @@
   "dailyTasks": {
     "title": "Tareas diarias",
     "empty": "No hay tareas diarias configuradas en este momento.",
+    "load_error_body": "No pudimos cargar tus tareas diarias desde el servidor. Comprueba la conexión, actualiza la página o vuelve a iniciar sesión si caducó la sesión.",
+    "retry": "Reintentar",
     "subtitle": "Completa objetivos cada día y reclama recompensas. El progreso se reinicia a medianoche (hora de Brasilia).",
     "period_label": "Hoy",
     "next_reset": "Próximo reinicio",
@@ -572,6 +580,8 @@
     "errors": {
       "load_failed": "No se pudieron cargar las tareas diarias",
       "network": "Error de red",
+      "unauthorized": "Sesión caducada o no has iniciado sesión. Actualiza la página o entra de nuevo.",
+      "server": "Error del servidor al cargar las tareas. Inténtalo de nuevo en unos momentos.",
       "claim_failed": "No se pudo reclamar la recompensa",
       "not_completed": "Completa la tarea primero",
       "already_claimed": "Ya reclamado hoy"

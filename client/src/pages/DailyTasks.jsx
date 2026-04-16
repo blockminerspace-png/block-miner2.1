@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import axios from 'axios';
 import { CalendarClock, CheckCircle2, CircleDashed, Gift, Loader2, PlayCircle } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -42,15 +43,40 @@ export default function DailyTasks() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  /** When set, the list request failed — do not show the “no tasks configured” empty copy. */
+  const [loadFailed, setLoadFailed] = useState(false);
   const [claimingId, setClaimingId] = useState(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await api.get('/daily-tasks');
-      if (res.data?.ok) setData(res.data);
-      else toast.error(t('dailyTasks.errors.load_failed'));
-    } catch {
-      toast.error(t('dailyTasks.errors.network'));
+      if (res.data?.ok) {
+        setData(res.data);
+        setLoadFailed(false);
+      } else {
+        setData(null);
+        setLoadFailed(true);
+        toast.error(t('dailyTasks.errors.load_failed'));
+      }
+    } catch (e) {
+      setData(null);
+      setLoadFailed(true);
+      if (axios.isAxiosError(e)) {
+        const status = e.response?.status;
+        if (status === 401) {
+          toast.error(t('dailyTasks.errors.unauthorized'));
+        } else if (status != null && status >= 500) {
+          toast.error(t('dailyTasks.errors.server'));
+        } else if (e.response) {
+          toast.error(t('dailyTasks.errors.load_failed'));
+        } else {
+          toast.error(t('dailyTasks.errors.network'));
+        }
+      } else {
+        toast.error(t('dailyTasks.errors.network'));
+      }
     } finally {
       setLoading(false);
     }
@@ -120,7 +146,18 @@ export default function DailyTasks() {
         )}
       </div>
 
-      {tasks.length === 0 ? (
+      {loadFailed ? (
+        <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 space-y-4 max-w-xl">
+          <p className="text-slate-300 text-sm leading-relaxed">{t('dailyTasks.load_error_body')}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-white/10 hover:bg-white/15 border border-white/10 text-white transition-colors"
+          >
+            {t('dailyTasks.retry')}
+          </button>
+        </div>
+      ) : tasks.length === 0 ? (
         <p className="text-slate-500">{t('dailyTasks.empty')}</p>
       ) : (
         <ul className="grid gap-4">

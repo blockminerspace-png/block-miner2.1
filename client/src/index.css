@@ -69,9 +69,13 @@
   @apply bg-gray-500;
 }
 
-/* Cloudflare Turnstile: default iframe width (~300px) overflows narrow auth cards */
+/* Cloudflare Turnstile: full-width bar (flexible); min 300px per CF docs — parent uses overflow-x-auto */
+.auth-turnstile-host {
+  display: block;
+  width: 100%;
+}
 .auth-turnstile-host .cf-turnstile {
-  width: 100% !important;
+  width: 100%;
   max-width: 100%;
 }
 .auth-turnstile-host iframe {
