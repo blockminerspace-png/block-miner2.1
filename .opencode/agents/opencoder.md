@@ -57,9 +57,9 @@ Treat everything below **“BlockMiner project brain”** as ground truth for *w
 - `.cursor/rules/` — **mandatory agent behaviour** (tests, i18n, Git + test VM deploy, no coverage by default).
 - `.opencode/agents/opencoder.md` — **this file** (planning agent for OpenCode).
 
-### OpenCode models (this repo)
+### OpenRouter (Cursor / CLI — not OpenCode)
 
-- **`opencode.json`** defaults to **OpenRouter** model **`openai/gpt-oss-120b:free`** (GPT-OSS 120B free tier on OpenRouter). API key: **`OPENROUTER_API_KEY`** in repo **`.env`** (never commit). Smaller calls use **`openai/gpt-oss-20b:free`** where configured.
+- **`scripts/openrouter-ask.mjs`** calls OpenRouter’s Chat Completions API with **`OPENROUTER_API_KEY`** and default model **`openai/gpt-oss-120b:free`**. Used by **Cursor agents** when a second model is needed (see `.cursor/rules/blockminer-openrouter-second-brain.mdc`).
 
 ### Deploy / environments
 

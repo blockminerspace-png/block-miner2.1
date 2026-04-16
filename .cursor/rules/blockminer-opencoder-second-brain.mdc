@@ -1,31 +1,19 @@
 ---
 description: >-
-  OpenCode @opencoder as project second brain; Cursor agents mirror its planning
-  discipline and may load .opencode/agents/opencoder.md for structured breakdowns.
-alwaysApply: true
+  Optional OpenCode @opencoder agent; Cursor’s primary second model is OpenRouter
+  via scripts/openrouter-ask.mjs (see blockminer-openrouter-second-brain.mdc).
+alwaysApply: false
 ---
 
-# OpenCoder (OpenCode) — second brain in this repo
+# OpenCoder (OpenCode) — optional
 
-## What is in the project
+## In the repo
 
-- **OpenCode agent:** `.opencode/agents/opencoder.md` → invoke in OpenCode as **`@opencoder`** (planning / orchestration, read-only tools in that profile). The same file contains **§ BlockMiner project brain** (product purpose, main logic, stack, repo map, deploy).
-- **Project marker:** `opencode.json` at repo root (schema for OpenCode).
+- **Agent prompt:** `.opencode/agents/opencoder.md` — use in the **OpenCode** TUI with **`@opencoder`** if you use OpenCode locally.
+- **`opencode.json`:** schema marker only.
 
-## For humans (terminal / OpenCode app)
+## For Cursor agents
 
-1. Install OpenCode once: [opencode.ai](https://opencode.ai) or `curl -fsSL https://opencode.ai/install | bash`.
-2. From **this repo root**, run `opencode`.
-3. Start messages with **`@opencoder`** when you want structured planning (goals → steps → risks → verification) before coding.
+**Default second-brain via API:** use **`node scripts/openrouter-ask.mjs`** with **`OPENROUTER_API_KEY`** (see **`blockminer-openrouter-second-brain.mdc`**). OpenCode is **not** required for that.
 
-Do not commit API keys into `opencode.json`. This repo’s `opencode.json` uses **OpenRouter** with `apiKey: "{env:OPENROUTER_API_KEY}"` — put the key only in **`.env`** at repo root (gitignored) or in your shell profile. Default model: **`openrouter/openai/gpt-oss-120b:free`** (zero listed $/M on OpenRouter). If a key was ever pasted in chat, **rotate it** on OpenRouter and update `.env` only.
-
-## For Cursor agents in this workspace
-
-On **non-trivial** tasks (multi-file features, refactors, deploy + i18n + tests), **mirror OpenCoder’s behaviour**:
-
-1. Short **goal / scope** clarification.
-2. **Ordered plan** with verification steps (tests, manual checks).
-3. Then implement — do not skip project rules under `.cursor/rules/` (Git, test VM, i18n, no coverage by default).
-
-When a deep planning pass would help, **read** `.opencode/agents/opencoder.md` and align your breakdown with its output format and BlockMiner constraints.
+For planning style only (no API call), you may still **read** `.opencode/agents/opencoder.md` (§ BlockMiner project brain) and mirror its structure.

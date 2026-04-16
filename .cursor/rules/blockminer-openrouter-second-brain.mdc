@@ -1,0 +1,36 @@
+---
+description: >-
+  Cursor agents call OpenRouter (GPT-OSS 120B free) via scripts/openrouter-ask.mjs
+  for a second model / cross-check — not OpenCode.
+alwaysApply: true
+---
+
+# OpenRouter second brain (for Cursor agents)
+
+## When to call it
+
+When the user asks for a **second opinion**, **OpenRouter**, **GPT OSS / 120B**, **cross-check with another model**, or similar — **or** when they say they want the assistant to **use that API** for analysis: run the script from the **repository root** (not OpenCode).
+
+## Command
+
+```bash
+node scripts/openrouter-ask.mjs "<single string prompt — include BlockMiner context and the exact question>"
+```
+
+- Reads **`OPENROUTER_API_KEY`** from the environment (never from tracked files).
+- Default model: **`openai/gpt-oss-120b:free`**. Override with **`OPENROUTER_MODEL`** if needed (e.g. `openai/gpt-oss-20b:free`).
+
+## After the command
+
+1. **Summarize** the model’s reply for the user (quote short fragments if useful).
+2. **Merge** with your own reasoning — you remain responsible for repo-specific correctness (paths, tests, i18n).
+3. If the script exits **1** and mentions missing key: tell the user to set **`OPENROUTER_API_KEY`** in **Cursor → Settings → Environment Variables** (or export in the shell that runs the agent), then retry. **Never** print or commit the key.
+
+## Hygiene
+
+- Do **not** paste API keys into rules, commits, or chat logs when avoidable.
+- If a key was exposed in chat, tell the user to **rotate** it on OpenRouter.
+
+## OpenCode
+
+OpenCode / `@opencoder` is **optional** and separate. Do **not** require OpenCode for OpenRouter; use **`node scripts/openrouter-ask.mjs`** for API-based second-brain calls from this workspace.
