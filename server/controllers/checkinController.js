@@ -13,6 +13,13 @@ import {
 import { notifyMiniPassLoginDay } from "../services/miniPass/miniPassMissionHookService.js";
 import { notifyDailyTaskLoginDay } from "../services/dailyTasks/dailyTaskHookService.js";
 import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
+import loggerLib from "../utils/logger.js";
+
+const checkinLog = loggerLib.child("Checkin");
+
+function logCheckinSideEffectFailure(label, err) {
+  checkinLog.warn(label, { error: err?.message || String(err) });
+}
 
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -134,9 +141,15 @@ export async function tryFinalizeCheckinRow(row) {
         chainId: POLYGON_CHAIN_ID
       }
     });
-    applyStreakMilestoneRewards(updated.userId).catch(() => {});
-    notifyMiniPassLoginDay(updated.userId, updated.checkinDate).catch(() => {});
-    notifyDailyTaskLoginDay(updated.userId, updated.checkinDate).catch(() => {});
+    applyStreakMilestoneRewards(updated.userId).catch((e) =>
+      logCheckinSideEffectFailure("applyStreakMilestoneRewards after finalize", e)
+    );
+    notifyMiniPassLoginDay(updated.userId, updated.checkinDate).catch((e) =>
+      logCheckinSideEffectFailure("notifyMiniPassLoginDay after finalize", e)
+    );
+    notifyDailyTaskLoginDay(updated.userId, updated.checkinDate).catch((e) =>
+      logCheckinSideEffectFailure("notifyDailyTaskLoginDay after finalize", e)
+    );
     return updated;
   }
 
@@ -212,7 +225,9 @@ export async function processStalePendingCheckins({ batchSize = 40 } = {}) {
   });
 
   for (const row of pending) {
-    await tryFinalizeCheckinRow(row).catch(() => {});
+    await tryFinalizeCheckinRow(row).catch((e) =>
+      logCheckinSideEffectFailure("tryFinalizeCheckinRow stale pending", e)
+    );
   }
 
   const pendingPeriodic = await prisma.periodicCheckin.findMany({
@@ -223,7 +238,9 @@ export async function processStalePendingCheckins({ batchSize = 40 } = {}) {
   });
 
   for (const row of pendingPeriodic) {
-    await tryFinalizePeriodicCheckinRow(row).catch(() => {});
+    await tryFinalizePeriodicCheckinRow(row).catch((e) =>
+      logCheckinSideEffectFailure("tryFinalizePeriodicCheckinRow stale pending", e)
+    );
   }
 }
 
@@ -526,8 +543,12 @@ async function confirmDailyCheckin(req, res) {
   });
 
   await applyStreakMilestoneRewards(userId);
-  notifyMiniPassLoginDay(userId, today).catch(() => {});
-  notifyDailyTaskLoginDay(userId, today).catch(() => {});
+  notifyMiniPassLoginDay(userId, today).catch((e) =>
+    logCheckinSideEffectFailure("notifyMiniPassLoginDay after wallet confirm", e)
+  );
+  notifyDailyTaskLoginDay(userId, today).catch((e) =>
+    logCheckinSideEffectFailure("notifyDailyTaskLoginDay after wallet confirm", e)
+  );
 
   logSecurityEvent(
     "checkin_wallet_confirm_success",

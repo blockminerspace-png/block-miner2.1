@@ -601,8 +601,9 @@ export async function retrieveFromVault(req, res) {
       }
     }
 
-    const vaultId = Number(req.body.vaultId);
-    if (!Number.isInteger(vaultId) || vaultId < 1) {
+    const rawVaultId = req.body?.vaultId;
+    const vaultId = typeof rawVaultId === "number" ? rawVaultId : Number(rawVaultId);
+    if (!Number.isFinite(vaultId) || !Number.isInteger(vaultId) || vaultId < 1) {
       return res.status(400).json({
         ok: false,
         code: SecurityErrorCodes.INVALID_STATE,
@@ -611,8 +612,9 @@ export async function retrieveFromVault(req, res) {
       });
     }
 
-    const slotIndex = Number(req.body.slotIndex);
-    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= 80) {
+    const rawSlot = req.body?.slotIndex;
+    const slotIndex = typeof rawSlot === "number" ? rawSlot : Number(rawSlot);
+    if (!Number.isFinite(slotIndex) || !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= 80) {
       return res.status(400).json({
         ok: false,
         code: SecurityErrorCodes.INVALID_STATE,

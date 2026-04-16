@@ -7,6 +7,9 @@ import { createRateLimiter } from "./rateLimit.js";
 import { slidingWindowAllow, __resetSlidingWindowMemoryForTests } from "../services/slidingWindowRateLimit.js";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
+import loggerLib from "../utils/logger.js";
+
+const log = loggerLib.child("DistributedRateLimit");
 
 /**
  * @param {{
@@ -41,7 +44,7 @@ export function createDistributedRateLimiter(opts = {}) {
     statusCode,
   });
 
-  return function distributedRateLimiter(req, res, next) {
+  return async function distributedRateLimiter(req, res, next) {
     if (typeof skip === "function" && skip(req)) {
       next();
       return;
@@ -55,62 +58,64 @@ export function createDistributedRateLimiter(opts = {}) {
           };
     const dedupeKey = resolveKey(req);
 
-    void (async () => {
-      try {
-        const primary = await slidingWindowAllow({
-          dedupeKey,
-          windowMs,
-          max,
-          redisPrefix: `rl:${name}:p`,
-        });
-        if (!primary.ok) {
-          logSecurityEvent(
-            "RATE_LIMIT_EXCEEDED",
-            { limiterName: name, window: "primary", retryAfterSec: primary.retryAfterSec },
-            req,
-          );
-          res.setHeader("Retry-After", String(primary.retryAfterSec));
-          res.status(statusCode).json(
-            buildSecurityErrorJson(SecurityErrorCodes.RATE_LIMIT_EXCEEDED, {
-              extra: { retryAfterSec: primary.retryAfterSec },
-            }),
-          );
-          return;
-        }
+    try {
+      const primary = await slidingWindowAllow({
+        dedupeKey,
+        windowMs,
+        max,
+        redisPrefix: `rl:${name}:p`,
+      });
+      if (!primary.ok) {
+        logSecurityEvent(
+          "RATE_LIMIT_EXCEEDED",
+          { limiterName: name, window: "primary", retryAfterSec: primary.retryAfterSec },
+          req,
+        );
+        res.setHeader("Retry-After", String(primary.retryAfterSec));
+        res.status(statusCode).json(
+          buildSecurityErrorJson(SecurityErrorCodes.RATE_LIMIT_EXCEEDED, {
+            extra: { retryAfterSec: primary.retryAfterSec },
+          }),
+        );
+        return;
+      }
 
-        if (typeof secondaryKeyGenerator === "function") {
-          const secKey = secondaryKeyGenerator(req);
-          if (secKey) {
-            const secondary = await slidingWindowAllow({
-              dedupeKey: secKey,
-              windowMs,
-              max,
-              redisPrefix: `rl:${name}:s`,
-            });
-            if (!secondary.ok) {
-              logSecurityEvent(
-                "RATE_LIMIT_EXCEEDED",
-                { limiterName: name, window: "secondary", retryAfterSec: secondary.retryAfterSec },
-                req,
-              );
-              res.setHeader("Retry-After", String(secondary.retryAfterSec));
-              res.status(statusCode).json(
-                buildSecurityErrorJson(SecurityErrorCodes.RATE_LIMIT_EXCEEDED, {
-                  extra: { retryAfterSec: secondary.retryAfterSec },
-                }),
-              );
-              return;
-            }
+      if (typeof secondaryKeyGenerator === "function") {
+        const secKey = secondaryKeyGenerator(req);
+        if (secKey) {
+          const secondary = await slidingWindowAllow({
+            dedupeKey: secKey,
+            windowMs,
+            max,
+            redisPrefix: `rl:${name}:s`,
+          });
+          if (!secondary.ok) {
+            logSecurityEvent(
+              "RATE_LIMIT_EXCEEDED",
+              { limiterName: name, window: "secondary", retryAfterSec: secondary.retryAfterSec },
+              req,
+            );
+            res.setHeader("Retry-After", String(secondary.retryAfterSec));
+            res.status(statusCode).json(
+              buildSecurityErrorJson(SecurityErrorCodes.RATE_LIMIT_EXCEEDED, {
+                extra: { retryAfterSec: secondary.retryAfterSec },
+              }),
+            );
+            return;
           }
         }
-
-        res.setHeader("X-RateLimit-Limit", String(max));
-        res.setHeader("X-RateLimit-Remaining", String(primary.remaining));
-        next();
-      } catch {
-        fallback(req, res, next);
       }
-    })();
+
+      res.setHeader("X-RateLimit-Limit", String(max));
+      res.setHeader("X-RateLimit-Remaining", String(primary.remaining));
+      next();
+    } catch (err) {
+      log.warn("Sliding-window check failed; using in-memory fallback", {
+        limiterName: name,
+        error: err?.message || String(err)
+      });
+      fallback(req, res, next);
+    }
   };
 }
 

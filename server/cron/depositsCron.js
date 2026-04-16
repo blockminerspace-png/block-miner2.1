@@ -40,7 +40,9 @@ function getHotWalletAddress() {
       const formattedKey = key.startsWith("0x") ? key : `0x${key}`;
       return new ethers.Wallet(formattedKey).address.toLowerCase();
     }
-  } catch (e) {}
+  } catch (e) {
+    logger.warn("getHotWalletAddress: invalid withdrawal key or mnemonic", { error: e?.message || String(e) });
+  }
   return null;
 }
 
@@ -125,7 +127,13 @@ export async function scanForNewDeposits(force = false, deps = {}) {
                 await model.createDepositRequest(user.id, amount, tx.hash);
                 found++;
                 logger.info("Auto-deposit detected", { user: user.username, amount, hash: tx.hash });
-              } catch (e) {}
+              } catch (e) {
+                logger.error("createDepositRequest failed for detected tx", {
+                  userId: user.id,
+                  hash: tx.hash,
+                  error: e?.message || String(e)
+                });
+              }
             }
           }
         }
@@ -137,11 +145,15 @@ export async function scanForNewDeposits(force = false, deps = {}) {
 
 export function startDepositMonitoring() {
   const interval = setInterval(() => {
-    scanForNewDeposits().catch(() => {});
+    scanForNewDeposits().catch((e) => {
+      logger.error("scanForNewDeposits interval error", { error: e?.message || String(e) });
+    });
   }, 60 * 1000);
   
   wakeUpScanner();
-  scanForNewDeposits(true).catch(() => {});
+  scanForNewDeposits(true).catch((e) => {
+    logger.error("scanForNewDeposits initial run error", { error: e?.message || String(e) });
+  });
   
   logger.info("Reactive Deposit Scanner initialized.");
   return [interval];

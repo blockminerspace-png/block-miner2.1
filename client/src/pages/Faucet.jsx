@@ -145,7 +145,7 @@ export default function Faucet() {
                 <div className="inline-flex p-3 bg-primary/10 rounded-2xl mb-2">
                     <Gift className="w-8 h-8 text-primary" />
                 </div>
-                <h1 className="text-4xl font-black text-white tracking-tight uppercase italic italic">Hardware Faucet</h1>
+                <h1 className="text-4xl font-black text-white tracking-tight uppercase italic">Hardware Faucet</h1>
                 <p className="text-gray-500 font-medium max-w-lg mx-auto">
                     {t('faucet.subtitle')}
                 </p>
