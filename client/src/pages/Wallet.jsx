@@ -181,7 +181,6 @@ export default function Wallet() {
     const [polygonHdMissingEnvKeys, setPolygonHdMissingEnvKeys] = useState([]);
     const [polygonHdMinPol, setPolygonHdMinPol] = useState(1);
     const [polygonHdAddress, setPolygonHdAddress] = useState('');
-    const [polygonHdTxHash, setPolygonHdTxHash] = useState('');
     const [polygonHdLoadError, setPolygonHdLoadError] = useState('');
     const [polPrice, setPolPrice] = useState(0);
     const [minDepositPol, setMinDepositPol] = useState(0.01);
@@ -700,55 +699,6 @@ export default function Wallet() {
         }
     };
 
-    const handlePolygonHdRegisterTx = async () => {
-        if (!polygonHdFeatureVisible) {
-            toast.error(t('wallet.polygon_hd.server_flag_off_toast'));
-            return;
-        }
-        if (!polygonHdDepositEnabled) {
-            toast.error(
-                polygonHdMissingEnvKeys.length
-                    ? t('wallet.polygon_hd.disabled_hint_keys', {
-                          keys: polygonHdMissingEnvKeys.join(', ')
-                      })
-                    : t('wallet.polygon_hd.setup_incomplete')
-            );
-            return;
-        }
-        const normalizedHash = polygonHdTxHash.trim().toLowerCase();
-        if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) {
-            toast.error(t('wallet.polygon_hd.invalid_tx'));
-            return;
-        }
-        const amount = parseFloat(depositForm.amount);
-        if (Number.isNaN(amount) || amount < polygonHdMinPol) {
-            toast.error(t('wallet.polygon_hd.min_amount_error', { min: polygonHdMinPol }));
-            return;
-        }
-        setIsActionLoading(true);
-        try {
-            const claimedAmount = amount;
-            const res = await api.post('/wallet/deposit/submit', {
-                txHash: normalizedHash,
-                claimedAmount
-            });
-            if (res.data.ok) {
-                toast.success(t('wallet.web3_deposit.deposit_success_registered'));
-                setPolygonHdTxHash('');
-                setDepositForm({ amount: '' });
-                fetchPendingDeposits();
-                startPendingPoll();
-                fetchWalletData();
-            } else {
-                toast.error(res.data.message || t('common.error'));
-            }
-        } catch (err) {
-            toast.error(err.response?.data?.message || t('common.error'));
-        } finally {
-            setIsActionLoading(false);
-        }
-    };
-
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
         toast.success(t('common.copied'));
@@ -1214,8 +1164,7 @@ export default function Wallet() {
                                                 </p>
                                             </div>
                                         ) : (
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
-                                            <div className="p-5 sm:p-6 rounded-3xl border border-teal-500/25 bg-teal-950/20 flex flex-col gap-4 min-h-[280px]">
+                                        <div className="p-5 sm:p-6 rounded-3xl border border-teal-500/25 bg-teal-950/20 flex flex-col gap-4 min-h-[280px] max-w-xl mx-auto w-full">
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-teal-300">
                                                     {t('wallet.polygon_hd.title')}
                                                 </h4>
@@ -1271,56 +1220,6 @@ export default function Wallet() {
                                                     {t('wallet.web3_deposit.min_deposit', { min: polygonHdMinPol })}
                                                 </p>
                                             </div>
-                                            <div className="p-5 sm:p-6 rounded-3xl border border-slate-800/80 bg-slate-950/50 flex flex-col gap-4 min-h-[280px]">
-                                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-200">
-                                                    {t('wallet.polygon_hd.register_title')}
-                                                </h4>
-                                                <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
-                                                    {t('wallet.polygon_hd.register_hint')}
-                                                </p>
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-                                                        {t('wallet.polygon_hd.tx_label')}
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={polygonHdTxHash}
-                                                        onChange={(e) => setPolygonHdTxHash(e.target.value)}
-                                                        placeholder={t('wallet.polygon_hd.tx_placeholder')}
-                                                        className="w-full bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-2xl py-4 px-4 text-slate-200 text-xs font-mono transition-all outline-none"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-                                                        {t('wallet.amount_to_add')}
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={depositForm.amount}
-                                                        onChange={(e) => setDepositForm({ amount: e.target.value })}
-                                                        placeholder="0.00"
-                                                        className="w-full bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-2xl py-4 px-4 text-slate-200 text-sm font-black transition-all outline-none"
-                                                    />
-                                                    <p className="text-[9px] text-slate-600 font-bold ml-1">
-                                                        {t('wallet.min_deposit_hint', { min: polygonHdMinPol })}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handlePolygonHdRegisterTx()}
-                                                    disabled={isActionLoading || !polygonHdDepositEnabled}
-                                                    className="w-full mt-auto min-h-[44px] py-4 sm:py-5 bg-gradient-to-r from-teal-600 to-emerald-700 hover:scale-[1.01] active:scale-[0.99] text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-tight sm:tracking-[0.1em] transition-all shadow-xl shadow-teal-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                                                >
-                                                    {isActionLoading ? (
-                                                        <Loader2 className="w-5 h-5 animate-spin shrink-0" />
-                                                    ) : (
-                                                        <Send className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                                                    )}
-                                                    {t('wallet.polygon_hd.register_cta')}
-                                                </button>
-                                            </div>
-                                        </div>
                                         )
                                     ) : depositChannel !== 'btcpay' ? (
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">

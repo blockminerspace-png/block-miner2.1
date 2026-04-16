@@ -1235,7 +1235,7 @@
     },
     "polygon_hd": {
       "option_label": "Dirección de depósito",
-      "option_hint": "Envía POL en Polygon (cadena 137) a tu dirección única y registra el hash de la transacción para acreditar tu saldo.",
+      "option_hint": "Envía POL en Polygon (cadena 137) a tu dirección única. Las entradas se detectan automáticamente; no necesitas pegar el hash de la transacción.",
       "title": "Tu dirección de depósito en Polygon",
       "body": "Envía solo POL nativo a esta dirección desde cualquier cartera. El importe acreditado se toma de la cadena tras las confirmaciones requeridas.",
       "network_hint": "Red: Polygon mainnet (137). No envíes otros tokens ni otras redes.",

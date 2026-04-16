@@ -1601,7 +1601,7 @@
     },
     "polygon_hd": {
       "option_label": "Deposit address",
-      "option_hint": "Send POL on Polygon (chain 137) to your unique address, then register the transaction hash so we can credit your balance.",
+      "option_hint": "Send POL on Polygon (chain 137) to your unique address. Incoming transfers are detected automatically; you do not need to paste a transaction hash.",
       "title": "Your Polygon deposit address",
       "body": "Send native POL only to this address from any wallet. The amount credited is taken from the blockchain after the required confirmations.",
       "network_hint": "Network: Polygon mainnet (137). Do not send tokens or use other networks.",
