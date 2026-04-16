@@ -248,6 +248,32 @@ export default function Checkin() {
         }
     };
 
+    const handleFreeClaim = async (cadenceKey) => {
+        try {
+            setPayingCadence(cadenceKey);
+            const res = await api.post('/checkin/claim', { cadence: cadenceKey });
+            const d = res.data;
+            if (d.ok && d.alreadyCheckedIn) {
+                toast.success(t('checkin.claimed'));
+            } else if (d.ok) {
+                toast.success(t('checkin.free_claim_ok'));
+            } else {
+                toast.error(translateCheckinApi(d.code, d.message));
+            }
+            await fetchStatus();
+        } catch (err) {
+            const d = err.response?.data;
+            if (d?.code) {
+                toast.error(translateCheckinApi(d.code, d.message));
+            } else {
+                toast.error(t('common.error'));
+            }
+            await fetchStatus();
+        } finally {
+            setPayingCadence(null);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-16 text-gray-400 gap-3">
@@ -319,9 +345,54 @@ export default function Checkin() {
 
                 <div className="space-y-5">
                     {!paymentMode ? (
-                        <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-8 shadow-xl text-center">
-                            <p className="text-sm text-red-400">{t('checkin.errors.PAYMENT_REQUIRED')}</p>
-                        </div>
+                        CADENCE_ORDER.map((cadenceKey) => {
+                            const cs = getCadenceSlice(status, cadenceKey);
+                            const comeBackKey = CADENCE_META[cadenceKey].comeBackKey;
+                            const busy = payingCadence === cadenceKey;
+                            const payLocked = payingCadence !== null;
+
+                            return (
+                                <div
+                                    key={cadenceKey}
+                                    className="bg-surface border border-gray-800/50 rounded-[2rem] p-6 shadow-xl space-y-4"
+                                >
+                                    <div>
+                                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em]">
+                                            {t(`checkin.cadence.${cadenceKey}`)}
+                                        </h3>
+                                        <p className="text-sm font-mono text-amber-500/90 mt-1">{cs.periodKey || '—'}</p>
+                                        <p className="text-[11px] text-slate-600 mt-1">{t(`checkin.cadence.${cadenceKey}_hint`)}</p>
+                                    </div>
+
+                                    {cs.checkedIn ? (
+                                        <div className="text-center space-y-3 py-1">
+                                            <div className="flex justify-center">
+                                                <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/25 flex items-center justify-center">
+                                                    <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                                                </div>
+                                            </div>
+                                            <p className="text-lg font-black text-white">{t('checkin.claimed')}</p>
+                                            <p className="text-xs text-gray-500 font-medium">{t(comeBackKey)}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <p className="text-[11px] text-slate-500 text-center leading-relaxed px-1">
+                                                {t('checkin.free_hint')}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleFreeClaim(cadenceKey)}
+                                                disabled={payLocked || busy || cs.pending}
+                                                className="flex w-full min-h-[3rem] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-white font-bold hover:bg-emerald-500 disabled:opacity-50"
+                                            >
+                                                {busy ? <Loader2 className="h-5 w-5 animate-spin shrink-0" /> : null}
+                                                {t(`checkin.claim_free_${cadenceKey}`)}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                     ) : !status.walletLinked ? (
                         <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-10 shadow-xl text-center space-y-4">
                             <p className="text-gray-400 text-sm">{t('checkin.link_wallet_hint')}</p>

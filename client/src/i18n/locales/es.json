@@ -1378,6 +1378,10 @@
     "milestone_reward_none": "Insignia",
     "subtitle_free": "Tu racha e historial se guardan en el servidor. Los ritmos diario, semanal y mensual usan el calendario America/São Paulo.",
     "claim_today": "Registrar check-in de hoy",
+    "claim_free_daily": "Check-in de hoy (gratis)",
+    "claim_free_weekly": "Check-in de esta semana (gratis)",
+    "claim_free_monthly": "Check-in de este mes (gratis)",
+    "free_claim_ok": "Check-in guardado para este periodo.",
     "claim_success": "¡Check-in de hoy guardado!",
     "total_days": "Total de días con check-in",
     "history_title": "Últimos check-ins diarios confirmados",
@@ -1431,6 +1435,7 @@
       "WALLET_REQUIRED": "Vincula y verifica tu cartera en la página Cartera antes de hacer check-in.",
       "CHECKIN_PAYMENT_DISABLED": "El check-in de pago está desactivado en el servidor. Usa el check-in diario gratuito.",
       "CHECKIN_RECEIVER_NOT_CONFIGURED": "La dirección de pago del check-in no está configurada en el servidor.",
+      "CHECKIN_PENDING_PAYMENT": "Ya hay un pago con cartera en curso para este periodo. Espera la confirmación o completa el flujo en la cartera.",
       "CHECKIN_SERVER_ERROR": "El check-in falló por un error del servidor. Inténtalo más tarde.",
       "INVALID_CADENCE": "Cadencia no válida. Elige check-in diario, semanal o mensual."
     },

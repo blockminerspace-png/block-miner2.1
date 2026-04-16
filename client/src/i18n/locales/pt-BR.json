@@ -1749,6 +1749,10 @@
     "milestone_reward_none": "Selo de marco",
     "subtitle_free": "A sequência e o histórico ficam no servidor. Os ritmos diário, semanal e mensal usam o calendário America/São Paulo.",
     "claim_today": "Registar check-in de hoje",
+    "claim_free_daily": "Registar check-in de hoje (grátis)",
+    "claim_free_weekly": "Registar check-in desta semana (grátis)",
+    "claim_free_monthly": "Registar check-in deste mês (grátis)",
+    "free_claim_ok": "Check-in guardado para este período.",
     "claim_success": "Check-in de hoje registado!",
     "total_days": "Total de dias com check-in",
     "history_title": "Últimos check-ins diários confirmados",
@@ -1802,6 +1806,7 @@
       "WALLET_REQUIRED": "Associe e verifique a sua carteira na página Carteira antes de fazer check-in.",
       "CHECKIN_PAYMENT_DISABLED": "O check-in pago está desativado no servidor. Use o check-in diário gratuito.",
       "CHECKIN_RECEIVER_NOT_CONFIGURED": "O endereço de pagamento do check-in não está configurado no servidor.",
+      "CHECKIN_PENDING_PAYMENT": "Já existe um pagamento por carteira em curso para este período. Aguarda a confirmação ou conclui o fluxo na carteira.",
       "CHECKIN_SERVER_ERROR": "O check-in falhou por erro no servidor. Tente mais tarde.",
       "INVALID_CADENCE": "Cadência inválida. Escolha check-in diário, semanal ou mensal."
     },

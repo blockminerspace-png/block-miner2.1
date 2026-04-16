@@ -44,6 +44,9 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED).toBeTruthy();
     expect(pt.checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED).toBeTruthy();
     expect(es.checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED).toBeTruthy();
+    expect(en.checkin.errors.CHECKIN_PENDING_PAYMENT).toBeTruthy();
+    expect(en.checkin.free_claim_ok).toBeTruthy();
+    expect(pt.checkin.claim_free_daily).toBeTruthy();
 
     expect(en.adminAuth.session_invalid).toBeTruthy();
     expect(pt.adminAuth.session_banner).toBeTruthy();

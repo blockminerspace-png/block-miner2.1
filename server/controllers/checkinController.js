@@ -41,13 +41,24 @@ function getReceiver() {
   return resolveCheckinReceiverFromEnv();
 }
 
+/** Paid flow (wallet POL) only when a non-zero treasury address is configured. */
 function paymentCheckinEnabled() {
-  return true;
+  return Boolean(getReceiver());
 }
 
-/** Exported for tests: when true, free `/checkin/claim` must be rejected. */
+/** Exported for tests: mirrors whether a treasury is configured (same as paid mode). */
 export function isCheckinPaymentRequired() {
-  return true;
+  return Boolean(getReceiver());
+}
+
+const FREE_TX_PREFIX = "free:";
+
+function syntheticFreeDailyTxHash(userId, checkinDate) {
+  return `${FREE_TX_PREFIX}daily:${userId}:${checkinDate}`;
+}
+
+function syntheticFreePeriodicTxHash(userId, cadence, periodKey) {
+  return `${FREE_TX_PREFIX}${cadence}:${userId}:${periodKey}`;
 }
 
 function getCheckinAmountWei() {
@@ -379,21 +390,143 @@ export async function getStatus(req, res) {
  * Free daily check-in: one confirmed row per user per calendar day (America/Sao_Paulo).
  * Persists in DB — streak and history survive new days and new sessions.
  */
-export async function claimCheckin(req, res) {
-  const userId = req.user?.id ?? null;
-  if (userId) {
-    logSecurityWarn(
-      "checkin_free_claim_rejected_payment_required",
-      { userId, path: req.path },
-      req
+async function claimFreeDailyCheckin(req, res, userId) {
+  const today = getBrazilCheckinDateKey();
+  const existing = await prisma.dailyCheckin.findUnique({
+    where: { userId_checkinDate: { userId, checkinDate: today } }
+  });
+  if (existing?.status === "confirmed") {
+    return jsonSuccessWithStreak(res, userId, {
+      alreadyCheckedIn: true,
+      status: "confirmed",
+      cadence: "daily"
+    });
+  }
+  if (existing?.status === "pending" && existing.txHash && !String(existing.txHash).startsWith(FREE_TX_PREFIX)) {
+    return jsonCheckinError(
+      res,
+      409,
+      "CHECKIN_PENDING_PAYMENT",
+      "A wallet payment is already in progress for today. Wait for confirmation or complete the wallet flow."
     );
   }
-  return jsonCheckinError(
-    res,
-    400,
-    "PAYMENT_REQUIRED",
-    "On-chain POL payment is required. Use wallet check-in; the server verifies every transaction."
+
+  const txHash = syntheticFreeDailyTxHash(userId, today);
+  await prisma.dailyCheckin.upsert({
+    where: { userId_checkinDate: { userId, checkinDate: today } },
+    create: {
+      userId,
+      checkinDate: today,
+      txHash,
+      status: "confirmed",
+      confirmedAt: new Date(),
+      amount: 0,
+      chainId: POLYGON_CHAIN_ID,
+      paymentMethod: "free"
+    },
+    update: {
+      txHash,
+      status: "confirmed",
+      confirmedAt: new Date(),
+      amount: 0,
+      chainId: POLYGON_CHAIN_ID,
+      paymentMethod: "free"
+    }
+  });
+
+  await applyStreakMilestoneRewards(userId);
+  notifyMiniPassLoginDay(userId, today).catch(() => {});
+  notifyDailyTaskLoginDay(userId, today).catch(() => {});
+
+  logSecurityEvent("checkin_free_claim_success", { userId, checkinDate: today, cadence: "daily" }, req);
+  return jsonSuccessWithStreak(res, userId, { status: "confirmed", cadence: "daily" });
+}
+
+async function claimFreePeriodicCheckin(req, res, userId, cadence) {
+  const periodKey = periodKeyForCadence(cadence);
+  if (!periodKey) {
+    return jsonCheckinError(res, 400, "INVALID_CADENCE", "Invalid check-in cadence.");
+  }
+
+  const existing = await prisma.periodicCheckin.findUnique({
+    where: { userId_cadence_periodKey: { userId, cadence, periodKey } }
+  });
+  if (existing?.status === "confirmed") {
+    return jsonSuccessWithStreak(res, userId, {
+      alreadyCheckedIn: true,
+      status: "confirmed",
+      cadence,
+      periodKey
+    });
+  }
+  if (existing?.status === "pending" && existing.txHash && !String(existing.txHash).startsWith(FREE_TX_PREFIX)) {
+    return jsonCheckinError(
+      res,
+      409,
+      "CHECKIN_PENDING_PAYMENT",
+      "A wallet payment is already in progress for this period. Wait for confirmation or complete the wallet flow."
+    );
+  }
+
+  const txHash = syntheticFreePeriodicTxHash(userId, cadence, periodKey);
+  await prisma.periodicCheckin.upsert({
+    where: { userId_cadence_periodKey: { userId, cadence, periodKey } },
+    create: {
+      userId,
+      cadence,
+      periodKey,
+      txHash,
+      status: "confirmed",
+      confirmedAt: new Date(),
+      amount: 0,
+      chainId: POLYGON_CHAIN_ID
+    },
+    update: {
+      txHash,
+      status: "confirmed",
+      confirmedAt: new Date(),
+      amount: 0,
+      chainId: POLYGON_CHAIN_ID
+    }
+  });
+
+  logSecurityEvent(
+    "checkin_periodic_free_claim_success",
+    { userId, cadence, periodKey, paymentMode: "free" },
+    req
   );
+  return jsonSuccessWithStreak(res, userId, { status: "confirmed", cadence, periodKey });
+}
+
+export async function claimCheckin(req, res) {
+  try {
+    const userId = req.user?.id ?? null;
+    if (!userId) {
+      return jsonCheckinError(res, 401, "UNAUTHORIZED", "Authentication required.");
+    }
+
+    if (isCheckinPaymentRequired()) {
+      logSecurityWarn("checkin_free_claim_rejected_payment_required", { userId, path: req.path }, req);
+      return jsonCheckinError(
+        res,
+        400,
+        "PAYMENT_REQUIRED",
+        "On-chain POL payment is required. Use wallet check-in; the server verifies every transaction."
+      );
+    }
+
+    const cadence = parseCadenceFromBody(req.body);
+    if (!cadence) {
+      return jsonCheckinError(res, 400, "INVALID_CADENCE", "Invalid check-in cadence. Use daily, weekly, or monthly.");
+    }
+    if (cadence === "daily") {
+      return await claimFreeDailyCheckin(req, res, userId);
+    }
+    return await claimFreePeriodicCheckin(req, res, userId, cadence);
+  } catch (e) {
+    console.error("claimCheckin", e);
+    return res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to complete check-in." });
+  }
 }
 
 function parseTxHashFromBody(body) {
