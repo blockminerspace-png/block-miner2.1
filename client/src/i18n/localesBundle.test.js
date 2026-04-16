@@ -129,6 +129,9 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.admin_daily_tasks.quick_start).toBeTruthy();
     expect(pt.admin_daily_tasks.tpl_checkins).toBeTruthy();
     expect(es.admin_daily_tasks.target_hint_default).toBeTruthy();
+    expect(en.admin_daily_tasks.create_target_count).toBeTruthy();
+    expect(pt.admin_daily_tasks.create_offerwall_period_tip).toBeTruthy();
+    expect(es.admin_daily_tasks.create_error_target_count).toBeTruthy();
     expect(en.admin_daily_tasks.load_failed_body).toBeTruthy();
     expect(en.admin_daily_tasks.retry).toBeTruthy();
     expect(en.admin_daily_tasks.error_network).toBeTruthy();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -19,6 +19,59 @@ import { api } from '../store/auth';
 const TASK_TYPES = ['LOGIN_DAY', 'MINE_BLK', 'PLAY_GAMES', 'WATCH_YOUTUBE', 'INTERNAL_OFFERWALL'];
 const REWARD_KINDS = ['BLK', 'POL', 'HASHRATE_TEMP', 'SHOP_MINER', 'EVENT_MINER'];
 const RESET_CADENCES = ['DAILY', 'WEEKLY', 'MONTHLY'];
+
+/** Task types where target is a whole number of actions per reset period (not BLK amount). */
+const COUNT_TASK_TYPES = new Set(['LOGIN_DAY', 'PLAY_GAMES', 'WATCH_YOUTUBE', 'INTERNAL_OFFERWALL']);
+
+/** @param {string} tt */
+function isCountTaskType(tt) {
+  return COUNT_TASK_TYPES.has(String(tt || '').toUpperCase());
+}
+
+/** @param {string} tt */
+function defaultTargetForCountType(tt) {
+  switch (String(tt || '').toUpperCase()) {
+    case 'INTERNAL_OFFERWALL':
+      return '5';
+    case 'LOGIN_DAY':
+      return '1';
+    case 'PLAY_GAMES':
+      return '5';
+    case 'WATCH_YOUTUBE':
+      return '1';
+    default:
+      return '1';
+  }
+}
+
+/**
+ * When switching task type, replace misleading BLK-style decimals with a sensible integer target.
+ * @param {string} prevType
+ * @param {string} nextType
+ * @param {string} targetValue
+ */
+function coerceTargetWhenSwitchingTaskType(prevType, nextType, targetValue) {
+  const t = String(targetValue).replace(',', '.').trim();
+  const n = parseFloat(t);
+  const prev = String(prevType || '');
+  const next = String(nextType || '');
+  const nextCount = isCountTaskType(next);
+  const prevMine = prev === 'MINE_BLK';
+  const nextMine = next === 'MINE_BLK';
+
+  if (nextMine) {
+    if (prevMine && Number.isFinite(n) && n > 0) return t;
+    return '0.05';
+  }
+  if (nextCount) {
+    const looksLikeBlkAmount = Number.isFinite(n) && n > 0 && n < 1 && !Number.isInteger(n);
+    if (prevMine || looksLikeBlkAmount || !Number.isFinite(n) || n < 1) {
+      return defaultTargetForCountType(next);
+    }
+    return String(Math.max(1, Math.min(1_000_000, Math.round(n))));
+  }
+  return t;
+}
 
 function defaultCreateForm() {
   return {
@@ -43,11 +96,15 @@ function defaultCreateForm() {
 
 /** @param {Record<string, string>} f */
 function buildCreateBody(f) {
+  const rawTarget = parseFloat(String(f.targetValue).replace(',', '.'));
+  const targetValue = isCountTaskType(f.taskType)
+    ? Math.round(rawTarget)
+    : rawTarget;
   const body = {
     slug: f.slug.trim(),
     taskType: f.taskType,
     resetCadence: f.resetCadence,
-    targetValue: parseFloat(String(f.targetValue).replace(',', '.')),
+    targetValue,
     translationKey: f.translationKey.trim(),
     rewardKind: f.rewardKind,
     autoSortOrder: Boolean(f.autoSortOrder)
@@ -121,7 +178,7 @@ function applyQuickTemplate(templateId, form) {
       return {
         ...next,
         taskType: 'INTERNAL_OFFERWALL',
-        targetValue: '2',
+        targetValue: '5',
         translationKey: 'dailyTasks.tasks.internal_offerwall',
         slug: slugIfEmpty('offerwall')
       };
@@ -207,6 +264,14 @@ export default function AdminDailyTasks() {
     load();
   }, [load]);
 
+  const targetFieldLabelKey = useMemo(
+    () =>
+      isCountTaskType(createForm.taskType)
+        ? 'admin_daily_tasks.create_target_count'
+        : 'admin_daily_tasks.create_target_mine',
+    [createForm.taskType]
+  );
+
   const setRowPatching = (id, v) => {
     setPatching((p) => ({ ...p, [id]: v }));
   };
@@ -250,6 +315,13 @@ export default function AdminDailyTasks() {
   };
 
   const onCreate = async () => {
+    const rawTv = parseFloat(String(createForm.targetValue).replace(',', '.'));
+    if (isCountTaskType(createForm.taskType)) {
+      if (!Number.isFinite(rawTv) || rawTv < 1 || Math.abs(rawTv - Math.round(rawTv)) > 1e-6) {
+        toast.error(t('admin_daily_tasks.create_error_target_count'));
+        return;
+      }
+    }
     setCreating(true);
     try {
       const body = buildCreateBody(createForm);
@@ -339,6 +411,11 @@ export default function AdminDailyTasks() {
                 );
               })}
             </div>
+            {createForm.taskType === 'INTERNAL_OFFERWALL' ? (
+              <p className="text-[11px] leading-relaxed text-amber-200/90 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2">
+                {t('admin_daily_tasks.create_offerwall_period_tip')}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -379,12 +456,16 @@ export default function AdminDailyTasks() {
                 value={createForm.taskType}
                 onChange={(e) => {
                   const v = e.target.value;
-                  setCreateForm((f) => ({
-                    ...f,
-                    taskType: v,
-                    translationKey:
-                      v === 'INTERNAL_OFFERWALL' ? 'dailyTasks.tasks.internal_offerwall' : f.translationKey
-                  }));
+                  setCreateForm((f) => {
+                    const nextTv = coerceTargetWhenSwitchingTaskType(f.taskType, v, f.targetValue);
+                    return {
+                      ...f,
+                      taskType: v,
+                      targetValue: nextTv,
+                      translationKey:
+                        v === 'INTERNAL_OFFERWALL' ? 'dailyTasks.tasks.internal_offerwall' : f.translationKey
+                    };
+                  });
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               >
@@ -396,8 +477,12 @@ export default function AdminDailyTasks() {
               </select>
             </label>
             <label className="block space-y-1 sm:col-span-2">
-              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_target')}</span>
+              <span className="text-xs font-semibold text-slate-400">{t(targetFieldLabelKey)}</span>
               <input
+                type={isCountTaskType(createForm.taskType) ? 'number' : 'text'}
+                inputMode={isCountTaskType(createForm.taskType) ? 'numeric' : 'decimal'}
+                min={isCountTaskType(createForm.taskType) ? 1 : undefined}
+                step={isCountTaskType(createForm.taskType) ? 1 : 'any'}
                 value={createForm.targetValue}
                 onChange={(e) => setCreateForm((f) => ({ ...f, targetValue: e.target.value }))}
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
