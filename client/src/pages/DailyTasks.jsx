@@ -2,15 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import axios from 'axios';
-import {
-  CalendarClock,
-  CheckCircle2,
-  CircleDashed,
-  Gift,
-  Loader2,
-  PlayCircle,
-  LayoutGrid
-} from 'lucide-react';
+import { CalendarClock, CheckCircle2, CircleDashed, Gift, Loader2, PlayCircle } from 'lucide-react';
 import { api } from '../store/auth';
 
 function formatRewardSummary(t, reward) {
@@ -62,7 +54,8 @@ function cadenceLabel(t, cadence) {
   return t(key, { defaultValue: c });
 }
 
-const CADENCE_FILTERS = /** @type {const} */ (['DAILY', 'WEEKLY', 'MONTHLY']);
+/** Cadence order for grouped sections and jump navigation (nothing is hidden). */
+const CADENCE_SECTIONS = /** @type {const} */ (['DAILY', 'WEEKLY', 'MONTHLY']);
 
 export default function DailyTasks() {
   const { t } = useTranslation();
@@ -71,8 +64,6 @@ export default function DailyTasks() {
   /** When set, the list request failed — do not show the “no tasks configured” empty copy. */
   const [loadFailed, setLoadFailed] = useState(false);
   const [claimingId, setClaimingId] = useState(null);
-  /** `null` = show all cadences */
-  const [cadenceFilter, setCadenceFilter] = useState(/** @type {string | null} */ (null));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,11 +114,16 @@ export default function DailyTasks() {
   }, [data]);
 
   const tasks = data?.tasks || [];
-  const filteredTasks = useMemo(() => {
-    if (!cadenceFilter) return tasks;
-    const c = cadenceFilter.toUpperCase();
-    return tasks.filter((task) => String(task.resetCadence || 'DAILY').toUpperCase() === c);
-  }, [tasks, cadenceFilter]);
+  const tasksByCadence = useMemo(() => {
+    /** @type {Record<string, typeof tasks>} */
+    const buckets = { DAILY: [], WEEKLY: [], MONTHLY: [] };
+    for (const task of tasks) {
+      const c = String(task.resetCadence || 'DAILY').toUpperCase();
+      const key = c === 'WEEKLY' || c === 'MONTHLY' ? c : 'DAILY';
+      buckets[key].push(task);
+    }
+    return buckets;
+  }, [tasks]);
 
   const claim = async (taskId) => {
     try {
@@ -172,45 +168,30 @@ export default function DailyTasks() {
           </div>
         )}
         {!loadFailed && tasks.length > 0 ? (
-          <div
+          <nav
             className="flex flex-wrap gap-2 pt-2"
-            role="tablist"
-            aria-label={t('dailyTasks.filter_aria')}
+            aria-label={t('dailyTasks.nav_aria')}
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={cadenceFilter == null}
-              onClick={() => setCadenceFilter(null)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
-                cadenceFilter == null
-                  ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 shadow-lg shadow-emerald-900/20'
-                  : 'border-white/10 bg-slate-900/60 text-slate-400 hover:border-white/20 hover:text-slate-200'
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5 opacity-80" aria-hidden />
-              {t('dailyTasks.filter_all')}
-            </button>
-            {CADENCE_FILTERS.map((c) => {
-              const active = cadenceFilter === c;
+            {CADENCE_SECTIONS.map((c) => {
+              const count = tasksByCadence[c]?.length ?? 0;
+              if (count === 0) return null;
               return (
                 <button
                   key={c}
                   type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setCadenceFilter(active ? null : c)}
-                  className={`rounded-xl border px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
-                    active
-                      ? 'border-violet-400/50 bg-violet-500/15 text-violet-100 shadow-lg shadow-violet-950/30'
-                      : 'border-white/10 bg-slate-900/60 text-slate-400 hover:border-white/20 hover:text-slate-200'
-                  }`}
+                  onClick={() =>
+                    document.getElementById(`tasks-section-${c}`)?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'start'
+                    })
+                  }
+                  className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-300 transition-all hover:border-violet-400/40 hover:bg-violet-500/10 hover:text-violet-100"
                 >
-                  {t(`dailyTasks.filter_${c.toLowerCase()}`)}
+                  {t(`dailyTasks.jump_${c}`)}
                 </button>
               );
             })}
-          </div>
+          </nav>
         ) : null}
       </div>
 
@@ -227,94 +208,113 @@ export default function DailyTasks() {
         </div>
       ) : tasks.length === 0 ? (
         <p className="text-slate-500">{t('dailyTasks.empty')}</p>
-      ) : filteredTasks.length === 0 ? (
-        <p className="text-slate-500">{t('dailyTasks.filter_empty')}</p>
       ) : (
-        <ul className="grid gap-4">
-          {filteredTasks.map((task) => {
-            const cur = Number(task.currentValue) || 0;
-            const tgt = Number(task.targetValue) || 1;
-            const pct = Math.min(100, (cur / Math.max(tgt, 1)) * 100);
-            const canClaim = task.status === 'completed';
-            const isClaimed = task.status === 'claimed';
-
+        <div className="space-y-10">
+          {CADENCE_SECTIONS.map((cadence) => {
+            const sectionTasks = tasksByCadence[cadence] || [];
+            if (sectionTasks.length === 0) return null;
             return (
-              <li
-                key={task.id}
-                className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 backdrop-blur-sm"
+              <section
+                key={cadence}
+                id={`tasks-section-${cadence}`}
+                className="scroll-mt-24 space-y-4"
+                aria-labelledby={`tasks-heading-${cadence}`}
               >
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isClaimed ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden />
-                      ) : (
-                        <CircleDashed className="w-5 h-5 text-slate-500 shrink-0" aria-hidden />
-                      )}
-                      <span
-                        className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border ${
-                          task.status === 'claimed'
-                            ? 'border-emerald-500/30 text-emerald-300'
-                            : task.status === 'completed'
-                              ? 'border-amber-500/30 text-amber-200'
-                              : task.status === 'in_progress'
-                                ? 'border-sky-500/30 text-sky-200'
-                                : 'border-slate-600 text-slate-400'
-                        }`}
+                <h2
+                  id={`tasks-heading-${cadence}`}
+                  className="text-sm font-black uppercase tracking-[0.25em] text-violet-300/90 border-b border-violet-500/20 pb-2"
+                >
+                  {t(`dailyTasks.section_${cadence}`)}
+                </h2>
+                <ul className="grid gap-4">
+                  {sectionTasks.map((task) => {
+                    const cur = Number(task.currentValue) || 0;
+                    const tgt = Number(task.targetValue) || 1;
+                    const pct = Math.min(100, (cur / Math.max(tgt, 1)) * 100);
+                    const canClaim = task.status === 'completed';
+                    const isClaimed = task.status === 'claimed';
+
+                    return (
+                      <li
+                        key={task.id}
+                        className="rounded-2xl border border-white/5 bg-slate-900/40 p-5 backdrop-blur-sm"
                       >
-                        {statusLabel(t, task.status)}
-                      </span>
-                      <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border border-violet-500/30 text-violet-200">
-                        {cadenceLabel(t, task.resetCadence)}
-                      </span>
-                    </div>
-                    <p className="text-white font-medium leading-snug">{taskDescription(t, task)}</p>
-                    <p className="text-[11px] text-slate-500 font-mono leading-snug">
-                      {t('dailyTasks.period')}: {task.periodKey}
-                      <span className="text-slate-600"> · </span>
-                      {t('dailyTasks.next_reset')}: {formatIsoLocal(task.nextResetAt)}
-                    </p>
-                    <p className="text-xs text-slate-500 flex items-center gap-2">
-                      <Gift className="w-3.5 h-3.5 text-amber-400/80" aria-hidden />
-                      {formatRewardSummary(t, task.reward)}
-                    </p>
-                    <div className="pt-1">
-                      <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-1 font-mono">
-                        {t('dailyTasks.progress', {
-                          current: Number(cur.toFixed(4)),
-                          target: Number(tgt.toFixed(4))
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="shrink-0 w-full md:w-auto md:min-w-[12rem]">
-                    <button
-                      type="button"
-                      disabled={!canClaim || claimingId === task.id}
-                      onClick={() => claim(task.id)}
-                      className="w-full px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-[0.2em] bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-35 disabled:cursor-not-allowed text-white transition-all shadow-lg shadow-emerald-900/30 border border-emerald-400/20 disabled:border-transparent disabled:shadow-none"
-                    >
-                      {claimingId === task.id ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
-                          {t('dailyTasks.claiming')}
-                        </span>
-                      ) : (
-                        t('dailyTasks.claim')
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </li>
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                          <div className="space-y-2 flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {isClaimed ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden />
+                              ) : (
+                                <CircleDashed className="w-5 h-5 text-slate-500 shrink-0" aria-hidden />
+                              )}
+                              <span
+                                className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+                                  task.status === 'claimed'
+                                    ? 'border-emerald-500/30 text-emerald-300'
+                                    : task.status === 'completed'
+                                      ? 'border-amber-500/30 text-amber-200'
+                                      : task.status === 'in_progress'
+                                        ? 'border-sky-500/30 text-sky-200'
+                                        : 'border-slate-600 text-slate-400'
+                                }`}
+                              >
+                                {statusLabel(t, task.status)}
+                              </span>
+                              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border border-violet-500/30 text-violet-200">
+                                {cadenceLabel(t, task.resetCadence)}
+                              </span>
+                            </div>
+                            <p className="text-white font-medium leading-snug">{taskDescription(t, task)}</p>
+                            <p className="text-[11px] text-slate-500 font-mono leading-snug">
+                              {t('dailyTasks.period')}: {task.periodKey}
+                              <span className="text-slate-600"> · </span>
+                              {t('dailyTasks.next_reset')}: {formatIsoLocal(task.nextResetAt)}
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-center gap-2">
+                              <Gift className="w-3.5 h-3.5 text-amber-400/80" aria-hidden />
+                              {formatRewardSummary(t, task.reward)}
+                            </p>
+                            <div className="pt-1">
+                              <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-500"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                                {t('dailyTasks.progress', {
+                                  current: Number(cur.toFixed(4)),
+                                  target: Number(tgt.toFixed(4))
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="shrink-0 w-full md:w-auto md:min-w-[12rem]">
+                            <button
+                              type="button"
+                              disabled={!canClaim || claimingId === task.id}
+                              onClick={() => claim(task.id)}
+                              className="w-full px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-[0.2em] bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-35 disabled:cursor-not-allowed text-white transition-all shadow-lg shadow-emerald-900/30 border border-emerald-400/20 disabled:border-transparent disabled:shadow-none"
+                            >
+                              {claimingId === task.id ? (
+                                <span className="flex items-center justify-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+                                  {t('dailyTasks.claiming')}
+                                </span>
+                              ) : (
+                                t('dailyTasks.claim')
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             );
           })}
-        </ul>
+        </div>
       )}
     </div>
   );

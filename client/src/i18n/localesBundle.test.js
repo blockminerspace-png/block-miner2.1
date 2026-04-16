@@ -122,10 +122,10 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.dailyTasks.cadence.DAILY).toBeTruthy();
     expect(en.dailyTasks.period).toBeTruthy();
     expect(en.dailyTasks.earliest_reset).toBeTruthy();
-    expect(en.dailyTasks.filter_all).toBeTruthy();
-    expect(en.dailyTasks.filter_aria).toBeTruthy();
-    expect(pt.dailyTasks.filter_weekly).toBeTruthy();
-    expect(es.dailyTasks.filter_monthly).toBeTruthy();
+    expect(en.dailyTasks.nav_aria).toBeTruthy();
+    expect(en.dailyTasks.section_DAILY).toBeTruthy();
+    expect(pt.dailyTasks.jump_WEEKLY).toBeTruthy();
+    expect(es.dailyTasks.section_MONTHLY).toBeTruthy();
     expect(en.admin_daily_tasks.quick_start).toBeTruthy();
     expect(pt.admin_daily_tasks.tpl_checkins).toBeTruthy();
     expect(es.admin_daily_tasks.target_hint_default).toBeTruthy();

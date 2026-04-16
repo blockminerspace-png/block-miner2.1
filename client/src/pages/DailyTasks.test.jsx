@@ -100,7 +100,7 @@ describe("DailyTasks page", () => {
     expect(screen.queryByText("dailyTasks.load_error_body")).not.toBeInTheDocument();
   });
 
-  it("filters tasks by cadence chips", async () => {
+  it("groups tasks by cadence and keeps all claim buttons visible", async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: {
         ok: true,
@@ -139,11 +139,8 @@ describe("DailyTasks page", () => {
       }
     });
     render(<DailyTasks />);
-    await waitFor(() => expect(screen.getByRole("tab", { name: "dailyTasks.filter_weekly" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "dailyTasks.section_DAILY" })).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "dailyTasks.section_WEEKLY" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "dailyTasks.claim" })).toHaveLength(2);
-    fireEvent.click(screen.getByRole("tab", { name: "dailyTasks.filter_weekly" }));
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "dailyTasks.claim" })).toHaveLength(1));
-    fireEvent.click(screen.getByRole("tab", { name: "dailyTasks.filter_all" }));
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "dailyTasks.claim" })).toHaveLength(2));
   });
 });
