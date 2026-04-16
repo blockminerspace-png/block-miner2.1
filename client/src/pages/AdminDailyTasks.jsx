@@ -2,7 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Loader2, ListChecks, Plus, Trash2 } from 'lucide-react';
+import {
+  Loader2,
+  ListChecks,
+  Plus,
+  Trash2,
+  CalendarCheck,
+  Gamepad2,
+  Layers,
+  Pickaxe,
+  Target,
+  Youtube
+} from 'lucide-react';
 import { api } from '../store/auth';
 
 const TASK_TYPES = ['LOGIN_DAY', 'MINE_BLK', 'PLAY_GAMES', 'WATCH_YOUTUBE', 'INTERNAL_OFFERWALL'];
@@ -59,6 +70,90 @@ function buildCreateBody(f) {
   if (f.rewardKind === 'EVENT_MINER') body.rewardEventMinerId = parseInt(String(f.rewardEventMinerId), 10);
   return body;
 }
+
+function suggestSlug(cadence, stem) {
+  const c = String(cadence || 'DAILY').toLowerCase();
+  const raw = String(stem)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  const s = raw.slice(0, 40) || 'task';
+  const tail = Date.now().toString(36).slice(-6);
+  return `${c}-${s}-${tail}`;
+}
+
+/**
+ * @param {string} templateId
+ * @param {ReturnType<typeof defaultCreateForm>} form
+ */
+function applyQuickTemplate(templateId, form) {
+  const next = { ...form, gameSlug: '', internalOfferwallOfferId: '' };
+  const slugIfEmpty = (stem) => (String(next.slug).trim() ? next.slug : suggestSlug(next.resetCadence, stem));
+
+  switch (templateId) {
+    case 'checkins':
+      return {
+        ...next,
+        taskType: 'LOGIN_DAY',
+        targetValue: '3',
+        translationKey: 'dailyTasks.tasks.login',
+        slug: slugIfEmpty('checkins')
+      };
+    case 'games_any':
+      return {
+        ...next,
+        taskType: 'PLAY_GAMES',
+        targetValue: '5',
+        translationKey: 'dailyTasks.tasks.play_games',
+        slug: slugIfEmpty('games')
+      };
+    case 'games_one':
+      return {
+        ...next,
+        taskType: 'PLAY_GAMES',
+        targetValue: '3',
+        translationKey: 'dailyTasks.tasks.play_games',
+        gameSlug: '',
+        slug: slugIfEmpty('one-game')
+      };
+    case 'offerwall':
+      return {
+        ...next,
+        taskType: 'INTERNAL_OFFERWALL',
+        targetValue: '2',
+        translationKey: 'dailyTasks.tasks.internal_offerwall',
+        slug: slugIfEmpty('offerwall')
+      };
+    case 'mine_blk':
+      return {
+        ...next,
+        taskType: 'MINE_BLK',
+        targetValue: '0.05',
+        translationKey: 'dailyTasks.tasks.mine_blk',
+        slug: slugIfEmpty('mine-blk')
+      };
+    case 'youtube':
+      return {
+        ...next,
+        taskType: 'WATCH_YOUTUBE',
+        targetValue: '1',
+        translationKey: 'dailyTasks.tasks.watch_youtube',
+        slug: slugIfEmpty('youtube')
+      };
+    default:
+      return next;
+  }
+}
+
+const QUICK_TEMPLATES = [
+  { id: 'checkins', icon: CalendarCheck, labelKey: 'admin_daily_tasks.tpl_checkins', subKey: 'admin_daily_tasks.tpl_checkins_sub' },
+  { id: 'games_any', icon: Gamepad2, labelKey: 'admin_daily_tasks.tpl_games', subKey: 'admin_daily_tasks.tpl_games_sub' },
+  { id: 'games_one', icon: Target, labelKey: 'admin_daily_tasks.tpl_games_one', subKey: 'admin_daily_tasks.tpl_games_one_sub' },
+  { id: 'offerwall', icon: Layers, labelKey: 'admin_daily_tasks.tpl_offerwall', subKey: 'admin_daily_tasks.tpl_offerwall_sub' },
+  { id: 'mine_blk', icon: Pickaxe, labelKey: 'admin_daily_tasks.tpl_mine_blk', subKey: 'admin_daily_tasks.tpl_mine_blk_sub' },
+  { id: 'youtube', icon: Youtube, labelKey: 'admin_daily_tasks.tpl_youtube', subKey: 'admin_daily_tasks.tpl_youtube_sub' }
+];
 
 export default function AdminDailyTasks() {
   const { t } = useTranslation();
@@ -217,9 +312,57 @@ export default function AdminDailyTasks() {
       </div>
 
       {showCreate ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
           <h2 className="text-lg font-bold text-white">{t('admin_daily_tasks.create_title')}</h2>
           <p className="text-xs text-slate-500">{t('admin_daily_tasks.create_hint')}</p>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t('admin_daily_tasks.cadence_picker')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {RESET_CADENCES.map((c) => {
+                const on = createForm.resetCadence === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCreateForm((f) => ({ ...f, resetCadence: c }))}
+                    className={`rounded-xl border px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+                      on
+                        ? 'border-amber-400/60 bg-amber-500/20 text-amber-100 shadow-md shadow-amber-950/40'
+                        : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                    }`}
+                  >
+                    {t(`admin_daily_tasks.cadence_${c}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t('admin_daily_tasks.quick_start')}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {QUICK_TEMPLATES.map(({ id, icon: Icon, labelKey, subKey }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCreateForm((f) => applyQuickTemplate(id, f))}
+                  className="group flex flex-col items-start gap-1 rounded-xl border border-slate-700/80 bg-slate-950/80 p-4 text-left transition-all hover:border-amber-500/40 hover:bg-slate-900/90"
+                >
+                  <span className="flex items-center gap-2 text-sm font-bold text-white">
+                    <Icon className="h-4 w-4 text-amber-400 shrink-0" aria-hidden />
+                    {t(labelKey)}
+                  </span>
+                  <span className="text-[11px] leading-snug text-slate-500 group-hover:text-slate-400">{t(subKey)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block space-y-1">
               <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_slug')}</span>
@@ -231,7 +374,7 @@ export default function AdminDailyTasks() {
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_type')}</span>
+              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_type_advanced')}</span>
               <select
                 value={createForm.taskType}
                 onChange={(e) => {
@@ -252,27 +395,18 @@ export default function AdminDailyTasks() {
                 ))}
               </select>
             </label>
-            <label className="block space-y-1">
+            <label className="block space-y-1 sm:col-span-2">
               <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_target')}</span>
               <input
                 value={createForm.targetValue}
                 onChange={(e) => setCreateForm((f) => ({ ...f, targetValue: e.target.value }))}
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
               />
-            </label>
-            <label className="block space-y-1">
-              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reset_cadence')}</span>
-              <select
-                value={createForm.resetCadence}
-                onChange={(e) => setCreateForm((f) => ({ ...f, resetCadence: e.target.value }))}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-              >
-                {RESET_CADENCES.map((c) => (
-                  <option key={c} value={c}>
-                    {t(`admin_daily_tasks.cadence_${c}`)}
-                  </option>
-                ))}
-              </select>
+              <span className="block pt-1 text-[11px] leading-relaxed text-slate-500">
+                {t(`admin_daily_tasks.target_hint_${createForm.taskType}`, {
+                  defaultValue: t('admin_daily_tasks.target_hint_default')
+                })}
+              </span>
             </label>
             <label className="block space-y-1 sm:col-span-2">
               <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_i18n_key')}</span>

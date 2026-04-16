@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { CalendarClock, CheckCircle2, CircleDashed, Gift, Loader2, PlayCircle } from 'lucide-react';
+import {
+  CalendarClock,
+  CheckCircle2,
+  CircleDashed,
+  Gift,
+  Loader2,
+  PlayCircle,
+  LayoutGrid
+} from 'lucide-react';
 import { api } from '../store/auth';
 
 function formatRewardSummary(t, reward) {
@@ -54,6 +62,8 @@ function cadenceLabel(t, cadence) {
   return t(key, { defaultValue: c });
 }
 
+const CADENCE_FILTERS = /** @type {const} */ (['DAILY', 'WEEKLY', 'MONTHLY']);
+
 export default function DailyTasks() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -61,6 +71,8 @@ export default function DailyTasks() {
   /** When set, the list request failed — do not show the “no tasks configured” empty copy. */
   const [loadFailed, setLoadFailed] = useState(false);
   const [claimingId, setClaimingId] = useState(null);
+  /** `null` = show all cadences */
+  const [cadenceFilter, setCadenceFilter] = useState(/** @type {string | null} */ (null));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +122,13 @@ export default function DailyTasks() {
     }
   }, [data]);
 
+  const tasks = data?.tasks || [];
+  const filteredTasks = useMemo(() => {
+    if (!cadenceFilter) return tasks;
+    const c = cadenceFilter.toUpperCase();
+    return tasks.filter((task) => String(task.resetCadence || 'DAILY').toUpperCase() === c);
+  }, [tasks, cadenceFilter]);
+
   const claim = async (taskId) => {
     try {
       setClaimingId(taskId);
@@ -136,8 +155,6 @@ export default function DailyTasks() {
     );
   }
 
-  const tasks = data?.tasks || [];
-
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
@@ -154,6 +171,47 @@ export default function DailyTasks() {
             </span>
           </div>
         )}
+        {!loadFailed && tasks.length > 0 ? (
+          <div
+            className="flex flex-wrap gap-2 pt-2"
+            role="tablist"
+            aria-label={t('dailyTasks.filter_aria')}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={cadenceFilter == null}
+              onClick={() => setCadenceFilter(null)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+                cadenceFilter == null
+                  ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 shadow-lg shadow-emerald-900/20'
+                  : 'border-white/10 bg-slate-900/60 text-slate-400 hover:border-white/20 hover:text-slate-200'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5 opacity-80" aria-hidden />
+              {t('dailyTasks.filter_all')}
+            </button>
+            {CADENCE_FILTERS.map((c) => {
+              const active = cadenceFilter === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setCadenceFilter(active ? null : c)}
+                  className={`rounded-xl border px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+                    active
+                      ? 'border-violet-400/50 bg-violet-500/15 text-violet-100 shadow-lg shadow-violet-950/30'
+                      : 'border-white/10 bg-slate-900/60 text-slate-400 hover:border-white/20 hover:text-slate-200'
+                  }`}
+                >
+                  {t(`dailyTasks.filter_${c.toLowerCase()}`)}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {loadFailed ? (
@@ -169,9 +227,11 @@ export default function DailyTasks() {
         </div>
       ) : tasks.length === 0 ? (
         <p className="text-slate-500">{t('dailyTasks.empty')}</p>
+      ) : filteredTasks.length === 0 ? (
+        <p className="text-slate-500">{t('dailyTasks.filter_empty')}</p>
       ) : (
         <ul className="grid gap-4">
-          {tasks.map((task) => {
+          {filteredTasks.map((task) => {
             const cur = Number(task.currentValue) || 0;
             const tgt = Number(task.targetValue) || 1;
             const pct = Math.min(100, (cur / Math.max(tgt, 1)) * 100);
