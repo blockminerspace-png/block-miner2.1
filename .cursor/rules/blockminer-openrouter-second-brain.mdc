@@ -1,36 +1,42 @@
 ---
 description: >-
-  Cursor agents call OpenRouter (GPT-OSS 120B free) via scripts/openrouter-ask.mjs
-  for a second model / cross-check — not OpenCode.
+  Mandatory OpenRouter consultation for substantive BlockMiner work: agents run
+  scripts/openrouter-ask.mjs (default free model) and merge the model output into replies.
 alwaysApply: true
 ---
 
-# OpenRouter second brain (for Cursor agents)
+# OpenRouter — default for every substantive chat (BlockMiner workspace)
 
-## When to call it
+## Default model (free on OpenRouter)
 
-When the user asks for a **second opinion**, **OpenRouter**, **GPT OSS / 120B**, **cross-check with another model**, or similar — **or** when they say they want the assistant to **use that API** for analysis: run the script from the **repository root** (not OpenCode).
+Use **`openai/gpt-oss-120b:free`** unless **`OPENROUTER_MODEL`** is set (e.g. `openai/gpt-oss-20b:free` or `openrouter/auto` when you intentionally switch).
 
-## Command
+## Mandatory workflow
+
+For **every user turn** that is **not** a trivial acknowledgement (e.g. “ok”, “thanks”, “yes” with no new work), you **must**:
+
+1. **Run OpenRouter** from the **repository root** with a single prompt string that includes:
+   - a one-line BlockMiner context (stack: Express, Prisma/Postgres, React/Vite, i18n en/pt-BR/es, Docker deploy);
+   - the **user’s exact question or task**;
+   - ask for **risks, missing checks, or improvements** relevant to that turn (keep the prompt under ~2k words when possible).
+2. **Integrate** the script stdout into your answer: lead with your own plan/code, then add an **“OpenRouter (free model)”** subsection with the distilled opinion (do not dump raw JSON).
+3. **Stay responsible** for correctness (paths, tests, secrets, i18n, deploy rules). OpenRouter is advisory, not authoritative.
+
+## Command (always this entry point)
 
 ```bash
-node scripts/openrouter-ask.mjs "<single string prompt — include BlockMiner context and the exact question>"
+cd "<repo-root>" && node scripts/openrouter-ask.mjs "<prompt>"
 ```
 
-- Reads **`OPENROUTER_API_KEY`** from the environment (never from tracked files).
-- Default model: **`openai/gpt-oss-120b:free`**. Override with **`OPENROUTER_MODEL`** if needed (e.g. `openai/gpt-oss-20b:free`).
+The script loads **`.env`** and reads **`OPENROUTER_API_KEY`**. Never commit keys; never paste full keys into rules, commits, or chat.
 
-## After the command
+## Exemptions (skip OpenRouter run)
 
-1. **Summarize** the model’s reply for the user (quote short fragments if useful).
-2. **Merge** with your own reasoning — you remain responsible for repo-specific correctness (paths, tests, i18n).
-3. If the script exits **1** and mentions missing key: tell the user to set **`OPENROUTER_API_KEY`** in **Cursor → Settings → Environment Variables** (or export in the shell that runs the agent), then retry. **Never** print or commit the key.
+- Pure **trivial** ack / emoji / one-word with **no** new technical content.
+- User explicitly says **skip OpenRouter** / **no API** for that message.
+- **`OPENROUTER_API_KEY`** missing or script fails **twice**: state that in one sentence, continue without blocking the task.
 
 ## Hygiene
 
-- Do **not** paste API keys into rules, commits, or chat logs when avoidable.
-- If a key was exposed in chat, tell the user to **rotate** it on OpenRouter.
-
-## OpenCode
-
-OpenCode / `@opencoder` is **optional** and separate. Do **not** require OpenCode for OpenRouter; use **`node scripts/openrouter-ask.mjs`** for API-based second-brain calls from this workspace.
+- Rotate keys exposed in chat; use **Cursor → Environment Variables** or repo **`.env`** (gitignored) only.
+- Do **not** route this through OpenCode; OpenRouter is the **default** second model here.
