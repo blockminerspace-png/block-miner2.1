@@ -121,6 +121,7 @@ async function creditIfSettled(invoiceId) {
     const { getMiningEngine } = await import("../src/miningEngineInstance.js");
     const { createNotification } = await import("./notificationController.js");
     const engine = getMiningEngine();
+    await engine?.reloadMinerProfile(row.userId);
     await createNotification({
       userId: row.userId,
       title: "Deposit confirmed",

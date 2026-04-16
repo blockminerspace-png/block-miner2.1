@@ -33,3 +33,25 @@ test("MiningEngine.distributeRewards handles zero-work round", () => {
   assert.equal(engine.lastReward, 0);
   assert.equal(engine.blockNumber, 2);
 });
+
+test("MiningEngine.distributeRewards rollback restores lastPersistedBalance when persist fails", async () => {
+  const engine = new MiningEngine();
+  const miner = engine.createOrGetMiner({
+    userId: 404,
+    username: "persist_fail",
+    profile: { rigs: 1, base_hash_rate: 10, balance: 5 }
+  });
+  miner.balance = 5;
+  miner.lastPersistedBalance = 5;
+
+  engine.roundWork.set(miner.id, 100);
+  engine.activeMiners = 1;
+  engine.setPersistBlockRewardsCallback(() => Promise.reject(new Error("simulated DB failure")));
+
+  engine.distributeRewards();
+
+  await new Promise((r) => setImmediate(r));
+
+  assert.equal(miner.balance, 5, "balance must revert so persistMinerProfile does not apply a bogus negative delta");
+  assert.equal(miner.lastPersistedBalance, 5, "lastPersistedBalance must revert with balance or POL would be decremented wrongly");
+});

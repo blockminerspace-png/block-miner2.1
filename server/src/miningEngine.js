@@ -217,7 +217,11 @@ export class MiningEngine {
         continue;
       }
 
-      balanceSnapshot.set(minerId, { balance: miner.balance, lifetimeMined: miner.lifetimeMined });
+      balanceSnapshot.set(minerId, {
+        balance: miner.balance,
+        lifetimeMined: miner.lifetimeMined,
+        lastPersistedBalance: miner.lastPersistedBalance
+      });
 
       const share = work / totalWork;
       const reward = blockReward * share;
@@ -263,6 +267,7 @@ export class MiningEngine {
             if (rewardEntry) {
               miner.balance = snapshot.balance;
               miner.lifetimeMined = snapshot.lifetimeMined;
+              miner.lastPersistedBalance = snapshot.lastPersistedBalance;
               this.totalMinted -= rewardEntry.rewardAmount;
             }
           }
