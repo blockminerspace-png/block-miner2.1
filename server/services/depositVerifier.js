@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import { getMinDepositPol, getRequiredBlockConfirmations } from "./polygonDepositConfig.js";
+import { getPolygonHdMinDepositPol } from "./polygonHdConfig.js";
 import { getSharedPolygonProvider } from "./polygonProvider.js";
 import {
   contractDepositMatchesLinkedWallet,
@@ -39,7 +40,6 @@ async function verifyOnePendingDeposit(tx) {
 
   const provider = getSharedPolygonProvider();
   const requiredConfs = getRequiredBlockConfirmations();
-  const minPol = getMinDepositPol();
 
   try {
     const receipt = await provider.getTransactionReceipt(tx.txHash);
@@ -181,6 +181,7 @@ async function verifyOnePendingDeposit(tx) {
       return;
     }
 
+    const minPol = isHd ? getPolygonHdMinDepositPol() : getMinDepositPol();
     if (verifiedAmount < minPol) {
       await prisma.transaction.update({
         where: { id: tx.id },

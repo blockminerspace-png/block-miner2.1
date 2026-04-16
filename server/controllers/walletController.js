@@ -13,7 +13,12 @@ import {
   isBtcpayInvoiceFlowEnabled,
   listBtcpayMissingEnvKeys
 } from "../services/btcpayService.js";
-import { isPolygonHdDepositEnabled } from "../services/polygonHdConfig.js";
+import {
+  getPolygonHdMinDepositPol,
+  isPolygonHdDepositEnabled,
+  isPolygonHdFeatureFlagged,
+  listPolygonHdMissingEnvKeys
+} from "../services/polygonHdConfig.js";
 import {
   allocatePolygonHdAddress,
   allocatePolygonHdAddressRemote
@@ -48,7 +53,10 @@ export async function getBalance(req, res) {
       btcpayDepositEnabled: isBtcpayInvoiceFlowEnabled(),
       btcpayDepositComingSoon: comingSoon,
       btcpayDepositMissingEnvKeys: btcpayMissing,
-      polygonHdDepositEnabled: isPolygonHdDepositEnabled()
+      polygonHdDepositEnabled: isPolygonHdDepositEnabled(),
+      polygonHdDepositFeatureVisible: isPolygonHdFeatureFlagged(),
+      polygonHdDepositMissingEnvKeys: listPolygonHdMissingEnvKeys(),
+      polygonHdMinDepositPol: getPolygonHdMinDepositPol()
     });
   } catch (error) {
     logger.error("Error getting balance", { error: error.message });

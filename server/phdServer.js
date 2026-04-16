@@ -5,8 +5,10 @@
 import "dotenv/config";
 import express from "express";
 import crypto from "crypto";
+import cron from "node-cron";
 import loggerLib from "./utils/logger.js";
 import { allocatePolygonHdAddress } from "./services/polygonHdWallet.js";
+import { sweepHdDepositAddressesOnce } from "./services/polygonHdSweep.js";
 
 const logger = loggerLib.child("PhdServer");
 
@@ -60,4 +62,12 @@ app.post("/internal/hd/addresses", async (req, res) => {
 
 app.listen(port, "0.0.0.0", () => {
   logger.info(`Polygon HD deposit service listening on ${port}`);
+  if (process.env.POLYGON_HD_AUTO_SWEEP === "1") {
+    cron.schedule("*/2 * * * *", () => {
+      sweepHdDepositAddressesOnce().catch((err) =>
+        logger.warn("HD sweep cron error", { error: err.message })
+      );
+    });
+    logger.info("POLYGON_HD_AUTO_SWEEP=1 — sweep cron every 2 minutes");
+  }
 });

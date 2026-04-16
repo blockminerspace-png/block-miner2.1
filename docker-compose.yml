@@ -28,6 +28,7 @@ services:
       NODE_ENV: production
       PHD_PORT: 3847
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+      POLYGON_RPC_URL: ${POLYGON_RPC_URL:-https://polygon-bor-rpc.publicnode.com}
     restart: unless-stopped
 
   app:

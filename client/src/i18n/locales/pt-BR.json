@@ -1617,7 +1617,10 @@
       "tx_placeholder": "0x…",
       "register_cta": "Registar transação",
       "load_error": "Não foi possível carregar o endereço de depósito.",
-      "invalid_tx": "Indica um hash válido (0x + 64 caracteres hexadecimais)."
+      "invalid_tx": "Indica um hash válido (0x + 64 caracteres hexadecimais).",
+      "disabled_hint_keys": "Depósito HD mal configurado. Define no servidor: {{keys}}",
+      "setup_incomplete": "Depósito HD incompleto no servidor. Verifica variáveis POLYGON_HD_* e PHD_*.",
+      "min_amount_error": "O mínimo para depósito HD é {{min}} POL."
     },
     "deposit_options": {
       "smart_contract": "Depósito via contrato inteligente",
