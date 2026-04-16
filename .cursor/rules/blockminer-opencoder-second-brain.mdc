@@ -9,7 +9,7 @@ alwaysApply: true
 
 ## What is in the project
 
-- **OpenCode agent:** `.opencode/agents/opencoder.md` → invoke in OpenCode as **`@opencoder`** (planning / orchestration, read-only tools in that profile).
+- **OpenCode agent:** `.opencode/agents/opencoder.md` → invoke in OpenCode as **`@opencoder`** (planning / orchestration, read-only tools in that profile). The same file contains **§ BlockMiner project brain** (product purpose, main logic, stack, repo map, deploy).
 - **Project marker:** `opencode.json` at repo root (schema for OpenCode).
 
 ## For humans (terminal / OpenCode app)
