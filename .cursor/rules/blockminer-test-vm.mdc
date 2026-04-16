@@ -31,3 +31,15 @@ After `git push` to the branch the VM tracks:
 ## Tests
 
 - Run normal tests (`npm test`, client tests when UI changes). **Do not** run coverage unless the user asks (see `blockminer-testing-no-coverage-by-default.mdc`).
+
+## Agent: automatic test VM closure (default — no extra “deploy” ping)
+
+When BlockMiner work is **done and tests pass**, **do not wait** for the user to say “sobe git” or “deploy” for the **test** environment:
+
+1. **Git:** Stage only intentional project files (never `scripts/vm_config_secret.py`, `.env*`, `coverage-server.txt`, etc.). Commit with a clear **English** message. `git push origin main` (or the branch set in `DEPLOY_GIT_BRANCH` if the task uses it).
+2. **Test VM:** From repo root run **`python3 scripts/deploy-test-vm-remote.py`** (handles push + SSH + `deploy-production-safe.sh` on `/root/block-miner-v3`).
+   - Credentials: **`scripts/vm_config_secret.py`** (from `vm_config_secret.example.py`, **gitignored**) **or** environment **`VM_IP`**, **`VM_PASSWORD`**, optional **`VM_USER`**.
+   - **Never** paste root passwords into rules, skills, commits, or tracked documentation.
+3. **If the script fails** (missing `paramiko`, missing secret, Git HTTPS needs PAT): report the exact blocker. If `git push` already succeeded, say so.
+
+Optional: `SKIP_GIT_PUSH=1` to redeploy an already-pushed commit; `DEPLOY_TEST_VM_TIMEOUT_SEC` for long builds.
