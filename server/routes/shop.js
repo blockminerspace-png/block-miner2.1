@@ -2,7 +2,6 @@ import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { requireCriticalIdempotency } from "../middleware/criticalIdempotency.js";
-import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
 import { getRequestIp } from "../utils/clientIp.js";
 import * as shopController from "../controllers/shopController.js";
 
@@ -20,7 +19,6 @@ shopRouter.post(
   "/purchase",
   requireAuth,
   shopLimiter,
-  requireTurnstileWhenConfigured(),
   requireCriticalIdempotency({ scope: "shop_purchase" }),
   shopController.purchaseMiner,
 );

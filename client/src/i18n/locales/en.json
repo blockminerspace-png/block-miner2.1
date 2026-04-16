@@ -1404,7 +1404,15 @@
     "price": "Price",
     "buy": "Buy",
     "avail_models": "models available",
-    "purchase_success": "Purchase successful!"
+    "purchase_success": "Purchase successful!",
+    "loading_inventory": "Loading inventory…",
+    "modal_title": "Confirm purchase",
+    "modal_subtitle": "Select the quantity and confirm.",
+    "quantity": "Quantity",
+    "total_to_pay": "Total to pay",
+    "confirm_payment": "Confirm payment",
+    "irreversible_warning": "This action is irreversible",
+    "roi_high": "High ROI"
   },
   "inventory": {
     "title": "Mining Room",

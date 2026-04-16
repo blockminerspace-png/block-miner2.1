@@ -79,7 +79,7 @@ export default function Shop() {
     if (isLoading) return (
         <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Carregando Inventário...</p>
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">{t('shop.loading_inventory')}</p>
         </div>
     );
 
@@ -106,7 +106,7 @@ export default function Shop() {
                                 </div>
                                 <div className="flex items-center gap-1.5 text-emerald-400">
                                     <TrendingUp className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">ROI High</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest">{t('shop.roi_high')}</span>
                                 </div>
                             </div>
 
@@ -171,8 +171,8 @@ export default function Shop() {
                             </div>
 
                             <div className="space-y-2">
-                                <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Confirmar Compra</h3>
-                                <p className="text-gray-500 font-medium">Selecione a quantidade e confirme.</p>
+                                <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">{t('shop.modal_title')}</h3>
+                                <p className="text-gray-500 font-medium">{t('shop.modal_subtitle')}</p>
                             </div>
 
                             <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-6 space-y-4">
@@ -190,7 +190,7 @@ export default function Shop() {
 
                                 {/* Seletor de quantidade */}
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Quantidade</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{t('shop.quantity')}</span>
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={() => setQuantity(q => Math.max(1, q - 1))}
@@ -213,7 +213,7 @@ export default function Shop() {
                                 <div className="h-[1px] bg-gray-800 w-full" />
 
                                 <div className="flex justify-between items-center">
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total a Pagar</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{t('shop.total_to_pay')}</span>
                                     <div className="text-right">
                                         <span className="text-xl font-black text-white italic">{(selectedMiner.price * quantity).toFixed(2)} <span className="text-xs font-bold text-gray-500 not-italic uppercase">POL</span></span>
                                         {quantity > 1 && <p className="text-[9px] text-gray-600 font-bold">{selectedMiner.price} POL × {quantity}</p>}
@@ -232,7 +232,7 @@ export default function Shop() {
                                     ) : (
                                         <>
                                             <CheckCircle2 className="w-5 h-5" />
-                                            Confirmar Pagamento
+                                            {t('shop.confirm_payment')}
                                         </>
                                     )}
                                 </button>
@@ -241,13 +241,13 @@ export default function Shop() {
                                     disabled={isPurchasing}
                                     className="w-full py-4 text-gray-500 hover:text-white font-bold text-xs uppercase tracking-widest transition-colors disabled:opacity-50"
                                 >
-                                    Cancelar
+                                    {t('common.cancel')}
                                 </button>
                             </div>
 
                             <div className="flex items-center justify-center gap-2 text-amber-500/50">
                                 <AlertTriangle className="w-3.5 h-3.5" />
-                                <span className="text-[9px] font-black uppercase tracking-widest">Esta ação é irreversível</span>
+                                <span className="text-[9px] font-black uppercase tracking-widest">{t('shop.irreversible_warning')}</span>
                             </div>
                         </div>
                     </div>

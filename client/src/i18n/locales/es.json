@@ -1040,7 +1040,15 @@
     "price": "Precio",
     "buy": "Comprar",
     "avail_models": "modelos disponibles",
-    "purchase_success": "¡Compra realizada con éxito!"
+    "purchase_success": "¡Compra realizada con éxito!",
+    "loading_inventory": "Cargando inventario…",
+    "modal_title": "Confirmar compra",
+    "modal_subtitle": "Selecciona la cantidad y confirma.",
+    "quantity": "Cantidad",
+    "total_to_pay": "Total a pagar",
+    "confirm_payment": "Confirmar pago",
+    "irreversible_warning": "Esta acción es irreversible",
+    "roi_high": "ROI alto"
   },
   "inventory": {
     "title": "Sala de Minería",

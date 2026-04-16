@@ -1,6 +1,5 @@
 import express from "express";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
-import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
 import { getRequestIp } from "../utils/clientIp.js";
 import { requireCriticalIdempotency } from "../middleware/criticalIdempotency.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -29,7 +28,6 @@ internalOfferwallRouter.post(
   "/offers/:offerId/start",
   requireAuth,
   writeLimiter,
-  requireTurnstileWhenConfigured(),
   requireCriticalIdempotency({ scope: "internal_offerwall_start" }),
   internalOfferwallController.postStart
 );
@@ -37,7 +35,6 @@ internalOfferwallRouter.post(
   "/attempts/:attemptId/partner-opened",
   requireAuth,
   writeLimiter,
-  requireTurnstileWhenConfigured(),
   requireCriticalIdempotency({ scope: "internal_offerwall_partner_opened" }),
   internalOfferwallController.postPartnerOpened
 );
@@ -45,7 +42,6 @@ internalOfferwallRouter.post(
   "/attempts/:attemptId/submit",
   requireAuth,
   writeLimiter,
-  requireTurnstileWhenConfigured(),
   requireCriticalIdempotency({ scope: "internal_offerwall_submit" }),
   internalOfferwallController.postSubmit
 );
@@ -53,7 +49,6 @@ internalOfferwallRouter.post(
   "/attempts/:attemptId/abandon",
   requireAuth,
   writeLimiter,
-  requireTurnstileWhenConfigured(),
   requireCriticalIdempotency({ scope: "internal_offerwall_abandon" }),
   internalOfferwallController.postAbandon
 );

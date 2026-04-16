@@ -1,7 +1,6 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
-import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
 import { getRequestIp } from "../utils/clientIp.js";
 import { requireCriticalIdempotency } from "../middleware/criticalIdempotency.js";
 import { validateBody } from "../middleware/validate.js";
@@ -22,7 +21,6 @@ const purchaseLimiter = createDistributedRateLimiter({
 const purchaseSchema = z.object({
   eventMinerId: z.coerce.number().int().positive(),
   quantity: z.coerce.number().int().min(1).max(25).optional().default(1),
-  cfTurnstileToken: z.string().trim().optional(),
 }).strict();
 
 offerEventsRouter.get("/active", requireAuth, listLimiter, offerEventController.listActiveOfferEvents);
@@ -30,7 +28,6 @@ offerEventsRouter.post(
   "/purchase",
   requireAuth,
   purchaseLimiter,
-  requireTurnstileWhenConfigured(),
   validateBody(purchaseSchema),
   requireCriticalIdempotency({ scope: "offer_event_purchase" }),
   offerEventController.purchaseOfferMiner

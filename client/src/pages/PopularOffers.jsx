@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -8,11 +8,11 @@ import { useGameStore } from '../store/game';
 import { formatHashrate } from '../utils/machine';
 import AdBanner from '../components/AdBanner';
 
-function fmtDate(iso) {
+function fmtDate(iso, localeTag) {
     if (!iso) return '—';
     const d = new Date(iso);
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(localeTag, { day: '2-digit', month: '2-digit', year: 'numeric' })
+        + ' ' + d.toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' });
 }
 
 function getEventState(now, event) {
@@ -22,7 +22,13 @@ function getEventState(now, event) {
 }
 
 export default function PopularOffers() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const offerDateLocale = useMemo(() => {
+        const lng = i18n.resolvedLanguage || i18n.language || 'en';
+        if (lng === 'pt-BR' || lng === 'pt' || lng === 'pt-PT') return 'pt-BR';
+        if (String(lng).startsWith('es')) return 'es-ES';
+        return 'en-US';
+    }, [i18n.resolvedLanguage, i18n.language]);
     const { fetchAll } = useGameStore();
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -117,12 +123,12 @@ export default function PopularOffers() {
                             <div className="flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5 text-gray-600" />
                                 <span className="font-semibold">{t('offers.start')}:</span>
-                                <span>{fmtDate(ev.startsAt)}</span>
+                                <span>{fmtDate(ev.startsAt, offerDateLocale)}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5 text-gray-600" />
                                 <span className="font-semibold">{t('offers.end')}:</span>
-                                <span>{fmtDate(ev.endsAt)}</span>
+                                <span>{fmtDate(ev.endsAt, offerDateLocale)}</span>
                             </div>
                         </div>
                     </div>
@@ -231,12 +237,12 @@ export default function PopularOffers() {
                                             <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                                 <Clock className="w-3 h-3 shrink-0" />
                                                 <span className="font-bold text-gray-600">{t('offers.start')}:</span>
-                                                <span>{fmtDate(ev.startsAt)}</span>
+                                                <span>{fmtDate(ev.startsAt, offerDateLocale)}</span>
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                                 <Clock className="w-3 h-3 shrink-0" />
                                                 <span className="font-bold text-gray-600">{t('offers.end')}:</span>
-                                                <span>{fmtDate(ev.endsAt)}</span>
+                                                <span>{fmtDate(ev.endsAt, offerDateLocale)}</span>
                                             </div>
                                         </div>
 
