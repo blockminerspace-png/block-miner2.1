@@ -18,7 +18,7 @@ alwaysApply: true
 2. From **this repo root**, run `opencode`.
 3. Start messages with **`@opencoder`** when you want structured planning (goals → steps → risks → verification) before coding.
 
-Do not commit API keys into `opencode.json`; use OpenCode’s documented auth / environment.
+Do not commit API keys into `opencode.json`. This repo’s `opencode.json` uses **OpenRouter** with `apiKey: "{env:OPENROUTER_API_KEY}"` — put the key only in **`.env`** at repo root (gitignored) or in your shell profile. Default model: **`openrouter/openai/gpt-oss-120b:free`** (zero listed $/M on OpenRouter). If a key was ever pasted in chat, **rotate it** on OpenRouter and update `.env` only.
 
 ## For Cursor agents in this workspace
 

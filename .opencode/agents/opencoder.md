@@ -57,6 +57,10 @@ Treat everything below **“BlockMiner project brain”** as ground truth for *w
 - `.cursor/rules/` — **mandatory agent behaviour** (tests, i18n, Git + test VM deploy, no coverage by default).
 - `.opencode/agents/opencoder.md` — **this file** (planning agent for OpenCode).
 
+### OpenCode models (this repo)
+
+- **`opencode.json`** defaults to **OpenRouter** model **`openai/gpt-oss-120b:free`** (GPT-OSS 120B free tier on OpenRouter). API key: **`OPENROUTER_API_KEY`** in repo **`.env`** (never commit). Smaller calls use **`openai/gpt-oss-20b:free`** where configured.
+
 ### Deploy / environments
 
 - **Test VM** (default in rules): host **89.167.114.67**, repo on server under `/root/block-miner-v3`, branch **main**, script `python3 scripts/deploy-test-vm-remote.py` (SSH + `deploy-production-safe.sh`). Credentials **never** in Git — `scripts/vm_config_secret.py` (gitignored) or `VM_*` env.
