@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import dotenv from "dotenv";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, "..", ".env"), quiet: true });
+const repoRoot = path.join(__dirname, "..");
+dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
 
 /**
  * One-shot OpenRouter chat (for Cursor agents / local CLI). Does not print secrets.
@@ -15,6 +17,12 @@ dotenv.config({ path: path.join(__dirname, "..", ".env"), quiet: true });
  *   node scripts/openrouter-ask.mjs "Your question or full context for the model"
  *
  * Optional: OPENROUTER_MODEL=openai/gpt-oss-20b:free
+ *
+ * System prompt: by default loads `scripts/openrouter-system-prompt.md` (repo constraints:
+ * Postgres + webhooks; Redis only when explicitly needed). Override path with
+ * OPENROUTER_SYSTEM_PROMPT_FILE (relative to repo root or absolute). Set to "-" to skip.
+ *
+ * Exit codes: 0 ok, 1 API/config error, 2 usage, 3 system prompt file contains "${" (unsafe).
  */
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -35,9 +43,47 @@ if (!userContent) {
   fail(2, 'Usage: node scripts/openrouter-ask.mjs "your prompt"');
 }
 
+const systemFileFlag = (process.env.OPENROUTER_SYSTEM_PROMPT_FILE ?? "").trim();
+const defaultSystemPath = path.join(__dirname, "openrouter-system-prompt.md");
+const systemPath =
+  systemFileFlag === "-"
+    ? ""
+    : systemFileFlag
+      ? path.isAbsolute(systemFileFlag)
+        ? systemFileFlag
+        : path.join(repoRoot, systemFileFlag)
+      : defaultSystemPath;
+
+// System prompt file must stay static (no user-controlled templating); see header in
+// scripts/openrouter-system-prompt.md. Reject "${" so accidental JS template literals
+// in the file cannot pull runtime values into the system role.
+let systemContent = "";
+if (systemPath) {
+  try {
+    if (fs.existsSync(systemPath)) {
+      systemContent = fs.readFileSync(systemPath, "utf8").trim();
+    }
+  } catch {
+    // Optional file; continue with user-only message
+  }
+}
+
+if (systemContent.includes("${")) {
+  fail(
+    3,
+    `System prompt file must not contain "\${" (forbidden template-like sequence). Edit or replace: ${systemPath}`
+  );
+}
+
+const messages = [];
+if (systemContent) {
+  messages.push({ role: "system", content: systemContent });
+}
+messages.push({ role: "user", content: userContent });
+
 const body = {
   model,
-  messages: [{ role: "user", content: userContent }]
+  messages
 };
 
 const res = await fetch(OPENROUTER_URL, {

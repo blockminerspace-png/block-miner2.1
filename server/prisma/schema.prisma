@@ -108,6 +108,7 @@ model User {
   dailyTaskProgress              UserDailyTaskProgress[]
   internalOfferwallAttempts      InternalOfferwallAttempt[]
   game2048Sessions               Game2048Session[]
+  polygonHdAddress               PolygonHdAddress?
 
   @@map("users")
 }
@@ -477,6 +478,20 @@ model Transaction {
   @@index([status])
   @@index([txHash])
   @@map("transactions")
+}
+
+/// Custodial Polygon deposit address derived from the platform HD tree (BIP-44 / coin type 60).
+model PolygonHdAddress {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique @map("user_id")
+  derivationIndex  Int     @map("derivation_index")
+  address          String   @unique
+  derivationPath   String   @map("derivation_path")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("polygon_hd_addresses")
 }
 
 /** CCPayment API deposit webhook deliveries (idempotent by record_id). */

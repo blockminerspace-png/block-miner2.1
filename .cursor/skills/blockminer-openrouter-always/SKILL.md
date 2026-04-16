@@ -21,7 +21,7 @@ Use on **every substantive** user message in this repository (features, bugs, de
    node scripts/openrouter-ask.mjs "<prompt>"
    ```
 
-   Prompt must include: short BlockMiner stack reminder + user task + what you want (risks, review, priorities).
+   Prompt must include: short BlockMiner stack reminder (Postgres, webhooks; **not** Redis-first) + user task + what you want (risks, review, priorities). The script injects **`scripts/openrouter-system-prompt.md`** as the **system** role automatically.
 
 3. Parse **stdout** (plain text answer). Add an **“OpenRouter (free model)”** section to your reply with the distilled points.
 4. If exit ≠ 0: note failure once; continue with your own answer.

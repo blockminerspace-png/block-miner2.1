@@ -16,6 +16,20 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  # Optional: custodial Polygon HD deposit addresses (BIP-44). Set POLYGON_HD_DEPOSIT_ENABLED=1 and secrets in .env.production.
+  phd:
+    build: .
+    command: ["node", "server/phdServer.js"]
+    depends_on:
+      - db
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PHD_PORT: 3847
+      DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -47,6 +61,9 @@ services:
       BACKUP_INTERVAL_HOURS: 24
       BACKUP_CLOUD_ENABLED: ${BACKUP_CLOUD_ENABLED:-false}
       BACKUP_CLOUD_REMOTE: ${BACKUP_CLOUD_REMOTE:-}
+      PHD_SERVICE_URL: ${PHD_SERVICE_URL:-}
+      PHD_INTERNAL_TOKEN: ${PHD_INTERNAL_TOKEN:-}
+      POLYGON_HD_DEPOSIT_ENABLED: ${POLYGON_HD_DEPOSIT_ENABLED:-0}
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups

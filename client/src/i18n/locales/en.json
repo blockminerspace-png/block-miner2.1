@@ -1599,6 +1599,23 @@
       "coming_soon": "Coming soon",
       "coming_soon_hint": "Bitcoin (BTCPay) is paused while we move infrastructure. Other deposit methods stay available."
     },
+    "polygon_hd": {
+      "option_label": "Deposit address",
+      "option_hint": "Send POL on Polygon (chain 137) to your unique address, then register the transaction hash so we can credit your balance.",
+      "title": "Your Polygon deposit address",
+      "body": "Send native POL only to this address from any wallet. The amount credited is taken from the blockchain after the required confirmations.",
+      "network_hint": "Network: Polygon mainnet (137). Do not send tokens or use other networks.",
+      "copy": "Copy address",
+      "qr_alt": "QR code for your deposit address",
+      "open_explorer": "Polygonscan",
+      "register_title": "Register your transfer",
+      "register_hint": "After your POL transfer is broadcast, paste the transaction hash below. The server verifies the amount on-chain.",
+      "tx_label": "Transaction hash",
+      "tx_placeholder": "0x…",
+      "register_cta": "Register transaction",
+      "load_error": "Could not load your deposit address.",
+      "invalid_tx": "Enter a valid transaction hash (0x + 64 hex characters)."
+    },
     "deposit_options": {
       "smart_contract": "Smart contract deposit",
       "walletconnect": "WalletConnect",

@@ -1602,6 +1602,23 @@
       "coming_soon": "Em breve",
       "coming_soon_hint": "Bitcoin (BTCPay) está em pausa enquanto mudamos a infraestrutura. Os outros métodos de depósito continuam disponíveis."
     },
+    "polygon_hd": {
+      "option_label": "Endereço de depósito",
+      "option_hint": "Envia POL na Polygon (rede 137) para o teu endereço único e regista o hash da transação para creditarmos o saldo.",
+      "title": "O teu endereço de depósito Polygon",
+      "body": "Envia apenas POL nativo para este endereço a partir de qualquer carteira. O valor creditado vem da blockchain após as confirmações necessárias.",
+      "network_hint": "Rede: Polygon mainnet (137). Não envies outros tokens nem outras redes.",
+      "copy": "Copiar endereço",
+      "qr_alt": "Código QR do endereço de depósito",
+      "open_explorer": "Polygonscan",
+      "register_title": "Regista a transferência",
+      "register_hint": "Depois do envio de POL ser transmitido, cola o hash da transação abaixo. O servidor verifica o valor on-chain.",
+      "tx_label": "Hash da transação",
+      "tx_placeholder": "0x…",
+      "register_cta": "Registar transação",
+      "load_error": "Não foi possível carregar o endereço de depósito.",
+      "invalid_tx": "Indica um hash válido (0x + 64 caracteres hexadecimais)."
+    },
     "deposit_options": {
       "smart_contract": "Depósito via contrato inteligente",
       "walletconnect": "WalletConnect",

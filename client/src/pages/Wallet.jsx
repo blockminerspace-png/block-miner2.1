@@ -176,6 +176,10 @@ export default function Wallet() {
     const [btcpayBtcAddr, setBtcpayBtcAddr] = useState(null);
     const [btcpayLightningInvoice, setBtcpayLightningInvoice] = useState(null);
     const [btcpayInvoiceStatus, setBtcpayInvoiceStatus] = useState(null);
+    const [polygonHdDepositEnabled, setPolygonHdDepositEnabled] = useState(false);
+    const [polygonHdAddress, setPolygonHdAddress] = useState('');
+    const [polygonHdTxHash, setPolygonHdTxHash] = useState('');
+    const [polygonHdLoadError, setPolygonHdLoadError] = useState('');
     const [polPrice, setPolPrice] = useState(0);
     const [minDepositPol, setMinDepositPol] = useState(0.01);
     const [blockConfirmations, setBlockConfirmations] = useState(3);
@@ -253,6 +257,7 @@ export default function Wallet() {
                         ? balanceRes.data.btcpayDepositMissingEnvKeys
                         : []
                 );
+                setPolygonHdDepositEnabled(Boolean(balanceRes.data.polygonHdDepositEnabled));
 
                 // If user has a saved address but not connected, pre-fill it for convenience
                 if (!withdrawForm.address && balanceRes.data.walletAddress) {
@@ -309,8 +314,56 @@ export default function Wallet() {
         const canInjected = canUseInjectedDepositChannel(systemContractAddress, systemDepositAddress);
         if (!canInjected && walletConnectConfigured) {
             setDepositChannel('walletconnect');
+        } else if (!canInjected && !walletConnectConfigured && polygonHdDepositEnabled) {
+            setDepositChannel('polygon_hd');
         }
-    }, [systemContractAddress, systemDepositAddress, walletConnectConfigured]);
+    }, [systemContractAddress, systemDepositAddress, walletConnectConfigured, polygonHdDepositEnabled]);
+
+    useEffect(() => {
+        if (depositChannel === 'polygon_hd' && !polygonHdDepositEnabled) {
+            const canInjected = canUseInjectedDepositChannel(systemContractAddress, systemDepositAddress);
+            setDepositChannel(
+                !canInjected && walletConnectConfigured ? 'walletconnect' : 'smart_contract'
+            );
+        }
+    }, [
+        depositChannel,
+        polygonHdDepositEnabled,
+        systemContractAddress,
+        systemDepositAddress,
+        walletConnectConfigured
+    ]);
+
+    useEffect(() => {
+        if (depositChannel !== 'polygon_hd') {
+            setPolygonHdTxHash('');
+            setPolygonHdLoadError('');
+            return undefined;
+        }
+        if (!polygonHdDepositEnabled) {
+            return undefined;
+        }
+        let cancelled = false;
+        setPolygonHdLoadError('');
+        (async () => {
+            try {
+                const res = await api.get('/wallet/deposit/hd-address');
+                if (cancelled) return;
+                if (res.data?.ok && res.data.address) {
+                    setPolygonHdAddress(res.data.address);
+                } else {
+                    setPolygonHdLoadError(res.data?.message || t('wallet.polygon_hd.load_error'));
+                }
+            } catch {
+                if (!cancelled) {
+                    setPolygonHdLoadError(t('wallet.polygon_hd.load_error'));
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [depositChannel, polygonHdDepositEnabled, t]);
 
     useEffect(() => {
         if (depositChannel === 'btcpay' && !btcpayDepositEnabled) {
@@ -609,6 +662,38 @@ export default function Wallet() {
             if (res.data.ok) {
                 toast.success(res.data.message || t('common.success'));
                 setWithdrawForm(prev => ({ ...prev, amount: '' }));
+                fetchWalletData();
+            } else {
+                toast.error(res.data.message || t('common.error'));
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('common.error'));
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const handlePolygonHdRegisterTx = async () => {
+        const normalizedHash = polygonHdTxHash.trim().toLowerCase();
+        if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) {
+            toast.error(t('wallet.polygon_hd.invalid_tx'));
+            return;
+        }
+        setIsActionLoading(true);
+        try {
+            const amount = parseFloat(depositForm.amount);
+            const claimedAmount =
+                !Number.isNaN(amount) && amount >= minDepositPol ? amount : 0;
+            const res = await api.post('/wallet/deposit/submit', {
+                txHash: normalizedHash,
+                claimedAmount
+            });
+            if (res.data.ok) {
+                toast.success(t('wallet.web3_deposit.deposit_success_registered'));
+                setPolygonHdTxHash('');
+                setDepositForm({ amount: '' });
+                fetchPendingDeposits();
+                startPendingPoll();
                 fetchWalletData();
             } else {
                 toast.error(res.data.message || t('common.error'));
@@ -953,7 +1038,7 @@ export default function Wallet() {
 
                             {activeTab === 'deposit' && (
                                 <form onSubmit={(e) => e.preventDefault()} className="space-y-6 sm:space-y-8">
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                         <button
                                             type="button"
                                             onClick={() => setDepositChannel('smart_contract')}
@@ -1012,6 +1097,18 @@ export default function Wallet() {
                                                 ) : null}
                                             </span>
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDepositChannel('polygon_hd')}
+                                            disabled={!polygonHdDepositEnabled}
+                                            className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
+                                                depositChannel === 'polygon_hd'
+                                                    ? 'border-primary bg-primary/15 text-white shadow-lg shadow-primary/10'
+                                                    : 'border-slate-700 text-slate-400 hover:border-slate-600'
+                                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                        >
+                                            {t('wallet.polygon_hd.option_label')}
+                                        </button>
                                     </div>
                                     {!btcpayDepositEnabled ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed px-1">
@@ -1027,19 +1124,134 @@ export default function Wallet() {
                                     <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
                                         {depositChannel === 'btcpay'
                                             ? t('wallet.btcpay.option_hint')
-                                            : t('wallet.deposit_options.hint')}
+                                            : depositChannel === 'polygon_hd'
+                                              ? t('wallet.polygon_hd.option_hint')
+                                              : t('wallet.deposit_options.hint')}
                                     </p>
-                                    {depositChannel !== 'btcpay' && depositChannel === 'smart_contract' && kitConnected ? (
+                                    {depositChannel !== 'btcpay' &&
+                                    depositChannel !== 'polygon_hd' &&
+                                    depositChannel === 'smart_contract' &&
+                                    kitConnected ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed">
                                             {t('wallet.web3_deposit.hint_disconnect_for_contract')}
                                         </p>
                                     ) : null}
-                                    {depositChannel !== 'btcpay' && depositChannel === 'walletconnect' && isConnected && !kitConnected ? (
+                                    {depositChannel !== 'btcpay' &&
+                                    depositChannel !== 'polygon_hd' &&
+                                    depositChannel === 'walletconnect' &&
+                                    isConnected &&
+                                    !kitConnected ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed">
                                             {t('wallet.web3_deposit.hint_disconnect_for_wc')}
                                         </p>
                                     ) : null}
-                                    {depositChannel !== 'btcpay' ? (
+                                    {depositChannel === 'polygon_hd' && polygonHdDepositEnabled ? (
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
+                                            <div className="p-5 sm:p-6 rounded-3xl border border-teal-500/25 bg-teal-950/20 flex flex-col gap-4 min-h-[280px]">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-teal-300">
+                                                    {t('wallet.polygon_hd.title')}
+                                                </h4>
+                                                <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                                                    {t('wallet.polygon_hd.body')}
+                                                </p>
+                                                <p className="text-[9px] text-slate-500 font-bold">
+                                                    {t('wallet.polygon_hd.network_hint')}
+                                                </p>
+                                                {polygonHdLoadError ? (
+                                                    <p className="text-[9px] text-rose-300 font-bold">{polygonHdLoadError}</p>
+                                                ) : polygonHdAddress ? (
+                                                    <>
+                                                        <div className="flex justify-center p-3 bg-white rounded-2xl self-center">
+                                                            <QRCodeSVG
+                                                                value={polygonHdAddress}
+                                                                size={168}
+                                                                level="M"
+                                                                title={t('wallet.polygon_hd.qr_alt')}
+                                                            />
+                                                        </div>
+                                                        <p className="text-[10px] font-mono text-teal-100/90 font-bold break-all text-center">
+                                                            {polygonHdAddress}
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-2 justify-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyToClipboard(polygonHdAddress)}
+                                                                className="py-2.5 px-4 rounded-xl font-black text-[10px] uppercase tracking-widest border border-teal-500/40 text-teal-200 hover:bg-teal-950/50"
+                                                            >
+                                                                {t('wallet.polygon_hd.copy')}
+                                                            </button>
+                                                            <a
+                                                                href={`https://polygonscan.com/address/${polygonHdAddress}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="py-2.5 px-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 border border-slate-600 inline-flex items-center gap-1"
+                                                            >
+                                                                <ExternalLink className="w-3.5 h-3.5" />
+                                                                {t('wallet.polygon_hd.open_explorer')}
+                                                            </a>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <p className="text-[9px] text-slate-500 font-bold flex items-center gap-2">
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        {t('wallet.processing')}
+                                                    </p>
+                                                )}
+                                                <p className="text-[9px] text-slate-600 font-bold mt-auto">
+                                                    {t('wallet.web3_deposit.min_deposit', { min: minDepositPol })}
+                                                </p>
+                                            </div>
+                                            <div className="p-5 sm:p-6 rounded-3xl border border-slate-800/80 bg-slate-950/50 flex flex-col gap-4 min-h-[280px]">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-200">
+                                                    {t('wallet.polygon_hd.register_title')}
+                                                </h4>
+                                                <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                                                    {t('wallet.polygon_hd.register_hint')}
+                                                </p>
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                                                        {t('wallet.polygon_hd.tx_label')}
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={polygonHdTxHash}
+                                                        onChange={(e) => setPolygonHdTxHash(e.target.value)}
+                                                        placeholder={t('wallet.polygon_hd.tx_placeholder')}
+                                                        className="w-full bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-2xl py-4 px-4 text-slate-200 text-xs font-mono transition-all outline-none"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                                                        {t('wallet.amount_to_add')}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={depositForm.amount}
+                                                        onChange={(e) => setDepositForm({ amount: e.target.value })}
+                                                        placeholder="0.00"
+                                                        className="w-full bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-2xl py-4 px-4 text-slate-200 text-sm font-black transition-all outline-none"
+                                                    />
+                                                    <p className="text-[9px] text-slate-600 font-bold ml-1">
+                                                        {t('wallet.min_deposit_hint', { min: minDepositPol })}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handlePolygonHdRegisterTx()}
+                                                    disabled={isActionLoading}
+                                                    className="w-full mt-auto min-h-[44px] py-4 sm:py-5 bg-gradient-to-r from-teal-600 to-emerald-700 hover:scale-[1.01] active:scale-[0.99] text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-tight sm:tracking-[0.1em] transition-all shadow-xl shadow-teal-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                                                >
+                                                    {isActionLoading ? (
+                                                        <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                                                    ) : (
+                                                        <Send className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                                                    )}
+                                                    {t('wallet.polygon_hd.register_cta')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : depositChannel !== 'btcpay' ? (
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
                                         <div className="p-5 sm:p-6 rounded-3xl border border-indigo-500/25 bg-indigo-950/20 flex flex-col gap-4 min-h-[280px]">
                                             <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300">

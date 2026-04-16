@@ -13,6 +13,11 @@ import {
   isBtcpayInvoiceFlowEnabled,
   listBtcpayMissingEnvKeys
 } from "../services/btcpayService.js";
+import { isPolygonHdDepositEnabled } from "../services/polygonHdConfig.js";
+import {
+  allocatePolygonHdAddress,
+  allocatePolygonHdAddressRemote
+} from "../services/polygonHdWallet.js";
 
 /** Minimum POL for a withdrawal request. */
 export const WITHDRAW_MIN_POL = 10;
@@ -42,11 +47,43 @@ export async function getBalance(req, res) {
       depositVerifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS,
       btcpayDepositEnabled: isBtcpayInvoiceFlowEnabled(),
       btcpayDepositComingSoon: comingSoon,
-      btcpayDepositMissingEnvKeys: btcpayMissing
+      btcpayDepositMissingEnvKeys: btcpayMissing,
+      polygonHdDepositEnabled: isPolygonHdDepositEnabled()
     });
   } catch (error) {
     logger.error("Error getting balance", { error: error.message });
     res.status(500).json({ ok: false, message: "Unable to get balance." });
+  }
+}
+
+/** GET /api/wallet/deposit/hd-address — custodial Polygon HD deposit address for the authenticated user. */
+export async function getPolygonHdDepositAddress(req, res) {
+  try {
+    if (!isPolygonHdDepositEnabled()) {
+      return res.status(503).json({
+        ok: false,
+        message: "Polygon HD deposit is not enabled on this server."
+      });
+    }
+    const userId = req.user.id;
+    const remoteUrl = (process.env.PHD_SERVICE_URL || "").trim();
+    if (remoteUrl) {
+      const allocated = await allocatePolygonHdAddressRemote(userId);
+      return res.json({ ok: true, ...allocated });
+    }
+    const row = await allocatePolygonHdAddress(userId);
+    return res.json({
+      ok: true,
+      address: row.address,
+      derivationIndex: row.derivationIndex,
+      derivationPath: row.derivationPath
+    });
+  } catch (error) {
+    logger.error("getPolygonHdDepositAddress", { error: error.message });
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to allocate HD deposit address."
+    });
   }
 }
 

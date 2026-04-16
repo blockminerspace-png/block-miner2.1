@@ -40,7 +40,7 @@ Treat everything below **“BlockMiner project brain”** as ground truth for *w
 - **Node.js (ESM)** + **Express**: single-language full stack, simple to deploy in Docker, huge ecosystem for auth, validation (Zod), HTTP.
 - **Prisma + PostgreSQL**: typed data layer, migrations, fits relational game/economy models; `@prisma/adapter-pg` for server pool.
 - **React + Vite**: fast dev UX, modern bundling; client is a SPA that talks to the same origin API in production.
-- **Redis (ioredis)**: caching, rate limits, or session-adjacent patterns where configured.
+- **Redis (ioredis)**: **optional only** when explicitly enabled; default patterns use **PostgreSQL** and **HTTP webhooks**, not Redis as the primary store for limits or coordination.
 - **Socket.io**: realtime channels (e.g. games, live updates) without polling everything.
 - **Playwright (server dep)**: automation / verification paths that need a browser engine on the server when enabled.
 - **Docker**: `Dockerfile` + compose for **test/production-like** runs (`deploy-production-safe.sh` on VPS).
@@ -59,7 +59,7 @@ Treat everything below **“BlockMiner project brain”** as ground truth for *w
 
 ### OpenRouter (Cursor / CLI — not OpenCode)
 
-- **`scripts/openrouter-ask.mjs`** calls OpenRouter’s Chat Completions API with **`OPENROUTER_API_KEY`** and default model **`openai/gpt-oss-120b:free`**. Used by **Cursor agents** when a second model is needed (see `.cursor/rules/blockminer-openrouter-second-brain.mdc`).
+- **`scripts/openrouter-ask.mjs`** calls OpenRouter’s Chat Completions API with **`OPENROUTER_API_KEY`** and default model **`openai/gpt-oss-120b:free`**, and sends **`scripts/openrouter-system-prompt.md`** as the **system** message (Postgres + webhooks; Redis only when necessary). Used by **Cursor agents** when a second model is needed (see `.cursor/rules/blockminer-openrouter-second-brain.mdc`).
 
 ### Deploy / environments
 

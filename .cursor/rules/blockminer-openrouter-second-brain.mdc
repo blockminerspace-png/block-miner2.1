@@ -15,10 +15,11 @@ Use **`openai/gpt-oss-120b:free`** unless **`OPENROUTER_MODEL`** is set (e.g. `o
 
 For **every user turn** that is **not** a trivial acknowledgement (e.g. “ok”, “thanks”, “yes” with no new work), you **must**:
 
-1. **Run OpenRouter** from the **repository root** with a single prompt string that includes:
-   - a one-line BlockMiner context (stack: Express, Prisma/Postgres, React/Vite, i18n en/pt-BR/es, Docker deploy);
+1. **Run OpenRouter** from the **repository root** with a single user prompt string that includes:
+   - a one-line BlockMiner context (stack: Express, Prisma/Postgres, React/Vite, i18n en/pt-BR/es, Docker deploy; **webhooks** for provider callbacks; **no Redis by default** — Postgres / in-repo patterns first);
    - the **user’s exact question or task**;
    - ask for **risks, missing checks, or improvements** relevant to that turn (keep the prompt under ~2k words when possible).
+   - **`scripts/openrouter-ask.mjs` automatically sends** `scripts/openrouter-system-prompt.md` as the API **system** message (architectural constraints, including Redis only when explicitly required). You do not need to paste that file into the shell prompt unless you are debugging it.
 2. **Integrate** the script stdout into your answer: lead with your own plan/code, then add an **“OpenRouter (free model)”** subsection with the distilled opinion (do not dump raw JSON).
 3. **Stay responsible** for correctness (paths, tests, secrets, i18n, deploy rules). OpenRouter is advisory, not authoritative.
 

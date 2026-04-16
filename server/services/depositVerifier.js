@@ -93,7 +93,14 @@ async function verifyOnePendingDeposit(tx) {
     const isContract = Boolean(contractRaw && toLower === contractRaw);
     const isTreasury = Boolean(treasuryRaw && toLower === treasuryRaw);
 
-    if (!isContract && !isTreasury) {
+    const hdForUser = await prisma.polygonHdAddress.findUnique({
+      where: { userId: tx.userId },
+      select: { address: true }
+    });
+    const isHd =
+      Boolean(hdForUser?.address) && toLower === String(hdForUser.address).toLowerCase();
+
+    if (!isContract && !isTreasury && !isHd) {
       await prisma.transaction.update({
         where: { id: tx.id },
         data: {
@@ -106,13 +113,14 @@ async function verifyOnePendingDeposit(tx) {
         txId: tx.id,
         to: onchainTx.to,
         expectedContract: contractRaw || null,
-        expectedTreasury: treasuryRaw || null
+        expectedTreasury: treasuryRaw || null,
+        expectedHd: hdForUser?.address || null
       });
       return;
     }
 
     let verifiedAmount = 0;
-    let depositSource = "treasury";
+    let depositSource = isHd ? "hd_deposit" : "treasury";
 
     if (isContract) {
       depositSource = "contract";

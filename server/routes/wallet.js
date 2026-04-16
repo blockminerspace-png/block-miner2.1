@@ -37,6 +37,7 @@ walletRouter.post("/deposit", requireAuth, walletLimiter, walletController.reque
 walletRouter.post("/deposit/submit", requireAuth, walletLimiter, walletController.submitDeposit);
 walletRouter.post("/deposit/estimate-gas", requireAuth, walletLimiter, walletController.postDepositEstimateGas);
 walletRouter.get("/deposit/pending", requireAuth, walletLimiter, walletController.getPendingDeposits);
+walletRouter.get("/deposit/hd-address", requireAuth, walletLimiter, walletController.getPolygonHdDepositAddress);
 walletRouter.post("/btcpay/invoice", requireAuth, walletLimiter, btcpayDepositController.postBtcpayInvoice);
 walletRouter.get("/btcpay/invoice/:invoiceId", requireAuth, walletLimiter, btcpayDepositController.getBtcpayInvoiceStatus);
 walletRouter.post("/update-address", requireAuth, walletLimiter, walletController.updateAddress);
