@@ -78,8 +78,11 @@ def _make_gzipped_archive() -> Path:
     out = tmp / "tree.tgz"
     # One shell pipeline: reader drains gzip stdout while git archive feeds gzip stdin.
     r = subprocess.run(
-        f'set -euo pipefail; git archive --format=tar HEAD | gzip -1 > "{out}"',
-        shell=True,
+        [
+            "bash",
+            "-lc",
+            f'set -euo pipefail; git archive --format=tar HEAD | gzip -1 > "{out}"',
+        ],
         cwd=str(REPO_ROOT),
         check=False,
     )
