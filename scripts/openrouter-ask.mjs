@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
+
 /**
  * One-shot OpenRouter chat (for Cursor agents / local CLI). Does not print secrets.
  * Default model: openai/gpt-oss-120b:free (OpenRouter free tier when available).
