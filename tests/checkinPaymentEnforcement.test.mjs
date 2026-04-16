@@ -6,8 +6,12 @@ import {
 } from "../server/controllers/checkinController.js";
 
 describe("check-in payment requirement", () => {
-  it("matches whether a non-zero treasury address is configured", () => {
-    const hasTreasury = Boolean(resolveCheckinReceiverFromEnv(process.env));
-    assert.equal(isCheckinPaymentRequired(), hasTreasury);
+  it("always requires wallet on-chain payment (no free claim path)", () => {
+    assert.equal(isCheckinPaymentRequired(), true);
+  });
+
+  it("still resolves treasury from env when present", () => {
+    const addr = resolveCheckinReceiverFromEnv(process.env);
+    assert.equal(typeof addr, "string");
   });
 });

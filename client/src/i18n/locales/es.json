@@ -1334,7 +1334,7 @@
   },
   "checkin": {
     "title": "Check-in",
-    "subtitle": "Los check-ins diario, semanal y mensual usan el mismo pago POL on-chain en Polygon. El servidor verifica cada transacción — puedes salir y volver después.",
+    "subtitle": "Un check-in diario en Polygon: envía 0,01 POL desde tu cartera. El servidor verifica cada transacción on-chain — frena bots y abuso automatizado.",
     "claim_button": "Reclamar Recompensa Diaria",
     "claimed": "Ya Reclamado",
     "reset_in": "Tu próximo bono estará disponible en:",
@@ -1364,6 +1364,8 @@
     "come_back": "Vuelve mañana para seguir la racha.",
     "come_back_weekly": "Ya completaste el check-in de esta semana ISO. Vuelve la próxima semana.",
     "come_back_monthly": "Ya completaste el check-in de este mes civil. Vuelve el próximo mes.",
+    "daily_pay_hint": "Un check-in por día civil (America/São Paulo). Se confirma en Polygon tras aprobar la transferencia en tu cartera.",
+    "anti_bot_note": "Se exige firma en cartera y 0,01 POL (más gas): los clics gratuitos por API no completan el check-in.",
     "wrong_network": "Cambia tu cartera a Polygon.",
     "switch_polygon": "Cambiar a Polygon",
     "connect_browser_wallet": "Conectar cartera del navegador",
@@ -1427,17 +1429,17 @@
       "already_checked_in": "Ya hiciste check-in hoy. ¡Vuelve mañana!",
       "payment_failed": "Pago fallido. Inténtalo de nuevo.",
       "verification_failed": "Verificación del pago fallida. Contacta con soporte si persiste.",
-      "PAYMENT_REQUIRED": "Se necesita una cartera verificada y un pago POL on-chain antes de completar el check-in.",
+      "PAYMENT_REQUIRED": "El check-in diario requiere 0,01 POL desde tu cartera vinculada en Polygon. Abre la página Check-in y aprueba la transferencia en la cartera.",
       "INVALID_TRANSACTION": "Esta transacción no sirve para el check-in (importe, destinatario, remitente incorrectos o falló on-chain).",
       "TRANSACTION_NOT_CONFIRMED": "La transacción aún no está confirmada. Espera las confirmaciones en Polygon e inténtalo de nuevo.",
       "TRANSACTION_ALREADY_USED": "Este hash de transacción ya se usó en un check-in (otro día u otra cuenta).",
       "BLOCKCHAIN_UNAVAILABLE": "No pudimos contactar la blockchain para verificar el pago. Inténtalo en unos minutos.",
       "WALLET_REQUIRED": "Vincula y verifica tu cartera en la página Cartera antes de hacer check-in.",
-      "CHECKIN_PAYMENT_DISABLED": "El check-in de pago está desactivado en el servidor. Usa el check-in diario gratuito.",
+      "CHECKIN_PAYMENT_DISABLED": "El check-in siempre usa un pago de 0,01 POL en la cartera. Configura CHECKIN_RECEIVER o DEPOSIT_WALLET_ADDRESS en el servidor.",
       "CHECKIN_RECEIVER_NOT_CONFIGURED": "La dirección de pago del check-in no está configurada en el servidor.",
       "CHECKIN_PENDING_PAYMENT": "Ya hay un pago con cartera en curso para este periodo. Espera la confirmación o completa el flujo en la cartera.",
       "CHECKIN_SERVER_ERROR": "El check-in falló por un error del servidor. Inténtalo más tarde.",
-      "INVALID_CADENCE": "Cadencia no válida. Elige check-in diario, semanal o mensual."
+      "INVALID_CADENCE": "Solo existe check-in diario. Usa cadence \"daily\" con el hash de la transacción."
     },
     "success": {
       "wallet_checkin": "¡Check-in confirmado via cartera! Racha de +{{streak}} días",

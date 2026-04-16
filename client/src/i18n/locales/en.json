@@ -1700,7 +1700,7 @@
   },
   "checkin": {
     "title": "Check-in",
-    "subtitle": "Daily, weekly, and monthly check-ins use the same on-chain POL payment on Polygon. The server verifies each transaction — you can leave and come back later.",
+    "subtitle": "One daily check-in on Polygon: send 0.01 POL from your wallet. The server verifies every transaction on-chain — this blocks bots and scripted abuse.",
     "claim_button": "Claim Daily Reward",
     "claimed": "Already Claimed",
     "reset_in": "Your next bonus will be available in:",
@@ -1730,6 +1730,8 @@
     "come_back": "Come back tomorrow to keep your streak.",
     "come_back_weekly": "You are set for this ISO week. Come back next week for the next weekly check-in.",
     "come_back_monthly": "You are set for this calendar month. Come back next month for the next monthly check-in.",
+    "daily_pay_hint": "One check-in per calendar day (America/São Paulo). Confirms on Polygon after you approve the transfer in your wallet.",
+    "anti_bot_note": "A real wallet signature and 0.01 POL (plus gas) are required — free API clicks cannot complete check-in.",
     "wrong_network": "Switch your wallet to Polygon.",
     "switch_polygon": "Switch to Polygon",
     "connect_browser_wallet": "Connect browser wallet",
@@ -1793,17 +1795,17 @@
       "already_checked_in": "Already checked in today. Come back tomorrow!",
       "payment_failed": "Payment failed. Please try again.",
       "verification_failed": "Payment verification failed. Please contact support if this persists.",
-      "PAYMENT_REQUIRED": "A verified wallet and an on-chain POL payment are required before check-in can complete.",
+      "PAYMENT_REQUIRED": "Daily check-in requires a 0.01 POL payment from your linked wallet on Polygon. Open the Check-in page and approve the transfer in your wallet.",
       "INVALID_TRANSACTION": "This transaction cannot be used for check-in (wrong amount, recipient, sender, or it failed on-chain).",
       "TRANSACTION_NOT_CONFIRMED": "The transaction is not confirmed yet. Wait for Polygon confirmations and try again.",
       "TRANSACTION_ALREADY_USED": "This transaction hash was already used for check-in (possibly on another day or account).",
       "BLOCKCHAIN_UNAVAILABLE": "We could not reach the blockchain to verify payment. Try again in a few minutes.",
       "WALLET_REQUIRED": "Link and verify your wallet on the Wallet page before check-in.",
-      "CHECKIN_PAYMENT_DISABLED": "Paid check-in is turned off on the server. Use the free daily check-in instead.",
+      "CHECKIN_PAYMENT_DISABLED": "Check-in always uses a 0.01 POL wallet payment. Configure CHECKIN_RECEIVER or DEPOSIT_WALLET_ADDRESS on the server.",
       "CHECKIN_RECEIVER_NOT_CONFIGURED": "Check-in payment receiver is not configured on the server.",
       "CHECKIN_PENDING_PAYMENT": "A wallet payment is already in progress for this period. Wait for confirmation or complete the wallet flow.",
       "CHECKIN_SERVER_ERROR": "Check-in failed due to a server error. Try again later.",
-      "INVALID_CADENCE": "Invalid cadence. Choose daily, weekly, or monthly check-in."
+      "INVALID_CADENCE": "Only daily check-in is available. Use cadence \"daily\" with your transaction hash."
     },
     "success": {
       "wallet_checkin": "Check-in confirmed via wallet! +{{streak}} day streak",

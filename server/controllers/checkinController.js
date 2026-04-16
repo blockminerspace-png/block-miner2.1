@@ -1,9 +1,5 @@
 import prisma from "../src/db/prisma.js";
-import {
-  getBrazilCheckinDateKey,
-  getBrazilIsoWeekPeriodKey,
-  getBrazilMonthPeriodKey
-} from "../utils/checkinDate.js";
+import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 import { computeCheckinStreak } from "../utils/checkinStreak.js";
 import {
   assertValidTxHash,
@@ -22,8 +18,6 @@ const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
 const CHECKIN_REQUIRED_WEI = 10_000_000_000_000_000n; // 0.01 POL
 
-const PERIODIC_CADENCES = new Set(["weekly", "monthly"]);
-
 /**
  * Treasury address for on-chain check-in (Polygon). CHECKIN_RECEIVER wins;
  * if unset or zero, falls back to DEPOSIT_WALLET_ADDRESS so staging is not
@@ -41,24 +35,17 @@ function getReceiver() {
   return resolveCheckinReceiverFromEnv();
 }
 
-/** Paid flow (wallet POL) only when a non-zero treasury address is configured. */
-function paymentCheckinEnabled() {
+/** Treasury (CHECKIN_RECEIVER / DEPOSIT_WALLET_ADDRESS) must exist to verify on-chain payments. */
+function hasCheckinTreasury() {
   return Boolean(getReceiver());
 }
 
-/** Exported for tests: mirrors whether a treasury is configured (same as paid mode). */
+/**
+ * Policy: check-in always uses a wallet on-chain payment (0.01 POL). There is no server-side “free” claim.
+ * When no treasury is configured, the UI shows a configuration error — users cannot bypass with /checkin/claim.
+ */
 export function isCheckinPaymentRequired() {
-  return Boolean(getReceiver());
-}
-
-const FREE_TX_PREFIX = "free:";
-
-function syntheticFreeDailyTxHash(userId, checkinDate) {
-  return `${FREE_TX_PREFIX}daily:${userId}:${checkinDate}`;
-}
-
-function syntheticFreePeriodicTxHash(userId, cadence, periodKey) {
-  return `${FREE_TX_PREFIX}${cadence}:${userId}:${periodKey}`;
+  return true;
 }
 
 function getCheckinAmountWei() {
@@ -71,14 +58,12 @@ function jsonCheckinError(res, status, code, message) {
 
 function parseCadenceFromBody(body) {
   const raw = typeof body?.cadence === "string" ? body.cadence.trim().toLowerCase() : "daily";
-  if (raw === "daily" || raw === "weekly" || raw === "monthly") return raw;
+  if (raw === "daily") return "daily";
   return null;
 }
 
 function periodKeyForCadence(cadence, now = new Date()) {
   if (cadence === "daily") return getBrazilCheckinDateKey(now);
-  if (cadence === "weekly") return getBrazilIsoWeekPeriodKey(now);
-  if (cadence === "monthly") return getBrazilMonthPeriodKey(now);
   return null;
 }
 
@@ -98,19 +83,6 @@ async function loadRecentHistory(userId, take = 21) {
   });
   return rows.map((r) => ({
     date: r.checkinDate,
-    confirmedAt: r.confirmedAt ? r.confirmedAt.toISOString() : null
-  }));
-}
-
-async function loadRecentPeriodic(userId, cadence, take) {
-  const rows = await prisma.periodicCheckin.findMany({
-    where: { userId, cadence, status: "confirmed" },
-    orderBy: { periodKey: "desc" },
-    take,
-    select: { periodKey: true, confirmedAt: true }
-  });
-  return rows.map((r) => ({
-    periodKey: r.periodKey,
     confirmedAt: r.confirmedAt ? r.confirmedAt.toISOString() : null
   }));
 }
@@ -230,16 +202,6 @@ export async function tryFinalizeTodayCheckin(userId, walletAddress) {
   return tryFinalizeCheckinRow({ ...row, user: { walletAddress: walletAddress } });
 }
 
-async function tryFinalizePeriodicForCurrentPeriod(userId, cadence, walletAddress) {
-  if (!PERIODIC_CADENCES.has(cadence) || !walletAddress) return null;
-  const periodKey = periodKeyForCadence(cadence);
-  const row = await prisma.periodicCheckin.findUnique({
-    where: { userId_cadence_periodKey: { userId, cadence, periodKey } }
-  });
-  if (!row || row.status !== "pending") return row;
-  return tryFinalizePeriodicCheckinRow({ ...row, user: { walletAddress: walletAddress } });
-}
-
 export async function processStalePendingCheckins({ batchSize = 40 } = {}) {
   const since = new Date(Date.now() - 72 * 3600000);
   const pending = await prisma.dailyCheckin.findMany({
@@ -265,51 +227,26 @@ export async function processStalePendingCheckins({ batchSize = 40 } = {}) {
   }
 }
 
-async function buildCadenceStatusBundle(userId, wallet, pay) {
+async function buildCadenceStatusBundle(userId, wallet, treasuryOk) {
   const todayKey = periodKeyForCadence("daily");
-  const weekKey = periodKeyForCadence("weekly");
-  const monthKey = periodKeyForCadence("monthly");
-
   let dailyRow = null;
-  let weeklyRow = null;
-  let monthlyRow = null;
 
-  if (pay) {
+  if (treasuryOk) {
     await tryFinalizeTodayCheckin(userId, wallet);
-    await tryFinalizePeriodicForCurrentPeriod(userId, "weekly", wallet);
-    await tryFinalizePeriodicForCurrentPeriod(userId, "monthly", wallet);
   }
 
-  [dailyRow, weeklyRow, monthlyRow] = await Promise.all([
-    prisma.dailyCheckin.findUnique({
-      where: { userId_checkinDate: { userId, checkinDate: todayKey } }
-    }),
-    prisma.periodicCheckin.findUnique({
-      where: { userId_cadence_periodKey: { userId, cadence: "weekly", periodKey: weekKey } }
-    }),
-    prisma.periodicCheckin.findUnique({
-      where: { userId_cadence_periodKey: { userId, cadence: "monthly", periodKey: monthKey } }
-    })
-  ]);
+  dailyRow = await prisma.dailyCheckin.findUnique({
+    where: { userId_checkinDate: { userId, checkinDate: todayKey } }
+  });
 
   const dailySlice = {
     ...rowToCadenceSlice(dailyRow),
     periodKey: todayKey
   };
-  const weeklySlice = {
-    ...rowToCadenceSlice(weeklyRow),
-    periodKey: weekKey
-  };
-  const monthlySlice = {
-    ...rowToCadenceSlice(monthlyRow),
-    periodKey: monthKey
-  };
 
   return {
     cadenceStatus: {
-      daily: dailySlice,
-      weekly: weeklySlice,
-      monthly: monthlySlice
+      daily: dailySlice
     }
   };
 }
@@ -323,27 +260,23 @@ export async function getStatus(req, res) {
     });
     const wallet = user?.walletAddress || null;
     const polBalance = user?.polBalance != null ? Number(user.polBalance) : 0;
-    const pay = paymentCheckinEnabled();
+    const treasuryOk = hasCheckinTreasury();
     const minWei = getCheckinAmountWei();
 
     let streak = 0;
     let recentCheckins = [];
-    let recentWeekly = [];
-    let recentMonthly = [];
     let totalConfirmed = 0;
     let milestones = [];
     let statusDegraded = false;
     let cadenceStatus = null;
 
     try {
-      const bundle = await buildCadenceStatusBundle(userId, wallet, pay);
+      const bundle = await buildCadenceStatusBundle(userId, wallet, treasuryOk);
       cadenceStatus = bundle.cadenceStatus;
 
       streak = await computeCheckinStreak(userId);
-      [recentCheckins, recentWeekly, recentMonthly, totalConfirmed, milestones] = await Promise.all([
+      [recentCheckins, totalConfirmed, milestones] = await Promise.all([
         loadRecentHistory(userId, 21),
-        loadRecentPeriodic(userId, "weekly", 12),
-        loadRecentPeriodic(userId, "monthly", 12),
         prisma.dailyCheckin.count({ where: { userId, status: "confirmed" } }),
         buildMilestoneStatusForUser(userId, streak).catch((err) => {
           console.error("checkin getStatus: milestones unavailable", err?.message);
@@ -369,14 +302,15 @@ export async function getStatus(req, res) {
       streak: statusDegraded ? 0 : streak,
       totalConfirmed: statusDegraded ? 0 : totalConfirmed,
       recentCheckins: statusDegraded ? [] : recentCheckins,
-      recentWeekly: statusDegraded ? [] : recentWeekly,
-      recentMonthly: statusDegraded ? [] : recentMonthly,
+      recentWeekly: [],
+      recentMonthly: [],
       walletLinked: Boolean(wallet),
-      paymentRequired: pay,
-      checkinReceiver: pay ? getReceiver() : null,
-      checkinAmountWei: pay ? minWei.toString() : "0",
+      paymentRequired: true,
+      checkinReceiver: getReceiver() || null,
+      checkinAmountWei: minWei.toString(),
       chainId: POLYGON_CHAIN_ID,
-      rpcConfigured: pay && Boolean(process.env.AETHER_RPC_URL?.trim() || process.env.POLYGON_RPC_URL?.trim()),
+      rpcConfigured:
+        treasuryOk && Boolean(process.env.AETHER_RPC_URL?.trim() || process.env.POLYGON_RPC_URL?.trim()),
       milestones: statusDegraded ? [] : milestones,
       polBalance: statusDegraded ? 0 : polBalance
     });
@@ -386,118 +320,6 @@ export async function getStatus(req, res) {
   }
 }
 
-/**
- * Free daily check-in: one confirmed row per user per calendar day (America/Sao_Paulo).
- * Persists in DB — streak and history survive new days and new sessions.
- */
-async function claimFreeDailyCheckin(req, res, userId) {
-  const today = getBrazilCheckinDateKey();
-  const existing = await prisma.dailyCheckin.findUnique({
-    where: { userId_checkinDate: { userId, checkinDate: today } }
-  });
-  if (existing?.status === "confirmed") {
-    return jsonSuccessWithStreak(res, userId, {
-      alreadyCheckedIn: true,
-      status: "confirmed",
-      cadence: "daily"
-    });
-  }
-  if (existing?.status === "pending" && existing.txHash && !String(existing.txHash).startsWith(FREE_TX_PREFIX)) {
-    return jsonCheckinError(
-      res,
-      409,
-      "CHECKIN_PENDING_PAYMENT",
-      "A wallet payment is already in progress for today. Wait for confirmation or complete the wallet flow."
-    );
-  }
-
-  const txHash = syntheticFreeDailyTxHash(userId, today);
-  await prisma.dailyCheckin.upsert({
-    where: { userId_checkinDate: { userId, checkinDate: today } },
-    create: {
-      userId,
-      checkinDate: today,
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: 0,
-      chainId: POLYGON_CHAIN_ID,
-      paymentMethod: "free"
-    },
-    update: {
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: 0,
-      chainId: POLYGON_CHAIN_ID,
-      paymentMethod: "free"
-    }
-  });
-
-  await applyStreakMilestoneRewards(userId);
-  notifyMiniPassLoginDay(userId, today).catch(() => {});
-  notifyDailyTaskLoginDay(userId, today).catch(() => {});
-
-  logSecurityEvent("checkin_free_claim_success", { userId, checkinDate: today, cadence: "daily" }, req);
-  return jsonSuccessWithStreak(res, userId, { status: "confirmed", cadence: "daily" });
-}
-
-async function claimFreePeriodicCheckin(req, res, userId, cadence) {
-  const periodKey = periodKeyForCadence(cadence);
-  if (!periodKey) {
-    return jsonCheckinError(res, 400, "INVALID_CADENCE", "Invalid check-in cadence.");
-  }
-
-  const existing = await prisma.periodicCheckin.findUnique({
-    where: { userId_cadence_periodKey: { userId, cadence, periodKey } }
-  });
-  if (existing?.status === "confirmed") {
-    return jsonSuccessWithStreak(res, userId, {
-      alreadyCheckedIn: true,
-      status: "confirmed",
-      cadence,
-      periodKey
-    });
-  }
-  if (existing?.status === "pending" && existing.txHash && !String(existing.txHash).startsWith(FREE_TX_PREFIX)) {
-    return jsonCheckinError(
-      res,
-      409,
-      "CHECKIN_PENDING_PAYMENT",
-      "A wallet payment is already in progress for this period. Wait for confirmation or complete the wallet flow."
-    );
-  }
-
-  const txHash = syntheticFreePeriodicTxHash(userId, cadence, periodKey);
-  await prisma.periodicCheckin.upsert({
-    where: { userId_cadence_periodKey: { userId, cadence, periodKey } },
-    create: {
-      userId,
-      cadence,
-      periodKey,
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: 0,
-      chainId: POLYGON_CHAIN_ID
-    },
-    update: {
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: 0,
-      chainId: POLYGON_CHAIN_ID
-    }
-  });
-
-  logSecurityEvent(
-    "checkin_periodic_free_claim_success",
-    { userId, cadence, periodKey, paymentMode: "free" },
-    req
-  );
-  return jsonSuccessWithStreak(res, userId, { status: "confirmed", cadence, periodKey });
-}
-
 export async function claimCheckin(req, res) {
   try {
     const userId = req.user?.id ?? null;
@@ -505,24 +327,13 @@ export async function claimCheckin(req, res) {
       return jsonCheckinError(res, 401, "UNAUTHORIZED", "Authentication required.");
     }
 
-    if (isCheckinPaymentRequired()) {
-      logSecurityWarn("checkin_free_claim_rejected_payment_required", { userId, path: req.path }, req);
-      return jsonCheckinError(
-        res,
-        400,
-        "PAYMENT_REQUIRED",
-        "On-chain POL payment is required. Use wallet check-in; the server verifies every transaction."
-      );
-    }
-
-    const cadence = parseCadenceFromBody(req.body);
-    if (!cadence) {
-      return jsonCheckinError(res, 400, "INVALID_CADENCE", "Invalid check-in cadence. Use daily, weekly, or monthly.");
-    }
-    if (cadence === "daily") {
-      return await claimFreeDailyCheckin(req, res, userId);
-    }
-    return await claimFreePeriodicCheckin(req, res, userId, cadence);
+    logSecurityWarn("checkin_claim_rejected_wallet_only", { userId, path: req.path }, req);
+    return jsonCheckinError(
+      res,
+      400,
+      "PAYMENT_REQUIRED",
+      "Daily check-in requires a 0.01 POL Polygon payment from your linked wallet. Use the Check-in page wallet button; the server verifies every transaction."
+    );
   } catch (e) {
     console.error("claimCheckin", e);
     return res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to complete check-in." });
@@ -552,17 +363,19 @@ async function jsonSuccessWithStreak(res, userId, extra = {}) {
   });
 }
 
-/** On-chain POL check-in when a treasury address is configured (CHECKIN_RECEIVER or DEPOSIT_WALLET_ADDRESS). */
+/** On-chain POL daily check-in (CHECKIN_RECEIVER or DEPOSIT_WALLET_ADDRESS). */
 export async function confirmCheckin(req, res) {
   try {
     const cadence = parseCadenceFromBody(req.body);
-    if (!cadence) {
-      return jsonCheckinError(res, 400, "INVALID_CADENCE", "Invalid check-in cadence. Use daily, weekly, or monthly.");
+    if (cadence !== "daily") {
+      return jsonCheckinError(
+        res,
+        400,
+        "INVALID_CADENCE",
+        "Only daily check-in is available. Send cadence: \"daily\" with your transaction hash."
+      );
     }
-    if (cadence === "daily") {
-      return await confirmDailyCheckin(req, res);
-    }
-    return await confirmPeriodicCheckin(req, res, cadence);
+    return await confirmDailyCheckin(req, res);
   } catch (error) {
     console.error("Checkin confirm error:", error);
     res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to confirm check-in." });
@@ -728,171 +541,6 @@ async function confirmDailyCheckin(req, res) {
   });
 }
 
-async function confirmPeriodicCheckin(req, res, cadence) {
-  const userId = req.user.id;
-  const periodKey = periodKeyForCadence(cadence);
-  if (!periodKey) {
-    return jsonCheckinError(res, 400, "INVALID_CADENCE", "Invalid check-in cadence.");
-  }
-
-  const body = parseTxHashFromBody(req.body);
-  if (body.error) {
-    return jsonCheckinError(res, 400, body.error.code, body.error.message);
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { walletAddress: true }
-  });
-  const walletAddress = user?.walletAddress?.trim();
-  if (!walletAddress) {
-    logSecurityWarn("checkin_confirm_missing_wallet", { userId, cadence }, req);
-    return jsonCheckinError(
-      res,
-      400,
-      "WALLET_REQUIRED",
-      "Link and verify your wallet on the Wallet page before check-in."
-    );
-  }
-
-  const receiver = getReceiver();
-  if (!receiver) {
-    return jsonCheckinError(
-      res,
-      503,
-      "CHECKIN_RECEIVER_NOT_CONFIGURED",
-      "Check-in receiver is not configured on the server."
-    );
-  }
-
-  const existing = await prisma.periodicCheckin.findUnique({
-    where: { userId_cadence_periodKey: { userId, cadence, periodKey } }
-  });
-  if (existing?.status === "confirmed") {
-    return jsonSuccessWithStreak(res, userId, {
-      alreadyCheckedIn: true,
-      status: "confirmed",
-      cadence,
-      periodKey
-    });
-  }
-
-  const txHash = body.txHash;
-  const minWei = getCheckinAmountWei();
-  let evalResult;
-  try {
-    evalResult = await evaluateCheckinTx({
-      txHash,
-      userWalletLower: normalizeAddr(walletAddress),
-      receiverLower: normalizeAddr(receiver),
-      minValueWei: minWei
-    });
-  } catch (err) {
-    logSecurityWarn(
-      "checkin_confirm_blockchain_unavailable",
-      { userId, cadence, reason: err?.message || "unknown_error" },
-      req
-    );
-    return jsonCheckinError(
-      res,
-      503,
-      "BLOCKCHAIN_UNAVAILABLE",
-      "Could not reach blockchain providers to verify the check-in payment."
-    );
-  }
-
-  if (evalResult.state === "pending") {
-    await prisma.periodicCheckin.upsert({
-      where: { userId_cadence_periodKey: { userId, cadence, periodKey } },
-      create: {
-        userId,
-        cadence,
-        periodKey,
-        txHash,
-        status: "pending",
-        confirmedAt: null,
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      },
-      update: {
-        txHash,
-        status: "pending",
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      }
-    });
-    return res.json({
-      ok: false,
-      pending: true,
-      cadence,
-      periodKey,
-      code: "TRANSACTION_NOT_CONFIRMED",
-      message: "Transaction was sent but is still waiting for confirmation."
-    });
-  }
-
-  if (evalResult.state === "failed") {
-    await prisma.periodicCheckin.upsert({
-      where: { userId_cadence_periodKey: { userId, cadence, periodKey } },
-      create: {
-        userId,
-        cadence,
-        periodKey,
-        txHash,
-        status: "failed",
-        confirmedAt: null,
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      },
-      update: {
-        txHash,
-        status: "failed",
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      }
-    });
-    return jsonCheckinError(
-      res,
-      400,
-      "INVALID_TRANSACTION",
-      evalResult.reason || "This transaction cannot be used for check-in."
-    );
-  }
-
-  await prisma.periodicCheckin.upsert({
-    where: { userId_cadence_periodKey: { userId, cadence, periodKey } },
-    create: {
-      userId,
-      cadence,
-      periodKey,
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: Number(minWei) / 1e18,
-      chainId: POLYGON_CHAIN_ID
-    },
-    update: {
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: Number(minWei) / 1e18,
-      chainId: POLYGON_CHAIN_ID
-    }
-  });
-
-  logSecurityEvent(
-    "checkin_periodic_confirm_success",
-    { userId, walletLinked: true, cadence, periodKey, txHash },
-    req
-  );
-
-  return jsonSuccessWithStreak(res, userId, {
-    status: "confirmed",
-    cadence,
-    periodKey
-  });
-}
-
 /**
  * Wallet-based check-in: same verification path as POST /checkin/confirm (single source of truth).
  */
@@ -907,6 +555,6 @@ export async function checkinBalance(_req, res) {
   return res.status(410).json({
     ok: false,
     code: "CHECKIN_BALANCE_DISABLED",
-    message: "Balance check-in is disabled. Use wallet check-in (daily, weekly, or monthly)."
+    message: "Balance check-in is disabled. Use the daily wallet check-in on the Check-in page (0.01 POL on Polygon)."
   });
 }
