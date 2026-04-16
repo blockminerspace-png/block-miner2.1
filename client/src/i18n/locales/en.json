@@ -1617,7 +1617,10 @@
       "invalid_tx": "Enter a valid transaction hash (0x + 64 hex characters).",
       "disabled_hint_keys": "HD deposit is misconfigured. Set environment variable(s): {{keys}}",
       "setup_incomplete": "HD deposit is not fully configured on the server. Check POLYGON_HD_* and PHD_* variables.",
-      "min_amount_error": "Minimum HD deposit is {{min}} POL."
+      "min_amount_error": "Minimum HD deposit is {{min}} POL.",
+      "server_env_hint": "Custodial HD deposit: set POLYGON_HD_DEPOSIT_ENABLED=1 on the API server, then redeploy or restart the app container.",
+      "server_flag_off_panel": "This option is visible, but the API has POLYGON_HD_DEPOSIT_ENABLED unset or not equal to 1. Add it to the server environment (e.g. .env.production), restart the app, and reload this page.",
+      "server_flag_off_toast": "HD deposit is not enabled on the server yet (POLYGON_HD_DEPOSIT_ENABLED=1 required)."
     },
     "deposit_options": {
       "smart_contract": "Smart contract deposit",
