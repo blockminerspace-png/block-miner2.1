@@ -107,6 +107,10 @@ function baseDirectives({ allowWebSockets }) {
             /** Per-request nonce set in server bootstrap (reduces XSS blast radius vs blanket unsafe-inline). */
             (req, res) => `'nonce-${res.locals.cspNonce || ""}'`,
             "'unsafe-eval'",
+            // Reown AppKit / WalletConnect bundle injects tiny inline bootstrap scripts (no nonce); hashes from browser CSP console.
+            // If AppKit upgrades change these, add new hashes from the CSP violation or switch to a nonce-friendly build.
+            "'sha256-NJS0Wtnrtaj0vSuZKVDn1gR0BSXI5XqyNQHem7I9CyM='",
+            "'sha256-NzvNrqk5jB9YZATwo5BF4JoRlJ02HsnFikbKXgEPdaQ='",
             // Turnstile: https://developers.cloudflare.com/turnstile/reference/content-security-policy/
             "https://challenges.cloudflare.com",
             "https://cdn.jsdelivr.net",

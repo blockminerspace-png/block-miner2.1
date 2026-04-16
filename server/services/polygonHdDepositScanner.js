@@ -165,16 +165,23 @@ export async function runPolygonHdDepositScanOnce() {
           } catch {
             return false;
           }
-          await ptx.transaction.create({
-            data: {
-              userId: row.userId,
-              type: "deposit",
-              amount: Number.isFinite(valuePol) && valuePol > 0 ? String(valuePol) : "0",
-              txHash: hash,
-              status: "pending_verification",
-              verifyAttempts: 0
+          try {
+            await ptx.transaction.create({
+              data: {
+                userId: row.userId,
+                type: "deposit",
+                amount: Number.isFinite(valuePol) && valuePol > 0 ? String(valuePol) : "0",
+                txHash: hash,
+                status: "pending_verification",
+                verifyAttempts: 0
+              }
+            });
+          } catch (e) {
+            if (e?.code === "P2002") {
+              return false;
             }
-          });
+            throw e;
+          }
           return true;
         });
         if (inserted) {

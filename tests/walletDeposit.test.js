@@ -196,3 +196,36 @@ test("submitDeposit returns 200 and queues verification for valid new hash", asy
         if (originalUpdate) prisma.user.update = originalUpdate;
     }
 });
+
+test("submitDeposit handles P2002 race as same-user pending row", async () => {
+    const hash = "0x" + "d".repeat(64);
+    const originalFindFirst = prisma.transaction.findFirst;
+    const originalCreate = prisma.transaction.create;
+
+    let findCalls = 0;
+    prisma.transaction.findFirst = async (args) => {
+        findCalls += 1;
+        // Pre-submit checks: no row; post-P2002 winner lookup: same user pending
+        if (findCalls <= 2) {
+            return null;
+        }
+        return { id: 42, userId: 1, status: "pending_verification", txHash: hash };
+    };
+    prisma.transaction.create = async () => {
+        const err = new Error("Unique constraint failed");
+        err.code = "P2002";
+        throw err;
+    };
+
+    const req = { user: { id: 1 }, body: { txHash: hash, claimedAmount: "2" } };
+    const res = createRes();
+    try {
+        await walletController.submitDeposit(req, res);
+        assert.equal(res.statusCode, 200);
+        assert.equal(res.body?.ok, true);
+        assert.equal(res.body?.deposit?.id, 42);
+    } finally {
+        prisma.transaction.findFirst = originalFindFirst;
+        prisma.transaction.create = originalCreate;
+    }
+});

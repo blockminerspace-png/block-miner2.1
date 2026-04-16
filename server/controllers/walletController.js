@@ -338,17 +338,51 @@ export async function submitDeposit(req, res) {
       });
     }
 
-    // Registra depósito como pending_verification
-    const deposit = await prisma.transaction.create({
-      data: {
-        userId,
-        type: "deposit",
-        amount: parsedClaimed > 0 ? parsedClaimed.toString() : "0",
-        txHash: normalizedHash,
-        status: "pending_verification",
-        verifyAttempts: 0
+    // Registra depósito como pending_verification (unique index on deposit tx_hash prevents double-claim races)
+    let deposit;
+    try {
+      deposit = await prisma.transaction.create({
+        data: {
+          userId,
+          type: "deposit",
+          amount: parsedClaimed > 0 ? parsedClaimed.toString() : "0",
+          txHash: normalizedHash,
+          status: "pending_verification",
+          verifyAttempts: 0
+        }
+      });
+    } catch (err) {
+      if (err?.code === "P2002") {
+        const winner = await prisma.transaction.findFirst({
+          where: { txHash: normalizedHash, type: "deposit" }
+        });
+        if (winner?.userId === userId) {
+          logger.info("submitDeposit deduped concurrent same-user claim", { userId, txHash: normalizedHash });
+          return res.json({
+            ok: true,
+            deposit: {
+              id: winner.id,
+              txHash: normalizedHash,
+              status: winner.status
+            },
+            message:
+              winner.status === "pending_verification"
+                ? "Depósito já está em verificação."
+                : "Esta transação já está registada."
+          });
+        }
+        logger.warn("submitDeposit unique conflict — hash taken by another user or race", {
+          userId,
+          txHash: normalizedHash
+        });
+        return res.status(409).json({
+          ok: false,
+          code: "HASH_CLAIMED",
+          message: "Esta transação já foi registada por outra conta."
+        });
       }
-    });
+      throw err;
+    }
 
     // Dispara verificação assíncrona imediatamente (não bloqueia resposta)
     runDepositVerifier().catch(() => {});
