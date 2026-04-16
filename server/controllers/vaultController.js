@@ -137,14 +137,53 @@ function respondRetrieveFromVaultError(req, res, error) {
 const VAULT_BULK_MAX = 120;
 
 /**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+function coerceStrictPositiveInt(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0 && value <= Number.MAX_SAFE_INTEGER) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!/^\d{1,15}$/.test(t)) return null;
+    const n = Number(t);
+    if (!Number.isSafeInteger(n) || n < 1) return null;
+    return n;
+  }
+  return null;
+}
+
+/**
+ * Rack slot index (0..79).
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+function coerceVaultSlotIndex(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value < 80) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!/^\d{1,2}$/.test(t)) return null;
+    const n = Number(t);
+    if (!Number.isInteger(n) || n < 0 || n >= 80) return null;
+    return n;
+  }
+  return null;
+}
+
+/**
  * @param {unknown[]} raw
  * @returns {number[]}
  */
 function normalizePositiveIntIds(raw) {
   if (!Array.isArray(raw)) return [];
-  const out = raw
-    .map((x) => Number(x))
-    .filter((n) => Number.isInteger(n) && n > 0);
+  const out = [];
+  for (const x of raw) {
+    const n = coerceStrictPositiveInt(x);
+    if (n != null) out.push(n);
+  }
   return [...new Set(out)].sort((a, b) => a - b);
 }
 
@@ -157,8 +196,8 @@ function normalizeVaultIdsFromBody(body) {
     Array.isArray(body?.vaultIds) ? body.vaultIds : [],
   );
   if (fromArr.length > 0) return fromArr.slice(0, VAULT_BULK_MAX);
-  const one = Number(body?.vaultId);
-  if (Number.isInteger(one) && one > 0) return [one];
+  const one = coerceStrictPositiveInt(body?.vaultId);
+  if (one != null) return [one];
   return [];
 }
 
@@ -374,9 +413,10 @@ export async function moveToVault(req, res) {
     if (source === "inventory") {
       const idsFromBody = Array.isArray(itemIds)
         ? normalizePositiveIntIds(itemIds)
-        : Number.isInteger(Number(itemId)) && Number(itemId) > 0
-          ? [Number(itemId)]
-          : [];
+        : (() => {
+            const one = coerceStrictPositiveInt(itemId);
+            return one != null ? [one] : [];
+          })();
       if (idsFromBody.length === 0 || idsFromBody.length > VAULT_BULK_MAX) {
         return res.status(400).json({
           ok: false,
@@ -427,8 +467,8 @@ export async function moveToVault(req, res) {
       }
     }
 
-    const mid = Number(itemId);
-    if (!Number.isInteger(mid) || mid < 1) {
+    const mid = coerceStrictPositiveInt(itemId);
+    if (mid == null) {
       return res.status(400).json({
         ok: false,
         code: SecurityErrorCodes.INVALID_STATE,
@@ -601,9 +641,8 @@ export async function retrieveFromVault(req, res) {
       }
     }
 
-    const rawVaultId = req.body?.vaultId;
-    const vaultId = typeof rawVaultId === "number" ? rawVaultId : Number(rawVaultId);
-    if (!Number.isFinite(vaultId) || !Number.isInteger(vaultId) || vaultId < 1) {
+    const vaultId = coerceStrictPositiveInt(req.body?.vaultId);
+    if (vaultId == null) {
       return res.status(400).json({
         ok: false,
         code: SecurityErrorCodes.INVALID_STATE,
@@ -612,9 +651,8 @@ export async function retrieveFromVault(req, res) {
       });
     }
 
-    const rawSlot = req.body?.slotIndex;
-    const slotIndex = typeof rawSlot === "number" ? rawSlot : Number(rawSlot);
-    if (!Number.isFinite(slotIndex) || !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= 80) {
+    const slotIndex = coerceVaultSlotIndex(req.body?.slotIndex);
+    if (slotIndex == null) {
       return res.status(400).json({
         ok: false,
         code: SecurityErrorCodes.INVALID_STATE,

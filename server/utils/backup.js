@@ -3,6 +3,8 @@ const fsp = require("fs/promises");
 const path = require("path");
 const { spawn } = require("child_process");
 
+const IS_WIN = process.platform === "win32";
+
 function pad2(value) {
   return String(value).padStart(2, "0");
 }
@@ -171,11 +173,17 @@ async function runCloudBackupCommand({ backupFile, commandTemplate, timeoutMs })
   const startedAt = Date.now();
 
   return await new Promise((resolve) => {
-    const child = spawn(command, {
-      shell: true,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
+    const child = IS_WIN
+      ? spawn(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command], {
+          shell: false,
+          windowsHide: true,
+          stdio: ["ignore", "pipe", "pipe"]
+        })
+      : spawn("/bin/sh", ["-c", command], {
+          shell: false,
+          windowsHide: true,
+          stdio: ["ignore", "pipe", "pipe"]
+        });
 
     let stdout = "";
     let stderr = "";
@@ -264,12 +272,15 @@ async function createFullSiteBackup({ backupDir, filenamePrefix, logger }) {
     "data/blockminer.db-shm"
   ];
 
-  const excludeArgs = excludeDirs.map(dir => `--exclude='${dir}'`).join(" ");
-  const tarCommand = `cd "${appRoot}" && tar -czf "${backupFile}" ${excludeArgs} .`;
+  const tarArgs = ["-czf", backupFile];
+  for (const dir of excludeDirs) {
+    tarArgs.push("--exclude", dir);
+  }
+  tarArgs.push("-C", appRoot, ".");
 
   return await new Promise((resolve, reject) => {
-    const child = spawn(tarCommand, {
-      shell: true,
+    const child = spawn("tar", tarArgs, {
+      shell: false,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]
     });

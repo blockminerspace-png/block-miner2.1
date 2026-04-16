@@ -12,6 +12,21 @@ import { sweepHdDepositAddressesOnce } from "./services/polygonHdSweep.js";
 
 const logger = loggerLib.child("PhdServer");
 
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+function parsePositiveUserId(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0 && value <= Number.MAX_SAFE_INTEGER) {
+    return value;
+  }
+  const s = String(value ?? "").trim();
+  if (!/^\d{1,15}$/.test(s)) return null;
+  const n = Number(s);
+  if (!Number.isSafeInteger(n) || n < 1) return null;
+  return n;
+}
+
 function timingSafeEqualToken(a, b) {
   const aa = Buffer.from(String(a ?? ""), "utf8");
   const bb = Buffer.from(String(b ?? ""), "utf8");
@@ -42,8 +57,8 @@ app.post("/internal/hd/addresses", async (req, res) => {
       return res.status(401).json({ ok: false, message: "Unauthorized." });
     }
 
-    const userId = Number(req.body?.userId);
-    if (!Number.isInteger(userId) || userId < 1) {
+    const userId = parsePositiveUserId(req.body?.userId);
+    if (userId == null) {
       return res.status(400).json({ ok: false, message: "Invalid userId." });
     }
 

@@ -40,6 +40,35 @@ import crypto from "crypto";
 
 export const adminRouter = express.Router();
 
+/**
+ * @param {unknown} raw
+ * @returns {number | null}
+ */
+function parseStrictPositiveUserId(raw) {
+  const s = String(raw ?? "").trim();
+  if (!/^\d{1,12}$/.test(s)) return null;
+  const n = Number(s);
+  if (!Number.isSafeInteger(n) || n < 1) return null;
+  return n;
+}
+
+/**
+ * @param {unknown} raw
+ * @param {number} fallback
+ * @param {number} max
+ * @returns {number | null} null if invalid
+ */
+function parseStrictQuantity(raw, fallback, max) {
+  if (raw === undefined || raw === null || raw === "") {
+    return Math.min(max, Math.max(1, fallback));
+  }
+  const s = String(raw).trim();
+  if (!/^\d{1,3}$/.test(s)) return null;
+  const n = Number(s);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return Math.min(max, Math.max(1, n));
+}
+
 const backupLogger = loggerLib.child("AdminBackup");
 const adminAuditListLogger = loggerLib.child("AdminAuditList");
 
@@ -666,8 +695,8 @@ adminRouter.get("/users/:id/activity-summary", adminUserInsightsController.getUs
 // User Details
 adminRouter.get("/users/:id/details", async (req, res) => {
     try {
-        const userId = parseInt(req.params.id);
-        if (!userId || isNaN(userId)) return res.status(400).json({ ok: false });
+        const userId = parseStrictPositiveUserId(req.params.id);
+        if (userId == null) return res.status(400).json({ ok: false });
 
         const [user, machines, hashAgg, faucet, transactions, supportMessages] = await Promise.all([
             prisma.user.findUnique({
@@ -718,8 +747,8 @@ adminRouter.get("/users/:id/details", async (req, res) => {
 // User Activity Logs
 adminRouter.get("/users/:id/logs", async (req, res) => {
     try {
-        const userId = parseInt(req.params.id);
-        if (!userId || isNaN(userId)) return res.status(400).json({ ok: false });
+        const userId = parseStrictPositiveUserId(req.params.id);
+        if (userId == null) return res.status(400).json({ ok: false });
 
         const logs = await prisma.auditLog.findMany({
             where: { userId },
@@ -737,11 +766,12 @@ adminRouter.get("/users/:id/logs", async (req, res) => {
 // Send Miner to User
 adminRouter.post("/users/:id/send-miner", async (req, res) => {
     try {
-        const userId = parseInt(req.params.id);
+        const userId = parseStrictPositiveUserId(req.params.id);
         const minerIdRaw = String(req.body?.minerId ?? '');
-        const quantity = Math.max(1, Math.min(100, parseInt(req.body?.quantity || 1)));
+        const quantity = parseStrictQuantity(req.body?.quantity, 1, 100);
+        if (quantity == null) return res.status(400).json({ ok: false, message: 'Quantidade inválida.' });
 
-        if (!userId || isNaN(userId)) return res.status(400).json({ ok: false, message: 'ID de usuário inválido.' });
+        if (userId == null) return res.status(400).json({ ok: false, message: 'ID de usuário inválido.' });
         if (!minerIdRaw) return res.status(400).json({ ok: false, message: 'ID de máquina inválido.' });
 
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, email: true } });
@@ -751,8 +781,8 @@ adminRouter.post("/users/:id/send-miner", async (req, res) => {
         const isEventMiner = minerIdRaw.startsWith('event_');
 
         if (isEventMiner) {
-            const eventMinerId = parseInt(minerIdRaw.replace('event_', ''));
-            if (!eventMinerId || isNaN(eventMinerId)) return res.status(400).json({ ok: false, message: 'ID de máquina de evento inválido.' });
+            const eventMinerId = parseStrictPositiveUserId(minerIdRaw.replace('event_', ''));
+            if (eventMinerId == null) return res.status(400).json({ ok: false, message: 'ID de máquina de evento inválido.' });
             const eventMiner = await prisma.eventMiner.findUnique({ where: { id: eventMinerId } });
             if (!eventMiner) return res.status(404).json({ ok: false, message: 'Máquina de evento não encontrada.' });
 
@@ -774,8 +804,8 @@ adminRouter.post("/users/:id/send-miner", async (req, res) => {
             });
             res.json({ ok: true, message: `${quantity}x ${eventMiner.name} enviado(s) para ${user.username || user.email}.` });
         } else {
-            const minerId = parseInt(minerIdRaw);
-            if (!minerId || isNaN(minerId)) return res.status(400).json({ ok: false, message: 'ID de máquina inválido.' });
+            const minerId = parseStrictPositiveUserId(minerIdRaw);
+            if (minerId == null) return res.status(400).json({ ok: false, message: 'ID de máquina inválido.' });
             const miner = await prisma.miner.findUnique({ where: { id: minerId } });
             if (!miner) return res.status(404).json({ ok: false, message: 'Máquina não encontrada.' });
 

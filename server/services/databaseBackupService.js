@@ -344,13 +344,27 @@ export async function resolveBackupDownloadPath(filename) {
     err.code = "EINVAL";
     throw err;
   }
-  const backupsDir = getAdminBackupsDirectory();
-  const full = path.join(backupsDir, safe);
+  const backupsDir = path.resolve(getAdminBackupsDirectory());
+  const full = path.resolve(path.join(backupsDir, safe));
+  const rel = path.relative(backupsDir, full);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    const err = new Error("Invalid backup filename");
+    err.code = "EINVAL";
+    throw err;
+  }
   try {
     await fs.access(full);
   } catch {
     const err = new Error("Backup file not found");
     err.code = "ENOENT";
+    throw err;
+  }
+  const realDir = await fs.realpath(backupsDir);
+  const realFile = await fs.realpath(full);
+  const relReal = path.relative(realDir, realFile);
+  if (relReal.startsWith("..") || path.isAbsolute(relReal)) {
+    const err = new Error("Invalid backup filename");
+    err.code = "EINVAL";
     throw err;
   }
   return full;

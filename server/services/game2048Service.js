@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
@@ -66,7 +67,11 @@ async function getOrCreateGame2048GameId(tx) {
  * @param {number} userId
  */
 async function lockUserFor2048(tx, userId) {
-  await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId} FOR UPDATE`;
+  const uid = Math.floor(Number(userId));
+  if (!Number.isInteger(uid) || uid < 1 || uid > 2_147_483_647) {
+    throw new Error("lockUserFor2048: invalid userId");
+  }
+  await tx.$queryRaw(Prisma.sql`SELECT 1 FROM users WHERE id = ${uid} FOR UPDATE`);
 }
 
 /**

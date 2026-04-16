@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import prisma from '../db/prisma.js';
 import loggerLib from '../../utils/logger.js';
 import { syncUserBaseHashRate } from '../../models/minerProfileModel.js';
@@ -24,6 +25,27 @@ const MEMORY_MISMATCH_TOTAL_MS = MEMORY_FLIP_OPEN_SETTLE_MS + MEMORY_MISMATCH_HO
 
 const SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano', 'polkadot', 'dogecoin', 'polygon'];
 const MATCH3_SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano'];
+
+/**
+ * Fisher–Yates shuffle using cryptographically strong indices.
+ * @template T
+ * @param {T[]} items
+ * @returns {T[]}
+ */
+function secureShuffle(items) {
+  const a = [...items];
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = crypto.randomInt(0, i + 1);
+    const t = a[i];
+    a[i] = a[j];
+    a[j] = t;
+  }
+  return a;
+}
+
+function randomMatch3Symbol() {
+  return MATCH3_SYMBOLS[crypto.randomInt(0, MATCH3_SYMBOLS.length)];
+}
 
 export function registerGamesSocketHandlers({ io, engine }) {
   io.on("connection", (socket) => {
@@ -71,9 +93,12 @@ export function registerGamesSocketHandlers({ io, engine }) {
         };
 
         if (gameSlug === 'crypto-memory') {
-          initialState.board = [...SYMBOLS, ...SYMBOLS]
-            .sort(() => Math.random() - 0.5)
-            .map((symbol, id) => ({ id, symbol, isFlipped: false, isMatched: false }));
+          initialState.board = secureShuffle([...SYMBOLS, ...SYMBOLS]).map((symbol, id) => ({
+            id,
+            symbol,
+            isFlipped: false,
+            isMatched: false,
+          }));
           initialState.flipped = [];
           socket.emit("game:started", { game: gameSlug, board: initialState.board.map(c => ({ id: c.id, isFlipped: false, isMatched: false })), score: 0 });
         } 
@@ -169,7 +194,7 @@ function generateStableBoard() {
     board[y] = [];
     for (let x = 0; x < 8; x++) {
       let s;
-      do { s = MATCH3_SYMBOLS[Math.floor(Math.random() * MATCH3_SYMBOLS.length)]; }
+      do { s = randomMatch3Symbol(); }
       while ((x >= 2 && board[y][x-1] === s && board[y][x-2] === s) || (y >= 2 && board[y-1][x] === s && board[y-2][x] === s));
       board[y][x] = s;
     }
@@ -236,7 +261,7 @@ function processCascades(board, matches) {
       }
     }
     for (let y = emptyRow; y >= 0; y--) {
-      board[y][x] = MATCH3_SYMBOLS[Math.floor(Math.random() * MATCH3_SYMBOLS.length)];
+      board[y][x] = randomMatch3Symbol();
     }
   }
 }

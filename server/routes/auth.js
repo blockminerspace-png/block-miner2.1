@@ -123,6 +123,35 @@ const authLimiter = createDistributedRateLimiter({
   keyGenerator: (req) => `ip:${getRequestIp(req)}`,
 });
 
+/** Completing a password reset (token + new password) — tighter than generic auth. */
+const passwordResetCompleteLimiter = createDistributedRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 10,
+  name: "auth_pwd_reset_complete_ip",
+  keyGenerator: (req) => `ip:${getRequestIp(req)}`,
+});
+
+/** Admin-key password reset endpoints — brute-force protection for the shared secret. */
+const adminManualPasswordResetLimiter = createDistributedRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 8,
+  name: "auth_admin_pwd_reset_ip",
+  keyGenerator: (req) => `ip:${getRequestIp(req)}`,
+});
+
+/**
+ * Constant-time comparison for admin shared secrets (fixed-width SHA-256 digests).
+ * @param {unknown} supplied
+ * @param {string | undefined} expectedFromEnv
+ */
+function timingSafeAdminSecretEqual(supplied, expectedFromEnv) {
+  const exp = String(expectedFromEnv ?? "");
+  if (!exp) return false;
+  const left = crypto.createHash("sha256").update(String(supplied ?? ""), "utf8").digest();
+  const right = crypto.createHash("sha256").update(exp, "utf8").digest();
+  return crypto.timingSafeEqual(left, right);
+}
+
 function normalizeIdentifier(value) {
   return String(value || "").trim();
 }
@@ -653,7 +682,7 @@ authRouter.post("/mark-adblock", requireAuth, async (req, res) => {
   }
 });
 
-authRouter.post("/legacy-password-reset", async (req, res) => {
+authRouter.post("/legacy-password-reset", passwordResetCompleteLimiter, async (req, res) => {
   try {
     const { resetToken, newPassword } = req.body;
     if (!resetToken || !newPassword || newPassword.length < 8) {
@@ -687,12 +716,12 @@ authRouter.post("/legacy-password-reset", async (req, res) => {
   }
 });
 
-authRouter.post("/reset-password-manual", async (req, res) => {
+authRouter.post("/reset-password-manual", adminManualPasswordResetLimiter, async (req, res) => {
   try {
     const { email, newPassword, adminKey } = req.body;
     
     // Segurança básica para esta rota manual
-    if (adminKey !== process.env.ADMIN_SECURITY_CODE) {
+    if (!timingSafeAdminSecretEqual(adminKey, process.env.ADMIN_SECURITY_CODE)) {
       return res.status(403).json({ ok: false, message: "Unauthorized manual reset." });
     }
 
@@ -753,12 +782,12 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
 });
 
 // 🔐 Redefinição Forçada com Admin (requer chave de admin)
-authRouter.post("/admin/force-password-reset", async (req, res) => {
+authRouter.post("/admin/force-password-reset", adminManualPasswordResetLimiter, async (req, res) => {
   try {
     const { email, newPassword, adminKey } = req.body;
     
     // Validação de chave de admin
-    if (!adminKey || adminKey !== process.env.ADMIN_SECURITY_CODE) {
+    if (!timingSafeAdminSecretEqual(adminKey, process.env.ADMIN_SECURITY_CODE)) {
       return res.status(403).json({ ok: false, message: "Chave de admin inválida." });
     }
 

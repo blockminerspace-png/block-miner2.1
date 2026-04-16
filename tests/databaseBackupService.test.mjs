@@ -8,6 +8,7 @@ import {
   metaPathForSqlFile,
   sanitizeDatabaseUrlForPgDump,
   CRITICAL_PUBLIC_TABLES,
+  resolveBackupDownloadPath,
 } from "../server/services/databaseBackupService.js";
 
 describe("databaseBackupService", () => {
@@ -61,5 +62,22 @@ describe("databaseBackupService", () => {
       sanitizeDatabaseUrlForPgDump(raw),
       "postgresql://user:secret@db:5432/blockminer_db?sslmode=require",
     );
+  });
+
+  it("resolveBackupDownloadPath rejects traversal-looking names", async () => {
+    const prev = process.env.BACKUP_DIR;
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "bm-bk-"));
+    process.env.BACKUP_DIR = dir;
+    const okName = "backup-testcase-20260101-120000.sql";
+    await fs.writeFile(path.join(dir, okName), "-- dump\n", "utf8");
+
+    const resolved = await resolveBackupDownloadPath(okName);
+    assert.ok(resolved.includes(okName));
+
+    await assert.rejects(() => resolveBackupDownloadPath("../outside.sql"), (e) => e.message === "Invalid backup filename");
+    await assert.rejects(() => resolveBackupDownloadPath("not-backup.sql"), (e) => e.message === "Invalid backup filename");
+
+    process.env.BACKUP_DIR = prev;
+    await fs.rm(dir, { recursive: true, force: true });
   });
 });
