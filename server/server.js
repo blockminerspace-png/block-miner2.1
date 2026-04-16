@@ -71,6 +71,7 @@ import {
 } from "./services/streaming/streamRunner.js";
 import { startDepositVerifier } from "./services/depositVerifier.js";
 import { startContractDepositSync } from "./services/contractDepositSync.js";
+import { startPolygonHdDepositScanner } from "./services/polygonHdDepositScanner.js";
 import { registerMinerSocketHandlers } from "./src/socket/registerMinerSocketHandlers.js";
 import { registerGamesSocketHandlers } from "./src/socket/registerGamesSocketHandlers.js";
 import { registerSupportSocketHandlers } from "./src/socket/registerSupportSocketHandlers.js";
@@ -609,6 +610,7 @@ async function bootstrap() {
       });
       startDepositVerifier();
       startContractDepositSync();
+      startPolygonHdDepositScanner();
       if (process.env.NODE_ENV !== "test") {
         startAuditOutboxWorker();
       }

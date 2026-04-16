@@ -63,11 +63,12 @@ app.post("/internal/hd/addresses", async (req, res) => {
 app.listen(port, "0.0.0.0", () => {
   logger.info(`Polygon HD deposit service listening on ${port}`);
   if (process.env.POLYGON_HD_AUTO_SWEEP === "1") {
-    cron.schedule("*/2 * * * *", () => {
+    const sweepCron = (process.env.POLYGON_HD_SWEEP_CRON || "*/5 * * * *").trim() || "*/5 * * * *";
+    cron.schedule(sweepCron, () => {
       sweepHdDepositAddressesOnce().catch((err) =>
         logger.warn("HD sweep cron error", { error: err.message })
       );
     });
-    logger.info("POLYGON_HD_AUTO_SWEEP=1 — sweep cron every 2 minutes");
+    logger.info(`POLYGON_HD_AUTO_SWEEP=1 — sweep cron ${sweepCron}`);
   }
 });
