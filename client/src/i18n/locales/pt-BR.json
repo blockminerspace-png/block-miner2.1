@@ -1617,6 +1617,7 @@
       "tx_placeholder": "0x…",
       "register_cta": "Registar transação",
       "load_error": "Não foi possível carregar o endereço de depósito.",
+      "rate_limit_error": "Muitas requisições ao servidor. Aguarda cerca de {{seconds}} segundos e recarrega a página.",
       "invalid_tx": "Indica um hash válido (0x + 64 caracteres hexadecimais).",
       "disabled_hint_keys": "Depósito HD mal configurado. Define no servidor: {{keys}}",
       "setup_incomplete": "Depósito HD incompleto no servidor. Verifica variáveis POLYGON_HD_* e PHD_*.",

@@ -370,16 +370,27 @@ export default function Wallet() {
                 } else {
                     setPolygonHdLoadError(res.data?.message || t('wallet.polygon_hd.load_error'));
                 }
-            } catch {
-                if (!cancelled) {
-                    setPolygonHdLoadError(t('wallet.polygon_hd.load_error'));
+            } catch (err) {
+                if (cancelled) return;
+                const status = err?.response?.status;
+                const retryRaw =
+                    err?.response?.data?.details?.retryAfterSec ??
+                    err?.response?.headers?.['retry-after'];
+                const retryAfter = parseInt(String(retryRaw ?? ''), 10);
+                if (status === 429) {
+                    const sec = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 15;
+                    setPolygonHdLoadError(t('wallet.polygon_hd.rate_limit_error', { seconds: sec }));
+                } else {
+                    const apiMsg =
+                        typeof err?.response?.data?.message === 'string' ? err.response.data.message : '';
+                    setPolygonHdLoadError(apiMsg || t('wallet.polygon_hd.load_error'));
                 }
             }
         })();
         return () => {
             cancelled = true;
         };
-    }, [depositChannel, polygonHdDepositEnabled, polygonHdMissingEnvKeys, t]);
+    }, [depositChannel, polygonHdDepositEnabled, polygonHdMissingEnvKeys, polygonHdFeatureVisible, t]);
 
     useEffect(() => {
         if (depositChannel === 'btcpay' && !btcpayDepositEnabled) {

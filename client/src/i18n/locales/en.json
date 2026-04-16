@@ -1614,6 +1614,7 @@
       "tx_placeholder": "0x…",
       "register_cta": "Register transaction",
       "load_error": "Could not load your deposit address.",
+      "rate_limit_error": "Too many requests. Wait about {{seconds}} seconds and refresh the page.",
       "invalid_tx": "Enter a valid transaction hash (0x + 64 hex characters).",
       "disabled_hint_keys": "HD deposit is misconfigured. Set environment variable(s): {{keys}}",
       "setup_incomplete": "HD deposit is not fully configured on the server. Check POLYGON_HD_* and PHD_* variables.",
