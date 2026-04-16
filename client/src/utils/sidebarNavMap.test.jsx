@@ -132,7 +132,7 @@ describe('sidebarNavMap', () => {
                 itemId: 'daily_tasks',
                 labelKey: 'sidebar.daily_tasks',
                 icon: 'ListChecks',
-                path: '/daily-tasks',
+                path: '/tasks',
               },
               { itemId: 'faucet', labelKey: 'sidebar.faucet', icon: 'Gift', path: '/faucet' },
             ],

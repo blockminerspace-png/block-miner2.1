@@ -44,9 +44,12 @@ describe("DailyTasks page", () => {
             id: 1,
             slug: "daily-login",
             taskType: "LOGIN_DAY",
+            resetCadence: "DAILY",
             translationKey: "dailyTasks.tasks.login",
             targetValue: 1,
             currentValue: 1,
+            periodKey: "2026-04-10",
+            nextResetAt: "2026-04-11T03:00:00.000Z",
             status: "completed",
             reward: { kind: "BLK", amount: "0.01" },
             gameSlug: null

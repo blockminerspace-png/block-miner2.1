@@ -90,13 +90,16 @@ export async function getDailyTasksDashboard(userId) {
 
   const periodByDef = new Map();
   const periodKeys = new Set();
+  const nextResetByDefId = new Map();
   let nextResetAtMs = Number.POSITIVE_INFINITY;
   for (const def of defs) {
     const cadence = normalizeDailyTaskResetCadence(def.resetCadence);
     const key = getDailyTaskPeriodKey(now, cadence);
     periodByDef.set(def.id, key);
     periodKeys.add(key);
-    const resetAt = getNextDailyTaskResetAt(now, cadence).getTime();
+    const nextReset = getNextDailyTaskResetAt(now, cadence);
+    nextResetByDefId.set(def.id, nextReset.toISOString());
+    const resetAt = nextReset.getTime();
     if (Number.isFinite(resetAt) && resetAt < nextResetAtMs) nextResetAtMs = resetAt;
   }
 
@@ -123,6 +126,7 @@ export async function getDailyTasksDashboard(userId) {
       resetCadence,
       translationKey: def.translationKey,
       periodKey,
+      nextResetAt: nextResetByDefId.get(def.id) || getNextDailyTaskResetAt(now, resetCadence).toISOString(),
       targetValue: target,
       currentValue: current,
       status: deriveStatus(row),

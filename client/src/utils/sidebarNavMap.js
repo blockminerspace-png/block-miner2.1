@@ -61,7 +61,7 @@ export function resolveSidebarIcon(iconName) {
 }
 
 const MINI_PASS_PATH = '/mini-pass';
-const DAILY_TASKS_PATH = '/daily-tasks';
+const DAILY_TASKS_PATH = '/tasks';
 
 /**
  * Ensures Mini Pass and Daily Tasks are never nested under the Rewards folder (legacy payloads).

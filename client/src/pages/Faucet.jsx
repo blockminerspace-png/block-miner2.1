@@ -162,15 +162,14 @@ export default function Faucet() {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">{reward?.name || 'Pulse Mini v1'}</h2>
-                                <div className="flex items-center justify-center gap-4 text-primary font-black">
-                                    <div className="flex items-center gap-2">
-                                        <Zap className="w-4 h-4" />
+                                <div className="flex flex-col items-center gap-2">
+                                    <div className="flex items-center justify-center gap-2 text-primary font-black">
+                                        <Zap className="w-4 h-4" aria-hidden />
                                         <span className="text-lg">{reward?.hashRate || 1} {t('faucet.ghs')}</span>
                                     </div>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-800" />
-                                    <div className="flex items-center gap-2">
-                                        <Infinity className="w-4 h-4 shrink-0" aria-hidden />
-                                        <span className="text-lg">
+                                    <div className="flex items-center justify-center gap-1.5 text-slate-400 text-xs font-semibold tracking-wide">
+                                        <Infinity className="w-3.5 h-3.5 shrink-0 opacity-80" aria-hidden />
+                                        <span>
                                             {reward?.inventoryPermanent === false
                                                 ? t('faucet.reward_temporary')
                                                 : t('faucet.reward_permanent')}

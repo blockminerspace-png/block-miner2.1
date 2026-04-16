@@ -136,7 +136,7 @@ export const SIDEBAR_ITEM_REGISTRY = {
     defaultParentItemId: "rewards_group"
   },
   daily_tasks: {
-    path: "/daily-tasks",
+    path: "/tasks",
     labelKey: "sidebar.daily_tasks",
     icon: "ListChecks",
     section: "earn",

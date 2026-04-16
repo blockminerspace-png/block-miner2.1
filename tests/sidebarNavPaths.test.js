@@ -9,7 +9,7 @@ import { TASK_LOGIN_DAY } from "../server/services/dailyTasks/dailyTaskConstants
 
 test("normalizeSidebarPath trims trailing slash and query", () => {
   assert.equal(normalizeSidebarPath("/checkin/"), "/checkin");
-  assert.equal(normalizeSidebarPath("/daily-tasks?x=1"), "/daily-tasks");
+  assert.equal(normalizeSidebarPath("/tasks?x=1"), "/tasks");
 });
 
 test("collectVisiblePathsFromCategories gathers root and nested paths", () => {

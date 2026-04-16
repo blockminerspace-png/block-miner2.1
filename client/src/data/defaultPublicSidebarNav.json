@@ -18,7 +18,7 @@
     "items": [
       { "itemId": "checkin", "labelKey": "sidebar.checkin", "icon": "Calendar", "path": "/checkin" },
       { "itemId": "mini_pass", "labelKey": "sidebar.mini_pass", "icon": "Trophy", "path": "/mini-pass" },
-      { "itemId": "daily_tasks", "labelKey": "sidebar.daily_tasks", "icon": "ListChecks", "path": "/daily-tasks" },
+      { "itemId": "daily_tasks", "labelKey": "sidebar.daily_tasks", "icon": "ListChecks", "path": "/tasks" },
       {
         "itemId": "rewards_group",
         "labelKey": "sidebar.rewards",

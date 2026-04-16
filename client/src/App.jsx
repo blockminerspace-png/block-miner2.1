@@ -180,7 +180,8 @@ function App() {
           <Route path="/internal-offerwall" element={<InternalOfferwall />} />
           <Route path="/mini-pass" element={<MiniPass />} />
           <Route path="/mini-pass/:seasonId" element={<MiniPass />} />
-          <Route path="/daily-tasks" element={<DailyTasks />} />
+          <Route path="/tasks" element={<DailyTasks />} />
+          <Route path="/daily-tasks" element={<Navigate to="/tasks" replace />} />
           <Route path="/youtube" element={<YouTubeWatch />} />
           <Route path="/auto-mining" element={<AutoMining />} />
           <Route path="/ranking" element={<Ranking />} />
@@ -217,7 +218,8 @@ function App() {
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/broadcast" element={<AdminBroadcast />} />
           <Route path="/admin/checkin-milestones" element={<AdminCheckinMilestones />} />
-          <Route path="/admin/daily-tasks" element={<AdminDailyTasks />} />
+          <Route path="/admin/tasks" element={<AdminDailyTasks />} />
+          <Route path="/admin/daily-tasks" element={<Navigate to="/admin/tasks" replace />} />
           <Route path="/admin/read-earn" element={<AdminReadEarn />} />
           <Route path="/admin/internal-offerwall" element={<AdminInternalOfferwall />} />
           <Route path="/admin/streaming" element={<AdminStreaming />} />

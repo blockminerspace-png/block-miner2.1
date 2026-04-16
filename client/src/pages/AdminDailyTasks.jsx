@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import axios from 'axios';
 import { Loader2, ListChecks, Plus, Trash2 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -63,6 +64,7 @@ export default function AdminDailyTasks() {
   const { t } = useTranslation();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [orderDraft, setOrderDraft] = useState(/** @type {Record<number, string>} */ ({}));
   const [patching, setPatching] = useState(/** @type {Record<number, boolean>} */ ({}));
   const [showCreate, setShowCreate] = useState(false);
@@ -72,21 +74,35 @@ export default function AdminDailyTasks() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await api.get('/admin/daily-tasks/definitions');
       if (res.data?.ok) {
         const list = res.data.definitions || [];
         setRows(list);
+        setLoadFailed(false);
         const next = {};
         for (const r of list) {
           next[r.id] = String(r.sortOrder ?? 0);
         }
         setOrderDraft(next);
       } else {
+        setRows([]);
+        setLoadFailed(true);
         toast.error(t('admin_daily_tasks.load_error'));
       }
-    } catch {
-      toast.error(t('admin_daily_tasks.load_error'));
+    } catch (e) {
+      setRows([]);
+      setLoadFailed(true);
+      if (axios.isAxiosError(e)) {
+        const status = e.response?.status;
+        if (status === 401) toast.error(t('admin_daily_tasks.error_unauthorized'));
+        else if (status != null && status >= 500) toast.error(t('admin_daily_tasks.error_server'));
+        else if (!e.response) toast.error(t('admin_daily_tasks.error_network'));
+        else toast.error(t('admin_daily_tasks.load_error'));
+      } else {
+        toast.error(t('admin_daily_tasks.load_error'));
+      }
     } finally {
       setLoading(false);
     }
@@ -422,6 +438,17 @@ export default function AdminDailyTasks() {
         <div className="flex items-center gap-2 text-slate-400">
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
           <span>{t('admin_daily_tasks.loading')}</span>
+        </div>
+      ) : loadFailed ? (
+        <div className="rounded-2xl border border-red-500/25 bg-red-950/20 p-6 space-y-4 max-w-2xl">
+          <p className="text-sm text-red-100/95 leading-relaxed">{t('admin_daily_tasks.load_failed_body')}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex items-center justify-center rounded-xl border border-red-400/40 bg-red-500/15 px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-red-200 hover:bg-red-500/25"
+          >
+            {t('admin_daily_tasks.retry')}
+          </button>
         </div>
       ) : rows.length === 0 ? (
         <p className="text-slate-500">{t('admin_daily_tasks.empty')}</p>

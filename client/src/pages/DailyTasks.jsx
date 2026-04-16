@@ -39,6 +39,21 @@ function taskDescription(t, task) {
   return t(key, opts);
 }
 
+function formatIsoLocal(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return String(iso);
+  }
+}
+
+function cadenceLabel(t, cadence) {
+  const c = String(cadence || 'DAILY').toUpperCase();
+  const key = `dailyTasks.cadence.${c}`;
+  return t(key, { defaultValue: c });
+}
+
 export default function DailyTasks() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -131,17 +146,12 @@ export default function DailyTasks() {
           {t('dailyTasks.title')}
         </h1>
         <p className="text-slate-400 text-sm max-w-2xl">{t('dailyTasks.subtitle')}</p>
-        {data?.periodKey && (
+        {tasks.length > 0 && nextResetLabel && (
           <div className="flex flex-wrap gap-4 text-xs text-slate-500 font-mono uppercase tracking-widest">
-            <span>
-              {t('dailyTasks.period_label')}: {data.periodKey}
+            <span className="flex items-center gap-1">
+              <CalendarClock className="w-3.5 h-3.5" aria-hidden />
+              {t('dailyTasks.earliest_reset')}: {nextResetLabel}
             </span>
-            {nextResetLabel && (
-              <span className="flex items-center gap-1">
-                <CalendarClock className="w-3.5 h-3.5" aria-hidden />
-                {t('dailyTasks.next_reset')}: {nextResetLabel}
-              </span>
-            )}
           </div>
         )}
       </div>
@@ -194,8 +204,16 @@ export default function DailyTasks() {
                       >
                         {statusLabel(t, task.status)}
                       </span>
+                      <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border border-violet-500/30 text-violet-200">
+                        {cadenceLabel(t, task.resetCadence)}
+                      </span>
                     </div>
                     <p className="text-white font-medium leading-snug">{taskDescription(t, task)}</p>
+                    <p className="text-[11px] text-slate-500 font-mono leading-snug">
+                      {t('dailyTasks.period')}: {task.periodKey}
+                      <span className="text-slate-600"> · </span>
+                      {t('dailyTasks.next_reset')}: {formatIsoLocal(task.nextResetAt)}
+                    </p>
                     <p className="text-xs text-slate-500 flex items-center gap-2">
                       <Gift className="w-3.5 h-3.5 text-amber-400/80" aria-hidden />
                       {formatRewardSummary(t, task.reward)}

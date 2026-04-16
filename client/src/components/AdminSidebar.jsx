@@ -43,7 +43,7 @@ const ADMIN_MENU_ITEMS = [
     labelKey: 'adminSidebar.nav.checkin_milestones',
     path: '/admin/checkin-milestones',
   },
-  { icon: ListChecks, labelKey: 'adminSidebar.nav.daily_tasks', path: '/admin/daily-tasks' },
+  { icon: ListChecks, labelKey: 'adminSidebar.nav.daily_tasks', path: '/admin/tasks' },
   { icon: BookOpen, labelKey: 'adminSidebar.nav.read_earn', path: '/admin/read-earn' },
   { icon: LayoutGrid, labelKey: 'adminSidebar.nav.internal_offerwall', path: '/admin/internal-offerwall' },
   { icon: Video, labelKey: 'adminSidebar.nav.live_streaming', path: '/admin/streaming' },

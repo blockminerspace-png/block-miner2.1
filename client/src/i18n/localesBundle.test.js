@@ -119,6 +119,14 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(en.dailyTasks.errors.server).toBeTruthy();
     expect(pt.dailyTasks.errors.server).toBeTruthy();
     expect(es.dailyTasks.errors.server).toBeTruthy();
+    expect(en.dailyTasks.cadence.DAILY).toBeTruthy();
+    expect(en.dailyTasks.period).toBeTruthy();
+    expect(en.dailyTasks.earliest_reset).toBeTruthy();
+    expect(en.admin_daily_tasks.load_failed_body).toBeTruthy();
+    expect(en.admin_daily_tasks.retry).toBeTruthy();
+    expect(en.admin_daily_tasks.error_network).toBeTruthy();
+    expect(pt.admin_daily_tasks.load_failed_body).toBeTruthy();
+    expect(es.admin_daily_tasks.load_failed_body).toBeTruthy();
     expect(en.sidebar.rewards).toBeTruthy();
     expect(pt.sidebar.rewards).toBeTruthy();
     expect(es.sidebar.rewards).toBeTruthy();
