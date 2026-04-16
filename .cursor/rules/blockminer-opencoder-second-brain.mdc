@@ -1,0 +1,31 @@
+---
+description: >-
+  OpenCode @opencoder as project second brain; Cursor agents mirror its planning
+  discipline and may load .opencode/agents/opencoder.md for structured breakdowns.
+alwaysApply: true
+---
+
+# OpenCoder (OpenCode) — second brain in this repo
+
+## What is in the project
+
+- **OpenCode agent:** `.opencode/agents/opencoder.md` → invoke in OpenCode as **`@opencoder`** (planning / orchestration, read-only tools in that profile).
+- **Project marker:** `opencode.json` at repo root (schema for OpenCode).
+
+## For humans (terminal / OpenCode app)
+
+1. Install OpenCode once: [opencode.ai](https://opencode.ai) or `curl -fsSL https://opencode.ai/install | bash`.
+2. From **this repo root**, run `opencode`.
+3. Start messages with **`@opencoder`** when you want structured planning (goals → steps → risks → verification) before coding.
+
+Do not commit API keys into `opencode.json`; use OpenCode’s documented auth / environment.
+
+## For Cursor agents in this workspace
+
+On **non-trivial** tasks (multi-file features, refactors, deploy + i18n + tests), **mirror OpenCoder’s behaviour**:
+
+1. Short **goal / scope** clarification.
+2. **Ordered plan** with verification steps (tests, manual checks).
+3. Then implement — do not skip project rules under `.cursor/rules/` (Git, test VM, i18n, no coverage by default).
+
+When a deep planning pass would help, **read** `.opencode/agents/opencoder.md` and align your breakdown with its output format and BlockMiner constraints.
