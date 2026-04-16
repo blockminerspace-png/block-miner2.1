@@ -83,11 +83,11 @@ if command -v docker >/dev/null 2>&1; then
   fi
 
   if [[ "$BLOCKMINER_DOCKER_BUILD_NO_CACHE" == "1" ]]; then
-    log "Docker Compose: build --no-cache app (BLOCKMINER_DOCKER_BUILD_NO_CACHE=1)"
-    "${compose[@]}" build --no-cache app
+    log "Docker Compose: build --no-cache phd + app (BLOCKMINER_DOCKER_BUILD_NO_CACHE=1)"
+    "${compose[@]}" build --no-cache phd app
   else
-    log "Docker Compose: build app (cached layers)"
-    "${compose[@]}" build app
+    log "Docker Compose: build phd + app (cached layers)"
+    "${compose[@]}" build phd app
   fi
   log "Docker Compose: up db + phd + app (env-file if present)"
   "${compose[@]}" up -d db phd app
