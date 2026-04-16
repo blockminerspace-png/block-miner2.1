@@ -1621,7 +1621,9 @@
       "min_amount_error": "Minimum HD deposit is {{min}} POL.",
       "server_env_hint": "Custodial HD deposit: set POLYGON_HD_DEPOSIT_ENABLED=1 on the API server, then redeploy or restart the app container.",
       "server_flag_off_panel": "This option is visible, but the API has POLYGON_HD_DEPOSIT_ENABLED unset or not equal to 1. Add it to the server environment (e.g. .env.production), restart the app, and reload this page.",
-      "server_flag_off_toast": "HD deposit is not enabled on the server yet (POLYGON_HD_DEPOSIT_ENABLED=1 required)."
+      "server_flag_off_toast": "HD deposit is not enabled on the server yet (POLYGON_HD_DEPOSIT_ENABLED=1 required).",
+      "min_deposit_banner_title": "Minimum deposit: {{min}} POL",
+      "min_deposit_banner_warning": "Amounts below this minimum are not processed and will not be credited to your account."
     },
     "deposit_options": {
       "smart_contract": "Smart contract deposit",

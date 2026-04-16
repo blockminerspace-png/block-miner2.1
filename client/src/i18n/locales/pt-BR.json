@@ -1624,7 +1624,9 @@
       "min_amount_error": "O mínimo para depósito HD é {{min}} POL.",
       "server_env_hint": "Depósito HD custodial: define POLYGON_HD_DEPOSIT_ENABLED=1 no servidor da API e reinicia o container da app.",
       "server_flag_off_panel": "Esta opção aparece na interface, mas a API não tem POLYGON_HD_DEPOSIT_ENABLED=1. Adiciona no ambiente do servidor (ex.: .env.production), reinicia a app e recarrega a página.",
-      "server_flag_off_toast": "Depósito HD ainda não está ativo no servidor (é preciso POLYGON_HD_DEPOSIT_ENABLED=1)."
+      "server_flag_off_toast": "Depósito HD ainda não está ativo no servidor (é preciso POLYGON_HD_DEPOSIT_ENABLED=1).",
+      "min_deposit_banner_title": "Depósito mínimo: {{min}} POL",
+      "min_deposit_banner_warning": "Valores inferiores a este mínimo não serão processados nem creditados na conta."
     },
     "deposit_options": {
       "smart_contract": "Depósito via contrato inteligente",

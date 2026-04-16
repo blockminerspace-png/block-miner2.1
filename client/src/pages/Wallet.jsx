@@ -22,7 +22,8 @@ import {
     HelpCircle,
     Loader2,
     Banknote,
-    LogOut
+    LogOut,
+    AlertTriangle
 } from 'lucide-react';
 import { api } from '../store/auth';
 import { parseEther, isAddress, getAddress, Interface } from 'ethers';
@@ -1173,6 +1174,25 @@ export default function Wallet() {
                                                 <p className="text-[9px] text-slate-500 font-bold">
                                                     {t('wallet.polygon_hd.network_hint')}
                                                 </p>
+                                                <div
+                                                    role="alert"
+                                                    className="rounded-2xl border border-amber-500/50 bg-amber-950/50 px-4 py-3 sm:px-5 sm:py-4 flex gap-3 sm:gap-4 items-start shadow-lg shadow-amber-950/30"
+                                                >
+                                                    <AlertTriangle
+                                                        className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400 shrink-0 mt-0.5"
+                                                        aria-hidden
+                                                    />
+                                                    <div className="space-y-1.5 min-w-0">
+                                                        <p className="text-sm sm:text-base font-black uppercase tracking-wide text-amber-100 leading-snug">
+                                                            {t('wallet.polygon_hd.min_deposit_banner_title', {
+                                                                min: polygonHdMinPol
+                                                            })}
+                                                        </p>
+                                                        <p className="text-xs sm:text-sm font-bold text-amber-100/95 leading-relaxed">
+                                                            {t('wallet.polygon_hd.min_deposit_banner_warning')}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                                 {polygonHdLoadError ? (
                                                     <p className="text-[9px] text-rose-300 font-bold whitespace-pre-wrap">
                                                         {polygonHdLoadError}
@@ -1215,9 +1235,6 @@ export default function Wallet() {
                                                         {t('wallet.processing')}
                                                     </p>
                                                 )}
-                                                <p className="text-[9px] text-slate-600 font-bold mt-auto">
-                                                    {t('wallet.web3_deposit.min_deposit', { min: polygonHdMinPol })}
-                                                </p>
                                             </div>
                                         )
                                     ) : depositChannel !== 'btcpay' ? (
