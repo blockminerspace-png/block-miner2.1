@@ -21,7 +21,7 @@ Use on **every substantive** user message in this repository (features, bugs, de
    node scripts/openrouter-ask.mjs "<prompt>"
    ```
 
-   Prompt must include: short BlockMiner stack reminder (Postgres, webhooks; **not** Redis-first) + user task + what you want (risks, review, priorities). The script injects **`scripts/openrouter-system-prompt.md`** as the **system** role automatically.
+   Prompt must include: short BlockMiner stack reminder (Postgres, webhooks; **not** Redis-first) + user task + what you want (risks, review, priorities). When the work touches code or deploy, also ask the model to restate **ship discipline**: tests → **commit** (English) → **`git push`** → **`python3 scripts/deploy-test-vm-remote.py`** if VM credentials exist (no secrets in chat). The script injects **`scripts/openrouter-system-prompt.md`** as the **system** role automatically.
 
 3. Parse **stdout** (plain text answer). Add an **“OpenRouter (free model)”** section to your reply with the distilled points.
 4. If exit ≠ 0: note failure once; continue with your own answer.

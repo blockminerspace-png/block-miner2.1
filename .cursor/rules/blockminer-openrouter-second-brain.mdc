@@ -22,6 +22,7 @@ For **every user turn** that is **not** a trivial acknowledgement (e.g. “ok”
    - **`scripts/openrouter-ask.mjs` automatically sends** `scripts/openrouter-system-prompt.md` as the API **system** message (architectural constraints, including Redis only when explicitly required). You do not need to paste that file into the shell prompt unless you are debugging it.
 2. **Integrate** the script stdout into your answer: lead with your own plan/code, then add an **“OpenRouter (free model)”** subsection with the distilled opinion (do not dump raw JSON).
 3. **Stay responsible** for correctness (paths, tests, secrets, i18n, deploy rules). OpenRouter is advisory, not authoritative.
+4. **Closure reminder (include in the user prompt you send to OpenRouter):** when the turn involved repo changes or server alignment, ask the model to echo **ship discipline**: run relevant tests, **commit** with a clear **English** message, **`git push`** to the tracked branch (usually `main`), then **`python3 scripts/deploy-test-vm-remote.py`** when test VM credentials exist — without pasting secrets or mnemonics into chat or tracked files.
 
 ## Command (always this entry point)
 

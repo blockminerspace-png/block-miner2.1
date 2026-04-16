@@ -13,6 +13,7 @@
 #   export DEPLOY_GIT_MODE=reset|ff-only   # default reset (CI-safe); ff-only keeps pull --ff-only
 #   export START_NGINX_PROXY=1   # optional; docker compose --profile proxy up -d nginx
 #   export BLOCKMINER_DOCKER_BUILD_NO_CACHE=1   # optional; docker compose build --no-cache app (slower, no layer reuse)
+#   export DEPLOY_PRISMA_MIGRATE_DEPLOY=1       # optional; after compose up, run prisma migrate deploy in app (test VM / CI)
 #   ./scripts/deploy-production-safe.sh
 #
 set -euo pipefail
@@ -88,8 +89,15 @@ if command -v docker >/dev/null 2>&1; then
     log "Docker Compose: build app (cached layers)"
     "${compose[@]}" build app
   fi
-  log "Docker Compose: up db + app (env-file if present)"
-  "${compose[@]}" up -d db app
+  log "Docker Compose: up db + phd + app (env-file if present)"
+  "${compose[@]}" up -d db phd app
+
+  if [[ "${DEPLOY_PRISMA_MIGRATE_DEPLOY:-0}" == "1" ]]; then
+    log "Prisma migrate deploy (DEPLOY_PRISMA_MIGRATE_DEPLOY=1)"
+    "${compose[@]}" exec -T app npx prisma migrate deploy --schema=server/prisma/schema.prisma || {
+      log "WARN: prisma migrate deploy failed (DB down, pending migrations, or container not ready)"
+    }
+  fi
 
   if [[ "$START_NGINX_PROXY" == "1" ]]; then
     log "Docker Compose: start nginx (profile proxy)"
