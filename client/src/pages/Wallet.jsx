@@ -1103,7 +1103,7 @@ export default function Wallet() {
                                             {t('wallet.polygon_hd.option_label')}
                                         </button>
                                     </div>
-                                    {!btcpayDepositEnabled ? (
+                                    {depositChannel === 'btcpay' && !btcpayDepositEnabled ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed px-1">
                                             {btcpayDepositComingSoon
                                                 ? t('wallet.btcpay.coming_soon_hint')
@@ -1114,13 +1114,13 @@ export default function Wallet() {
                                                   : t('wallet.btcpay.disabled_hint_generic')}
                                         </p>
                                     ) : null}
-                                    <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
-                                        {depositChannel === 'btcpay'
-                                            ? t('wallet.btcpay.option_hint')
-                                            : depositChannel === 'polygon_hd'
-                                              ? t('wallet.polygon_hd.option_hint')
-                                              : t('wallet.deposit_options.hint')}
-                                    </p>
+                                    {depositChannel !== 'polygon_hd' ? (
+                                        <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
+                                            {depositChannel === 'btcpay'
+                                                ? t('wallet.btcpay.option_hint')
+                                                : t('wallet.deposit_options.hint')}
+                                        </p>
+                                    ) : null}
                                     {depositChannel !== 'btcpay' &&
                                     depositChannel !== 'polygon_hd' &&
                                     depositChannel === 'smart_contract' &&
@@ -1176,19 +1176,19 @@ export default function Wallet() {
                                                 </p>
                                                 <div
                                                     role="alert"
-                                                    className="rounded-2xl border border-amber-500/50 bg-amber-950/50 px-4 py-3 sm:px-5 sm:py-4 flex gap-3 sm:gap-4 items-start shadow-lg shadow-amber-950/30"
+                                                    className="rounded-xl border border-amber-500/45 bg-amber-950/40 px-3 py-2 sm:px-3.5 sm:py-2.5 flex gap-2 sm:gap-2.5 items-start shadow-md shadow-amber-950/20"
                                                 >
                                                     <AlertTriangle
-                                                        className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400 shrink-0 mt-0.5"
+                                                        className="w-4 h-4 sm:w-4 sm:h-4 text-amber-400 shrink-0 mt-0.5"
                                                         aria-hidden
                                                     />
-                                                    <div className="space-y-1.5 min-w-0">
-                                                        <p className="text-sm sm:text-base font-black uppercase tracking-wide text-amber-100 leading-snug">
+                                                    <div className="space-y-1 min-w-0">
+                                                        <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-amber-100 leading-snug">
                                                             {t('wallet.polygon_hd.min_deposit_banner_title', {
                                                                 min: polygonHdMinPol
                                                             })}
                                                         </p>
-                                                        <p className="text-xs sm:text-sm font-bold text-amber-100/95 leading-relaxed">
+                                                        <p className="text-[10px] sm:text-[11px] font-bold text-amber-100/90 leading-relaxed">
                                                             {t('wallet.polygon_hd.min_deposit_banner_warning')}
                                                         </p>
                                                     </div>
