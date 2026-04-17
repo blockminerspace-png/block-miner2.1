@@ -8,6 +8,15 @@ description: >-
 
 # BlockMiner + NotebookLM (notebooklm-py)
 
+## Agent behavior (Cursor must do this)
+
+When the task is a **good fit for NotebookLM** — multi-source synthesis, “explain these docs together”, podcast/slides/quiz from **already public** material, or the user names NotebookLM — **try the CLI first** before improvising from memory:
+
+1. From repo root run **`./scripts/notebooklm-run.sh auth check --test`** (or `list` / `ask` as needed).
+2. If auth fails with “Run `notebooklm login`”: tell the user to run **`./scripts/notebooklm-run.sh login`** once (browser), then retry; continue the task with repo/OpenRouter meanwhile.
+3. For `ask` / `generate` / `download`, **always** prefer explicit notebook id **`-n` / `--notebook`** when you know it (avoid `use` races between parallel agents). Optional shell env: `NOTEBOOKLM_NOTEBOOK_ID` (see `.env.example`).
+4. **Never** pass secrets, `.env`, keys, or mnemonics into `source add` or pasted prompts.
+
 ## Purpose
 
 Optional **research and synthesis** beside the Node stack: add URLs or files as NotebookLM sources, ask questions, or generate artifacts (audio overview, slides, quiz, etc.). **Not** part of the BlockMiner server runtime — no coupling to Express, Prisma, or production secrets.
@@ -18,14 +27,16 @@ Optional **research and synthesis** beside the Node stack: add URLs or files as 
 - **Directory listing / install stats:** [skills.sh — notebooklm-py](https://skills.sh/teng-lin/notebooklm-py).
 - **Full procedural skill (long `SKILL.md`):** after `npx skills add teng-lin/notebooklm-py -y`, read **`.agents/skills/notebooklm/SKILL.md`** (that folder is **gitignored** here). Alternatively read [raw SKILL.md on GitHub](https://raw.githubusercontent.com/teng-lin/notebooklm-py/main/SKILL.md).
 
-## Minimal setup
+## Minimal setup (BlockMiner repo)
+
+**Preferred (agent + humans, no global pip install):**
 
 ```bash
-pip install "notebooklm-py[browser]"
-playwright install chromium   # when browser login is required
-notebooklm login
-notebooklm auth check --test
+./scripts/notebooklm-run.sh login          # first time; may need: pip install "notebooklm-py[browser]" + playwright if the CLI asks
+./scripts/notebooklm-run.sh auth check --test
 ```
+
+The script bootstraps **`vendor-notebooklm/`** (gitignored) with `pip install --target`. Alternatively install upstream’s way: `pip install "notebooklm-py[browser]"` then `notebooklm login`.
 
 ## BlockMiner guardrails
 

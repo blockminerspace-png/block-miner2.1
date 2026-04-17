@@ -60,6 +60,11 @@ Thumbs.db
 # Same installer may leave a root symlink + lock file — do not commit.
 /skills/
 skills-lock.json
+
+# Local venv for NotebookLM CLI (notebooklm-py); agent uses scripts/notebooklm-run.sh
+.venv-notebooklm/
+# pip --target install used by scripts/notebooklm-run.sh (do not commit ~21MB tree)
+vendor-notebooklm/
 .claude/
 .openclaude-profile.json
 
