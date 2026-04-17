@@ -192,3 +192,13 @@ export function parseCheckinAmountWei() {
     return 10_000_000_000_000_000n;
   }
 }
+
+/** In-game POL pool check-in (default 0.03 POL). */
+export function parseCheckinBalanceAmountWei() {
+  const raw = String(process.env.CHECKIN_BALANCE_AMOUNT_WEI || "30000000000000000").trim();
+  try {
+    return BigInt(raw);
+  } catch {
+    return 30_000_000_000_000_000n;
+  }
+}

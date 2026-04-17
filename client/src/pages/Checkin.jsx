@@ -131,6 +131,41 @@ export default function Checkin() {
         };
     }, [status, fetchStatus]);
 
+    const handleBalanceDaily = async () => {
+        if (!status?.checkinBalanceAmountWei) {
+            toast.error(t('common.error'));
+            return;
+        }
+        setPaying(true);
+        try {
+            const res = await api.post('/checkin/balance', { cadence: 'daily' });
+            const d = res.data;
+            if (d.ok && d.status === 'confirmed') {
+                toast.success(
+                    t('checkin.reward_msg', {
+                        amount: `${formatPolFromWei(status.checkinBalanceAmountWei)} POL`
+                    })
+                );
+                await fetchStatus();
+            } else if (d.ok && d.alreadyCheckedIn) {
+                toast.success(t('checkin.claimed'));
+                await fetchStatus();
+            } else if (!d.ok) {
+                toast.error(translateCheckinApi(d.code, d.message));
+                await fetchStatus();
+            }
+        } catch (err) {
+            if (err.response?.data?.code) {
+                toast.error(translateCheckinApi(err.response.data.code, err.response.data.message));
+                await fetchStatus();
+            } else {
+                toast.error(err?.message || t('common.error'));
+            }
+        } finally {
+            setPaying(false);
+        }
+    };
+
     const handleWalletDaily = async () => {
         if (!status?.checkinReceiver || !status?.checkinAmountWei) {
             toast.error(t('common.error'));
@@ -223,7 +258,15 @@ export default function Checkin() {
     const totalConfirmed = status.totalConfirmed ?? 0;
     const recentCheckins = status.recentCheckins || [];
     const milestones = Array.isArray(status.milestones) ? status.milestones : [];
-    const paymentConfigured = Boolean(status.checkinReceiver && status.checkinAmountWei);
+    const walletPaymentConfigured = Boolean(status.checkinReceiver && status.checkinAmountWei);
+    const balanceWeiStr = status.checkinBalanceAmountWei || '0';
+    const polBal = Number(status.polBalance ?? 0);
+    let balanceAffordable = false;
+    try {
+        balanceAffordable = polBal + 1e-12 >= Number(BigInt(balanceWeiStr)) / 1e18;
+    } catch {
+        balanceAffordable = false;
+    }
     const cs = getDailySlice(status);
     const explorerDaily = cs.txHash ? `https://polygonscan.com/tx/${cs.txHash}` : null;
 
@@ -298,9 +341,9 @@ export default function Checkin() {
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {!paymentConfigured ? (
-                                        <p className="text-center text-sm text-red-400">
-                                            {t('checkin.errors.CHECKIN_RECEIVER_NOT_CONFIGURED')}
+                                    {!walletPaymentConfigured ? (
+                                        <p className="text-center text-xs text-amber-400/90 leading-relaxed px-1">
+                                            {t('checkin.wallet_unavailable_use_balance')}
                                         </p>
                                     ) : null}
                                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
@@ -310,6 +353,17 @@ export default function Checkin() {
                                         </div>
                                         <p className="text-[10px] text-slate-500 text-center mt-2 leading-relaxed">
                                             {t('checkin.anti_bot_note')}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl border border-sky-500/25 bg-sky-500/5 px-4 py-3">
+                                        <div className="flex items-center justify-center gap-2 text-center font-bold text-sky-300 text-sm tracking-tight">
+                                            <Zap className="h-4 w-4 shrink-0" aria-hidden />
+                                            <span>{t('checkin.balance_pay_line')}</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 text-center mt-2 leading-relaxed">
+                                            {t('checkin.balance_pool_note', {
+                                                balance: polBal.toFixed(4)
+                                            })}
                                         </p>
                                     </div>
 
@@ -345,7 +399,7 @@ export default function Checkin() {
                                             !isConnected ||
                                             isConnecting ||
                                             cs.pending ||
-                                            !paymentConfigured
+                                            !walletPaymentConfigured
                                         }
                                         className="flex w-full min-h-[3.75rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-2xl bg-amber-500 px-4 py-3 text-slate-950 shadow-lg shadow-amber-500/15 hover:bg-amber-600 disabled:opacity-50"
                                     >
@@ -360,6 +414,27 @@ export default function Checkin() {
                                             </span>
                                             <span className="text-xs sm:text-sm font-black tracking-wide normal-case">
                                                 {t('checkin.cta_wallet_line2')}
+                                            </span>
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleBalanceDaily()}
+                                        disabled={paying || cs.pending || !balanceAffordable}
+                                        className="flex w-full min-h-[3.5rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-2xl border border-sky-500/40 bg-slate-900/80 px-4 py-3 text-sky-100 shadow-md hover:bg-slate-800 disabled:opacity-50"
+                                    >
+                                        {paying ? (
+                                            <Loader2 className="h-5 w-5 animate-spin shrink-0" />
+                                        ) : (
+                                            <Zap className="h-5 w-5 shrink-0 text-sky-400" aria-hidden />
+                                        )}
+                                        <span className="flex flex-col items-center justify-center gap-0.5 text-center leading-tight">
+                                            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.12em] text-sky-400/95">
+                                                {t('checkin.cta_balance_line1')}
+                                            </span>
+                                            <span className="text-xs sm:text-sm font-black tracking-wide normal-case">
+                                                {t('checkin.cta_balance_line2')}
                                             </span>
                                         </span>
                                     </button>

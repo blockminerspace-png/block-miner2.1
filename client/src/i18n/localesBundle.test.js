@@ -55,6 +55,19 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(pt.checkin.anti_bot_note).toBeTruthy();
     expect(es.checkin.anti_bot_note).toBeTruthy();
 
+    expect(en.checkin.wallet_unavailable_use_balance).toBeTruthy();
+    expect(pt.checkin.wallet_unavailable_use_balance).toBeTruthy();
+    expect(es.checkin.wallet_unavailable_use_balance).toBeTruthy();
+    expect(en.checkin.balance_pay_line).toBeTruthy();
+    expect(pt.checkin.balance_pay_line).toBeTruthy();
+    expect(es.checkin.balance_pay_line).toBeTruthy();
+    expect(en.checkin.errors.INSUFFICIENT_BALANCE).toBeTruthy();
+    expect(pt.checkin.errors.INSUFFICIENT_BALANCE).toBeTruthy();
+    expect(es.checkin.errors.INSUFFICIENT_BALANCE).toBeTruthy();
+    expect(en.checkin.errors.CHECKIN_BUSY).toBeTruthy();
+    expect(pt.checkin.errors.CHECKIN_BUSY).toBeTruthy();
+    expect(es.checkin.errors.CHECKIN_BUSY).toBeTruthy();
+
     expect(en.adminAuth.session_invalid).toBeTruthy();
     expect(pt.adminAuth.session_banner).toBeTruthy();
     expect(es.adminAuth.auth_not_configured).toBeTruthy();

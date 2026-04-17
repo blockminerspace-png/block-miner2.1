@@ -26,3 +26,12 @@ test("successful wallet check-in is auditable in logs", () => {
     "successful wallet check-in should emit a structured security event",
   );
 });
+
+test("balance check-in path is implemented and auditable", () => {
+  const src = readFileSync(checkinControllerPath, "utf8");
+  assert.ok(
+    src.includes("checkin_balance_confirm_success"),
+    "successful balance check-in should emit a structured security event",
+  );
+  assert.ok(src.includes("checkinBalance"), "checkinBalance handler should exist");
+});

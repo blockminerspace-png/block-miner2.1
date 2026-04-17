@@ -1,11 +1,18 @@
+import { createHash } from "crypto";
 import prisma from "../src/db/prisma.js";
+import { Prisma } from "../src/db/prismaNamespace.js";
+import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 import { computeCheckinStreak } from "../utils/checkinStreak.js";
 import {
   assertValidTxHash,
   evaluateCheckinTx,
-  normalizeAddr
+  normalizeAddr,
+  parseCheckinAmountWei,
+  parseCheckinBalanceAmountWei
 } from "../services/checkinChain.js";
+import { advisoryXactTryLockOrThrow } from "../services/distributedLockService.js";
+import { lockUserRowForUpdate } from "../utils/transactionLocks.js";
 import {
   applyStreakMilestoneRewards,
   buildMilestoneStatusForUser
@@ -23,7 +30,27 @@ function logCheckinSideEffectFailure(label, err) {
 
 const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
-const CHECKIN_REQUIRED_WEI = 10_000_000_000_000_000n; // 0.01 POL
+const CHAIN_INTERNAL_CHECKIN = 0;
+
+function getWalletCheckinWei() {
+  return parseCheckinAmountWei();
+}
+
+function getBalanceCheckinWei() {
+  return parseCheckinBalanceAmountWei();
+}
+
+function polDecimalFromWei(wei) {
+  return new Prisma.Decimal(wei.toString()).div(new Prisma.Decimal("1000000000000000000"));
+}
+
+/** Deterministic placeholder tx hash for balance check-ins (satisfies unique `tx_hash`). */
+export function balanceCheckinSyntheticTxHash(userId, checkinDate) {
+  const h = createHash("sha256")
+    .update(`bm:v2:daily-checkin:balance|${userId}|${checkinDate}`, "utf8")
+    .digest("hex");
+  return `0x${h}`;
+}
 
 /**
  * Treasury address for on-chain check-in (Polygon). CHECKIN_RECEIVER wins;
@@ -48,15 +75,11 @@ function hasCheckinTreasury() {
 }
 
 /**
- * Policy: check-in always uses a wallet on-chain payment (0.01 POL). There is no server-side “free” claim.
- * When no treasury is configured, the UI shows a configuration error — users cannot bypass with /checkin/claim.
+ * Policy: daily check-in requires either an on-chain wallet payment (default 0.01 POL) or
+ * an in-game POL debit (default 0.03 POL). There is no free claim path.
  */
 export function isCheckinPaymentRequired() {
   return true;
-}
-
-function getCheckinAmountWei() {
-  return CHECKIN_REQUIRED_WEI;
 }
 
 function jsonCheckinError(res, status, code, message) {
@@ -109,6 +132,7 @@ function rowToCadenceSlice(row) {
  */
 export async function tryFinalizeCheckinRow(row) {
   if (!row || row.status !== "pending") return row;
+  if (row.paymentMethod === "balance") return row;
 
   const wallet =
     row.user?.walletAddress ||
@@ -118,7 +142,7 @@ export async function tryFinalizeCheckinRow(row) {
   const receiver = getReceiver();
   if (!receiver || receiver.toLowerCase() === ZERO) return row;
 
-  const minWei = getCheckinAmountWei();
+  const minWei = getWalletCheckinWei();
   let ev;
   try {
     ev = await evaluateCheckinTx({
@@ -138,7 +162,8 @@ export async function tryFinalizeCheckinRow(row) {
         status: "confirmed",
         confirmedAt: new Date(),
         amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
+        chainId: POLYGON_CHAIN_ID,
+        paymentMethod: "wallet"
       }
     });
     applyStreakMilestoneRewards(updated.userId).catch((e) =>
@@ -174,7 +199,7 @@ export async function tryFinalizePeriodicCheckinRow(row) {
   const receiver = getReceiver();
   if (!receiver || receiver.toLowerCase() === ZERO) return row;
 
-  const minWei = getCheckinAmountWei();
+  const minWei = getWalletCheckinWei();
   let ev;
   try {
     ev = await evaluateCheckinTx({
@@ -278,7 +303,8 @@ export async function getStatus(req, res) {
     const wallet = user?.walletAddress || null;
     const polBalance = user?.polBalance != null ? Number(user.polBalance) : 0;
     const treasuryOk = hasCheckinTreasury();
-    const minWei = getCheckinAmountWei();
+    const walletWei = getWalletCheckinWei();
+    const balanceWei = getBalanceCheckinWei();
 
     let streak = 0;
     let recentCheckins = [];
@@ -324,7 +350,8 @@ export async function getStatus(req, res) {
       walletLinked: Boolean(wallet),
       paymentRequired: true,
       checkinReceiver: getReceiver() || null,
-      checkinAmountWei: minWei.toString(),
+      checkinAmountWei: walletWei.toString(),
+      checkinBalanceAmountWei: balanceWei.toString(),
       chainId: POLYGON_CHAIN_ID,
       rpcConfigured:
         treasuryOk && Boolean(process.env.AETHER_RPC_URL?.trim() || process.env.POLYGON_RPC_URL?.trim()),
@@ -349,7 +376,7 @@ export async function claimCheckin(req, res) {
       res,
       400,
       "PAYMENT_REQUIRED",
-      "Daily check-in requires a 0.01 POL Polygon payment from your linked wallet. Use the Check-in page wallet button; the server verifies every transaction."
+      "Daily check-in requires payment: 0.01 POL from your linked wallet on Polygon (verified on-chain) or 0.03 POL debited from your in-game POL balance. Use the Check-in page."
     );
   } catch (e) {
     console.error("claimCheckin", e);
@@ -432,10 +459,10 @@ async function confirmDailyCheckin(req, res) {
     );
   }
 
-  const existing = await prisma.dailyCheckin.findUnique({
+  const existingQuick = await prisma.dailyCheckin.findUnique({
     where: { userId_checkinDate: { userId, checkinDate: today } }
   });
-  if (existing?.status === "confirmed") {
+  if (existingQuick?.status === "confirmed") {
     return jsonSuccessWithStreak(res, userId, {
       alreadyCheckedIn: true,
       status: "confirmed",
@@ -444,7 +471,7 @@ async function confirmDailyCheckin(req, res) {
   }
 
   const txHash = body.txHash;
-  const minWei = getCheckinAmountWei();
+  const minWei = getWalletCheckinWei();
   let evalResult;
   try {
     evalResult = await evaluateCheckinTx({
@@ -467,99 +494,131 @@ async function confirmDailyCheckin(req, res) {
     );
   }
 
-  if (evalResult.state === "pending") {
-    await prisma.dailyCheckin.upsert({
-      where: { userId_checkinDate: { userId, checkinDate: today } },
-      create: {
-        userId,
-        checkinDate: today,
-        txHash,
-        status: "pending",
-        confirmedAt: null,
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      },
-      update: {
-        txHash,
-        status: "pending",
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      }
-    });
-    return res.json({
-      ok: false,
-      pending: true,
-      cadence: "daily",
-      code: "TRANSACTION_NOT_CONFIRMED",
-      message: "Transaction was sent but is still waiting for confirmation."
-    });
-  }
+  const baseRow = {
+    txHash,
+    amount: Number(minWei) / 1e18,
+    chainId: POLYGON_CHAIN_ID,
+    paymentMethod: "wallet"
+  };
 
-  if (evalResult.state === "failed") {
-    await prisma.dailyCheckin.upsert({
-      where: { userId_checkinDate: { userId, checkinDate: today } },
-      create: {
-        userId,
-        checkinDate: today,
-        txHash,
-        status: "failed",
-        confirmedAt: null,
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      },
-      update: {
-        txHash,
-        status: "failed",
-        amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
-      }
-    });
-    return jsonCheckinError(
-      res,
-      400,
-      "INVALID_TRANSACTION",
-      evalResult.reason || "This transaction cannot be used for check-in."
-    );
-  }
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      await advisoryXactTryLockOrThrow(tx, `checkin:${userId}`);
+      await lockUserRowForUpdate(tx, userId);
 
-  await prisma.dailyCheckin.upsert({
-    where: { userId_checkinDate: { userId, checkinDate: today } },
-    create: {
-      userId,
-      checkinDate: today,
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: Number(minWei) / 1e18,
-      chainId: POLYGON_CHAIN_ID
-    },
-    update: {
-      txHash,
-      status: "confirmed",
-      confirmedAt: new Date(),
-      amount: Number(minWei) / 1e18,
-      chainId: POLYGON_CHAIN_ID
+      const existing = await tx.dailyCheckin.findUnique({
+        where: { userId_checkinDate: { userId, checkinDate: today } }
+      });
+      if (existing?.status === "confirmed") {
+        return { type: "already" };
+      }
+
+      if (evalResult.state === "pending") {
+        await tx.dailyCheckin.upsert({
+          where: { userId_checkinDate: { userId, checkinDate: today } },
+          create: {
+            userId,
+            checkinDate: today,
+            ...baseRow,
+            status: "pending",
+            confirmedAt: null
+          },
+          update: {
+            ...baseRow,
+            status: "pending",
+            confirmedAt: null
+          }
+        });
+        return { type: "pending" };
+      }
+
+      if (evalResult.state === "failed") {
+        await tx.dailyCheckin.upsert({
+          where: { userId_checkinDate: { userId, checkinDate: today } },
+          create: {
+            userId,
+            checkinDate: today,
+            ...baseRow,
+            status: "failed",
+            confirmedAt: null
+          },
+          update: {
+            ...baseRow,
+            status: "failed",
+            confirmedAt: null
+          }
+        });
+        return { type: "failed", reason: evalResult.reason || "This transaction cannot be used for check-in." };
+      }
+
+      await tx.dailyCheckin.upsert({
+        where: { userId_checkinDate: { userId, checkinDate: today } },
+        create: {
+          userId,
+          checkinDate: today,
+          ...baseRow,
+          status: "confirmed",
+          confirmedAt: new Date()
+        },
+        update: {
+          ...baseRow,
+          status: "confirmed",
+          confirmedAt: new Date()
+        }
+      });
+      return { type: "confirmed" };
+    });
+
+    if (outcome.type === "already") {
+      return jsonSuccessWithStreak(res, userId, {
+        alreadyCheckedIn: true,
+        status: "confirmed",
+        cadence: "daily"
+      });
     }
-  });
+    if (outcome.type === "pending") {
+      return res.json({
+        ok: false,
+        pending: true,
+        cadence: "daily",
+        code: "TRANSACTION_NOT_CONFIRMED",
+        message: "Transaction was sent but is still waiting for confirmation."
+      });
+    }
+    if (outcome.type === "failed") {
+      return jsonCheckinError(res, 400, "INVALID_TRANSACTION", outcome.reason);
+    }
 
-  await applyStreakMilestoneRewards(userId);
-  notifyMiniPassLoginDay(userId, today).catch((e) =>
-    logCheckinSideEffectFailure("notifyMiniPassLoginDay after wallet confirm", e)
-  );
-  notifyDailyTaskLoginDay(userId, today).catch((e) =>
-    logCheckinSideEffectFailure("notifyDailyTaskLoginDay after wallet confirm", e)
-  );
+    await applyStreakMilestoneRewards(userId);
+    notifyMiniPassLoginDay(userId, today).catch((e) =>
+      logCheckinSideEffectFailure("notifyMiniPassLoginDay after wallet confirm", e)
+    );
+    notifyDailyTaskLoginDay(userId, today).catch((e) =>
+      logCheckinSideEffectFailure("notifyDailyTaskLoginDay after wallet confirm", e)
+    );
 
-  logSecurityEvent(
-    "checkin_wallet_confirm_success",
-    { userId, walletLinked: true, checkinDate: today, txHash, cadence: "daily" },
-    req
-  );
+    logSecurityEvent(
+      "checkin_wallet_confirm_success",
+      { userId, walletLinked: true, checkinDate: today, txHash, cadence: "daily" },
+      req
+    );
 
-  return jsonSuccessWithStreak(res, userId, {
-    status: "confirmed",
-    cadence: "daily"
-  });
+    return jsonSuccessWithStreak(res, userId, {
+      status: "confirmed",
+      cadence: "daily"
+    });
+  } catch (err) {
+    if (/** @type {any} */ (err)?.code === "DISTRIBUTED_LOCK_BUSY" || err?.code === "P2034") {
+      return jsonCheckinError(
+        res,
+        409,
+        "CHECKIN_BUSY",
+        "Another check-in request is in progress. Wait a moment and try again."
+      );
+    }
+    console.error("confirmDailyCheckin transaction:", err);
+    return res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to confirm check-in." });
+  }
 }
 
 /**
@@ -570,12 +629,167 @@ export async function checkinWallet(req, res) {
 }
 
 /**
- * Balance-based check-in was removed; check-in is wallet-only (on-chain POL).
+ * Deduct in-game POL (pool balance) for daily check-in — no on-chain tx, no treasury/RPC required.
  */
-export async function checkinBalance(_req, res) {
-  return res.status(410).json({
-    ok: false,
-    code: "CHECKIN_BALANCE_DISABLED",
-    message: "Balance check-in is disabled. Use the daily wallet check-in on the Check-in page (0.01 POL on Polygon)."
-  });
+export async function checkinBalance(req, res) {
+  const userId = req.user?.id ?? null;
+  if (!userId) {
+    return jsonCheckinError(res, 401, "UNAUTHORIZED", "Authentication required.");
+  }
+  const today = getBrazilCheckinDateKey();
+  const balanceWei = getBalanceCheckinWei();
+  const cost = polDecimalFromWei(balanceWei);
+  const synthTx = balanceCheckinSyntheticTxHash(userId, today);
+
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      await advisoryXactTryLockOrThrow(tx, `checkin:${userId}`);
+      await lockUserRowForUpdate(tx, userId);
+
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { walletAddress: true, polBalance: true, isBanned: true }
+      });
+      if (!user || user.isBanned) {
+        const err = new Error("FORBIDDEN");
+        /** @type {any} */ (err).code = "FORBIDDEN";
+        throw err;
+      }
+      if (!user.walletAddress?.trim()) {
+        const err = new Error("WALLET_REQUIRED");
+        /** @type {any} */ (err).code = "WALLET_REQUIRED";
+        throw err;
+      }
+
+      const existing = await tx.dailyCheckin.findUnique({
+        where: { userId_checkinDate: { userId, checkinDate: today } }
+      });
+      if (existing?.status === "confirmed") {
+        return { kind: "already" };
+      }
+      if (existing?.status === "pending") {
+        const err = new Error("CHECKIN_PENDING_PAYMENT");
+        /** @type {any} */ (err).code = "CHECKIN_PENDING_PAYMENT";
+        throw err;
+      }
+
+      const bal = new Prisma.Decimal(user.polBalance != null ? user.polBalance.toString() : "0");
+      if (bal.lt(cost)) {
+        const err = new Error("INSUFFICIENT_BALANCE");
+        /** @type {any} */ (err).code = "INSUFFICIENT_BALANCE";
+        throw err;
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { polBalance: { decrement: cost } }
+      });
+
+      const updatedUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { polBalance: true }
+      });
+
+      await tx.dailyCheckin.upsert({
+        where: { userId_checkinDate: { userId, checkinDate: today } },
+        create: {
+          userId,
+          checkinDate: today,
+          txHash: synthTx,
+          status: "confirmed",
+          confirmedAt: new Date(),
+          amount: Number(balanceWei) / 1e18,
+          chainId: CHAIN_INTERNAL_CHECKIN,
+          paymentMethod: "balance"
+        },
+        update: {
+          txHash: synthTx,
+          status: "confirmed",
+          confirmedAt: new Date(),
+          amount: Number(balanceWei) / 1e18,
+          chainId: CHAIN_INTERNAL_CHECKIN,
+          paymentMethod: "balance"
+        }
+      });
+
+      return { kind: "ok", polBalance: Number(updatedUser?.polBalance ?? 0), debit: Number(cost) };
+    });
+
+    if (outcome.kind === "already") {
+      return jsonSuccessWithStreak(res, userId, {
+        alreadyCheckedIn: true,
+        status: "confirmed",
+        cadence: "daily",
+        paymentMethod: "balance"
+      });
+    }
+
+    applyUserBalanceDelta(userId, -outcome.debit);
+
+    await applyStreakMilestoneRewards(userId);
+    notifyMiniPassLoginDay(userId, today).catch((e) =>
+      logCheckinSideEffectFailure("notifyMiniPassLoginDay after balance checkin", e)
+    );
+    notifyDailyTaskLoginDay(userId, today).catch((e) =>
+      logCheckinSideEffectFailure("notifyDailyTaskLoginDay after balance checkin", e)
+    );
+
+    logSecurityEvent(
+      "checkin_balance_confirm_success",
+      {
+        userId,
+        checkinDate: today,
+        cadence: "daily",
+        paymentMethod: "balance",
+        amountPol: Number(balanceWei) / 1e18
+      },
+      req
+    );
+
+    return jsonSuccessWithStreak(res, userId, {
+      status: "confirmed",
+      cadence: "daily",
+      paymentMethod: "balance",
+      polBalance: outcome.polBalance
+    });
+  } catch (err) {
+    const code = /** @type {any} */ (err)?.code;
+    if (code === "CHECKIN_PENDING_PAYMENT") {
+      return jsonCheckinError(
+        res,
+        409,
+        "CHECKIN_PENDING_PAYMENT",
+        "A wallet payment is already waiting for confirmation today. Wait for it to confirm or fail, then try again."
+      );
+    }
+    if (code === "INSUFFICIENT_BALANCE") {
+      return jsonCheckinError(
+        res,
+        400,
+        "INSUFFICIENT_BALANCE",
+        "Not enough in-game POL for balance check-in."
+      );
+    }
+    if (code === "WALLET_REQUIRED") {
+      return jsonCheckinError(
+        res,
+        400,
+        "WALLET_REQUIRED",
+        "Link and verify your wallet on the Wallet page before check-in."
+      );
+    }
+    if (code === "FORBIDDEN") {
+      return jsonCheckinError(res, 403, "FORBIDDEN", "Check-in is not available for this account.");
+    }
+    if (code === "DISTRIBUTED_LOCK_BUSY" || err?.code === "P2034") {
+      return jsonCheckinError(
+        res,
+        409,
+        "CHECKIN_BUSY",
+        "Another check-in request is in progress. Wait a moment and try again."
+      );
+    }
+    console.error("checkinBalance:", err);
+    return res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to complete check-in." });
+  }
 }
