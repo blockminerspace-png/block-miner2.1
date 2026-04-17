@@ -168,9 +168,10 @@ def main() -> int:
         sftp.close()
         print(f"[sftp] upload done in {time.monotonic() - t0:.1f}s", flush=True)
 
-        stdin, stdout, stderr = client.exec_command("bash -s", get_pty=True)
+        # No PTY: avoids an interactive prompt hanging the session after long docker steps.
+        stdin, stdout, stderr = client.exec_command("bash -s", get_pty=False)
         stdin.write(_remote_script(app_root))
-        stdin.channel.shutdown_write()
+        stdin.close()
         ch = stdout.channel
         while True:
             if ch.recv_ready():
