@@ -13,9 +13,25 @@ Env:
   DEPLOY_TEST_VM_TIMEOUT_SEC          — max wait seconds (default 7200)
   SKIP_GIT_PUSH=1                     — do not run local `git push` (only redeploy what is already on GitHub)
   DEPLOY_GIT_BRANCH                   — branch for local push and remote checkout (default: main)
+  GH_DEPLOY_TOKEN                     — (optional) GitHub PAT (classic or fine‑grained, repo read) used
+                                         by the VM via GIT_ASKPASS to fetch HTTPS origin when the VM has
+                                         no cached credentials and no SSH deploy key. Injected into the
+                                         piped `bash -s` remote script (not argv / ps / bash history) and
+                                         auto‑wiped at the end of the remote run.
+  GH_DEPLOY_URL                       — (optional) override remote git URL, e.g.
+                                         `git@github.com:blockminerspace-png/block-miner-v3.git` when the
+                                         VM already has an SSH deploy key registered on GitHub.
 
-If `origin` is HTTPS, Git may prompt for username/password: use a GitHub **Personal Access Token**
-as the password (not your account password), or run `gh auth login`, or switch `origin` to an SSH URL.
+Auth to GitHub from the VM (pick one, one‑time setup):
+  • Preferred: add an SSH deploy key on the VM
+      ssh root@<VM> "ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519 -q <<<y >/dev/null 2>&1; cat ~/.ssh/id_ed25519.pub"
+    Paste the printed key into GitHub → repo → Settings → Deploy keys (read‑only) and run with:
+      GH_DEPLOY_URL=git@github.com:blockminerspace-png/block-miner-v3.git python3 scripts/deploy-test-vm-remote.py
+  • Fallback: export a PAT locally and let the script forward it over the SSH channel:
+      export GH_DEPLOY_TOKEN=ghp_...   # repo:read (classic) or fine‑grained contents:read
+      python3 scripts/deploy-test-vm-remote.py
+    The PAT is never persisted on the VM; it lives only inside the ephemeral `bash -s` stdin stream and
+    a `mktemp` GIT_ASKPASS file that is removed on EXIT.
 
 **Private repo / no Git on the server:** deploy from your machine with SSH + tarball (no `git fetch` on the VM):
 
@@ -141,14 +157,43 @@ def local_git_push(repo_root: Path, branch: str) -> None:
     print(f"[deploy-test-vm-remote] Local push OK (origin/{branch}).", file=sys.stderr)
 
 
+def _shell_single_quote(value: str) -> str:
+    """POSIX single-quote escape: only ' needs special handling."""
+    return "'" + value.replace("'", "'\\''") + "'"
+
+
 def build_remote_script(branch: str) -> str:
     prefix = "export BLOCKMINER_DOCKER_BUILD_NO_CACHE=1\n" if _docker_no_cache_enabled() else ""
-    # BRANCH must match what was just pushed from the developer machine.
-    return prefix + f"""set -euo pipefail
-APP_ROOT=/root/block-miner-v3
-REPO=https://github.com/blockminerspace-png/block-miner-v3.git
-BRANCH={branch}
-mkdir -p "$(dirname "$APP_ROOT")"
+
+    # Optional overrides streamed over SSH stdin (never argv/env/ps on the VM).
+    deploy_url_override = (os.environ.get("GH_DEPLOY_URL") or "").strip()
+    deploy_token = (os.environ.get("GH_DEPLOY_TOKEN") or "").strip()
+    default_https = "https://github.com/blockminerspace-png/block-miner-v3.git"
+    repo_url = deploy_url_override or default_https
+
+    header_lines = [
+        "set -euo pipefail",
+        f"APP_ROOT=/root/block-miner-v3",
+        f"REPO={_shell_single_quote(repo_url)}",
+        f"BRANCH={_shell_single_quote(branch)}",
+    ]
+
+    # PAT path: write GIT_ASKPASS to a private mktemp file, wipe on EXIT. Token
+    # is passed only via the bash -s stdin stream (not via argv/env/ps/history).
+    if deploy_token and repo_url.lower().startswith("https://"):
+        header_lines += [
+            f"GH_DEPLOY_TOKEN={_shell_single_quote(deploy_token)}",
+            "export GH_DEPLOY_TOKEN",
+            "ASKPASS_FILE=\"$(mktemp -t bm_askpass.XXXXXX)\"",
+            # Prompt 1 is 'Username', prompt 2+ is 'Password' — answer both.
+            "cat >\"$ASKPASS_FILE\" <<'ASKPASS_EOF'\n#!/bin/sh\ncase \"$1\" in\n  Username*) printf '%s' \"x-access-token\" ;;\n  *)         printf '%s' \"$GH_DEPLOY_TOKEN\" ;;\nesac\nASKPASS_EOF",
+            "chmod 700 \"$ASKPASS_FILE\"",
+            "export GIT_ASKPASS=\"$ASKPASS_FILE\"",
+            "export GIT_TERMINAL_PROMPT=0",
+            "trap 'rm -f \"$ASKPASS_FILE\" 2>/dev/null || true; unset GH_DEPLOY_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT' EXIT",
+        ]
+
+    body = """mkdir -p "$(dirname "$APP_ROOT")"
 if [ ! -d "$APP_ROOT/.git" ]; then
   git clone "$REPO" "$APP_ROOT"
 fi
@@ -167,6 +212,7 @@ fi
 export APP_ROOT GIT_BRANCH="$BRANCH" SKIP_APP_TARBALL=1 DEPLOY_GIT_MODE=reset START_NGINX_PROXY=1 APP_HOST_PORT=3001 DEPLOY_PRISMA_MIGRATE_DEPLOY=1
 bash scripts/deploy-production-safe.sh
 """
+    return prefix + "\n".join(header_lines) + "\n" + body
 
 
 def load_secret() -> tuple[str, str, str]:
