@@ -16,6 +16,60 @@ import {
 } from 'lucide-react';
 import { api } from '../store/auth';
 
+function isPolygonEvmAddress(s) {
+    return typeof s === 'string' && /^0x[a-fA-F0-9]{40}$/i.test(s.trim());
+}
+
+function polygonAddressUrl(addr) {
+    return `https://polygonscan.com/address/${encodeURIComponent(String(addr).trim())}`;
+}
+
+function polygonTxUrl(hash) {
+    return `https://polygonscan.com/tx/${encodeURIComponent(String(hash).trim())}`;
+}
+
+function polygonSearchUrl(q) {
+    return `https://polygonscan.com/search?q=${encodeURIComponent(String(q).trim())}`;
+}
+
+/**
+ * @param {{ label: string; value: string | null | undefined; onCopy: (v: string, label: string) => void }} props
+ */
+function ActivityAddressLine({ label, value, onCopy }) {
+    if (!value || !String(value).trim()) return null;
+    const v = String(value).trim();
+    const evm = isPolygonEvmAddress(v);
+    return (
+        <div>
+            <span className="block text-[9px] font-black uppercase tracking-wider text-slate-600 mb-0.5">{label}</span>
+            <div className="flex flex-wrap items-start gap-1">
+                <span className="break-all text-slate-300 leading-snug" title={v}>
+                    {v.length > 22 ? `${v.slice(0, 12)}…${v.slice(-8)}` : v}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => onCopy(v, `${label} copiado`)}
+                    className="p-0.5 text-slate-500 hover:text-emerald-400 shrink-0"
+                    title="Copiar"
+                >
+                    <Copy className="w-3 h-3" />
+                </button>
+                {evm ? (
+                    <a
+                        href={polygonAddressUrl(v)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-0.5 text-slate-500 hover:text-sky-400 shrink-0 inline-flex"
+                        title="Polygonscan (conta)"
+                    >
+                        <ExternalLink className="w-3 h-3" />
+                    </a>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
 export default function AdminFinance() {
     const [withdrawals, setWithdrawals] = useState([]);
     const [blkEconomyForm, setBlkEconomyForm] = useState(null);
@@ -883,8 +937,8 @@ export default function AdminFinance() {
                                         <th className="px-6 py-4">Data</th>
                                         <th className="px-6 py-4">Tipo</th>
                                         <th className="px-6 py-4">Usuário</th>
-                                        <th className="px-6 py-4">Hash / tx</th>
-                                        <th className="px-6 py-4">Endereço</th>
+                                        <th className="px-6 py-4 min-w-[200px]">Tx / explorador</th>
+                                        <th className="px-6 py-4 min-w-[220px]">Carteiras on-chain</th>
                                         <th className="px-6 py-4">Valor</th>
                                         <th className="px-6 py-4">Status</th>
                                         <th className="px-6 py-4 text-right">Ações</th>
@@ -894,11 +948,17 @@ export default function AdminFinance() {
                                     {activity.map((t) => {
                                         const uid = t.user_id ?? t.userId;
                                         const tx = t.tx_hash ?? t.txHash;
-                                        const shortHash = tx && tx.length > 14 ? `${tx.slice(0, 10)}…${tx.slice(-6)}` : tx || '—';
+                                        const txStr = tx != null ? String(tx).trim() : '';
+                                        const shortHash =
+                                            txStr && txStr.length > 18 ? `${txStr.slice(0, 10)}…${txStr.slice(-6)}` : txStr || '';
+                                        const fullTx = /^0x[a-fA-F0-9]{64}$/i.test(txStr);
+                                        const fromAddr = t.from_address ?? t.fromAddress;
+                                        const toAddr = t.address;
                                         return (
-                                            <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
+                                            <tr key={t.id} className="hover:bg-slate-800/30 transition-colors align-top">
                                                 <td className="px-6 py-4 text-xs whitespace-nowrap">
                                                     {new Date(t.created_at || t.createdAt).toLocaleString()}
+                                                    <span className="block text-[9px] text-slate-600 font-mono mt-1">ID #{t.id}</span>
                                                 </td>
                                                 <td className="px-6 py-4 text-xs uppercase font-bold tracking-widest">
                                                     {t.type === 'deposit' ? (
@@ -920,39 +980,80 @@ export default function AdminFinance() {
                                                             {t.user.email}
                                                         </span>
                                                     )}
+                                                    {t.user?.walletAddress ? (
+                                                        <div className="mt-1.5 text-[9px] text-slate-600">
+                                                            <span className="font-bold uppercase text-slate-500">Carteira perfil</span>
+                                                            <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                                                <span className="font-mono text-slate-400 break-all max-w-[160px]">
+                                                                    {t.user.walletAddress.length > 24
+                                                                        ? `${t.user.walletAddress.slice(0, 10)}…${t.user.walletAddress.slice(-6)}`
+                                                                        : t.user.walletAddress}
+                                                                </span>
+                                                                {isPolygonEvmAddress(t.user.walletAddress) ? (
+                                                                    <a
+                                                                        href={polygonAddressUrl(t.user.walletAddress)}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="text-sky-500 hover:text-sky-400 shrink-0"
+                                                                        title="Polygonscan perfil"
+                                                                    >
+                                                                        <ExternalLink className="w-3 h-3" />
+                                                                    </a>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
                                                 </td>
-                                                <td className="px-6 py-4 text-[10px] font-mono max-w-[200px]">
-                                                    {tx ? (
-                                                        <div className="flex items-center gap-1">
-                                                            <span className="break-all text-slate-300" title={tx}>
-                                                                {shortHash}
-                                                            </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => copyText(tx, 'Hash copiado')}
-                                                                className="p-1 text-slate-500 hover:text-emerald-400 shrink-0"
-                                                                title="Copiar hash"
-                                                            >
-                                                                <Copy className="w-3 h-3" />
-                                                            </button>
-                                                            {/^0x[a-fA-F0-9]{64}$/.test(String(tx)) && (
-                                                                <a
-                                                                    href={`https://polygonscan.com/tx/${encodeURIComponent(tx)}`}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="p-1 text-slate-500 hover:text-sky-400 shrink-0"
-                                                                    title="Polygonscan"
+                                                <td className="px-6 py-4 text-[10px] font-mono max-w-[220px]">
+                                                    {txStr ? (
+                                                        <div className="space-y-1">
+                                                            <div className="flex flex-wrap items-center gap-1">
+                                                                <span className="break-all text-slate-300" title={txStr}>
+                                                                    {shortHash}
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => copyText(txStr, 'Hash copiado')}
+                                                                    className="p-1 text-slate-500 hover:text-emerald-400 shrink-0"
+                                                                    title="Copiar hash"
                                                                 >
-                                                                    <ExternalLink className="w-3 h-3" />
-                                                                </a>
-                                                            )}
+                                                                    <Copy className="w-3 h-3" />
+                                                                </button>
+                                                                {fullTx ? (
+                                                                    <a
+                                                                        href={polygonTxUrl(txStr)}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="p-1 text-slate-500 hover:text-sky-400 shrink-0 inline-flex"
+                                                                        title="Abrir tx no Polygonscan"
+                                                                    >
+                                                                        <ExternalLink className="w-3 h-3" />
+                                                                    </a>
+                                                                ) : (
+                                                                    <a
+                                                                        href={polygonSearchUrl(txStr)}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="text-[9px] font-bold uppercase text-sky-500 hover:text-sky-400 shrink-0"
+                                                                        title="Procurar no Polygonscan"
+                                                                    >
+                                                                        Buscar
+                                                                    </a>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     ) : (
                                                         <span className="text-slate-600">—</span>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-4 text-[10px] font-mono max-w-[160px] break-all text-slate-500">
-                                                    {t.address || '—'}
+                                                <td className="px-6 py-4 text-[10px] max-w-[260px] text-slate-400 flex flex-col gap-2">
+                                                    <ActivityAddressLine label="Origem (from)" value={fromAddr} onCopy={copyText} />
+                                                    <ActivityAddressLine
+                                                        label={t.type === 'withdrawal' ? 'Destino do saque' : 'Endereço / destino'}
+                                                        value={toAddr}
+                                                        onCopy={copyText}
+                                                    />
+                                                    {!fromAddr && !toAddr ? <span className="text-slate-600">—</span> : null}
                                                 </td>
                                                 <td className="px-6 py-4 font-mono text-slate-300 whitespace-nowrap">
                                                     {Number(t.amount).toFixed(4)} POL

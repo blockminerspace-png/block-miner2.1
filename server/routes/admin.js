@@ -662,6 +662,7 @@ adminRouter.get("/finance/activity", async (req, res) => {
             created_at: t.createdAt,
             completedAt: t.completedAt,
             fromAddress: t.fromAddress,
+            from_address: t.fromAddress,
             user: t.user
                 ? {
                       id: t.user.id,
