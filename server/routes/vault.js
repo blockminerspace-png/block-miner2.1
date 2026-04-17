@@ -2,7 +2,6 @@ import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { requireCriticalIdempotency } from "../middleware/criticalIdempotency.js";
-import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
 import { validateBody } from "../middleware/validate.js";
 import { getRequestIp } from "../utils/clientIp.js";
 import { getVault, moveToVault, retrieveFromVault } from "../controllers/vaultController.js";
@@ -24,7 +23,6 @@ router.get("/", getVault);
 router.post(
   "/move-to-vault",
   vaultWriteLimiter,
-  requireTurnstileWhenConfigured(),
   validateBody(moveToVaultBodySchema),
   requireCriticalIdempotency({ scope: "vault_move" }),
   moveToVault,
@@ -32,7 +30,6 @@ router.post(
 router.post(
   "/retrieve-from-vault",
   vaultWriteLimiter,
-  requireTurnstileWhenConfigured(),
   validateBody(retrieveFromVaultBodySchema),
   requireCriticalIdempotency({ scope: "vault_retrieve" }),
   retrieveFromVault,
