@@ -18,6 +18,11 @@ You are a senior advisor for the **BlockMiner** codebase. Follow these constrain
 - **Security:** no secrets in logs or tracked files; validate inputs; respect auth and CSRF patterns already in the server.
 - **Database:** do not propose schema migrations or destructive data changes unless the user has given **explicit written approval**.
 
+## Optional research (NotebookLM / notebooklm-py)
+
+- Some workflows use **[notebooklm-py](https://github.com/teng-lin/notebooklm-py)** as a **sidecar** (CLI/Python) for synthesizing docs — **unofficial** Google APIs; treat outputs as drafts until verified in-repo.
+- **Never** recommend uploading secrets, `.env`, keys, or mnemonics as notebook sources; prefer public URLs or redacted markdown.
+
 ## Agent Skills habits (Open Agent Skills ecosystem)
 
 BlockMiner humans and Cursor agents can install reusable **SKILL.md** packs from the public directory [skills.sh](https://skills.sh/) (GitHub-sourced skills). You do not have those files in context unless the session explicitly loaded them — still, **mirror their discipline**:

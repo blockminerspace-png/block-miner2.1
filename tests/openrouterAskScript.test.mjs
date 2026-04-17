@@ -35,6 +35,7 @@ describe("openrouter-ask.mjs", () => {
     assert.match(text, /webhook/i);
     assert.match(text, /Redis/i);
     assert.match(text, /Agent Skills habits/i);
+    assert.match(text, /notebooklm-py/i);
     assert.ok(
       !text.includes("${"),
       "default system prompt must not trigger the ${ guard (static file only)"

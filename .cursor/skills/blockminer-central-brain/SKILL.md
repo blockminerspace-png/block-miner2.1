@@ -22,6 +22,7 @@ All BlockMiner notes live in one project folder — do not create top-level
 - Central brain note: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Central Brain.md`
 - Rules catalog: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Cursor Rules.md`
 - Skills catalog: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Cursor Skills.md`
+- Optional NotebookLM sidecar: `./.cursor/skills/blockminer-notebooklm/SKILL.md` (see also [notebooklm-py](https://github.com/teng-lin/notebooklm-py))
 - Link sub-notes with wikilinks (e.g. `[[Architecture]]`, `[[Central Brain]]`), not absolute paths in prose.
 
 ## When to apply
