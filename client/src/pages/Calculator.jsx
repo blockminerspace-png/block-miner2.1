@@ -5,9 +5,8 @@ import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
 import { formatHashrate } from '../utils/machine';
 import {
-    BLOCK_REWARD_POL,
-    BLOCK_INTERVAL_MIN,
-    BLOCKS_PER_DAY,
+    DEFAULT_BLOCK_REWARD_POL,
+    DEFAULT_BLOCK_INTERVAL_MIN,
     calcRewards,
     calcSelectedHashRate,
 } from '../utils/calculatorEngine';
@@ -70,8 +69,22 @@ export default function CalculatorPage() {
     const price = parseFloat(tokenPriceInput) || 0;
 
     const hashFromMiners = calcSelectedHashRate(miners, selectedMiners);
-    const { share, perBlock, perHour, perDay, perWeek, perMonth, toUSD } =
-        calcRewards(myHash, netHash, price);
+
+    const blockRewardLive = Number(stats?.blockReward);
+    const blockIntervalLive = Number(stats?.blockIntervalMinutes);
+    const blockRewardPol =
+        Number.isFinite(blockRewardLive) && blockRewardLive > 0 ? blockRewardLive : DEFAULT_BLOCK_REWARD_POL;
+    const blockIntervalMin =
+        Number.isFinite(blockIntervalLive) && blockIntervalLive > 0
+            ? blockIntervalLive
+            : DEFAULT_BLOCK_INTERVAL_MIN;
+
+    const { share, perBlock, perHour, perDay, perWeek, perMonth, toUSD, blocksPerDay } = calcRewards(
+        myHash,
+        netHash,
+        price,
+        { blockRewardPol, blockIntervalMin }
+    );
 
     const handleMinerQty = (id, delta) => {
         setSelectedMiners(prev => {
@@ -104,7 +117,7 @@ export default function CalculatorPage() {
     };
 
     const resultRows = [
-        { key: 'per_block', pol: perBlock, sub: t('calculator.every_n_min', { n: BLOCK_INTERVAL_MIN }) },
+        { key: 'per_block', pol: perBlock, sub: t('calculator.every_n_min', { n: blockIntervalMin }) },
         { key: 'per_hour',  pol: perHour,  sub: '1h' },
         { key: 'per_day',   pol: perDay,   sub: '24h' },
         { key: 'per_week',  pol: perWeek,  sub: '7d' },
@@ -363,8 +376,8 @@ export default function CalculatorPage() {
                                 <div className="flex gap-2 pt-2 border-t border-gray-800 text-[9px] text-gray-600">
                                     <Info className="w-3 h-3 mt-0.5 shrink-0" />
                                     <div className="space-y-0.5">
-                                        <p>{t('calculator.notes_reward', { reward: BLOCK_REWARD_POL, interval: BLOCK_INTERVAL_MIN })}</p>
-                                        <p>{t('calculator.notes_blocks', { blocks: BLOCKS_PER_DAY })}</p>
+                                        <p>{t('calculator.notes_reward', { reward: blockRewardPol, interval: blockIntervalMin })}</p>
+                                        <p>{t('calculator.notes_blocks', { blocks: Math.round(blocksPerDay) })}</p>
                                         <p>{t('calculator.notes_estimate')}</p>
                                     </div>
                                 </div>

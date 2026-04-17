@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowLeft, Clock, Coins, RotateCcw } from "lucide-react";
@@ -135,8 +135,13 @@ function endOverlayKey(session) {
 
 export default function Game2048Page() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  /** After auto-claim fails, allow manual retry (same API as claim button). */
+  const [claimFailed, setClaimFailed] = useState(false);
+  /** Ensures a single auto-claim attempt per ended session (Strict Mode / busy churn). */
+  const autoClaimSessionKeyRef = useRef(null);
   const [status, setStatus] = useState(null);
   const [session, setSession] = useState(null);
   /** Latest session for async handlers (avoids stale closures + out-of-order move responses). */
@@ -449,43 +454,72 @@ export default function Game2048Page() {
     }
   }, [t, refreshStatus]);
 
-  const claimReward = useCallback(async () => {
-    if (!session?.id || busy || moveSync) return;
-    setBusy(true);
-    try {
-      const { data } = await api.post("/games/2048/claim", { sessionId: session.id });
-      if (!data?.ok) {
-        const code = data?.code;
-        const msg = code
-          ? t(`game2048.errors.${code}`, { defaultValue: t("game2048.errors.claim_failed") })
-          : t("game2048.errors.claim_failed");
-        toast.error(msg);
+  const claimReward = useCallback(
+    async ({ redirectOnSuccess = false, fromAuto = false } = {}) => {
+      const sid = sessionRef.current?.id;
+      if (!sid || busy || moveSync) {
+        if (fromAuto) autoClaimSessionKeyRef.current = null;
         return;
       }
-      if (!data.idempotent) {
-        if (data.rewardPowerHours != null && Number(data.rewardPowerHours) > 0) {
-          toast.success(
-            t("game2048.claimed_toast_hours", {
-              hr: data.rewardHashRate,
-              hours: data.rewardPowerHours,
-            }),
-          );
-        } else {
-          toast.success(
-            t("game2048.claimed_toast", {
-              hr: data.rewardHashRate,
-              days: data.rewardPowerDays ?? data.powerDays,
-            }),
-          );
+      setBusy(true);
+      setClaimFailed(false);
+      try {
+        const { data } = await api.post("/games/2048/claim", { sessionId: sid });
+        if (!data?.ok) {
+          const code = data?.code;
+          const msg = code
+            ? t(`game2048.errors.${code}`, { defaultValue: t("game2048.errors.claim_failed") })
+            : t("game2048.errors.claim_failed");
+          toast.error(msg);
+          autoClaimSessionKeyRef.current = null;
+          setClaimFailed(true);
+          return;
         }
+        if (!data.idempotent) {
+          if (data.rewardPowerHours != null && Number(data.rewardPowerHours) > 0) {
+            toast.success(
+              t("game2048.claimed_toast_hours", {
+                hr: data.rewardHashRate,
+                hours: data.rewardPowerHours,
+              }),
+            );
+          } else {
+            toast.success(
+              t("game2048.claimed_toast", {
+                hr: data.rewardHashRate,
+                days: data.rewardPowerDays ?? data.powerDays,
+              }),
+            );
+          }
+        }
+        await refreshStatus();
+        if (redirectOnSuccess) {
+          navigate("/games", { replace: true });
+        }
+      } catch {
+        toast.error(t("game2048.errors.claim_failed"));
+        autoClaimSessionKeyRef.current = null;
+        setClaimFailed(true);
+      } finally {
+        setBusy(false);
       }
-      await refreshStatus();
-    } catch {
-      toast.error(t("game2048.errors.claim_failed"));
-    } finally {
-      setBusy(false);
-    }
-  }, [session, busy, moveSync, t, refreshStatus]);
+    },
+    [busy, moveSync, t, refreshStatus, navigate],
+  );
+
+  useEffect(() => {
+    if (!session?.canClaim || !session?.id) return undefined;
+    if (moveSync || busy) return undefined;
+    if (claimFailed) return undefined;
+
+    const key = String(session.id);
+    if (autoClaimSessionKeyRef.current === key) return undefined;
+    autoClaimSessionKeyRef.current = key;
+
+    void claimReward({ redirectOnSuccess: true, fromAuto: true });
+
+    return undefined;
+  }, [session?.canClaim, session?.id, moveSync, busy, claimFailed, claimReward]);
 
   const minSwipePx = useMemo(() => {
     if (typeof window === "undefined") return 24;
@@ -656,10 +690,10 @@ export default function Game2048Page() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden overscroll-none">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden overscroll-none px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-4">
               <div className="flex flex-wrap justify-center gap-2">
-                {session?.canClaim && (
+                {session?.canClaim && claimFailed && (
                   <button
                     type="button"
-                    onClick={() => void claimReward()}
+                    onClick={() => void claimReward({ redirectOnSuccess: true })}
                     disabled={busy || moveSync}
                     className="min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-5 py-3 text-xs font-black uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
                   >

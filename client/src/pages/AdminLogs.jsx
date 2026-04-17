@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { RefreshCw, Terminal, Search, Filter } from "lucide-react";
@@ -6,20 +6,64 @@ import { api } from "../store/auth";
 
 const PAGE_SIZE = 100;
 
+const CATEGORY_KEYS = [
+  "all",
+  "auth",
+  "admin",
+  "economy",
+  "games",
+  "user_activity",
+  "system",
+  "other",
+];
+
+const SOURCE_KEYS = ["all", "audit_log", "audit_event"];
+
+function categoryBadgeClass(cat) {
+  switch (cat) {
+    case "auth":
+      return "bg-blue-500/10 text-blue-400";
+    case "admin":
+      return "bg-red-500/10 text-red-400";
+    case "economy":
+      return "bg-amber-500/10 text-amber-400";
+    case "games":
+      return "bg-emerald-500/10 text-emerald-400";
+    case "user_activity":
+      return "bg-cyan-500/10 text-cyan-400";
+    case "system":
+      return "bg-violet-500/10 text-violet-300";
+    case "other":
+      return "bg-slate-800 text-slate-300";
+    default:
+      return "bg-slate-800 text-slate-300";
+  }
+}
+
 export default function AdminLogs() {
   const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [totalApprox, setTotalApprox] = useState(null);
+  const [matchedInWindow, setMatchedInWindow] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [category, setCategory] = useState("all");
+  const [source, setSource] = useState("all");
 
   const fetchLogs = useCallback(
     async (nextOffset = 0, append = false) => {
       try {
         setIsLoading(true);
-        const res = await api.get("/admin/audit", { params: { limit: PAGE_SIZE, offset: nextOffset } });
+        const res = await api.get("/admin/audit", {
+          params: {
+            limit: PAGE_SIZE,
+            offset: nextOffset,
+            category: category === "all" ? undefined : category,
+            source: source === "all" ? undefined : source,
+          },
+        });
         if (res.data.ok) {
           const batch = res.data.logs || [];
           setLogs((prev) => (append ? [...prev, ...batch] : batch));
@@ -28,6 +72,11 @@ export default function AdminLogs() {
           if (typeof res.data.totalApprox === "number") {
             setTotalApprox(res.data.totalApprox);
           }
+          if (typeof res.data.matchedInWindow === "number") {
+            setMatchedInWindow(res.data.matchedInWindow);
+          } else {
+            setMatchedInWindow(null);
+          }
         }
       } catch {
         toast.error(t("adminLogs.load_error"));
@@ -35,7 +84,7 @@ export default function AdminLogs() {
         setIsLoading(false);
       }
     },
-    [t],
+    [t, category, source],
   );
 
   useEffect(() => {
@@ -51,12 +100,14 @@ export default function AdminLogs() {
     const ip = String(log.ip || "");
     const src = String(log.source || "").toLowerCase();
     const rc = String(log.result_code || "").toLowerCase();
+    const cat = String(log.category || "").toLowerCase();
     return (
       action.includes(q) ||
       email.includes(q) ||
       ip.includes(q) ||
       src.includes(q) ||
-      rc.includes(q)
+      rc.includes(q) ||
+      cat.includes(q)
     );
   });
 
@@ -64,6 +115,28 @@ export default function AdminLogs() {
     if (!hasMore || isLoading) return;
     void fetchLogs(offset, true);
   };
+
+  const categoryChips = useMemo(
+    () =>
+      CATEGORY_KEYS.map((key) => ({
+        key,
+        label: t(`adminLogs.category_${key}`),
+        active: category === key,
+      })),
+    [t, category],
+  );
+
+  const sourceChips = useMemo(
+    () =>
+      SOURCE_KEYS.map((key) => ({
+        key,
+        label: t(`adminLogs.source_${key}`),
+        active: source === key,
+      })),
+    [t, source],
+  );
+
+  const filtersActive = category !== "all" || source !== "all";
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -100,6 +173,50 @@ export default function AdminLogs() {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 px-4 py-4 space-y-3">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t("adminLogs.filter_category")}</span>
+          <div className="flex flex-wrap gap-2">
+            {categoryChips.map(({ key, label, active }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setCategory(key)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                  active
+                    ? "bg-purple-600/30 border-purple-500/60 text-purple-200"
+                    : "bg-slate-950/80 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t("adminLogs.filter_source")}</span>
+          <div className="flex flex-wrap gap-2">
+            {sourceChips.map(({ key, label, active }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSource(key)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                  active
+                    ? "bg-slate-700 border-slate-500 text-white"
+                    : "bg-slate-950/80 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filtersActive && matchedInWindow != null ? (
+          <p className="text-[10px] text-slate-500 leading-relaxed">{t("adminLogs.buffer_match_hint", { n: matchedInWindow })}</p>
+        ) : null}
+      </div>
+
       <div className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
         <div className="px-6 py-4 border-b border-slate-800 flex flex-wrap justify-between items-center gap-2 bg-slate-900">
           <div className="flex items-center gap-2 text-slate-400">
@@ -133,15 +250,8 @@ export default function AdminLogs() {
             </thead>
             <tbody className="divide-y divide-slate-800/50 font-medium font-mono text-xs">
               {filteredLogs.map((log) => {
-                const actionKey = String(log.action || "").toLowerCase();
-                const badgeClass =
-                  actionKey.includes("login") || actionKey.includes("auth")
-                    ? "bg-blue-500/10 text-blue-400"
-                    : actionKey.includes("admin") || actionKey.includes("ban")
-                      ? "bg-red-500/10 text-red-400"
-                      : actionKey.includes("withdraw") || actionKey.includes("deposit") || actionKey.includes("economy")
-                        ? "bg-amber-500/10 text-amber-400"
-                        : "bg-slate-800 text-slate-300";
+                const cat = log.category && typeof log.category === "string" ? log.category : "other";
+                const badgeClass = categoryBadgeClass(cat);
                 return (
                   <tr key={log.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-3 text-slate-500 whitespace-nowrap">

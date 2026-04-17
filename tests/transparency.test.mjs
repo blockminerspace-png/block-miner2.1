@@ -29,6 +29,7 @@ const {
   adminCreate,
   adminUpdate,
   adminDelete,
+  adminWalletPutSettings,
 } = await import('../server/controllers/transparencyController.js');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -183,6 +184,12 @@ test('adminUpdate — 400 on invalid period in body', async () => {
 
 test('adminUpdate — valid partial update reaches DB (500 no real DB)', async () => {
   await expectStatus(adminUpdate, mockReq({ isActive: false }, { id: '5' }), 500);
+});
+
+// ─── adminWalletPutSettings — validation ─────────────────────────────────────
+
+test('adminWalletPutSettings — 400 on invalid address (before DB)', async () => {
+  await expectStatus(adminWalletPutSettings, mockReq({ address: 'not-a-wallet' }), 400);
 });
 
 // ─── adminDelete — ID validation ──────────────────────────────────────────────

@@ -360,6 +360,8 @@ export class MiningEngine {
       tokenSymbol: this.tokenSymbol,
       tokenPrice: this.tokenPrice,
       blockReward: this.rewardBase,
+      /** Minutes between POL block settlements (for calculator / UI). */
+      blockIntervalMinutes: this.blockDurationMs / 60000,
       blockNumber: this.blockNumber,
       blockProgress: this.blockProgress,
       blockCountdownSeconds: Math.ceil(remainingMs / 1000),

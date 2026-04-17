@@ -103,7 +103,7 @@ function mockFetchSuccess(entries = [baseEntry]) {
     if (url === '/api/transparency') {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ ok: true, entries }),
+        json: () => Promise.resolve({ ok: true, entries, trackedWallet: null }),
       });
     }
     // Polygon RPC calls

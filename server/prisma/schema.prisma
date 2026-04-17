@@ -1665,6 +1665,15 @@ model TransparencyEntry {
   @@map("transparency_entries")
 }
 
+/// Singleton (id = 1): Polygon wallet address for the public transparency portal + admin on-chain audit.
+model TransparencyWalletSettings {
+  id        Int      @id @default(1)
+  address   String?
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("transparency_wallet_settings")
+}
+
 /// Singleton (id = 1): user app sidebar visibility, order, and nesting under Rewards group.
 model SidebarNavConfig {
   id        Int      @id @default(1)

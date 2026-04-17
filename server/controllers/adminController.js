@@ -9,6 +9,7 @@ import * as minersModel from "../models/minersModel.js";
 import * as walletModel from "../models/walletModel.js";
 import * as userModel from "../models/userModel.js";
 import loggerLib from "../utils/logger.js";
+import { getMiningEngine } from "../src/miningEngineInstance.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,7 +77,7 @@ async function measureCpuUsagePercent(sampleMs = 300) {
     return acc;
   }, { idle: 0, total: 0 });
 
-  await new Promise(r => setTimeout(r, sampleMs));
+  await new Promise((r) => setTimeout(r, sampleMs));
 
   const after = os.cpus().reduce((acc, cpu) => {
     acc.idle += cpu.times.idle;
@@ -89,21 +90,56 @@ async function measureCpuUsagePercent(sampleMs = 300) {
   return totalDelta <= 0 ? 0 : Math.max(0, Math.min(100, (1 - idleDelta / totalDelta) * 100));
 }
 
+/**
+ * Root filesystem usage (host or container /), for admin dashboards.
+ * Prefers fs.statfs (no subprocess); falls back to POSIX `df -kP /`.
+ * @returns {Promise<{ totalBytes: number, usedBytes: number, diskUsagePercent: number } | null>}
+ */
+async function readRootDiskUsageBytes() {
+  try {
+    const { statfs } = await import("fs/promises");
+    if (typeof statfs === "function") {
+      const s = await statfs("/");
+      const bsize = Number(s.bsize);
+      const blocks = Number(s.blocks);
+      const bavail = Number(s.bavail);
+      if (Number.isFinite(bsize) && bsize > 0 && Number.isFinite(blocks) && blocks > 0) {
+        const totalBytes = blocks * bsize;
+        const availBytes = Number.isFinite(bavail) ? Math.max(0, bavail) * bsize : 0;
+        const usedBytes = Math.max(0, Math.min(totalBytes, totalBytes - availBytes));
+        const diskUsagePercent = totalBytes > 0 ? (usedBytes / totalBytes) * 100 : 0;
+        return { totalBytes, usedBytes, diskUsagePercent };
+      }
+    }
+  } catch {
+    // fall through to df
+  }
+
+  try {
+    const { stdout } = await execFileAsync("df", ["-kP", "/"], { timeout: 2000 });
+    const lines = stdout.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) return null;
+    const parts = lines[1].trim().split(/\s+/);
+    if (parts.length < 3) return null;
+    const blocks1k = parseInt(parts[1], 10);
+    const used1k = parseInt(parts[2], 10);
+    if (!Number.isFinite(blocks1k) || !Number.isFinite(used1k) || blocks1k <= 0) return null;
+    const totalBytes = blocks1k * 1024;
+    const usedBytes = Math.max(0, Math.min(totalBytes, used1k * 1024));
+    const diskUsagePercent = (usedBytes / totalBytes) * 100;
+    return { totalBytes, usedBytes, diskUsagePercent };
+  } catch {
+    return null;
+  }
+}
+
 async function collectServerMetrics() {
   const cpuUsage = await measureCpuUsagePercent();
   const memTotal = os.totalmem();
   const memFree = os.freemem();
   const memUsed = memTotal - memFree;
 
-  let diskTotal = 500 * 1024 ** 3;
-  let diskUsed = 50 * 1024 ** 3;
-  try {
-    const { execSync } = await import('child_process');
-    const lines = execSync('df -k / --output=size,used', { timeout: 2000 }).toString().split('\n');
-    const parts = lines[1].trim().split(/\s+/);
-    diskTotal = parseInt(parts[0]) * 1024;
-    diskUsed = parseInt(parts[1]) * 1024;
-  } catch {}
+  const disk = await readRootDiskUsageBytes();
 
   return {
     serverCpuUsagePercent: cpuUsage,
@@ -111,15 +147,45 @@ async function collectServerMetrics() {
     serverMemoryTotalBytes: memTotal,
     serverMemoryFreeBytes: memFree,
     serverMemoryUsedBytes: memUsed,
-    serverMemoryUsagePercent: (memUsed / memTotal) * 100,
-    serverDiskTotalBytes: diskTotal,
-    serverDiskUsedBytes: diskUsed,
-    serverDiskUsagePercent: (diskUsed / diskTotal) * 100,
+    serverMemoryUsagePercent: memTotal > 0 ? (memUsed / memTotal) * 100 : 0,
+    serverDiskTotalBytes: disk?.totalBytes ?? null,
+    serverDiskUsedBytes: disk?.usedBytes ?? null,
+    serverDiskUsagePercent: disk?.diskUsagePercent ?? null,
+    serverDiskMetricsAvailable: Boolean(disk),
     uptimeSeconds: process.uptime(),
     platform: process.platform,
     nodeVersion: process.version,
     processId: process.pid,
   };
+}
+
+/** JSON shape expected by `client/src/pages/AdminMetrics.jsx` */
+export async function getServerMetrics(_req, res) {
+  try {
+    const m = await collectServerMetrics();
+    res.json({
+      ok: true,
+      metrics: {
+        cpuUsagePercent: m.serverCpuUsagePercent,
+        cpuCores: m.serverCpuCores,
+        memoryTotalBytes: m.serverMemoryTotalBytes,
+        memoryFreeBytes: m.serverMemoryFreeBytes,
+        memoryUsedBytes: m.serverMemoryUsedBytes,
+        memoryUsagePercent: m.serverMemoryUsagePercent,
+        diskTotalBytes: m.serverDiskTotalBytes,
+        diskUsedBytes: m.serverDiskUsedBytes,
+        diskUsagePercent: m.serverDiskUsagePercent,
+        diskUnavailable: !m.serverDiskMetricsAvailable,
+        uptimeSeconds: m.uptimeSeconds,
+        platform: m.platform,
+        nodeVersion: m.nodeVersion,
+        processId: m.processId,
+      },
+    });
+  } catch (error) {
+    logger.error("getServerMetrics failed", { error: error?.message || String(error) });
+    res.status(500).json({ ok: false, message: "Unable to load server metrics." });
+  }
 }
 
 export async function getStats(_req, res) {
@@ -137,6 +203,20 @@ export async function getStats(_req, res) {
 
     const metrics = await collectServerMetrics();
 
+    let miningBlockRewardPol = 0.3;
+    let miningBlockIntervalMinutes = 10;
+    try {
+      const engine = getMiningEngine();
+      if (engine && Number.isFinite(Number(engine.rewardBase))) {
+        miningBlockRewardPol = Number(engine.rewardBase);
+      }
+      if (engine && Number.isFinite(Number(engine.blockDurationMs)) && Number(engine.blockDurationMs) > 0) {
+        miningBlockIntervalMinutes = Number(engine.blockDurationMs) / 60000;
+      }
+    } catch {
+      /* engine not booted in some tests */
+    }
+
     res.json({
       ok: true,
       stats: {
@@ -147,6 +227,8 @@ export async function getStats(_req, res) {
         minersActive,
         balanceTotal: Number(balances._sum.polBalance || 0),
         transactions24h: tx24h,
+        miningBlockRewardPol,
+        miningBlockIntervalMinutes,
         ...metrics
       }
     });

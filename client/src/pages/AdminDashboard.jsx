@@ -142,13 +142,54 @@ export default function AdminDashboard() {
                     icon={MemoryStick} 
                     progress={stats?.serverMemoryUsagePercent}
                 />
-                <HealthCard 
-                    label="Armazenamento" 
-                    value={`${(stats?.serverDiskUsedBytes / 1024**3).toFixed(1)}GB`} 
-                    sub={`de ${(stats?.serverDiskTotalBytes / 1024**3).toFixed(1)}GB`}
-                    icon={HardDrive} 
-                    progress={stats?.serverDiskUsagePercent}
+                <HealthCard
+                    label="Armazenamento"
+                    value={
+                        stats?.serverDiskMetricsAvailable && stats?.serverDiskTotalBytes
+                            ? `${(stats.serverDiskUsedBytes / 1024 ** 3).toFixed(1)}GB`
+                            : "—"
+                    }
+                    sub={
+                        stats?.serverDiskMetricsAvailable && stats?.serverDiskTotalBytes
+                            ? `de ${(stats.serverDiskTotalBytes / 1024 ** 3).toFixed(1)}GB`
+                            : "disco indisponível"
+                    }
+                    icon={HardDrive}
+                    progress={
+                        stats?.serverDiskMetricsAvailable && Number.isFinite(Number(stats?.serverDiskUsagePercent))
+                            ? stats.serverDiskUsagePercent
+                            : 0
+                    }
                 />
+            </div>
+
+            {/* POL block mining (live engine — same source as the game + calculator) */}
+            <div className="rounded-3xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 to-slate-900/80 p-6 space-y-3">
+                <div className="flex items-center gap-2 text-sky-400">
+                    <Activity className="w-5 h-5" />
+                    <h3 className="text-sm font-black uppercase tracking-widest">Economia do bloco POL (motor ao vivo)</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                    Valores servidos pelo <code className="text-sky-300/90 bg-slate-950/80 px-1.5 py-0.5 rounded">MiningEngine</code> em memória — a calculadora pública usa estes números quando o socket está ligado.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="rounded-2xl border border-slate-700/60 bg-slate-950/50 p-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Recompensa base / bloco</p>
+                        <p className="text-2xl font-black text-white tabular-nums">
+                            {Number(stats?.miningBlockRewardPol ?? 0.3).toFixed(2)} <span className="text-sm text-sky-400">POL</span>
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-700/60 bg-slate-950/50 p-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Intervalo entre blocos</p>
+                        <p className="text-2xl font-black text-white tabular-nums">
+                            {Number(stats?.miningBlockIntervalMinutes ?? 10).toFixed(0)}{' '}
+                            <span className="text-sm text-sky-400">min</span>
+                        </p>
+                    </div>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                    Para alterar a base no deploy, ajusta <code className="text-slate-400">server/src/miningEngine.js</code> e reconstrói a app.
+                </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

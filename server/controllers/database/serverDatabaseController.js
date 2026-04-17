@@ -1,4 +1,4 @@
-import  from ;
+import * as serverDatabaseModel from "../../models/database/serverDatabaseModel.js";
 
 function createServerDatabaseController({
   logger,
@@ -480,4 +480,4 @@ function createServerDatabaseController({
   };
 }
 
-export {  };
+export { createServerDatabaseController };

@@ -378,6 +378,9 @@ adminRouter.delete("/creators/:id", creatorController.adminRemove);
 // Portal de Transparência
 adminRouter.get("/transparency", transparencyController.adminList);
 adminRouter.post("/transparency", transparencyController.adminCreate);
+adminRouter.get("/transparency/wallet/settings", transparencyController.adminWalletGetSettings);
+adminRouter.put("/transparency/wallet/settings", transparencyController.adminWalletPutSettings);
+adminRouter.get("/transparency/wallet/activity", transparencyController.adminWalletGetActivity);
 adminRouter.put("/transparency/:id", transparencyController.adminUpdate);
 adminRouter.delete("/transparency/:id", transparencyController.adminDelete);
 
@@ -603,34 +606,8 @@ adminRouter.get("/audit", async (req, res) => {
     }
 });
 
-// Server Metrics
-adminRouter.get("/server-metrics", async (req, res) => {
-    try {
-        // Simple mock of metrics since full OS logic might require `adminController.collectServerMetrics`
-        // Wait, getStats already returns metrics, let's just reuse adminController's logic or call it here
-        const os = await import("os");
-        res.json({
-            ok: true,
-            metrics: {
-                cpuUsagePercent: Math.random() * 10, // Mocked for speed if not implemented fully
-                memoryTotalBytes: os.totalmem(),
-                memoryFreeBytes: os.freemem(),
-                memoryUsedBytes: os.totalmem() - os.freemem(),
-                memoryUsagePercent: (1 - os.freemem() / os.totalmem()) * 100,
-                uptimeSeconds: process.uptime(),
-                platform: process.platform,
-                cpuCores: os.cpus().length,
-                processId: process.pid,
-                nodeVersion: process.version,
-                diskTotalBytes: 500 * 1024 * 1024 * 1024, // Mock
-                diskUsedBytes: 50 * 1024 * 1024 * 1024,   // Mock
-                diskUsagePercent: 10
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ ok: false, message: "Error" });
-    }
-});
+// Server Metrics — live CPU/RAM/disk from the Node process host (see adminController.getServerMetrics)
+adminRouter.get("/server-metrics", (req, res) => adminController.getServerMetrics(req, res));
 
 // Backups — full PostgreSQL logical dumps via pg_dump (see databaseBackupService.js)
 adminRouter.get("/backups", async (req, res) => {

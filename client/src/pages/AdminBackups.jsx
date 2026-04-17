@@ -45,10 +45,16 @@ export default function AdminBackups() {
       const res = await api.post("/admin/backups");
       if (res.data.ok) {
         const b = res.data.backup;
-        const extra =
-          b && typeof b.publicTableCount === "number"
-            ? ` (${t("adminBackups.meta_tables", { count: b.publicTableCount })})`
-            : "";
+        let extra = "";
+        if (b && typeof b.publicTableCount === "number") {
+          extra += ` (${t("adminBackups.meta_tables", { count: b.publicTableCount })})`;
+        }
+        if (b && typeof b.totalDataRows === "number" && typeof b.publicTablesWithRows === "number") {
+          extra += ` — ${t("adminBackups.toast_row_audit", {
+            rows: b.totalDataRows,
+            withData: b.publicTablesWithRows,
+          })}`;
+        }
         toast.success(`${t("adminBackups.create_success")}${extra}`);
         fetchBackups();
       }
@@ -90,6 +96,7 @@ export default function AdminBackups() {
             {t("adminBackups.title")}
           </h2>
           <p className="text-slate-500 text-sm font-medium mt-1 max-w-2xl">{t("adminBackups.subtitle")}</p>
+          <p className="text-slate-600 text-xs font-medium mt-2 max-w-3xl leading-relaxed">{t("adminBackups.subtitle_full_copy")}</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -147,9 +154,31 @@ export default function AdminBackups() {
                   <td className="px-8 py-5 text-xs">
                     <span className="text-slate-300">{t(backupStatusKey(b.status))}</span>
                     {typeof b.publicTableCount === "number" ? (
-                      <div className="text-[10px] text-slate-600 mt-0.5">
-                        {t("adminBackups.meta_tables", { count: b.publicTableCount })}
-                        {typeof b.durationMs === "number" ? ` · ${t("adminBackups.meta_duration", { ms: b.durationMs })}` : null}
+                      <div className="text-[10px] text-slate-600 mt-0.5 space-y-0.5">
+                        <div>
+                          {t("adminBackups.meta_tables", { count: b.publicTableCount })}
+                          {typeof b.durationMs === "number" ? ` · ${t("adminBackups.meta_duration", { ms: b.durationMs })}` : null}
+                        </div>
+                        {typeof b.totalDataRows === "number" &&
+                        typeof b.publicTablesWithRows === "number" &&
+                        typeof b.publicTablesEmpty === "number" ? (
+                          <div className="text-slate-500">
+                            {t("adminBackups.meta_row_audit", {
+                              rows: b.totalDataRows,
+                              withData: b.publicTablesWithRows,
+                              empty: b.publicTablesEmpty,
+                            })}
+                          </div>
+                        ) : null}
+                        {b.criticalRowCounts && typeof b.criticalRowCounts === "object" ? (
+                          <div className="text-slate-600 font-mono break-all">
+                            {t("adminBackups.meta_critical_counts", {
+                              summary: Object.entries(b.criticalRowCounts)
+                                .map(([k, v]) => `${k}:${v}`)
+                                .join(" "),
+                            })}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </td>

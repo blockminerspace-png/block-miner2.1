@@ -97,7 +97,7 @@ export async function getPublicLiveStats() {
   }
 
   const latest = recentDistributions[0];
-  const polRewardDisplay = latest ? num(latest.reward) : 0.15;
+  const polRewardDisplay = latest ? num(latest.reward) : 0.3;
   const totalWork = latest ? num(latest.totalWork) : 0;
   const networkDifficultyT = totalWork > 0 ? totalWork / 1e12 : estimateNetworkHashRateHs(activeMiners) / 1e12;
 

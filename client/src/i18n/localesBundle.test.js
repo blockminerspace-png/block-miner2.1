@@ -71,10 +71,20 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(pt.adminBackups.title).toBeTruthy();
     expect(es.adminBackups.title).toBeTruthy();
     expect(en.adminBackups.status_success).toBeTruthy();
+    expect(en.adminBackups.subtitle_full_copy).toBeTruthy();
+    expect(pt.adminBackups.subtitle_full_copy).toBeTruthy();
+    expect(es.adminBackups.subtitle_full_copy).toBeTruthy();
 
     expect(en.adminLogs.title).toBeTruthy();
     expect(pt.adminLogs.title).toBeTruthy();
     expect(es.adminLogs.title).toBeTruthy();
+    expect(en.adminLogs.filter_category).toBeTruthy();
+    expect(en.transparency.admin.wallet_section_title).toBeTruthy();
+    expect(en.admin_user_sidebar.search_placeholder).toBeTruthy();
+    expect(es.admin_user_sidebar.normalize).toBeTruthy();
+    expect(pt.transparency.admin.wallet_save).toBeTruthy();
+    expect(pt.adminLogs.category_auth).toBeTruthy();
+    expect(es.adminLogs.source_all).toBeTruthy();
 
     expect(en.wallet.hero_subtitle).toBeTruthy();
     expect(pt.wallet.ledger_title).toBeTruthy();

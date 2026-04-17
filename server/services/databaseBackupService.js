@@ -112,6 +112,40 @@ async function countPublicTables(prisma) {
   return rows.map((r) => r.tablename);
 }
 
+/** pg_tables names in public for this project are snake_case; reject anything else before raw SQL. */
+export function isSafePublicTableNameForRowCount(name) {
+  return typeof name === "string" && /^[a-z][a-z0-9_]*$/.test(name);
+}
+
+/**
+ * Exact row counts per table (sequential COUNT(*)). Reassures admins the dump matches live data volume.
+ * Set BACKUP_SKIP_ROW_COUNT_AUDIT=1 to skip on very large databases.
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {string[]} tableNames
+ */
+export async function collectPublicTableExactRowCounts(prisma, tableNames) {
+  const rowCountByTable = {};
+  let totalDataRows = 0;
+  for (const name of tableNames) {
+    if (!isSafePublicTableNameForRowCount(name)) {
+      throw new Error(`Refusing row count on invalid table name: ${name}`);
+    }
+    const rows = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::bigint AS c FROM public.${name}`);
+    const c = Number(rows[0]?.c ?? 0);
+    rowCountByTable[name] = c;
+    totalDataRows += c;
+  }
+  const publicTablesWithRows = Object.values(rowCountByTable).filter((n) => n > 0).length;
+  const publicTablesEmpty = tableNames.length - publicTablesWithRows;
+  const criticalRowCounts = {};
+  for (const t of CRITICAL_PUBLIC_TABLES) {
+    if (Object.prototype.hasOwnProperty.call(rowCountByTable, t)) {
+      criticalRowCounts[t] = rowCountByTable[t];
+    }
+  }
+  return { rowCountByTable, totalDataRows, publicTablesWithRows, publicTablesEmpty, criticalRowCounts };
+}
+
 function runPgDumpToFile({ pgDumpPath, databaseUrl, outFile }) {
   return new Promise((resolve, reject) => {
     const args = [
@@ -222,6 +256,22 @@ export async function createPostgresSqlBackup(opts) {
     throw new Error(`Backup validation failed: missing COPY sections for: ${missingCritical.join(", ")}`);
   }
 
+  let rowCountAudit = null;
+  const skipRowAudit = String(process.env.BACKUP_SKIP_ROW_COUNT_AUDIT || "").trim() === "1";
+  if (!skipRowAudit) {
+    const rowStarted = Date.now();
+    try {
+      rowCountAudit = await collectPublicTableExactRowCounts(prisma, publicTables);
+      rowCountAudit.durationMs = Date.now() - rowStarted;
+      rowCountAudit.mode = "exact_count";
+    } catch (err) {
+      logger?.warn?.("admin_backup_row_count_audit_failed", { message: err?.message || String(err) });
+      rowCountAudit = { error: err?.message || String(err), mode: "failed" };
+    }
+  } else {
+    rowCountAudit = { mode: "skipped", reason: "BACKUP_SKIP_ROW_COUNT_AUDIT=1" };
+  }
+
   const durationMs = Date.now() - started;
   const manifest = {
     version: 1,
@@ -234,6 +284,7 @@ export async function createPostgresSqlBackup(opts) {
     copyPublicLineCount: scan.copyPublicLineCount,
     criticalTablesPresent: [...scan.found],
     pgDumpPath,
+    rowCountAudit,
   };
 
   await fs.writeFile(metaPathForSqlFile(backupsDir, filename), JSON.stringify(manifest, null, 2), "utf8");
@@ -244,6 +295,7 @@ export async function createPostgresSqlBackup(opts) {
     durationMs,
     publicTableCount,
     copyPublicLineCount: scan.copyPublicLineCount,
+    totalDataRows: rowCountAudit?.totalDataRows,
   });
 
   return {
@@ -255,6 +307,11 @@ export async function createPostgresSqlBackup(opts) {
     publicTableCount,
     copyPublicLineCount: scan.copyPublicLineCount,
     criticalTablesPresent: manifest.criticalTablesPresent,
+    totalDataRows: rowCountAudit?.totalDataRows,
+    publicTablesWithRows: rowCountAudit?.publicTablesWithRows,
+    publicTablesEmpty: rowCountAudit?.publicTablesEmpty,
+    criticalRowCounts: rowCountAudit?.criticalRowCounts,
+    rowCountAuditMode: rowCountAudit?.mode,
   };
 }
 
@@ -275,6 +332,11 @@ export async function listSqlBackups() {
     let durationMs = null;
     let copyPublicLineCount = null;
     let criticalTablesPresent = null;
+    let totalDataRows = null;
+    let publicTablesWithRows = null;
+    let publicTablesEmpty = null;
+    let criticalRowCounts = null;
+    let rowCountAuditMode = null;
 
     try {
       const raw = await fs.readFile(metaPathForSqlFile(backupsDir, name), "utf8");
@@ -287,6 +349,18 @@ export async function listSqlBackups() {
         if (Number.isFinite(meta.durationMs)) durationMs = meta.durationMs;
         if (Number.isFinite(meta.copyPublicLineCount)) copyPublicLineCount = meta.copyPublicLineCount;
         if (Array.isArray(meta.criticalTablesPresent)) criticalTablesPresent = meta.criticalTablesPresent;
+        const audit = meta.rowCountAudit;
+        if (audit && typeof audit === "object" && audit.mode === "exact_count") {
+          if (Number.isFinite(audit.totalDataRows)) totalDataRows = audit.totalDataRows;
+          if (Number.isFinite(audit.publicTablesWithRows)) publicTablesWithRows = audit.publicTablesWithRows;
+          if (Number.isFinite(audit.publicTablesEmpty)) publicTablesEmpty = audit.publicTablesEmpty;
+          if (audit.criticalRowCounts && typeof audit.criticalRowCounts === "object") {
+            criticalRowCounts = audit.criticalRowCounts;
+          }
+          rowCountAuditMode = audit.mode;
+        } else if (audit && typeof audit === "object" && typeof audit.mode === "string") {
+          rowCountAuditMode = audit.mode;
+        }
       }
     } catch {
       // no meta: legacy / manual file
@@ -315,6 +389,11 @@ export async function listSqlBackups() {
       durationMs,
       copyPublicLineCount,
       criticalTablesPresent,
+      totalDataRows,
+      publicTablesWithRows,
+      publicTablesEmpty,
+      criticalRowCounts,
+      rowCountAuditMode,
     });
   }
 

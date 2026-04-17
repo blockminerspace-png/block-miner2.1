@@ -75,7 +75,7 @@ export const landingEn = {
   },
   calculator: {
     title: "Calculate potential POL earnings",
-    subtitle: "Uses the same block reward model as our public calculator (0.15 POL per block, ~10 min). Network size is estimated from live player data.",
+    subtitle: "Uses the same block reward model as our public calculator (0.30 POL per block, ~10 min). Network size is estimated from live player data.",
     slider_label: "Your mining power (H/s)",
     network_note: "Estimated network: scales with active rigs on the platform.",
     per_day: "Per day (est.)",

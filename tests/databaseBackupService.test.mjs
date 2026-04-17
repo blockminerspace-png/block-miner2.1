@@ -9,6 +9,8 @@ import {
   sanitizeDatabaseUrlForPgDump,
   CRITICAL_PUBLIC_TABLES,
   resolveBackupDownloadPath,
+  isSafePublicTableNameForRowCount,
+  collectPublicTableExactRowCounts,
 } from "../server/services/databaseBackupService.js";
 
 describe("databaseBackupService", () => {
@@ -62,6 +64,30 @@ describe("databaseBackupService", () => {
       sanitizeDatabaseUrlForPgDump(raw),
       "postgresql://user:secret@db:5432/blockminer_db?sslmode=require",
     );
+  });
+
+  it("isSafePublicTableNameForRowCount accepts snake_case and rejects injection-like names", () => {
+    assert.equal(isSafePublicTableNameForRowCount("users"), true);
+    assert.equal(isSafePublicTableNameForRowCount("user_owned_machines"), true);
+    assert.equal(isSafePublicTableNameForRowCount("Users"), false);
+    assert.equal(isSafePublicTableNameForRowCount("user;select"), false);
+    assert.equal(isSafePublicTableNameForRowCount(""), false);
+  });
+
+  it("collectPublicTableExactRowCounts aggregates totals", async () => {
+    const prisma = {
+      $queryRawUnsafe: async (sql) => {
+        if (sql === "SELECT COUNT(*)::bigint AS c FROM public.alpha") return [{ c: 2n }];
+        if (sql === "SELECT COUNT(*)::bigint AS c FROM public.beta") return [{ c: 0n }];
+        throw new Error(`unexpected sql: ${sql}`);
+      },
+    };
+    const r = await collectPublicTableExactRowCounts(prisma, ["alpha", "beta"]);
+    assert.equal(r.totalDataRows, 2);
+    assert.equal(r.publicTablesWithRows, 1);
+    assert.equal(r.publicTablesEmpty, 1);
+    assert.equal(r.rowCountByTable.alpha, 2);
+    assert.equal(r.rowCountByTable.beta, 0);
   });
 
   it("resolveBackupDownloadPath rejects traversal-looking names", async () => {

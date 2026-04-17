@@ -13,7 +13,8 @@ import {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const INVESTMENT_WALLET = '0x1f4872991e6bFc74C2064E2fE4875a78503B5cc1';
+/** Default Polygon wallet if none is configured in admin (Transparency → wallet settings). */
+const FALLBACK_INVESTMENT_WALLET = '0x1f4872991e6bFc74C2064E2fE4875a78503B5cc1';
 const POLYGON_RPC = 'https://polygon-rpc.com';
 
 const POOL_POSITIONS = [
@@ -278,8 +279,9 @@ function EntryRow({ entry }) {
  * Investment wallet section showing on-chain POL balance via public RPC.
  * Balance fetch is non-blocking — errors silently show "Unavailable".
  */
-function InvestmentWallet() {
+function InvestmentWallet({ resolvedAddress }) {
   const { t } = useTranslation();
+  const walletAddr = typeof resolvedAddress === 'string' && resolvedAddress.startsWith('0x') ? resolvedAddress : FALLBACK_INVESTMENT_WALLET;
   const [polBalance, setPolBalance] = useState(null);
   const [loadingBal, setLoadingBal] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -290,7 +292,7 @@ function InvestmentWallet() {
       const res = await fetch(POLYGON_RPC, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [INVESTMENT_WALLET, 'latest'] }),
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [walletAddr, 'latest'] }),
       });
       if (!res.ok) throw new Error('RPC error');
       const data = await res.json();
@@ -301,12 +303,12 @@ function InvestmentWallet() {
     } finally {
       setLoadingBal(false);
     }
-  }, []);
+  }, [walletAddr]);
 
   useEffect(() => { fetchBalance(); }, [fetchBalance]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(INVESTMENT_WALLET).then(() => {
+    navigator.clipboard.writeText(walletAddr).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => {});
@@ -333,7 +335,7 @@ function InvestmentWallet() {
       <div className="p-6 space-y-5">
         <div className="flex items-center gap-3 bg-black/30 rounded-xl px-4 py-3">
           <code className="text-xs text-gray-300 font-mono break-all flex-1 select-all" aria-label="Wallet address">
-            {INVESTMENT_WALLET}
+            {walletAddr}
           </code>
           <button
             onClick={handleCopy}
@@ -358,11 +360,11 @@ function InvestmentWallet() {
             }
           </div>
           <div className="flex gap-2 ml-auto flex-wrap">
-            <a href={`https://debank.com/profile/${INVESTMENT_WALLET}`} target="_blank" rel="noopener noreferrer"
+            <a href={`https://debank.com/profile/${walletAddr}`} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 text-blue-400 text-xs font-bold transition-colors">
               <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('transparency.wallet.debank')}
             </a>
-            <a href={`https://polygonscan.com/address/${INVESTMENT_WALLET}`} target="_blank" rel="noopener noreferrer"
+            <a href={`https://polygonscan.com/address/${walletAddr}`} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 text-purple-400 text-xs font-bold transition-colors">
               <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('transparency.wallet.polygonscan')}
             </a>
@@ -409,6 +411,7 @@ function InvestmentWallet() {
 export default function Transparency() {
   const { t } = useTranslation();
   const [entries, setEntries] = useState([]);
+  const [trackedWallet, setTrackedWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
@@ -421,8 +424,10 @@ export default function Transparency() {
       })
       .then(d => {
         if (cancelled) return;
-        if (d.ok) setEntries(d.entries);
-        else setErr(t('transparency.loading_error'));
+        if (d.ok) {
+          setEntries(d.entries);
+          setTrackedWallet(typeof d.trackedWallet === 'string' && d.trackedWallet.startsWith('0x') ? d.trackedWallet : null);
+        } else setErr(t('transparency.loading_error'));
       })
       .catch(() => {
         if (!cancelled) setErr(t('transparency.connection_error'));
@@ -668,7 +673,7 @@ export default function Transparency() {
           )}
 
           {/* ── Investment wallet ──────────────────────────────────────── */}
-          <InvestmentWallet />
+          <InvestmentWallet resolvedAddress={trackedWallet || FALLBACK_INVESTMENT_WALLET} />
 
           {/* ── Full expense breakdown ─────────────────────────────────── */}
           {expenses.length === 0 ? (

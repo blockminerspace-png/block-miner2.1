@@ -41,12 +41,18 @@ export default function AdminMetrics() {
     }
 
     const formatBytes = (bytes) => {
-        if (!bytes) return '0 B';
+        if (bytes == null || !Number.isFinite(Number(bytes))) return '—';
+        const n = Number(bytes);
+        if (n < 0) return '—';
+        if (n === 0) return '0 B';
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        const i = Math.floor(Math.log(n) / Math.log(k));
+        return parseFloat((n / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
+
+    const diskOk = metrics && !metrics.diskUnavailable && Number(metrics.diskTotalBytes) > 0;
+    const diskPct = diskOk && Number.isFinite(Number(metrics.diskUsagePercent)) ? Number(metrics.diskUsagePercent) : null;
 
     const formatUptime = (seconds) => {
         const d = Math.floor(seconds / (3600*24));
@@ -119,14 +125,26 @@ export default function AdminMetrics() {
                     <div className="absolute -right-6 -bottom-6 opacity-5"><HardDrive className="w-32 h-32" /></div>
                     <div className="flex justify-between items-start z-10">
                         <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl"><HardDrive className="w-5 h-5" /></div>
-                        <span className="text-[10px] text-slate-500 font-mono">{formatBytes(metrics.diskUsedBytes || 0)}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                            {diskOk ? formatBytes(metrics.diskUsedBytes) : '—'}
+                        </span>
                     </div>
                     <div className="z-10 mt-2">
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Armazenamento</p>
-                        <h3 className="text-2xl font-black text-white">{(metrics.diskUsagePercent || 0).toFixed(1)}%</h3>
+                        <h3 className="text-2xl font-black text-white">
+                            {diskPct != null ? `${diskPct.toFixed(1)}%` : '—'}
+                        </h3>
                         <div className="w-full h-1.5 bg-slate-800 rounded-full mt-3 overflow-hidden">
-                            <div className="h-full bg-amber-500 transition-all duration-1000" style={{width: `${metrics.diskUsagePercent || 0}%`}}></div>
+                            <div
+                                className="h-full bg-amber-500 transition-all duration-1000"
+                                style={{ width: `${diskPct != null ? Math.min(100, Math.max(0, diskPct)) : 0}%` }}
+                            />
                         </div>
+                        {metrics.diskUnavailable ? (
+                            <p className="text-[10px] text-slate-600 mt-2 leading-relaxed">
+                                Disco do anfitrião indisponível neste ambiente (statfs/df falhou).
+                            </p>
+                        ) : null}
                     </div>
                 </div>
             </div>
@@ -137,7 +155,7 @@ export default function AdminMetrics() {
                     <InfoItem label="Plataforma" value={metrics.platform} />
                     <InfoItem label="Node.js Version" value={metrics.nodeVersion} />
                     <InfoItem label="Total RAM" value={formatBytes(metrics.memoryTotalBytes)} />
-                    <InfoItem label="Total Disk" value={formatBytes(metrics.diskTotalBytes)} />
+                    <InfoItem label="Total Disk" value={diskOk ? formatBytes(metrics.diskTotalBytes) : '—'} />
                 </div>
             </div>
         </div>

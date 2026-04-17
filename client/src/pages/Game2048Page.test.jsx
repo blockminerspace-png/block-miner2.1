@@ -25,6 +25,15 @@ vi.mock("react-i18next", () => ({
   })
 }));
 
+const mockNavigate = vi.fn();
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate
+  };
+});
+
 const activeSessionPayload = {
   id: 1,
   status: "ACTIVE",
@@ -49,6 +58,7 @@ const activeSessionPayload = {
 
 describe("Game2048Page", () => {
   beforeEach(() => {
+    mockNavigate.mockClear();
     let roundStarted = false;
     vi.mocked(api.get).mockImplementation(async () => ({
       data: {
@@ -99,5 +109,74 @@ describe("Game2048Page", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/games/2048/start"));
     await waitFor(() => expect(screen.getByRole("grid", { name: "game2048.grid_aria" })).toBeInTheDocument());
     expect(screen.queryByText("game2048.new_game")).not.toBeInTheDocument();
+  });
+
+  it("auto-claims eligible ended session and navigates to /games", async () => {
+    const claimableSession = {
+      id: 42,
+      status: "ENDED",
+      gameOver: true,
+      hasMoves: true,
+      won: true,
+      board: [
+        [2, 2, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ],
+      score: 500,
+      winTile: 2048,
+      minScore: 500,
+      timeLimitSeconds: 0,
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      canClaim: true,
+      rewardPowerDays: 7,
+      rewardPowerHours: null,
+      powerDaysFull: 7,
+    };
+
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        ok: true,
+        allowNewStart: false,
+        cooldownSecondsRemaining: 0,
+        activeSession: claimableSession,
+        rewardHashRate: 25,
+        winTile: 2048,
+        minScore: 500,
+        powerDays: 7,
+        powerDaysFull: 7,
+        rewardPowerDays: 7,
+        rewardPowerHours: null,
+        cooldownMinutesHint: 3,
+      },
+    });
+
+    vi.mocked(api.post).mockImplementation(async (path, body) => {
+      if (path === "/games/2048/claim") {
+        expect(body).toEqual({ sessionId: 42 });
+        return {
+          data: {
+            ok: true,
+            idempotent: false,
+            rewardHashRate: 25,
+            rewardPowerDays: 7,
+            rewardPowerHours: null,
+            powerDays: 7,
+          },
+        };
+      }
+      return { data: { ok: false } };
+    });
+
+    render(
+      <MemoryRouter>
+        <Game2048Page />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/games/2048/claim", { sessionId: 42 }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/games", { replace: true }));
   });
 });

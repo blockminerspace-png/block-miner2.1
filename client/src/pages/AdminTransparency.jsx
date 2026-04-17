@@ -18,6 +18,7 @@ import {
   Server, Wrench, Megaphone, Briefcase, Scale, Package,
   ExternalLink, ToggleLeft, ToggleRight,
   TrendingDown, TrendingUp, Upload, ImageIcon,
+  Wallet, Link2, ArrowDownLeft, ArrowUpRight, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { csrfHeaderObject } from '../utils/csrfHeader';
@@ -93,6 +94,10 @@ export default function AdminTransparency() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [uploading, setUploading]       = useState(false);
   const fileInputRef                    = useRef(null);
+  const [walletInput, setWalletInput]   = useState('');
+  const [walletSaving, setWalletSaving] = useState(false);
+  const [activity, setActivity]         = useState(null);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const jsonHeaders = () => ({
     'Content-Type': 'application/json',
@@ -115,7 +120,64 @@ export default function AdminTransparency() {
     }
   }
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  async function loadWalletSettings() {
+    try {
+      const r = await fetch('/api/admin/transparency/wallet/settings', { credentials: 'include' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.ok) setWalletInput(typeof d.address === 'string' ? d.address : '');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function saveWalletSettings() {
+    setWalletSaving(true);
+    try {
+      const r = await fetch('/api/admin/transparency/wallet/settings', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: jsonHeaders(),
+        body: JSON.stringify({ address: walletInput }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        toast.success(t('transparency.admin.wallet_saved'));
+        setWalletInput(typeof d.address === 'string' ? d.address : '');
+      } else {
+        toast.error(d.message || t('transparency.admin.toast_error'));
+      }
+    } catch {
+      toast.error(t('transparency.admin.toast_error'));
+    } finally {
+      setWalletSaving(false);
+    }
+  }
+
+  async function refreshWalletActivity() {
+    setActivityLoading(true);
+    try {
+      const r = await fetch('/api/admin/transparency/wallet/activity?page=1&offset=50', { credentials: 'include' });
+      const d = await r.json();
+        if (d.ok) {
+        setActivity(d);
+        if (!d.apiKeyConfigured) toast.info(t('transparency.admin.wallet_api_key_hint'));
+      } else {
+        toast.error(d.message || t('transparency.admin.toast_error'));
+        setActivity(null);
+      }
+    } catch {
+      toast.error(t('transparency.admin.toast_error'));
+      setActivity(null);
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    loadWalletSettings();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Form helpers ───────────────────────────────────────────────────────────
 
@@ -288,6 +350,133 @@ export default function AdminTransparency() {
         >
           <Plus className="w-4 h-4" aria-hidden="true" /> {t('transparency.admin.new_entry')}
         </button>
+      </div>
+
+      {/* On-chain wallet (Polygon) — same address shown on public /transparency when set */}
+      <div
+        className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 space-y-4"
+        data-testid="admin-transparency-wallet"
+      >
+        <div className="flex items-start gap-3 flex-wrap justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-xs font-black text-emerald-400 uppercase tracking-widest">
+                {t('transparency.admin.wallet_section_title')}
+              </h2>
+              <p className="text-[11px] text-gray-500 max-w-xl mt-0.5">{t('transparency.admin.wallet_section_subtitle')}</p>
+            </div>
+          </div>
+          <a
+            href="https://polygonscan.com/apis"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500/80 hover:text-emerald-400 uppercase tracking-widest"
+          >
+            <Link2 className="w-3 h-3" aria-hidden="true" /> Polygonscan API
+          </a>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <input
+            className={`${inputCls} flex-1 font-mono text-xs`}
+            placeholder={t('transparency.admin.wallet_placeholder')}
+            value={walletInput}
+            onChange={(e) => setWalletInput(e.target.value)}
+            spellCheck={false}
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            disabled={walletSaving}
+            onClick={saveWalletSettings}
+            className="px-4 py-2 rounded-xl bg-emerald-600/30 border border-emerald-500/40 hover:bg-emerald-600/40 text-emerald-200 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+          >
+            {walletSaving ? t('transparency.admin.saving') : t('transparency.admin.wallet_save')}
+          </button>
+          <button
+            type="button"
+            disabled={activityLoading}
+            onClick={refreshWalletActivity}
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 text-xs font-bold uppercase tracking-widest disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${activityLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {t('transparency.admin.wallet_refresh_chain')}
+          </button>
+        </div>
+        {activity?.summary ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                <ArrowDownLeft className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+                {t('transparency.admin.wallet_in_pol')}
+              </p>
+              <p className="text-lg font-black text-white tabular-nums mt-1">
+                {Number(activity.summary.totalInPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                <ArrowUpRight className="w-3 h-3 text-amber-400" aria-hidden="true" />
+                {t('transparency.admin.wallet_out_pol')}
+              </p>
+              <p className="text-lg font-black text-white tabular-nums mt-1">
+                {Number(activity.summary.totalOutPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                {t('transparency.admin.wallet_rows')}
+              </p>
+              <p className="text-lg font-black text-white tabular-nums mt-1">{activity.summary.movementCount}</p>
+            </div>
+          </div>
+        ) : null}
+        {activity?.note ? <p className="text-[10px] text-gray-600 leading-relaxed">{activity.note}</p> : null}
+        {activity?.movements?.length ? (
+          <div className="overflow-x-auto rounded-xl border border-white/8 max-h-72 overflow-y-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-slate-950/95 text-[10px] uppercase text-gray-500 font-black tracking-widest">
+                <tr>
+                  <th className="px-3 py-2">{t('transparency.admin.wallet_col_time')}</th>
+                  <th className="px-3 py-2">{t('transparency.admin.wallet_col_dir')}</th>
+                  <th className="px-3 py-2">{t('transparency.admin.wallet_col_counter')}</th>
+                  <th className="px-3 py-2 text-right">{t('transparency.admin.wallet_col_amount')}</th>
+                  <th className="px-3 py-2">{t('transparency.admin.wallet_col_tx')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 font-mono text-[11px]">
+                {activity.movements.map((m) => (
+                  <tr key={`${m.hash}-${m.direction}-${m.timeStamp}-${m.valueWei}`} className="hover:bg-white/5">
+                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                      {m.timeStamp ? new Date(m.timeStamp * 1000).toLocaleString() : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={m.direction === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
+                        {m.direction === 'in' ? t('transparency.admin.wallet_dir_in') : t('transparency.admin.wallet_dir_out')}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-400 break-all max-w-[140px]">{m.counterparty || '—'}</td>
+                    <td className="px-3 py-2 text-right text-white whitespace-nowrap">
+                      {Number(m.valuePol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })}
+                    </td>
+                    <td className="px-3 py-2">
+                      <a
+                        href={`https://polygonscan.com/tx/${m.hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline inline-flex items-center gap-1"
+                      >
+                        {String(m.hash).slice(0, 10)}… <ExternalLink className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
 
       {/* Form */}

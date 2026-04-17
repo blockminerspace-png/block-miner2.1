@@ -75,7 +75,7 @@ export const landingEs = {
   },
   calculator: {
     title: "Calcula ganancias potenciales en POL",
-    subtitle: "Usa el mismo modelo de recompensa que la calculadora pública (0,15 POL por bloque, ~10 min). El tamaño de red se estima con datos en vivo.",
+    subtitle: "Usa el mismo modelo de recompensa que la calculadora pública (0,30 POL por bloque, ~10 min). El tamaño de red se estima con datos en vivo.",
     slider_label: "Tu poder de minería (H/s)",
     network_note: "Red estimada: escala con rigs activos en la plataforma.",
     per_day: "Por día (est.)",

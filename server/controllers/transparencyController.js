@@ -1,4 +1,8 @@
 ﻿import prisma from "../src/db/prisma.js";
+import {
+  assertValidTransparencyWalletAddress,
+  fetchWalletNativeActivity,
+} from "../services/transparencyWalletService.js";
 
 const VALID_CATEGORIES = ["infrastructure", "tooling", "marketing", "payroll", "legal", "misc"];
 const VALID_INCOME_CATEGORIES = ["sponsorship", "donation", "revenue", "investment_return", "other"];
@@ -8,11 +12,14 @@ const VALID_TYPES = ["expense", "income"];
 // Público: listar entradas ativas
 export async function getPublicEntries(_req, res) {
   try {
-    const entries = await prisma.transparencyEntry.findMany({
-      where: { isActive: true },
-      orderBy: [{ type: "asc" }, { category: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-    });
-    res.json({ ok: true, entries });
+    const [entries, walletRow] = await Promise.all([
+      prisma.transparencyEntry.findMany({
+        where: { isActive: true },
+        orderBy: [{ type: "asc" }, { category: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
+      }),
+      prisma.transparencyWalletSettings.findUnique({ where: { id: 1 } }),
+    ]);
+    res.json({ ok: true, entries, trackedWallet: walletRow?.address || null });
   } catch {
     res.status(500).json({ ok: false, message: "Erro ao buscar dados." });
   }
@@ -127,5 +134,63 @@ export async function adminDelete(req, res) {
     res.json({ ok: true });
   } catch {
     res.status(500).json({ ok: false, message: "Erro ao deletar." });
+  }
+}
+
+/** GET /api/admin/transparency/wallet/settings */
+export async function adminWalletGetSettings(_req, res) {
+  try {
+    const row = await prisma.transparencyWalletSettings.findUnique({ where: { id: 1 } });
+    res.json({ ok: true, address: row?.address || null });
+  } catch {
+    res.status(500).json({ ok: false, message: "Erro ao carregar carteira." });
+  }
+}
+
+/** PUT /api/admin/transparency/wallet/settings — body: { address: string } (empty string clears) */
+export async function adminWalletPutSettings(req, res) {
+  const body = req.body || {};
+  try {
+    let stored = null;
+    if (!Object.prototype.hasOwnProperty.call(body, "address")) {
+      return res.status(400).json({ ok: false, message: "Body deve incluir address (string vazia para limpar)." });
+    }
+    const trimmed = String(body.address).trim();
+    if (!trimmed) {
+      stored = null;
+    } else {
+      stored = assertValidTransparencyWalletAddress(trimmed);
+    }
+
+    await prisma.transparencyWalletSettings.upsert({
+      where: { id: 1 },
+      create: { id: 1, address: stored },
+      update: { address: stored },
+    });
+    res.json({ ok: true, address: stored });
+  } catch (e) {
+    if (e?.code === "INVALID_ADDRESS") {
+      return res.status(400).json({ ok: false, message: e.message });
+    }
+    res.status(500).json({ ok: false, message: "Erro ao guardar carteira." });
+  }
+}
+
+/** GET /api/admin/transparency/wallet/activity?page=1&offset=50 */
+export async function adminWalletGetActivity(req, res) {
+  try {
+    const row = await prisma.transparencyWalletSettings.findUnique({ where: { id: 1 } });
+    if (!row?.address) {
+      return res.status(400).json({ ok: false, message: "Defina primeiro a carteira nas definições." });
+    }
+    const page = Math.min(10, Math.max(1, parseInt(String(req.query?.page || "1"), 10) || 1));
+    const offset = Math.min(100, Math.max(10, parseInt(String(req.query?.offset || "50"), 10) || 50));
+    const data = await fetchWalletNativeActivity(row.address, { page, offset });
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    if (e?.code === "INVALID_ADDRESS") {
+      return res.status(400).json({ ok: false, message: e.message });
+    }
+    res.status(502).json({ ok: false, message: e?.message || "Erro ao consultar a chain." });
   }
 }
