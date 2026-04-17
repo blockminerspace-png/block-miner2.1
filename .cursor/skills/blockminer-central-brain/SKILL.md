@@ -17,10 +17,12 @@ All BlockMiner notes live in one project folder — do not create top-level
 
 - Project folder: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/`
 - Main hub: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/BlockMiner 2.1.md`
+- **Architecture (read before substantive code work):** `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Architecture.md`
+- **Playbooks (recipes):** `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Playbooks.md`
 - Central brain note: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Central Brain.md`
 - Rules catalog: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Cursor Rules.md`
 - Skills catalog: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Cursor Skills.md`
-- Link sub-notes with wikilinks (e.g. `[[Central Brain]]`), not absolute paths.
+- Link sub-notes with wikilinks (e.g. `[[Architecture]]`, `[[Central Brain]]`), not absolute paths in prose.
 
 ## When to apply
 
@@ -29,7 +31,7 @@ All BlockMiner notes live in one project folder — do not create top-level
 
 ## Workflow
 
-1. Read the relevant Obsidian project note when the task is substantive or depends on prior context.
+1. For **code or deploy** work: read `Architecture.md` first (system shape), then `Central Brain.md` (mission + open threads), then `Playbooks.md` if a recipe exists, then `Gotchas.md` for traps. For **pure meta** (vault layout only), Architecture can be skipped.
 2. Run OpenRouter via `node scripts/openrouter-ask.mjs "<prompt>"` from repo root unless explicitly skipped.
 3. Use the OpenRouter response to improve reasoning quality:
    - extract risks
@@ -54,6 +56,7 @@ All BlockMiner notes live in one project folder — do not create top-level
    - decisions made
    - pending items
    - reusable prompt or workflow improvements
+8. If the change altered routes, compose, middleware order, or Prisma topology, update `Architecture.md` in the same session or immediately after.
 
 ## What to record
 
