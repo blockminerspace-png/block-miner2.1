@@ -11,8 +11,16 @@ Use OpenRouter as an active reasoning partner and Obsidian as persistent project
 
 ## Memory locations
 
-- Main hub: `/home/gustavo/Obsidian/Projects/BlockMiner-2.1.md`
-- Central brain note: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1 - Central Brain.md`
+Vault follows PARA (`Projects/`, `Areas/`, `Resources/`, `Templates/`).
+All BlockMiner notes live in one project folder — do not create top-level
+`BlockMiner ...` notes in `Projects/`.
+
+- Project folder: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/`
+- Main hub: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/BlockMiner 2.1.md`
+- Central brain note: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Central Brain.md`
+- Rules catalog: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Cursor Rules.md`
+- Skills catalog: `/home/gustavo/Obsidian/Projects/BlockMiner 2.1/Cursor Skills.md`
+- Link sub-notes with wikilinks (e.g. `[[Central Brain]]`), not absolute paths.
 
 ## When to apply
 
