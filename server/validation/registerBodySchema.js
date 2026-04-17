@@ -40,4 +40,5 @@ export const registerBodySchema = z.object({
   acceptTerms: z.boolean().refine((value) => value === true, {
     message: "validation.errors.termsRequired",
   }),
+  cfTurnstileToken: z.string().trim().optional(),
 });

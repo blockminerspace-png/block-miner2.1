@@ -10,6 +10,7 @@ export const moveToVaultBodySchema = z
     source: z.enum(["inventory", "rack"]),
     itemId: z.coerce.number().int().positive().optional(),
     itemIds: z.array(z.coerce.number().int().positive()).min(1).max(VAULT_BULK_MAX).optional(),
+    cfTurnstileToken: z.string().trim().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -37,12 +38,14 @@ export const retrieveFromVaultBodySchema = z.union([
     .object({
       destination: z.literal("inventory"),
       vaultId: z.coerce.number().int().positive(),
+      cfTurnstileToken: z.string().trim().optional(),
     })
     .strict(),
   z
     .object({
       destination: z.literal("inventory"),
       vaultIds: z.array(z.coerce.number().int().positive()).min(1).max(VAULT_BULK_MAX),
+      cfTurnstileToken: z.string().trim().optional(),
     })
     .strict(),
   z
@@ -50,6 +53,7 @@ export const retrieveFromVaultBodySchema = z.union([
       destination: z.literal("rack"),
       vaultId: z.coerce.number().int().positive(),
       slotIndex: z.coerce.number().int().min(0).max(RACK_SLOT_INDEX_MAX),
+      cfTurnstileToken: z.string().trim().optional(),
     })
     .strict(),
 ]);

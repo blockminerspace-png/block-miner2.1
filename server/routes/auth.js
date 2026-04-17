@@ -12,6 +12,7 @@ import { updateUserLoginMeta } from "../models/userModel.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { validateBody } from "../middleware/validate.js";
 import { registerBodySchema } from "../validation/registerBodySchema.js";
+import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
 import { buildCsrfCookie } from "../middleware/csrf.js";
 import { requireAuth } from "../middleware/auth.js";
 import { enqueueAuditEvent, buildAuditEventFromHttpRequest } from "../src/audit/service.js";
@@ -113,6 +114,7 @@ const loginSchema = z.object({
   password: z.string().min(1, "Senha é obrigatória"),
   twoFactorToken: z.string().trim().optional(),
   twoFactorChallengeToken: z.string().trim().optional(),
+  cfTurnstileToken: z.string().trim().optional(),
 });
 
 const authLimiter = createDistributedRateLimiter({
@@ -221,6 +223,7 @@ authRouter.post(
   "/register",
   authLimiter,
   validateBody(registerBodySchema),
+  requireTurnstileWhenConfigured({ purpose: "register" }),
   async (req, res) => {
   try {
     const { username, email, password, refCode: refCodeInput, acceptTerms } = req.body;
@@ -385,6 +388,7 @@ authRouter.post(
   "/login",
   authLimiter,
   validateBody(loginSchema),
+  requireTurnstileWhenConfigured({ purpose: "login" }),
   async (req, res) => {
   try {
     const { identifier, password, twoFactorToken, twoFactorChallengeToken } = req.body;
