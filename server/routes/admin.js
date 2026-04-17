@@ -585,12 +585,103 @@ adminRouter.get("/finance/overview", async (req, res) => {
 
 adminRouter.get("/finance/activity", async (req, res) => {
     try {
-        const activity = await prisma.transaction.findMany({
-            orderBy: { createdAt: 'desc' },
-            take: 50
-        });
-        res.json({ ok: true, activity });
+        const page = Math.max(1, Math.min(10_000, Number(req.query.page) || 1));
+        const limit = Math.max(5, Math.min(100, Number(req.query.limit) || Number(req.query.pageSize) || 50));
+        const skip = (page - 1) * limit;
+
+        const typeRaw = String(req.query.type || "").trim().toLowerCase();
+        const typeFilter = typeRaw === "deposit" || typeRaw === "withdrawal" ? typeRaw : null;
+
+        const statusRaw = String(req.query.status || "").trim().toLowerCase();
+        const statusFilter = statusRaw.length > 0 && statusRaw.length <= 40 ? statusRaw : null;
+
+        const hashTrim = String(req.query.hash || req.query.txHash || "").trim().slice(0, 80);
+        const qRaw = String(req.query.q || "").trim().slice(0, 120);
+
+        const andParts = [];
+        if (typeFilter) andParts.push({ type: typeFilter });
+        if (statusFilter) andParts.push({ status: statusFilter });
+        if (hashTrim) {
+            andParts.push({ txHash: { contains: hashTrim, mode: "insensitive" } });
+        }
+        if (qRaw) {
+            const userOr = [
+                { user: { email: { contains: qRaw, mode: "insensitive" } } },
+                { user: { username: { contains: qRaw, mode: "insensitive" } } },
+            ];
+            if (/^\d+$/.test(qRaw)) {
+                const uid = Number(qRaw);
+                if (Number.isInteger(uid) && uid > 0) {
+                    userOr.push({ user: { id: uid } });
+                }
+            }
+            andParts.push({ OR: userOr });
+        }
+
+        const where = andParts.length > 0 ? { AND: andParts } : {};
+
+        const [total, rows] = await Promise.all([
+            prisma.transaction.count({ where }),
+            prisma.transaction.findMany({
+                where,
+                orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+                skip,
+                take: limit,
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            username: true,
+                            email: true,
+                            walletAddress: true,
+                            createdAt: true,
+                            lastLoginAt: true,
+                            isBanned: true,
+                            ip: true,
+                            registrationIp: true,
+                            refCode: true,
+                        },
+                    },
+                },
+            }),
+        ]);
+
+        const activity = rows.map((t) => ({
+            id: t.id,
+            userId: t.userId,
+            user_id: t.userId,
+            type: t.type,
+            amount: Number(t.amount),
+            fee: t.fee != null ? Number(t.fee) : null,
+            address: t.address,
+            txHash: t.txHash,
+            tx_hash: t.txHash,
+            status: t.status,
+            createdAt: t.createdAt,
+            created_at: t.createdAt,
+            completedAt: t.completedAt,
+            fromAddress: t.fromAddress,
+            user: t.user
+                ? {
+                      id: t.user.id,
+                      name: t.user.name,
+                      username: t.user.username,
+                      email: t.user.email,
+                      walletAddress: t.user.walletAddress,
+                      createdAt: t.user.createdAt,
+                      lastLoginAt: t.user.lastLoginAt,
+                      isBanned: t.user.isBanned,
+                      ip: t.user.ip,
+                      registrationIp: t.user.registrationIp,
+                      refCode: t.user.refCode,
+                  }
+                : null,
+        }));
+
+        res.json({ ok: true, activity, page, limit, total });
     } catch (error) {
+        console.error("[admin finance/activity]", error?.message || error);
         res.status(500).json({ ok: false, message: "Error" });
     }
 });

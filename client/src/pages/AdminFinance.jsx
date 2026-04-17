@@ -1,7 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-    Wallet, CheckCircle2, XCircle, RefreshCw, ArrowUpCircle, ArrowDownCircle, Copy, ExternalLink
+    Wallet,
+    CheckCircle2,
+    XCircle,
+    RefreshCw,
+    ArrowUpCircle,
+    ArrowDownCircle,
+    Copy,
+    ExternalLink,
+    User,
+    Filter,
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -10,10 +20,38 @@ export default function AdminFinance() {
     const [blkEconomyForm, setBlkEconomyForm] = useState(null);
     const [overview, setOverview] = useState(null);
     const [activity, setActivity] = useState([]);
+    const [activityTotal, setActivityTotal] = useState(0);
+    const [activityPage, setActivityPage] = useState(1);
+    const [activityLimit] = useState(50);
+    const [activityType, setActivityType] = useState(''); // '' | 'deposit' | 'withdrawal'
+    const [activityHash, setActivityHash] = useState('');
+    const [activityUserQ, setActivityUserQ] = useState('');
+    const [activityStatus, setActivityStatus] = useState('');
+    const [activityLoading, setActivityLoading] = useState(false);
+    const [userDetailModal, setUserDetailModal] = useState(null);
+    const [userDetailLoading, setUserDetailLoading] = useState(false);
+    const [userDetailData, setUserDetailData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [tab, setTab] = useState('withdrawals'); // 'withdrawals', 'blk', 'activity'
     const [completeModal, setCompleteModal] = useState(null);
     const [completeTxHash, setCompleteTxHash] = useState('');
+
+    const activityFiltersRef = useRef({
+        page: 1,
+        limit: 50,
+        type: '',
+        hash: '',
+        q: '',
+        status: '',
+    });
+    activityFiltersRef.current = {
+        page: activityPage,
+        limit: activityLimit,
+        type: activityType,
+        hash: activityHash,
+        q: activityUserQ,
+        status: activityStatus,
+    };
 
     const copyText = (text, label = 'Copiado') => {
         if (!text) return;
@@ -21,19 +59,43 @@ export default function AdminFinance() {
         toast.success(label);
     };
 
+    const loadActivity = useCallback(async (override = {}) => {
+        const f = { ...activityFiltersRef.current, ...override };
+        try {
+            setActivityLoading(true);
+            const params = new URLSearchParams();
+            params.set('limit', String(f.limit));
+            params.set('page', String(f.page));
+            if (f.type) params.set('type', f.type);
+            if (String(f.hash || '').trim()) params.set('hash', String(f.hash).trim());
+            if (String(f.q || '').trim()) params.set('q', String(f.q).trim());
+            if (f.status) params.set('status', f.status);
+            const activityRes = await api.get(`/admin/finance/activity?${params.toString()}`);
+            if (activityRes.data.ok) {
+                setActivity(activityRes.data.activity || []);
+                setActivityTotal(Number(activityRes.data.total) || 0);
+                setActivityPage(f.page);
+            }
+        } catch (err) {
+            console.error('Erro ao carregar atividade', err);
+            toast.error('Erro ao carregar atividade financeira');
+        } finally {
+            setActivityLoading(false);
+        }
+    }, []);
+
     const fetchData = useCallback(async () => {
         try {
             setIsLoading(true);
-            const [withdrawalsRes, overviewRes, activityRes, blkEcRes] = await Promise.all([
+            const [withdrawalsRes, overviewRes, blkEcRes] = await Promise.all([
                 api.get('/admin/withdrawals/pending'),
                 api.get('/admin/finance/overview'),
-                api.get('/admin/finance/activity?limit=50'),
                 api.get('/admin/blk/economy')
             ]);
 
             if (withdrawalsRes.data.ok) setWithdrawals(withdrawalsRes.data.withdrawals || []);
             if (overviewRes.data.ok) setOverview(overviewRes.data.overview || {});
-            if (activityRes.data.ok) setActivity(activityRes.data.activity || []);
+            await loadActivity();
             if (blkEcRes.data.ok && blkEcRes.data.economy) {
                 const e = blkEcRes.data.economy;
                 setBlkEconomyForm({
@@ -56,11 +118,33 @@ export default function AdminFinance() {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [loadActivity]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const applyActivityFilters = () => {
+        loadActivity({ page: 1 });
+    };
+
+    const openUserDetail = async (userId) => {
+        if (!userId) return;
+        setUserDetailModal({ userId });
+        setUserDetailData(null);
+        setUserDetailLoading(true);
+        try {
+            const res = await api.get(`/admin/users/${userId}/details`);
+            if (res.data.ok) setUserDetailData(res.data);
+            else toast.error(res.data.message || 'Não foi possível carregar o utilizador');
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Erro ao carregar detalhes');
+        } finally {
+            setUserDetailLoading(false);
+        }
+    };
+
+    const activityTotalPages = Math.max(1, Math.ceil(activityTotal / activityLimit) || 1);
 
     const handleApprove = async (id) => {
         if (!confirm("Confirmar aprovação deste saque?")) return;
@@ -399,6 +483,119 @@ export default function AdminFinance() {
                 </div>
             )}
 
+            {userDetailModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-start justify-between gap-3">
+                            <h3 className="text-lg font-black text-white">Utilizador #{userDetailModal.userId}</h3>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setUserDetailModal(null);
+                                    setUserDetailData(null);
+                                }}
+                                className="text-slate-500 hover:text-white text-sm font-bold px-2"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                        {userDetailLoading && <p className="text-sm text-slate-500 animate-pulse">A carregar…</p>}
+                        {!userDetailLoading && userDetailData?.user && (
+                            <div className="space-y-4 text-xs text-slate-300">
+                                <div className="grid gap-2">
+                                    <p>
+                                        <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Nome</span>
+                                        <br />
+                                        <span className="text-white font-semibold">{userDetailData.user.name}</span>
+                                    </p>
+                                    {userDetailData.user.username && (
+                                        <p>
+                                            <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Username</span>
+                                            <br />
+                                            @{userDetailData.user.username}
+                                        </p>
+                                    )}
+                                    <p>
+                                        <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Email</span>
+                                        <br />
+                                        <span className="break-all">{userDetailData.user.email}</span>
+                                    </p>
+                                    {userDetailData.user.walletAddress && (
+                                        <p>
+                                            <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Carteira (perfil)</span>
+                                            <br />
+                                            <code className="text-[11px] font-mono break-all">{userDetailData.user.walletAddress}</code>
+                                            <button
+                                                type="button"
+                                                onClick={() => copyText(userDetailData.user.walletAddress, 'Carteira copiada')}
+                                                className="ml-2 text-emerald-400 text-[10px] font-bold uppercase"
+                                            >
+                                                Copiar
+                                            </button>
+                                        </p>
+                                    )}
+                                    <p>
+                                        <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">POL saldo</span>
+                                        <br />
+                                        <span className="font-mono text-amber-400">{Number(userDetailData.user.polBalance ?? 0).toFixed(4)} POL</span>
+                                    </p>
+                                    <p className="flex flex-wrap gap-2">
+                                        <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Estado</span>
+                                        {userDetailData.user.isBanned ? (
+                                            <span className="text-red-400 font-black uppercase">Banido</span>
+                                        ) : (
+                                            <span className="text-emerald-400 font-black uppercase">Ativo</span>
+                                        )}
+                                    </p>
+                                    <p>
+                                        <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">IPs</span>
+                                        <br />
+                                        Último: {userDetailData.user.ip || '—'} · Registo: {userDetailData.user.registrationIp || '—'}
+                                    </p>
+                                    <p>
+                                        <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Conta criada</span>
+                                        <br />
+                                        {userDetailData.user.createdAt ? new Date(userDetailData.user.createdAt).toLocaleString() : '—'}
+                                    </p>
+                                    <p>
+                                        <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Último login</span>
+                                        <br />
+                                        {userDetailData.user.lastLoginAt ? new Date(userDetailData.user.lastLoginAt).toLocaleString() : '—'}
+                                    </p>
+                                </div>
+                                {userDetailData.metrics && (
+                                    <div className="border border-slate-800 rounded-xl p-3 space-y-1 bg-slate-950/50">
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Métricas</p>
+                                        <p>Máquinas ativas: {userDetailData.metrics.activeMachines ?? '—'}</p>
+                                        <p>Hash rate: {Number(userDetailData.metrics.realHashRate || 0).toFixed(2)}</p>
+                                        <p>Claims faucet (total): {userDetailData.metrics.faucetClaims ?? '—'}</p>
+                                    </div>
+                                )}
+                                {Array.isArray(userDetailData.recentTransactions) && userDetailData.recentTransactions.length > 0 && (
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Últimas transações</p>
+                                        <ul className="space-y-1 text-[11px] font-mono text-slate-400">
+                                            {userDetailData.recentTransactions.slice(0, 5).map((rt) => (
+                                                <li key={rt.id}>
+                                                    {rt.type} · {Number(rt.amount).toFixed(4)} · {rt.status} ·{' '}
+                                                    {rt.createdAt ? new Date(rt.createdAt).toLocaleDateString() : ''}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                <Link
+                                    to="/admin/users"
+                                    className="inline-block text-sky-400 hover:text-sky-300 text-[11px] font-bold uppercase tracking-wider"
+                                >
+                                    Abrir lista de utilizadores →
+                                </Link>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {tab === 'blk' && (
                 <div className="space-y-8">
                     {blkEconomyForm && (
@@ -556,57 +753,235 @@ export default function AdminFinance() {
             )}
 
             {tab === 'activity' && (
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-slate-400">
-                            <thead className="bg-slate-800/30 text-[10px] uppercase font-bold tracking-widest text-slate-500">
-                                <tr>
-                                    <th className="px-8 py-4">Data</th>
-                                    <th className="px-8 py-4">Tipo</th>
-                                    <th className="px-8 py-4">Usuário</th>
-                                    <th className="px-8 py-4">Valor</th>
-                                    <th className="px-8 py-4">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800 font-medium">
-                                {activity.map((t) => (
-                                    <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-8 py-4 text-xs">
-                                            {new Date(t.created_at || t.createdAt).toLocaleString()}
-                                        </td>
-                                        <td className="px-8 py-4 text-xs uppercase font-bold tracking-widest">
-                                            {t.type === 'deposit' ? (
-                                                <span className="text-emerald-500 flex items-center gap-1"><ArrowDownCircle className="w-3 h-3" /> Depósito</span>
-                                            ) : (
-                                                <span className="text-amber-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3" /> Saque</span>
-                                            )}
-                                        </td>
-                                        <td className="px-8 py-4 text-xs text-white">
-                                            User #{t.user_id || t.userId}
-                                        </td>
-                                        <td className="px-8 py-4 font-mono text-slate-300">
-                                            {Number(t.amount).toFixed(4)} POL
-                                        </td>
-                                        <td className="px-8 py-4 text-[10px] font-black uppercase tracking-widest">
-                                            {t.status === 'completed' || t.status === 'approved' ? (
-                                                <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">Completo</span>
-                                            ) : t.status === 'pending' ? (
-                                                <span className="text-amber-500 bg-amber-500/10 px-2 py-1 rounded">Pendente</span>
-                                            ) : (
-                                                <span className="text-red-500 bg-red-500/10 px-2 py-1 rounded">{t.status}</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {activity.length === 0 && (
+                <div className="space-y-4">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 space-y-4">
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            <Filter className="w-4 h-4 text-emerald-500" />
+                            Filtros da atividade
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {[
+                                { id: '', label: 'Todos' },
+                                { id: 'deposit', label: 'Só depósitos' },
+                                { id: 'withdrawal', label: 'Só saques' },
+                            ].map((b) => (
+                                <button
+                                    key={b.id || 'all'}
+                                    type="button"
+                                    onClick={() => setActivityType(b.id)}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-colors ${
+                                        activityType === b.id
+                                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                                            : 'bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    {b.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <label className="space-y-1 block">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hash (contém)</span>
+                                <input
+                                    type="text"
+                                    value={activityHash}
+                                    onChange={(e) => setActivityHash(e.target.value)}
+                                    placeholder="0x… ou parte do hash"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder:text-slate-600"
+                                    autoComplete="off"
+                                />
+                            </label>
+                            <label className="space-y-1 block">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Utilizador (id, email, @)</span>
+                                <input
+                                    type="text"
+                                    value={activityUserQ}
+                                    onChange={(e) => setActivityUserQ(e.target.value)}
+                                    placeholder="481 ou email"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600"
+                                    autoComplete="off"
+                                />
+                            </label>
+                            <label className="space-y-1 block">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Status</span>
+                                <select
+                                    value={activityStatus}
+                                    onChange={(e) => setActivityStatus(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                                >
+                                    <option value="">Qualquer</option>
+                                    <option value="completed">completed</option>
+                                    <option value="pending">pending</option>
+                                    <option value="approved">approved</option>
+                                    <option value="rejected">rejected</option>
+                                </select>
+                            </label>
+                            <div className="flex items-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={applyActivityFilters}
+                                    className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase"
+                                >
+                                    Aplicar filtros
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActivityType('');
+                                        setActivityHash('');
+                                        setActivityUserQ('');
+                                        setActivityStatus('');
+                                        loadActivity({ page: 1, type: '', hash: '', q: '', status: '' });
+                                    }}
+                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-bold uppercase border border-slate-700"
+                                >
+                                    Limpar
+                                </button>
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-slate-600 font-medium">
+                            {activityTotal} registo(s) · página {activityPage} de {activityTotalPages}
+                            {activityLoading ? ' · a carregar…' : ''}
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-400">
+                                <thead className="bg-slate-800/30 text-[10px] uppercase font-bold tracking-widest text-slate-500">
                                     <tr>
-                                        <td colSpan="5" className="px-8 py-12 text-center text-slate-500 italic">
-                                            Nenhuma transação encontrada.
-                                        </td>
+                                        <th className="px-6 py-4">Data</th>
+                                        <th className="px-6 py-4">Tipo</th>
+                                        <th className="px-6 py-4">Usuário</th>
+                                        <th className="px-6 py-4">Hash / tx</th>
+                                        <th className="px-6 py-4">Endereço</th>
+                                        <th className="px-6 py-4">Valor</th>
+                                        <th className="px-6 py-4">Status</th>
+                                        <th className="px-6 py-4 text-right">Ações</th>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800 font-medium">
+                                    {activity.map((t) => {
+                                        const uid = t.user_id ?? t.userId;
+                                        const tx = t.tx_hash ?? t.txHash;
+                                        const shortHash = tx && tx.length > 14 ? `${tx.slice(0, 10)}…${tx.slice(-6)}` : tx || '—';
+                                        return (
+                                            <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-4 text-xs whitespace-nowrap">
+                                                    {new Date(t.created_at || t.createdAt).toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-4 text-xs uppercase font-bold tracking-widest">
+                                                    {t.type === 'deposit' ? (
+                                                        <span className="text-emerald-500 flex items-center gap-1">
+                                                            <ArrowDownCircle className="w-3 h-3 shrink-0" /> Depósito
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-amber-500 flex items-center gap-1">
+                                                            <ArrowUpCircle className="w-3 h-3 shrink-0" /> Saque
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-xs text-white min-w-[140px]">
+                                                    <span className="font-bold block">
+                                                        {t.user?.username ? `@${t.user.username}` : `User #${uid}`}
+                                                    </span>
+                                                    {t.user?.email && (
+                                                        <span className="text-[10px] text-slate-500 block truncate max-w-[180px]" title={t.user.email}>
+                                                            {t.user.email}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-[10px] font-mono max-w-[200px]">
+                                                    {tx ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="break-all text-slate-300" title={tx}>
+                                                                {shortHash}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyText(tx, 'Hash copiado')}
+                                                                className="p-1 text-slate-500 hover:text-emerald-400 shrink-0"
+                                                                title="Copiar hash"
+                                                            >
+                                                                <Copy className="w-3 h-3" />
+                                                            </button>
+                                                            {/^0x[a-fA-F0-9]{64}$/.test(String(tx)) && (
+                                                                <a
+                                                                    href={`https://polygonscan.com/tx/${encodeURIComponent(tx)}`}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="p-1 text-slate-500 hover:text-sky-400 shrink-0"
+                                                                    title="Polygonscan"
+                                                                >
+                                                                    <ExternalLink className="w-3 h-3" />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-600">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-[10px] font-mono max-w-[160px] break-all text-slate-500">
+                                                    {t.address || '—'}
+                                                </td>
+                                                <td className="px-6 py-4 font-mono text-slate-300 whitespace-nowrap">
+                                                    {Number(t.amount).toFixed(4)} POL
+                                                </td>
+                                                <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">
+                                                    {t.status === 'completed' || t.status === 'approved' ? (
+                                                        <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">Completo</span>
+                                                    ) : t.status === 'pending' ? (
+                                                        <span className="text-amber-500 bg-amber-500/10 px-2 py-1 rounded">Pendente</span>
+                                                    ) : (
+                                                        <span className="text-red-500 bg-red-500/10 px-2 py-1 rounded">{t.status}</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-right whitespace-nowrap">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openUserDetail(uid)}
+                                                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-bold uppercase text-slate-200 border border-slate-700"
+                                                    >
+                                                        <User className="w-3 h-3" />
+                                                        Perfil
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {activity.length === 0 && !activityLoading && (
+                                        <tr>
+                                            <td colSpan="8" className="px-8 py-12 text-center text-slate-500 italic">
+                                                Nenhuma transação encontrada.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        {activityTotalPages > 1 && (
+                            <div className="flex items-center justify-between gap-4 px-6 py-4 border-t border-slate-800 bg-slate-950/40">
+                                <button
+                                    type="button"
+                                    disabled={activityPage <= 1 || activityLoading}
+                                    onClick={() => loadActivity({ page: activityPage - 1 })}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 disabled:opacity-40 border border-slate-700"
+                                >
+                                    Anterior
+                                </button>
+                                <span className="text-xs text-slate-500 font-medium">
+                                    Página {activityPage} / {activityTotalPages}
+                                </span>
+                                <button
+                                    type="button"
+                                    disabled={activityPage >= activityTotalPages || activityLoading}
+                                    onClick={() => loadActivity({ page: activityPage + 1 })}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 disabled:opacity-40 border border-slate-700"
+                                >
+                                    Seguinte
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
