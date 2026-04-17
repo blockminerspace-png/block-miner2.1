@@ -95,6 +95,8 @@ describe("getSupportTicketPlayerDossier", () => {
       username: "a",
       email: "a@b.c",
       walletAddress: "0xabc",
+      registrationIp: null,
+      ip: null,
       isBanned: false,
       createdAt: new Date(),
       lastLoginAt: null,
@@ -110,7 +112,8 @@ describe("getSupportTicketPlayerDossier", () => {
           email: "x@y.z"
         })
       },
-      user: { findUnique: async () => userRow },
+      user: { findUnique: async () => userRow, findMany: async () => [] },
+      polygonHdAddress: { findMany: async () => [] },
       transaction: {
         count: async () => 0,
         findMany: async () => []
@@ -146,6 +149,8 @@ describe("getSupportTicketPlayerDossier", () => {
       username: "a",
       email: "a@b.c",
       walletAddress: "0xabc",
+      registrationIp: null,
+      ip: null,
       isBanned: false,
       createdAt: new Date(),
       lastLoginAt: null,
@@ -161,7 +166,8 @@ describe("getSupportTicketPlayerDossier", () => {
           email: "x@y.z"
         })
       },
-      user: { findUnique: async () => userRow },
+      user: { findUnique: async () => userRow, findMany: async () => [] },
+      polygonHdAddress: { findMany: async () => [] },
       transaction: {
         count: async () => 0,
         findMany: async () => []

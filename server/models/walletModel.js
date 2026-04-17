@@ -276,9 +276,18 @@ async function getPendingWithdrawals() {
   return prisma.transaction.findMany({
     where: { type: 'withdrawal', status: { in: ['pending', 'approved'] } },
     include: {
-      user: { select: { id: true, username: true, email: true, walletAddress: true } }
+      user: {
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          walletAddress: true,
+          registrationIp: true,
+          ip: true,
+        },
+      },
     },
-    orderBy: { createdAt: 'asc' }
+    orderBy: { createdAt: 'asc' },
   });
 }
 

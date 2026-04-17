@@ -10,6 +10,7 @@ import * as walletModel from "../models/walletModel.js";
 import * as userModel from "../models/userModel.js";
 import loggerLib from "../utils/logger.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
+import { enrichWithdrawalsWithCollisionHints } from "../services/adminAccountCollisionService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -319,7 +320,8 @@ export async function updateMiner(req, res) {
 export async function listPendingWithdrawals(_req, res) {
   try {
     const withdrawals = await walletModel.getPendingWithdrawals();
-    const normalized = withdrawals.map(w => ({ ...w, amount: Number(w.amount) }));
+    const withHints = await enrichWithdrawalsWithCollisionHints(prisma, withdrawals);
+    const normalized = withHints.map((w) => ({ ...w, amount: Number(w.amount) }));
     res.json({ ok: true, withdrawals: normalized });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Load failed" });

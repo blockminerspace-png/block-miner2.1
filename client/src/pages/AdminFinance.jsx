@@ -12,6 +12,7 @@ import {
     ExternalLink,
     User,
     Filter,
+    AlertTriangle,
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -57,6 +58,17 @@ export default function AdminFinance() {
         if (!text) return;
         navigator.clipboard.writeText(text);
         toast.success(label);
+    };
+
+    const formatCollisionHints = (h) => {
+        if (!h || !h.hasRisk) return null;
+        const parts = [];
+        if (h.ipOverlapUsers?.length) parts.push(`IP sobreposto: ${h.ipOverlapUsers.length} outra(s) conta(s)`);
+        if (h.otherUsersForDestination?.length)
+            parts.push(`Destino do saque ligado a outras contas: ${h.otherUsersForDestination.length}`);
+        if (h.otherUsersForProfileWallet?.length)
+            parts.push(`Carteira do perfil duplicada: ${h.otherUsersForProfileWallet.length} outra(s)`);
+        return parts;
     };
 
     const loadActivity = useCallback(async (override = {}) => {
@@ -325,11 +337,29 @@ export default function AdminFinance() {
                                         <td className="px-6 py-5 text-xs whitespace-nowrap">
                                             {new Date(w.created_at || w.createdAt).toLocaleString()}
                                         </td>
-                                        <td className="px-6 py-5">
+                                        <td className="px-6 py-5 align-top">
                                             <span className="text-white font-bold text-xs block">{w.user?.username || `User #${w.userId}`}</span>
                                             {w.user?.email && (
                                                 <span className="text-[10px] text-slate-500 block truncate max-w-[140px]" title={w.user.email}>{w.user.email}</span>
                                             )}
+                                            {(w.user?.registrationIp || w.user?.ip) && (
+                                                <div className="mt-1 text-[9px] text-slate-600 font-mono space-y-0.5">
+                                                    {w.user?.registrationIp ? <div title="IP no registo">Reg: {w.user.registrationIp}</div> : null}
+                                                    {w.user?.ip ? <div title="Último IP">IP: {w.user.ip}</div> : null}
+                                                </div>
+                                            )}
+                                            {w.collisionHints?.hasRisk ? (
+                                                <div className="mt-2 rounded-lg border border-amber-800/50 bg-amber-950/30 px-2 py-1.5 text-[9px] text-amber-100/95 space-y-1">
+                                                    <p className="flex items-center gap-1 font-black uppercase tracking-wider text-amber-400">
+                                                        <AlertTriangle className="w-3 h-3 shrink-0" /> Multi-conta / carteiras
+                                                    </p>
+                                                    <ul className="list-disc pl-3 space-y-0.5 text-amber-100/90">
+                                                        {(formatCollisionHints(w.collisionHints) || []).map((line, i) => (
+                                                            <li key={i}>{line}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            ) : null}
                                         </td>
                                         <td className="px-6 py-5 max-w-[220px]">
                                             <div className="flex flex-col gap-1">

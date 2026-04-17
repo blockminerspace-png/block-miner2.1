@@ -5,6 +5,7 @@
  */
 
 import logger from "../utils/logger.js";
+import { buildDossierAccountCollisions } from "./adminAccountCollisionService.js";
 
 const dossierLog = logger.child("SupportPlayerDossier");
 
@@ -182,6 +183,8 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
       username: true,
       email: true,
       walletAddress: true,
+      registrationIp: true,
+      ip: true,
       isBanned: true,
       createdAt: true,
       lastLoginAt: true,
@@ -371,6 +374,10 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
   const walletAddressesResolved =
     walletAddresses ?? primaryWalletList(user.walletAddress);
 
+  const accountCollisions = await loadDossierSlice("accountCollisions", () =>
+    buildDossierAccountCollisions(prisma, userId, walletAddressesResolved ?? [])
+  );
+
   const depositTxTotal = depositSplit?.total ?? 0;
   const depositTxRows = depositSplit?.rows ?? [];
   const withdrawalTxTotal = withdrawalSplit?.total ?? 0;
@@ -456,6 +463,8 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
         username: user.username,
         email: user.email,
         walletAddress: user.walletAddress,
+        registrationIp: user.registrationIp,
+        lastIp: user.ip,
         isBanned: user.isBanned,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
@@ -463,6 +472,7 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
         blkBalance: toNumberOrNull(user.blkBalance),
       },
       walletAddresses: walletAddressesResolved,
+      accountCollisions,
       depositTransactions: {
         rows: depositTxRows.map(mapTx),
         total: depositTxTotal,

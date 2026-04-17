@@ -11,6 +11,7 @@ import {
   RefreshCw,
   User,
   Wallet,
+  Users,
 } from 'lucide-react';
 
 /**
@@ -37,6 +38,28 @@ export function resolveAdminAssetUrl(url) {
  * @param {(patch: object) => void} props.onParamsChange
  * @param {() => void} props.onRetry
  */
+function translateIpOverlapReasons(t, codes) {
+  if (!Array.isArray(codes) || codes.length === 0) return '';
+  return codes
+    .map((c) => {
+      const key = `admin_support.dossier.multi_account_reason_${c}`;
+      const label = t(key);
+      return label === key ? c : label;
+    })
+    .join(', ');
+}
+
+function translateViaCodes(t, codes) {
+  if (!Array.isArray(codes) || codes.length === 0) return '';
+  return codes
+    .map((c) => {
+      const key = `admin_support.dossier.multi_account_via_${c}`;
+      const label = t(key);
+      return label === key ? c : label;
+    })
+    .join(', ');
+}
+
 export default function AdminSupportPlayerDossier({ bundle, loading, error, params, onParamsChange, onRetry }) {
   const { t } = useTranslation();
 
@@ -183,6 +206,16 @@ export default function AdminSupportPlayerDossier({ bundle, loading, error, para
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t('admin_support.dossier.blk_balance')}</p>
           <p className="font-mono text-sm text-sky-300/90">{summary?.blkBalance ?? '—'}</p>
         </div>
+        <div className="min-w-0 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t('admin_support.dossier.registration_ip')}</p>
+            <p className="break-all font-mono text-xs text-slate-300">{summary?.registrationIp ?? '—'}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t('admin_support.dossier.last_ip')}</p>
+            <p className="break-all font-mono text-xs text-slate-300">{summary?.lastIp ?? '—'}</p>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-800/60 bg-slate-950/30 p-4">
@@ -202,6 +235,81 @@ export default function AdminSupportPlayerDossier({ bundle, loading, error, para
           <p className="text-sm text-slate-500">{t('admin_support.dossier.none')}</p>
         )}
       </div>
+
+      {dossier.accountCollisions?.hasRisk ? (
+        <section
+          className="rounded-xl border border-amber-900/40 bg-amber-950/15 p-4 space-y-3"
+          aria-label={t('admin_support.dossier.multi_account_title')}
+        >
+          <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-amber-400">
+            <Users className="h-4 w-4" />
+            {t('admin_support.dossier.multi_account_title')}
+          </h4>
+          <p className="text-[11px] leading-relaxed text-amber-100/90">{t('admin_support.dossier.multi_account_hint')}</p>
+          {dossier.accountCollisions.ipOverlapUsers?.length ? (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                {t('admin_support.dossier.multi_account_ip_overlap')}
+              </p>
+              <ul className="space-y-2 text-xs text-slate-200">
+                {dossier.accountCollisions.ipOverlapUsers.map((u) => (
+                  <li key={`ip-${u.id}`} className="font-mono">
+                    <span>
+                      #{u.id} · {u.email}
+                      {u.username ? ` · @${u.username}` : ''}
+                    </span>
+                    {Array.isArray(u.ipOverlapReasons) && u.ipOverlapReasons.length ? (
+                      <span className="mt-0.5 block text-[10px] text-slate-500 normal-case">
+                        {t('admin_support.dossier.multi_account_ip_reasons', {
+                          reasons: translateIpOverlapReasons(t, u.ipOverlapReasons),
+                        })}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {dossier.accountCollisions.profileWalletDuplicateUsers?.length ? (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                {t('admin_support.dossier.multi_account_profile_wallet_dupes')}
+              </p>
+              <ul className="space-y-1 text-xs text-slate-200">
+                {dossier.accountCollisions.profileWalletDuplicateUsers.map((u) => (
+                  <li key={`pwd-${u.id}`} className="font-mono">
+                    #{u.id} · {u.email}
+                    {u.username ? ` · @${u.username}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {dossier.accountCollisions.chainAddressOverlaps?.length ? (
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {t('admin_support.dossier.multi_account_chain_overlap')}
+              </p>
+              {dossier.accountCollisions.chainAddressOverlaps.map((block) => (
+                <div key={block.address} className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-2">
+                  <p className="break-all font-mono text-[10px] text-amber-200/90 mb-1">{block.address}</p>
+                  <ul className="space-y-1 text-[11px] text-slate-300">
+                    {block.otherUsers.map((ou) => (
+                      <li key={`${block.address}-${ou.id}`} className="font-mono">
+                        #{ou.id} · {ou.email}
+                        {ou.username ? ` · @${ou.username}` : ''}
+                        <span className="block text-[10px] text-slate-500 normal-case">
+                          {t('admin_support.dossier.multi_account_via', { via: translateViaCodes(t, ou.via) })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <DossierPagedTable
         t={t}
