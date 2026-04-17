@@ -25,12 +25,14 @@ import {
   ListChecks,
   LayoutGrid,
   Video,
+  Fingerprint,
 } from 'lucide-react';
 
 /** Admin routes: icons and paths are fixed; labels use `adminSidebar.nav.*` keys. */
 const ADMIN_MENU_ITEMS = [
   { icon: LayoutDashboard, labelKey: 'adminSidebar.nav.overview', path: '/admin/dashboard' },
   { icon: Users, labelKey: 'adminSidebar.nav.users', path: '/admin/users' },
+  { icon: Fingerprint, labelKey: 'adminSidebar.nav.fraud_signals', path: '/admin/fraud-signals' },
   { icon: Cpu, labelKey: 'adminSidebar.nav.miners', path: '/admin/miners' },
   { icon: Tag, labelKey: 'adminSidebar.nav.offers', path: '/admin/offer-events' },
   { icon: Layers, labelKey: 'adminSidebar.nav.mini_pass', path: '/admin/mini-pass' },

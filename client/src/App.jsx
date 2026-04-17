@@ -39,6 +39,7 @@ import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminMiners from './pages/AdminMiners';
 import AdminUsers from './pages/AdminUsers';
+import AdminFraudSignals from './pages/AdminFraudSignals';
 import AdminFinance from './pages/AdminFinance';
 import AdminBackups from './pages/AdminBackups';
 import AdminLogs from './pages/AdminLogs';
@@ -203,6 +204,7 @@ function App() {
         <Route element={<AdminLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/fraud-signals" element={<AdminFraudSignals />} />
           <Route path="/admin/miners" element={<AdminMiners />} />
           <Route path="/admin/finance" element={<AdminFinance />} />
           <Route path="/admin/backups" element={<AdminBackups />} />

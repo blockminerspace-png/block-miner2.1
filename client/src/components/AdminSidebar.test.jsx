@@ -15,6 +15,7 @@ const enAdminSidebar = {
   nav: {
     overview: 'Overview',
     users: 'Users',
+    fraud_signals: 'Fraud signals',
     miners: 'Miners',
     offers: 'Offers',
     mini_pass: 'Mini Pass',

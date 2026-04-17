@@ -30,6 +30,7 @@ import {
     resolveBackupDownloadPath,
 } from "../services/databaseBackupService.js";
 import { listUnifiedAdminAuditLogs } from "../services/adminAuditListService.js";
+import { listAdminFraudSignals } from "../services/adminFraudSignalsService.js";
 import loggerLib from "../utils/logger.js";
 import path from "path";
 import fs from "fs/promises";
@@ -683,6 +684,20 @@ adminRouter.get("/finance/activity", async (req, res) => {
         res.json({ ok: true, activity, page, limit, total });
     } catch (error) {
         console.error("[admin finance/activity]", error?.message || error);
+        res.status(500).json({ ok: false, message: "Error" });
+    }
+});
+
+adminRouter.get("/fraud-signals", async (req, res) => {
+    try {
+        const data = await listAdminFraudSignals(prisma, {
+            scope: req.query.scope,
+            q: req.query.q,
+            maxClusters: req.query.maxClusters,
+        });
+        res.json({ ok: true, ...data });
+    } catch (error) {
+        console.error("[admin fraud-signals]", error?.message || error);
         res.status(500).json({ ok: false, message: "Error" });
     }
 });
