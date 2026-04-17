@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../store/auth';
@@ -6,10 +6,6 @@ import { Mail, Lock, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, ShieldChec
 import { toast } from 'sonner';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
-import TurnstileField, { prefetchTurnstileScript } from '../components/auth/TurnstileField';
-import { resolveTurnstileSiteKeyLogin } from '../constants/turnstilePublic';
-
-const TURNSTILE_LOGIN_SITE_KEY = resolveTurnstileSiteKeyLogin();
 
 export default function Login() {
     const { t } = useTranslation();
@@ -21,8 +17,6 @@ export default function Login() {
     const [requires2FA, setRequires2FA] = useState(false);
     const [twoFactorToken, setTwoFactorToken] = useState('');
     const [localError, setLocalError] = useState('');
-    const [cfTurnstileToken, setCfTurnstileToken] = useState('');
-    const turnstileRef = useRef(null);
     
     // Legacy Reset States
     const [showLegacyReset, setShowLegacyReset] = useState(false);
@@ -39,12 +33,6 @@ export default function Login() {
         }
     }, [isAuthenticated, navigate]);
 
-    useLayoutEffect(() => {
-        if (!TURNSTILE_LOGIN_SITE_KEY) return undefined;
-        void prefetchTurnstileScript();
-        return undefined;
-    }, []);
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLocalError('');
@@ -54,12 +42,9 @@ export default function Login() {
                 identifier,
                 password,
                 twoFactorToken: requires2FA ? twoFactorToken : undefined,
-                cfTurnstileToken: cfTurnstileToken || undefined,
             });
 
             if (res.data.require2FA) {
-                // Server may require a fresh Turnstile token on the second POST; reset challenge for 2FA step.
-                turnstileRef.current?.reset();
                 setRequires2FA(true);
                 return;
             }
@@ -75,7 +60,6 @@ export default function Login() {
             }
         } catch (err) {
             if (err.response?.data?.require2FA) {
-                turnstileRef.current?.reset();
                 setRequires2FA(true);
             } else if (err.response?.data?.needsLegacyReset) {
                 setShowLegacyReset(true);
@@ -95,8 +79,6 @@ export default function Login() {
                     LOGIN_FAILED: t('auth.login.errors.login_failed'),
                     ACCOUNT_LOCKED: t('errors.security.ACCOUNT_LOCKED'),
                     RATE_LIMIT_EXCEEDED: t('errors.security.RATE_LIMIT_EXCEEDED'),
-                    CAPTCHA_REQUIRED: t('errors.security.CAPTCHA_REQUIRED'),
-                    CAPTCHA_FAILED: t('errors.security.CAPTCHA_FAILED'),
                 };
 
                 setLocalError(
@@ -106,7 +88,6 @@ export default function Login() {
                         err.response?.data?.message ||
                         t('auth.login.errors.login_failed'),
                 );
-                turnstileRef.current?.reset();
             }
         }
     };
@@ -291,7 +272,6 @@ export default function Login() {
                                     type="button"
                                     onClick={() => {
                                         setRequires2FA(false);
-                                        turnstileRef.current?.reset();
                                     }}
                                     className="w-full text-center text-xs text-gray-500 hover:text-white transition-colors"
                                 >
@@ -299,10 +279,6 @@ export default function Login() {
                                 </button>
                             </div>
                         )}
-
-                        {TURNSTILE_LOGIN_SITE_KEY ? (
-                            <TurnstileField ref={turnstileRef} siteKey={TURNSTILE_LOGIN_SITE_KEY} onToken={setCfTurnstileToken} />
-                        ) : null}
 
                         <button
                             type="submit"

@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -6,8 +6,6 @@ import { useAuthStore } from '../store/auth';
 import { Mail, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Gift } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import SocialLoginButtons from '../components/auth/SocialLoginButtons';
-import TurnstileField, { prefetchTurnstileScript } from '../components/auth/TurnstileField';
-import { resolveTurnstileSiteKeyRegister } from '../constants/turnstilePublic';
 import SiteFooter from '../components/SiteFooter';
 import {
   REGISTER_USERNAME_MIN,
@@ -36,8 +34,6 @@ function clipRefCodeFromQuery(raw) {
     .slice(0, REGISTER_REF_CODE_MAX_LEN);
 }
 
-const TURNSTILE_REGISTER_SITE_KEY = resolveTurnstileSiteKeyRegister();
-
 export default function Register() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
@@ -50,10 +46,8 @@ export default function Register() {
     acceptTerms: false
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [cfTurnstileToken, setCfTurnstileToken] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const termsCheckboxRef = useRef(null);
-  const turnstileRef = useRef(null);
   const navigate = useNavigate();
   const { register, error, isLoading, isAuthenticated } = useAuthStore();
 
@@ -62,12 +56,6 @@ export default function Register() {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
-
-  useLayoutEffect(() => {
-    if (!TURNSTILE_REGISTER_SITE_KEY) return undefined;
-    void prefetchTurnstileScript();
-    return undefined;
-  }, []);
 
   const handleChange = (e) => {
     const { id, value, type, checked } = e.target;
@@ -153,7 +141,6 @@ export default function Register() {
       password: formData.password,
       refCode: ref,
       acceptTerms: formData.acceptTerms,
-      cfTurnstileToken: cfTurnstileToken || undefined,
     });
 
     if (!result.success) {
@@ -169,7 +156,6 @@ export default function Register() {
       } else if (result.message) {
         toast.error(t(result.message, { defaultValue: result.message }));
       }
-      turnstileRef.current?.reset();
       return;
     }
 
@@ -360,8 +346,6 @@ export default function Register() {
                   </div>
                 </div>
               </div>
-
-              <TurnstileField ref={turnstileRef} siteKey={TURNSTILE_REGISTER_SITE_KEY} onToken={setCfTurnstileToken} />
 
               <button
                 type="submit"

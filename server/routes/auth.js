@@ -12,7 +12,6 @@ import { updateUserLoginMeta } from "../models/userModel.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { validateBody } from "../middleware/validate.js";
 import { registerBodySchema } from "../validation/registerBodySchema.js";
-import { requireTurnstileWhenConfigured } from "../middleware/turnstile.js";
 import { buildCsrfCookie } from "../middleware/csrf.js";
 import { requireAuth } from "../middleware/auth.js";
 import { enqueueAuditEvent, buildAuditEventFromHttpRequest } from "../src/audit/service.js";
@@ -29,6 +28,7 @@ import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
 import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../services/emailTwoFactorService.js";
 import loggerLib, { logUserActivity } from "../utils/logger.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
+import { isAdminKeyedPasswordResetApiEnabled } from "../utils/adminPasswordResetPolicy.js";
 
 const logger = loggerLib.child("AuthRoutes");
 export const authRouter = express.Router();
@@ -113,7 +113,6 @@ const loginSchema = z.object({
   password: z.string().min(1, "Senha é obrigatória"),
   twoFactorToken: z.string().trim().optional(),
   twoFactorChallengeToken: z.string().trim().optional(),
-  cfTurnstileToken: z.string().trim().optional(),
 });
 
 const authLimiter = createDistributedRateLimiter({
@@ -222,7 +221,6 @@ authRouter.post(
   "/register",
   authLimiter,
   validateBody(registerBodySchema),
-  requireTurnstileWhenConfigured({ purpose: "register" }),
   async (req, res) => {
   try {
     const { username, email, password, refCode: refCodeInput, acceptTerms } = req.body;
@@ -387,7 +385,6 @@ authRouter.post(
   "/login",
   authLimiter,
   validateBody(loginSchema),
-  requireTurnstileWhenConfigured({ purpose: "login" }),
   async (req, res) => {
   try {
     const { identifier, password, twoFactorToken, twoFactorChallengeToken } = req.body;
@@ -718,6 +715,9 @@ authRouter.post("/legacy-password-reset", passwordResetCompleteLimiter, async (r
 
 authRouter.post("/reset-password-manual", adminManualPasswordResetLimiter, async (req, res) => {
   try {
+    if (!isAdminKeyedPasswordResetApiEnabled()) {
+      return res.status(404).json({ ok: false, message: "Not found." });
+    }
     const { email, newPassword, adminKey } = req.body;
     
     // Segurança básica para esta rota manual
@@ -757,24 +757,28 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
       return res.json({ ok: true, message: "Se o email existe, você receberá instruções de redefinição." });
     }
 
-    const resetToken = signPasswordResetToken(user.id);
-    const resetUrl = `${APP_URL.replace(/\/$/, "")}/forgot-password?token=${encodeURIComponent(resetToken)}`;
-
-    if (isSmtpConfigured()) {
-      await sendPasswordResetEmail({
-        to: user.email,
-        name: user.name,
-        resetUrl,
-        ttlMinutes: Number(String(PASSWORD_RESET_TOKEN_TTL).replace(/[^0-9]/g, "")) || 20
+    if (!isSmtpConfigured()) {
+      logger.warn("[SECURITY] Password reset requested but SMTP is not configured; no email sent.", {
+        normalizedEmail
+      });
+      return res.json({
+        ok: true,
+        message: "Se o email existe, você receberá instruções de redefinição."
       });
     }
 
-    logger.info(`[SECURITY] Password reset requested for email: ${normalizedEmail}`);
-    if (isSmtpConfigured()) {
-      return res.json({ ok: true, message: "Enviamos um link de redefinição para o seu e-mail." });
-    }
+    const resetToken = signPasswordResetToken(user.id);
+    const resetUrl = `${APP_URL.replace(/\/$/, "")}/forgot-password?token=${encodeURIComponent(resetToken)}`;
 
-    return res.json({ ok: true, message: "Solicitação registrada. Continue para definir sua nova senha.", resetToken });
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+      ttlMinutes: Number(String(PASSWORD_RESET_TOKEN_TTL).replace(/[^0-9]/g, "")) || 20
+    });
+
+    logger.info(`[SECURITY] Password reset requested for email: ${normalizedEmail}`);
+    return res.json({ ok: true, message: "Enviamos um link de redefinição para o seu e-mail." });
   } catch (error) {
     logger.error("Forgot password error", { error: error.message });
     res.status(500).json({ ok: false, message: "Erro ao processar redefinição de senha." });
@@ -784,6 +788,9 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
 // 🔐 Redefinição Forçada com Admin (requer chave de admin)
 authRouter.post("/admin/force-password-reset", adminManualPasswordResetLimiter, async (req, res) => {
   try {
+    if (!isAdminKeyedPasswordResetApiEnabled()) {
+      return res.status(404).json({ ok: false, message: "Not found." });
+    }
     const { email, newPassword, adminKey } = req.body;
     
     // Validação de chave de admin
