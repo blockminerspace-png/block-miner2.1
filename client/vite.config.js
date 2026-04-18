@@ -16,6 +16,21 @@ const blockminerOrigin =
   String(process.env.VITE_BLOCKMINER_ORIGIN || '').trim() ||
   (process.env.NODE_ENV === 'production' ? 'https://blockminer.space' : 'http://localhost:5173')
 
+/** CI `npm run coverage:gate`: line coverage ≥80% on utils modules that have dedicated unit tests. */
+const coverageGate = process.env.COVERAGE_GATE === '1'
+const coverageGateIncludes = [
+  'src/utils/calculatorEngine.js',
+  'src/utils/csrfHeader.js',
+  'src/utils/depositChannel.js',
+  'src/utils/eip1193ProviderEvents.js',
+  'src/utils/inventoryRackUtils.js',
+  'src/utils/inventoryStackKey.js',
+  'src/utils/sidebarPathMatch.js',
+  'src/utils/walletSessionPreference.js',
+  'src/utils/adminInternalOfferwallValidate.js',
+  'src/utils/sidebarNavMap.js',
+]
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -25,13 +40,24 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json-summary', 'html', 'lcov'],
-      reportsDirectory: './coverage',
-      include: ['src/**/*.{js,jsx,ts,tsx}'],
-      exclude: ['src/**/*.test.{js,jsx,ts,tsx}', 'src/**/__mocks__/**'],
-    },
+    coverage: coverageGate
+      ? {
+          provider: 'v8',
+          reporter: ['text', 'json-summary'],
+          reportsDirectory: './coverage',
+          include: coverageGateIncludes,
+          exclude: ['src/**/*.test.{js,jsx,ts,tsx}', 'src/**/__mocks__/**'],
+          thresholds: {
+            lines: 80,
+          },
+        }
+      : {
+          provider: 'v8',
+          reporter: ['text', 'json-summary', 'html', 'lcov'],
+          reportsDirectory: './coverage',
+          include: ['src/**/*.{js,jsx,ts,tsx}'],
+          exclude: ['src/**/*.test.{js,jsx,ts,tsx}', 'src/**/__mocks__/**'],
+        },
   },
   define: {
     'process.env.APP_URL': JSON.stringify(blockminerOrigin),

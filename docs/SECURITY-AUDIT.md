@@ -2,7 +2,7 @@
 
 **Canonical copy:** update this file only. Do not add parallel reports such as `SECURITY-*-<date>.md` or duplicate root-level security markdown.
 
-**Last updated:** 2026-04-16  
+**Last updated:** 2026-04-17  
 **Scope:** Server (`server/`), security middleware, wallet/deposit flows, Prisma usage, client-facing headers (CSP). Not a full penetration test; no live exploit attempts.
 
 ---
@@ -12,6 +12,8 @@
 The application uses a **solid baseline**: **Helmet** (including CSP), **HTTPS + HSTS** in production, **CORS** configuration module, **CSRF** double-submit cookie for mutating API calls, **Postgres-backed sliding-window rate limits** on sensitive routes, **Prisma** for most persistence, **audit context** middleware on `/api`, and **structured security logging** for CSRF failures and rate limits.
 
 Main residual risks: **(1)** legacy `server/models/db.js` exposes **raw SQL helpers** (`$queryRawUnsafe`) if ever called with string-concatenated SQL; **(2)** **CSP script hashes** for Reown/AppKit must be **updated when the wallet SDK changes**; **(3)** **WalletConnect `projectId`** must be real at **Vite build** time or the wallet UI gets **403** from Reown (not a CSP issue); **(4)** global API limiter **skips** some high-frequency paths — confirm they are read-only and abuse-resistant; **(5)** review **Socket.IO** handlers for authorization on every privileged action.
+
+**Production ops:** if you still need `/api/auth/reset-password-manual` or `/api/auth/admin/force-password-reset`, set **`ALLOW_ADMIN_PASSWORD_RESET_API=1`** (otherwise they return 404).
 
 **Hygiene (operations):** keep secrets out of Git (`.env`, exports, DB dumps); rotate anything ever exposed; prefer a secrets manager for production.
 
@@ -35,6 +37,12 @@ Main residual risks: **(1)** legacy `server/models/db.js` exposes **raw SQL help
 | R5 | Path | Low | Backup download path must stay inside backup dir | **Fixed:** `resolve` + `relative` + `realpath` (`server/services/databaseBackupService.js`) |
 | R6 | Process | Low | `spawn` with `shell: true` in backup utilities | **Fixed:** `shell: false`; `tar` as argv array; cloud hook via `sh -c`/`cmd` without `shell: true` option (`server/utils/backup.js`) |
 | R7 | Crypto | Low | `Math.random()` for minigame board shuffle | **Fixed:** Fisher–Yates + `crypto.randomInt` (`server/src/socket/registerGamesSocketHandlers.js`) |
+| R8 | Auth | High | `forgot-password` returned `resetToken` in JSON when SMTP was off | **Fixed:** generic response only; no token in body (`server/routes/auth.js`) |
+| R9 | Auth | High | Admin-key password reset always reachable in production | **Fixed:** `ALLOW_ADMIN_PASSWORD_RESET_API=1` required in production (`server/routes/auth.js`) |
+| R10 | Upload / XSS | Med | SVG uploads + static `/uploads` | **Fixed:** disallow new SVG uploads in admin multer; serve `.svg` as `application/octet-stream` + CSP (`server/routes/admin.js`, `server/server.js`) |
+| R11 | Realtime | Med | Clients could open Socket.IO with bogus `auth.token` | **Fixed:** `io.use` rejects invalid explicit JWT (`server/server.js`) |
+| R12 | Authz noise | Low | Unused XOR “Iron Dome” headers on `requireAuth` | **Removed:** (`server/middleware/auth.js`) |
+| R13 | Vault / UX | Med | Turnstile on `/vault/move-to-vault` blocked rack→inventory flows without a widget | **Removed:** Turnstile middleware from vault write routes; auth + rate limit + idempotency remain (`server/routes/vault.js`) |
 
 ---
 
@@ -135,6 +143,15 @@ Unit test added: `tests/databaseBackupService.test.mjs` (`resolveBackupDownloadP
 - Run **`npm audit`** on a schedule (CI).  
 - Secrets: never commit `.env`; rotate any key pasted in chat.  
 - **Backups:** keep parameterized / validated paths for any raw SQL or filesystem access.
+
+## Coverage CI gate (≥80% lines, scoped)
+
+CI runs **`npm run coverage:gate`** after unit tests (see `.github/workflows/ci.yml`).
+
+- **Server (`c8`):** `server/utils/**` with **≥80% line** coverage; **`mailer.js`**, **`cryptoPrice.js`**, and **`checkinStreak.js`** are excluded (SMTP / network / time-heavy — cover with integration tests, not the gate).
+- **Client (`vitest`):** with **`COVERAGE_GATE=1`**, only the curated **`src/utils/*`** list in `client/vite.config.js` is measured, **line** threshold **80%** (same modules that already have focused unit tests).
+
+This is **not** “whole `client/src` at 80%” (that would require a large UI test push); it locks a **high-signal minimum** on shared utils + server helpers. Expand the include lists as you add tests.
 
 ---
 

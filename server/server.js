@@ -81,6 +81,7 @@ import { getTokenFromRequest, getAdminTokenFromRequest } from "./utils/token.js"
 import serverDatabaseModel from "./models/database/serverDatabaseModel.js";
 import { getUserById } from "./models/userModel.js";
 import { verifyAccessToken } from "./utils/authTokens.js";
+import { attachSocketIoExplicitAuthMiddleware } from "./utils/socketHandshakeAuthPolicy.js";
 import { getOrCreateMinerProfile, persistMinerProfile, syncUserBaseHashRate } from "./models/minerProfileModel.js";
 import { ensureDefaultInternalReward } from "./models/shortlinkRewardModel.js";
 import { ensureFaucetReward } from "./src/bootstrap/ensureFaucetReward.js";
@@ -115,6 +116,7 @@ if (process.env.NODE_ENV !== "test") {
 }
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const UPLOADS_STATIC_ROOT = path.resolve(process.env.UPLOADS_DIR || path.join(__dirname, "..", "uploads"));
 
 const app = express();
 applyTrustProxy(app);
@@ -127,6 +129,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: buildSocketIoCorsConfig()
 });
+
+/** Reject connections that send an explicit invalid JWT in `handshake.auth.token` (e.g. games SPA). */
+attachSocketIoExplicitAuthMiddleware(io, { verifyAccessToken });
 
 function envFlag(name, defaultValue = false) {
   const raw = String(process.env[name] ?? "").trim().toLowerCase();
@@ -374,7 +379,18 @@ app.get("/api/transparency", transparencyController.getPublicEntries);
 
 // 7. Static Assets & Frontend Production Build
 // Serve user-uploaded miner images from the persistent volume (survives rebuilds)
-app.use('/uploads', express.static('/app/uploads'));
+app.use(
+  "/uploads",
+  express.static(UPLOADS_STATIC_ROOT, {
+    setHeaders(res, filePath) {
+      if (/\.svg$/i.test(filePath)) {
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Content-Security-Policy", "default-src 'none'");
+      }
+    }
+  })
+);
 
 const publicPath = path.join(__dirname, "..", "client", "dist");
 // Static crypto broadcast board (TradingView, etc.) — NOT under /dashboardcrypto so the SPA route

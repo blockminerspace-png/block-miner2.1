@@ -23,5 +23,7 @@ jobs:
         run: mkdir -p data
       - name: Run tests
         run: npm test
+      - name: Coverage gate (min 80% lines — scoped; see client/vite.config.js & package.json)
+        run: npm run coverage:gate
       - name: Run lint
         run: npm run lint

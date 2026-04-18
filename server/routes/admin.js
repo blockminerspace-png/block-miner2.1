@@ -93,7 +93,7 @@ const upload = multer({
     storage: sharedStorage,
     limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
     fileFilter: (_req, file, cb) => {
-        if (/^image\/(jpeg|png|gif|webp|svg\+xml)$/.test(file.mimetype)) cb(null, true);
+        if (/^image\/(jpeg|png|gif|webp)$/.test(file.mimetype)) cb(null, true);
         else cb(new Error('Somente imagens são permitidas.'));
     }
 });
@@ -101,7 +101,7 @@ const uploadMedia = multer({
     storage: sharedStorage,
     limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
     fileFilter: (_req, file, cb) => {
-        const allowed = /^(image\/(jpeg|png|gif|webp|svg\+xml)|video\/(mp4|webm|ogg|quicktime|x-msvideo))$/;
+        const allowed = /^(image\/(jpeg|png|gif|webp)|video\/(mp4|webm|ogg|quicktime|x-msvideo))$/;
         if (allowed.test(file.mimetype)) cb(null, true);
         else cb(new Error('Formato não suportado. Use imagens (PNG, JPG, GIF, WebP) ou vídeos (MP4, WebM).'));
     }
