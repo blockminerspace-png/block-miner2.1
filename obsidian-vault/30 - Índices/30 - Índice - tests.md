@@ -1,0 +1,85 @@
+# Índice tests
+
+Total de arquivos nesta área: `79`
+
+## Arquivos
+
+- [[20 - Arquivos/tests/adminAccountCollisionService.test.mjs|tests/adminAccountCollisionService.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/adminAuditListService.test.mjs|tests/adminAuditListService.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/adminPasswordResetPolicy.test.mjs|tests/adminPasswordResetPolicy.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/audit.query.test.js|tests/audit.query.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/audit.test.js|tests/audit.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/authTokens.test.js|tests/authTokens.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/autoMiningV2.domain.test.js|tests/autoMiningV2.domain.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/btcpayService.test.js|tests/btcpayService.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/buildUserAuditSnapshotMinersSelect.test.mjs|tests/buildUserAuditSnapshotMinersSelect.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinBalanceAuditLog.test.mjs|tests/checkinBalanceAuditLog.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinBalanceGate.test.js|tests/checkinBalanceGate.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinChainAmounts.test.mjs|tests/checkinChainAmounts.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinEvaluateTxStrict.test.mjs|tests/checkinEvaluateTxStrict.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinPaymentEnforcement.test.mjs|tests/checkinPaymentEnforcement.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinPeriodKeys.test.mjs|tests/checkinPeriodKeys.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinReceiverResolve.test.js|tests/checkinReceiverResolve.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/checkinWalletRequired.test.mjs|tests/checkinWalletRequired.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/contractDepositLog.test.js|tests/contractDepositLog.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/dailyTaskDefinitionAdminValidation.test.js|tests/dailyTaskDefinitionAdminValidation.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/dailyTaskProgressInternalOfferwallDestructuring.test.mjs|tests/dailyTaskProgressInternalOfferwallDestructuring.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/dailyTasks.period.test.js|tests/dailyTasks.period.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/databaseBackupService.test.mjs|tests/databaseBackupService.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/depositsCron.test.js|tests/depositsCron.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/emailTwoFactorService.test.mjs|tests/emailTwoFactorService.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/faucetInventoryNoExpiry.test.mjs|tests/faucetInventoryNoExpiry.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/game2048Constants.test.mjs|tests/game2048Constants.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/game2048Engine.test.mjs|tests/game2048Engine.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/iframeHostAllowlistCache.test.mjs|tests/iframeHostAllowlistCache.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/internalOfferwall.validateIframeUrl.test.mjs|tests/internalOfferwall.validateIframeUrl.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/internalOfferwallLimitState.test.mjs|tests/internalOfferwallLimitState.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/internalOfferwallMinViewLogic.test.mjs|tests/internalOfferwallMinViewLogic.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/internalOfferwallTaskMetadata.test.mjs|tests/internalOfferwallTaskMetadata.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/logger.test.mjs|tests/logger.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/machineInstanceState.test.mjs|tests/machineInstanceState.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/machinePlacementMapping.test.mjs|tests/machinePlacementMapping.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/memoryGameConstants.test.js|tests/memoryGameConstants.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/miningEngineRewards.test.js|tests/miningEngineRewards.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/miniPass.adminValidation.test.mjs|tests/miniPass.adminValidation.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/miniPass.i18n.test.mjs|tests/miniPass.i18n.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/miniPass.levelMath.test.mjs|tests/miniPass.levelMath.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/miniPassAdminForm.test.mjs|tests/miniPassAdminForm.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/miniPassPeriod.test.mjs|tests/miniPassPeriod.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/offerEvents.helpers.test.mjs|tests/offerEvents.helpers.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/offerEvents.listQuery.test.mjs|tests/offerEvents.listQuery.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/offerEvents.publicList.test.mjs|tests/offerEvents.publicList.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/openrouterAskScript.test.mjs|tests/openrouterAskScript.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/polygonDepositConfig.test.js|tests/polygonDepositConfig.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/polygonHdConfig.test.mjs|tests/polygonHdConfig.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/polygonHdDepositScanner.test.mjs|tests/polygonHdDepositScanner.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/polygonHdWallet.test.mjs|tests/polygonHdWallet.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/publicLiveStatsService.test.js|tests/publicLiveStatsService.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/rackMinerRelease.test.js|tests/rackMinerRelease.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/readEarn.isLive.test.mjs|tests/readEarn.isLive.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/readEarnSchemas.test.mjs|tests/readEarnSchemas.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/registerBodySchema.test.mjs|tests/registerBodySchema.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/requestPublicOrigin.test.js|tests/requestPublicOrigin.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/rooms.test.js|tests/rooms.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/shopIdempotencyStore.test.mjs|tests/shopIdempotencyStore.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/sidebarNavPaths.test.js|tests/sidebarNavPaths.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/sidebarNavRegistry.test.js|tests/sidebarNavRegistry.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/socketHandshakeAuthPolicy.test.mjs|tests/socketHandshakeAuthPolicy.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/stableRequestHash.test.mjs|tests/stableRequestHash.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/streamAdminValidation.test.js|tests/streamAdminValidation.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/streamRestartPolicy.test.mjs|tests/streamRestartPolicy.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/streamRunner.pendingRestart.test.mjs|tests/streamRunner.pendingRestart.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/streamSecrets.test.js|tests/streamSecrets.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/supportMessagePayload.test.mjs|tests/supportMessagePayload.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/supportPlayerDossierService.test.js|tests/supportPlayerDossierService.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/token.test.js|tests/token.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/transactionLocks.test.mjs|tests/transactionLocks.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/transparency.test.mjs|tests/transparency.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/transparencyWalletService.test.mjs|tests/transparencyWalletService.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/turnstile.resolveSecret.test.mjs|tests/turnstile.resolveSecret.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/userActivityAuditMiddleware.test.mjs|tests/userActivityAuditMiddleware.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/vaultSchemas.test.mjs|tests/vaultSchemas.test.mjs]] | tests | ESM JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/verify_security_fix.mjs|tests/verify_security_fix.mjs]] | tests | ESM JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/tests/walletDeposit.test.js|tests/walletDeposit.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/walletValidation.test.js|tests/walletValidation.test.js]] | tests | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/tests/walletWithdraw.test.js|tests/walletWithdraw.test.js]] | tests | JavaScript | Arquivo de teste automatizado.

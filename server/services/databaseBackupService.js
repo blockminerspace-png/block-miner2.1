@@ -35,6 +35,41 @@ export function metaPathForSqlFile(backupsDir, sqlFileName) {
   return path.join(backupsDir, `${stem}.meta.json`);
 }
 
+export function bundlePathForSqlFile(backupsDir, sqlFileName) {
+  const stem = sqlFileName.replace(/\.sql$/i, "");
+  return path.join(backupsDir, `${stem}.bundle.tar.gz`);
+}
+
+export function safeBackupBundleName(name) {
+  if (!name || typeof name !== "string") return null;
+  if (name.includes("..") || name.includes("/") || name.includes("\\")) return null;
+  if (!/^backup-.+\.bundle\.tar\.gz$/i.test(name)) return null;
+  return name;
+}
+
+function getAdditionalBackupTargets() {
+  const candidates = [
+    ".env",
+    ".env.production",
+    "uploads",
+    "server/storage",
+    "server/prisma",
+    "client/public",
+    "config",
+    "scripts",
+    "docs",
+    ".env.example",
+    ".env.production.example",
+    "deploy.secrets.example",
+    "docker-compose.yml",
+    "docker-compose.local.yml",
+    "Dockerfile",
+    "nginx",
+    "k8s",
+  ];
+  return candidates;
+}
+
 /**
  * Prisma appends `?schema=public` (and similar) to `DATABASE_URL`. libpq used by `pg_dump` rejects
  * unknown URI query parameters such as `schema` with: invalid uri query parameter "schema".
@@ -186,6 +221,27 @@ function runPgDumpToFile({ pgDumpPath, databaseUrl, outFile }) {
   });
 }
 
+function runTarBundleToFile({ outFile, relativeTargets }) {
+  return new Promise((resolve, reject) => {
+    const args = ["-czf", outFile, ...relativeTargets];
+    const child = spawn("tar", args, {
+      cwd: path.resolve(__dirname, "../.."),
+      stdio: ["ignore", "ignore", "pipe"],
+      env: { ...process.env },
+    });
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk || "");
+      if (stderr.length > 400_000) stderr = stderr.slice(-200_000);
+    });
+    child.on("error", (err) => reject(new Error(`Failed to start tar: ${err.message}`)));
+    child.on("close", (code) => {
+      if (code === 0) resolve({ stderr });
+      else reject(new Error(`tar exited with code ${code}: ${stderr.slice(-8000) || "no stderr"}`));
+    });
+  });
+}
+
 /**
  * @param {{ prisma: import('@prisma/client').PrismaClient, logger?: { info?: Function, warn?: Function, error?: Function } }} opts
  */
@@ -204,6 +260,7 @@ export async function createPostgresSqlBackup(opts) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const filename = `backup-${timestamp}.sql`;
   const outFile = path.join(backupsDir, filename);
+  const bundleFile = bundlePathForSqlFile(backupsDir, filename);
 
   const publicTables = await countPublicTables(prisma);
   const publicTableCount = publicTables.length;
@@ -273,6 +330,31 @@ export async function createPostgresSqlBackup(opts) {
   }
 
   const durationMs = Date.now() - started;
+  let bundle = null;
+  try {
+    const rootDir = path.resolve(__dirname, "../..");
+    const relativeTargets = [];
+    for (const rel of getAdditionalBackupTargets()) {
+      try {
+        await fs.access(path.join(rootDir, rel));
+        relativeTargets.push(rel);
+      } catch {
+        // ignore missing target
+      }
+    }
+    if (relativeTargets.length) {
+      await runTarBundleToFile({ outFile: bundleFile, relativeTargets });
+      const bundleStat = await fs.stat(bundleFile);
+      bundle = {
+        name: path.basename(bundleFile),
+        size: bundleStat.size,
+        includedPaths: relativeTargets,
+      };
+    }
+  } catch (err) {
+    logger?.warn?.("admin_backup_bundle_failed", { message: err?.message || String(err) });
+  }
+
   const manifest = {
     version: 1,
     filename,
@@ -285,6 +367,7 @@ export async function createPostgresSqlBackup(opts) {
     criticalTablesPresent: [...scan.found],
     pgDumpPath,
     rowCountAudit,
+    bundle,
   };
 
   await fs.writeFile(metaPathForSqlFile(backupsDir, filename), JSON.stringify(manifest, null, 2), "utf8");
@@ -296,6 +379,7 @@ export async function createPostgresSqlBackup(opts) {
     publicTableCount,
     copyPublicLineCount: scan.copyPublicLineCount,
     totalDataRows: rowCountAudit?.totalDataRows,
+    bundleName: bundle?.name || null,
   });
 
   return {
@@ -312,6 +396,9 @@ export async function createPostgresSqlBackup(opts) {
     publicTablesEmpty: rowCountAudit?.publicTablesEmpty,
     criticalRowCounts: rowCountAudit?.criticalRowCounts,
     rowCountAuditMode: rowCountAudit?.mode,
+    bundleName: bundle?.name || null,
+    bundleSize: bundle?.size || null,
+    bundleIncludedPaths: bundle?.includedPaths || [],
   };
 }
 
@@ -337,6 +424,9 @@ export async function listSqlBackups() {
     let publicTablesEmpty = null;
     let criticalRowCounts = null;
     let rowCountAuditMode = null;
+    let bundleName = null;
+    let bundleSize = null;
+    let bundleIncludedPaths = [];
 
     try {
       const raw = await fs.readFile(metaPathForSqlFile(backupsDir, name), "utf8");
@@ -350,6 +440,11 @@ export async function listSqlBackups() {
         if (Number.isFinite(meta.copyPublicLineCount)) copyPublicLineCount = meta.copyPublicLineCount;
         if (Array.isArray(meta.criticalTablesPresent)) criticalTablesPresent = meta.criticalTablesPresent;
         const audit = meta.rowCountAudit;
+        if (meta.bundle && typeof meta.bundle === "object") {
+          if (typeof meta.bundle.name === "string") bundleName = meta.bundle.name;
+          if (Number.isFinite(meta.bundle.size)) bundleSize = meta.bundle.size;
+          if (Array.isArray(meta.bundle.includedPaths)) bundleIncludedPaths = meta.bundle.includedPaths;
+        }
         if (audit && typeof audit === "object" && audit.mode === "exact_count") {
           if (Number.isFinite(audit.totalDataRows)) totalDataRows = audit.totalDataRows;
           if (Number.isFinite(audit.publicTablesWithRows)) publicTablesWithRows = audit.publicTablesWithRows;
@@ -394,6 +489,9 @@ export async function listSqlBackups() {
       publicTablesEmpty,
       criticalRowCounts,
       rowCountAuditMode,
+      bundleName,
+      bundleSize,
+      bundleIncludedPaths,
     });
   }
 
@@ -411,6 +509,11 @@ export async function deleteSqlBackup(filename) {
   await fs.unlink(full);
   try {
     await fs.unlink(metaPathForSqlFile(backupsDir, safe));
+  } catch {
+    // ignore
+  }
+  try {
+    await fs.unlink(bundlePathForSqlFile(backupsDir, safe));
   } catch {
     // ignore
   }
@@ -443,6 +546,39 @@ export async function resolveBackupDownloadPath(filename) {
   const relReal = path.relative(realDir, realFile);
   if (relReal.startsWith("..") || path.isAbsolute(relReal)) {
     const err = new Error("Invalid backup filename");
+    err.code = "EINVAL";
+    throw err;
+  }
+  return full;
+}
+
+export async function resolveBackupBundleDownloadPath(filename) {
+  const safe = safeBackupBundleName(filename);
+  if (!safe) {
+    const err = new Error("Invalid backup bundle filename");
+    err.code = "EINVAL";
+    throw err;
+  }
+  const backupsDir = path.resolve(getAdminBackupsDirectory());
+  const full = path.resolve(path.join(backupsDir, safe));
+  const rel = path.relative(backupsDir, full);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    const err = new Error("Invalid backup bundle filename");
+    err.code = "EINVAL";
+    throw err;
+  }
+  try {
+    await fs.access(full);
+  } catch {
+    const err = new Error("Backup bundle not found");
+    err.code = "ENOENT";
+    throw err;
+  }
+  const realDir = await fs.realpath(backupsDir);
+  const realFile = await fs.realpath(full);
+  const relReal = path.relative(realDir, realFile);
+  if (relReal.startsWith("..") || path.isAbsolute(relReal)) {
+    const err = new Error("Invalid backup bundle filename");
     err.code = "EINVAL";
     throw err;
   }

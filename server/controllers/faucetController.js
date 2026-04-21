@@ -1,7 +1,7 @@
 import prisma from '../src/db/prisma.js';
 import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 import { createInventoryWithOwnedMachineTx } from "../services/userOwnedMachineService.js";
-import loggerLib from "../utils/logger.js";
+import loggerLib, { logUserActivity } from "../utils/logger.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
 
 const faucetLogger = loggerLib.child("Faucet");
@@ -66,6 +66,11 @@ export async function startPartnerVisit(req, res) {
       where: { userId_dayKey: { userId: req.user.id, dayKey: todayKey } },
       update: { openedAt: now, eligibleAt, updatedAt: now },
       create: { userId: req.user.id, dayKey: todayKey, openedAt: now, eligibleAt }
+    });
+    logUserActivity("FAUCET_PARTNER_VISIT_STARTED", req, {
+      userId: req.user.id,
+      dayKey: todayKey,
+      eligibleAt: eligibleAt.toISOString(),
     });
 
     res.json({
@@ -191,6 +196,14 @@ export async function claim(req, res) {
       { userId, minerId: miner.id, inventoryPermanent: true, inventoryExpiresAt: null },
       req
     );
+    logUserActivity("FAUCET_CLAIM_SUCCESS", req, {
+      userId,
+      minerId: miner.id,
+      minerName: miner.name,
+      hashRate: Number(miner.baseHashRate || 0),
+      slotSize: Number(miner.slotSize || 1),
+      dayKey: normalized.todayKey,
+    });
 
     res.json({
       ok: true,

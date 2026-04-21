@@ -5,6 +5,12 @@
 @layer base {
   body {
     @apply bg-background text-gray-100 font-sans antialiased;
+    overflow-x: hidden;
+  }
+
+  html,
+  #root {
+    min-width: 0;
   }
 }
 

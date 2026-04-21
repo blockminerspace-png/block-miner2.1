@@ -83,6 +83,7 @@ describe("Games page", () => {
     expect(screen.getAllByText("minerGames.brand_suffix").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("minerGames.memory_sync_title")).toBeInTheDocument();
     expect(screen.getByText("minerGames.power_match_title")).toBeInTheDocument();
+    expect(screen.getByText("minerGames.cart_rush_title")).toBeInTheDocument();
     expect(screen.getByText("game2048.title")).toBeInTheDocument();
   });
 

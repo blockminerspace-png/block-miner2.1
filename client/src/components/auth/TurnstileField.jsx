@@ -140,7 +140,7 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
         const baseOpts = {
           sitekey: resolvedSiteKey,
           appearance: "always",
-          theme: "auto",
+          theme: "dark",
           "refresh-expired": "auto",
           callback: (token) => onTokenRef.current?.(token),
           "expired-callback": () => onTokenRef.current?.(""),
@@ -183,14 +183,14 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
   if (!resolvedSiteKey) return null;
 
   return (
-    <div className="relative my-3 w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200/95 bg-white shadow-sm">
-      <p className="px-3 pt-2.5 text-center text-[11px] font-medium leading-snug text-slate-600">
+    <div className="relative my-3 w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl border border-slate-700 bg-[#2f3136] shadow-sm">
+      <p className="px-3 pt-2.5 text-center text-[11px] font-medium leading-snug text-slate-100">
         {t("auth.turnstile.human_prompt")}
       </p>
       <div className="w-full px-1 pb-2 pt-1 [zoom:0.9] min-[400px]:[zoom:0.95] sm:[zoom:1]">
         {/*
           Host must be block-level full width so Turnstile `size: flexible` can span the form.
-          A flex + justify-center wrapper keeps the iframe at ~300px and looks like a square tile on mobile/desktop.
+          Dark theme keeps the challenge body visually aligned with Cloudflare's grey verification panel.
         */}
         <div
           ref={hostRef}
@@ -199,18 +199,18 @@ const TurnstileField = forwardRef(function TurnstileField({ onToken, siteKey }, 
       </div>
       {bootState === "loading" && (
         <div
-          className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80 backdrop-blur-[1px]"
+          className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[#2f3136]/80 backdrop-blur-[1px]"
           aria-busy="true"
           aria-live="polite"
         >
-          <span className="animate-pulse text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <span className="animate-pulse text-[10px] font-bold uppercase tracking-widest text-slate-200">
             {t("auth.turnstile.loading")}
           </span>
         </div>
       )}
       {bootState === "error" && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/90 px-3">
-          <p className="text-center text-[10px] font-semibold leading-relaxed text-red-600">
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[#2f3136]/95 px-3">
+          <p className="text-center text-[10px] font-semibold leading-relaxed text-red-300">
             {t("auth.turnstile.load_failed")}
           </p>
         </div>

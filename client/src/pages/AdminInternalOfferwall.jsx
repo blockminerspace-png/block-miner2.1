@@ -3,10 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
   Check,
+  Coins,
+  Globe,
   LayoutGrid,
   Loader2,
   Pencil,
   Plus,
+  ShieldCheck,
+  Sparkles,
+  TimerReset,
   ThumbsDown,
   ThumbsUp,
   X
@@ -41,6 +46,64 @@ function defaultForm() {
     verificationNote: ''
   };
 }
+
+const OFFER_PRESETS = [
+  {
+    id: 'ptc-fast',
+    label: 'PTC rápido',
+    hint: 'Iframe curto com reset diário',
+    apply(form) {
+      return {
+        ...form,
+        kind: KIND_PTC,
+        minViewSeconds: '10',
+        maxExecutionsPerPeriod: '3',
+        resetType: 'DAILY',
+        cooldownSeconds: '3600',
+        rewardKind: 'BLK',
+        rewardBlkAmount: '0.01',
+        completionMode: 'USER_SELF_CLAIM',
+      };
+    }
+  },
+  {
+    id: 'ptc-premium',
+    label: 'PTC premium',
+    hint: 'Mais tempo e recompensa maior',
+    apply(form) {
+      return {
+        ...form,
+        kind: KIND_PTC,
+        minViewSeconds: '25',
+        maxExecutionsPerPeriod: '2',
+        resetType: 'COOLDOWN',
+        cooldownSeconds: '21600',
+        rewardKind: 'POL',
+        rewardPolAmount: '0.02',
+        completionMode: 'ADMIN_APPROVAL',
+      };
+    }
+  },
+  {
+    id: 'task-manual',
+    label: 'Tarefa manual',
+    hint: 'Sem iframe, com análise do admin',
+    apply(form) {
+      return {
+        ...form,
+        kind: KIND_GEN,
+        minViewSeconds: '0',
+        maxExecutionsPerPeriod: '1',
+        resetType: 'COOLDOWN',
+        cooldownSeconds: '86400',
+        rewardKind: 'HASHRATE_TEMP',
+        rewardHashRate: '8',
+        rewardHashRateDays: '2',
+        completionMode: 'ADMIN_APPROVAL',
+      };
+    }
+  },
+];
 
 /** @param {Record<string, unknown>} row */
 function rowToForm(row) {
@@ -132,6 +195,13 @@ function rewardSummary(row) {
   if (k === 'POL' && row.rewardPolAmount != null) return `POL ${row.rewardPolAmount}`;
   if (k === 'HASHRATE_TEMP') return `HR ${row.rewardHashRate} / ${row.rewardHashRateDays}d`;
   return k;
+}
+
+function currentRewardSummary(form) {
+  if (form.rewardKind === 'BLK') return `${form.rewardBlkAmount || '0'} BLK`;
+  if (form.rewardKind === 'POL') return `${form.rewardPolAmount || '0'} POL`;
+  if (form.rewardKind === 'HASHRATE_TEMP') return `${form.rewardHashRate || '0'} H/s por ${form.rewardHashRateDays || '0'} dia(s)`;
+  return form.rewardKind;
 }
 
 /**
@@ -343,14 +413,34 @@ export default function AdminInternalOfferwall() {
           </div>
 
           {showForm ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-4 sm:p-6 space-y-5">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-lg font-bold text-white">{editingId ? t('admin_internal_offerwall.edit') : t('admin_internal_offerwall.create')}</h2>
                 <button type="button" onClick={closeForm} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sky-300">
+                  <Sparkles className="h-4 w-4" />
+                  <p className="text-sm font-black uppercase tracking-wider">Presets rápidos</p>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {OFFER_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setForm((f) => preset.apply({ ...f }))}
+                      className="rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-left hover:border-sky-500/40 hover:bg-slate-900"
+                    >
+                      <p className="text-sm font-black text-white">{preset.label}</p>
+                      <p className="mt-1 text-xs text-slate-400">{preset.hint}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="block space-y-1">
                   <span className="text-xs font-semibold text-slate-400">{t('admin_internal_offerwall.form_kind')}</span>
                   <select
@@ -559,6 +649,47 @@ export default function AdminInternalOfferwall() {
                   />
                   <span className="text-sm text-slate-300">{t('admin_internal_offerwall.col_active')}</span>
                 </label>
+                </div>
+                <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 xl:sticky xl:top-4 xl:self-start">
+                  <div className="flex items-center gap-2 text-emerald-300">
+                    <ShieldCheck className="h-4 w-4" />
+                    <p className="text-sm font-black uppercase tracking-wider">Resumo operacional</p>
+                  </div>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                      <Globe className="mt-0.5 h-4 w-4 text-sky-400 shrink-0" />
+                      <div>
+                        <p className="font-bold text-white">Fluxo</p>
+                        <p className="text-slate-400">{form.kind === KIND_PTC ? 'Oferta abre em iframe e mede permanência mínima.' : 'Tarefa manual sem iframe, orientada por instruções e revisão.'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                      <TimerReset className="mt-0.5 h-4 w-4 text-amber-400 shrink-0" />
+                      <div>
+                        <p className="font-bold text-white">Disponibilidade</p>
+                        <p className="text-slate-400">
+                          {form.maxExecutionsPerPeriod}x por {form.resetType === 'COOLDOWN' ? `cooldown de ${form.cooldownSeconds || 0}s` : 'dia calendário'}.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                      <Coins className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" />
+                      <div>
+                        <p className="font-bold text-white">Recompensa</p>
+                        <p className="text-slate-400">{currentRewardSummary(form)}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-800 bg-black/20 p-3">
+                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Checklist</p>
+                      <ul className="mt-2 space-y-1 text-xs text-slate-400">
+                        <li>{form.title.trim() ? 'Titulo pronto' : 'Falta definir titulo objetivo'}</li>
+                        <li>{form.kind === KIND_PTC ? (form.iframeUrl.trim() ? 'URL do parceiro pronta' : 'Falta URL do parceiro') : 'URL externa opcional'}</li>
+                        <li>{String(form.requiredActionsText || '').trim() ? 'Passos obrigatorios definidos' : 'Considere listar passos obrigatorios'}</li>
+                        <li>{form.completionMode === 'ADMIN_APPROVAL' ? 'Vai exigir revisao manual' : 'Usuario podera concluir sozinho'}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 pt-2">
                 <button

@@ -1,0 +1,212 @@
+# Índice client
+
+Total de arquivos nesta área: `206`
+
+## Arquivos
+
+- [[20 - Arquivos/client/.env.example|client/.env.example]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/.gitignore|client/.gitignore]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/eslint.config.js|client/eslint.config.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/index.html|client/index.html]] | frontend | HTML | Arquivo do projeto.
+- [[20 - Arquivos/client/package-lock.json|client/package-lock.json]] | frontend | JSON | Configuração ou estrutura de dados.
+- [[20 - Arquivos/client/package.json|client/package.json]] | frontend | JSON | Manifesto de pacote e scripts.
+- [[20 - Arquivos/client/postcss.config.js|client/postcss.config.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/public/crypto-broadcast/app.js|client/public/crypto-broadcast/app.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/public/crypto-broadcast/index.html|client/public/crypto-broadcast/index.html]] | frontend | HTML | Arquivo do projeto.
+- [[20 - Arquivos/client/public/crypto-broadcast/manifest.webmanifest|client/public/crypto-broadcast/manifest.webmanifest]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/crypto-broadcast/style.css|client/public/crypto-broadcast/style.css]] | frontend | CSS | Arquivo do projeto.
+- [[20 - Arquivos/client/public/favicon.ico|client/public/favicon.ico]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icon.png|client/public/icon.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/binance-coin.png|client/public/icons/binance-coin.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/bitcoin.png|client/public/icons/bitcoin.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/cardano.png|client/public/icons/cardano.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/dogecoin.png|client/public/icons/dogecoin.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/ethereum.png|client/public/icons/ethereum.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/polkadot.png|client/public/icons/polkadot.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/polygon.png|client/public/icons/polygon.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/icons/solana.png|client/public/icons/solana.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/machines/1.png|client/public/machines/1.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/machines/2.png|client/public/machines/2.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/machines/3.png|client/public/machines/3.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/machines/reward1.png|client/public/machines/reward1.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/machines/reward2.png|client/public/machines/reward2.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/machines/reward3.png|client/public/machines/reward3.png]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/Silvio/Banner (1).jpg|client/public/Silvio/Banner (1).jpg]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/Silvio/Banner (2).jpg|client/public/Silvio/Banner (2).jpg]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/vite.svg|client/public/vite.svg]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/public/walletconnect-logo.svg|client/public/walletconnect-logo.svg]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/README.md|client/README.md]] | frontend | Markdown | Documento descritivo ou operacional.
+- [[20 - Arquivos/client/scripts/landing-en.mjs|client/scripts/landing-en.mjs]] | frontend | ESM JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/scripts/landing-es.mjs|client/scripts/landing-es.mjs]] | frontend | ESM JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/scripts/landing-pt.mjs|client/scripts/landing-pt.mjs]] | frontend | ESM JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/scripts/merge-landing-locales.mjs|client/scripts/merge-landing-locales.mjs]] | frontend | ESM JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/App.jsx|client/src/App.jsx]] | frontend | React JSX | Arquivo do projeto.
+- [[20 - Arquivos/client/src/assets/react.svg|client/src/assets/react.svg]] | frontend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/client/src/components/AdBanner.jsx|client/src/components/AdBanner.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/AdBlockDetector.jsx|client/src/components/AdBlockDetector.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/admin/AdminSupportPlayerDossier.jsx|client/src/components/admin/AdminSupportPlayerDossier.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/admin/AdminSupportPlayerDossier.test.jsx|client/src/components/admin/AdminSupportPlayerDossier.test.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/AdminLayout.jsx|client/src/components/AdminLayout.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/AdminSidebar.jsx|client/src/components/AdminSidebar.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/AdminSidebar.test.jsx|client/src/components/AdminSidebar.test.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/auth/SocialLoginButtons.jsx|client/src/components/auth/SocialLoginButtons.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/auth/TurnstileField.jsx|client/src/components/auth/TurnstileField.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/autoMining/AutoMiningCycleTimer.jsx|client/src/components/autoMining/AutoMiningCycleTimer.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/autoMining/AutoMiningModeSelector.jsx|client/src/components/autoMining/AutoMiningModeSelector.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/autoMining/TurboPartnerBanner.jsx|client/src/components/autoMining/TurboPartnerBanner.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/autoMining/TurboPartnerBanner.test.jsx|client/src/components/autoMining/TurboPartnerBanner.test.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/BrandLogo.jsx|client/src/components/BrandLogo.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/BroadcastPopup.jsx|client/src/components/BroadcastPopup.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/ChatSidebar.jsx|client/src/components/ChatSidebar.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/CommunityShortcuts.jsx|client/src/components/CommunityShortcuts.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/DashboardBanners.jsx|client/src/components/DashboardBanners.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/ErrorBoundary.jsx|client/src/components/ErrorBoundary.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/Header.jsx|client/src/components/Header.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/ImageUploader.jsx|client/src/components/ImageUploader.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/inventory/RackMachineTooltipPortal.jsx|client/src/components/inventory/RackMachineTooltipPortal.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/LegalDocumentPage.jsx|client/src/components/LegalDocumentPage.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/MachineCard.jsx|client/src/components/MachineCard.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/MachineCard.test.jsx|client/src/components/MachineCard.test.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/MachineQuantityModal.jsx|client/src/components/MachineQuantityModal.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/powerStats/PowerChartsPanel.jsx|client/src/components/powerStats/PowerChartsPanel.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/Sidebar.jsx|client/src/components/Sidebar.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/SidebarPathGate.jsx|client/src/components/SidebarPathGate.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/SiteFooter.jsx|client/src/components/SiteFooter.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/SupportAttachmentThumbnails.jsx|client/src/components/SupportAttachmentThumbnails.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/SupportAttachmentThumbnails.test.jsx|client/src/components/SupportAttachmentThumbnails.test.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/components/TransparencyErrorBoundary.jsx|client/src/components/TransparencyErrorBoundary.jsx]] | frontend | React JSX | Componente reutilizável de UI.
+- [[20 - Arquivos/client/src/constants/machinePlacement.js|client/src/constants/machinePlacement.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/constants/machinePlacement.test.js|client/src/constants/machinePlacement.test.js]] | frontend | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/client/src/constants/registerFieldLimits.js|client/src/constants/registerFieldLimits.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/constants/turnstilePublic.js|client/src/constants/turnstilePublic.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/data/defaultPublicSidebarNav.json|client/src/data/defaultPublicSidebarNav.json]] | frontend | JSON | Configuração ou estrutura de dados.
+- [[20 - Arquivos/client/src/games/cryptoGameIcons.js|client/src/games/cryptoGameIcons.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/games/cryptoGameIcons.test.js|client/src/games/cryptoGameIcons.test.js]] | frontend | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/client/src/games/game2048BoardUtils.js|client/src/games/game2048BoardUtils.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/games/game2048BoardUtils.test.js|client/src/games/game2048BoardUtils.test.js]] | frontend | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/client/src/games/minerGamesLayout.js|client/src/games/minerGamesLayout.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/games/minerGamesLayout.test.js|client/src/games/minerGamesLayout.test.js]] | frontend | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/client/src/games/minerGamesSocketMessages.js|client/src/games/minerGamesSocketMessages.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/games/minerGamesSocketMessages.test.js|client/src/games/minerGamesSocketMessages.test.js]] | frontend | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/client/src/hooks/useAnalytics.js|client/src/hooks/useAnalytics.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useLandingScrollDepth.js|client/src/hooks/useLandingScrollDepth.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useMultiTabDetector.js|client/src/hooks/useMultiTabDetector.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useSeoMeta.js|client/src/hooks/useSeoMeta.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useSupportTicketSocket.js|client/src/hooks/useSupportTicketSocket.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useUserPowerStats.js|client/src/hooks/useUserPowerStats.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useVault.js|client/src/hooks/useVault.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useVault.test.js|client/src/hooks/useVault.test.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/hooks/useWallet.js|client/src/hooks/useWallet.js]] | frontend | JavaScript | Hook React para estado, efeitos ou integrações.
+- [[20 - Arquivos/client/src/i18n/config.js|client/src/i18n/config.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/i18n/locales/en.json|client/src/i18n/locales/en.json]] | frontend | JSON | Configuração ou estrutura de dados.
+- [[20 - Arquivos/client/src/i18n/locales/es.json|client/src/i18n/locales/es.json]] | frontend | JSON | Configuração ou estrutura de dados.
+- [[20 - Arquivos/client/src/i18n/locales/pt-BR.json|client/src/i18n/locales/pt-BR.json]] | frontend | JSON | Configuração ou estrutura de dados.
+- [[20 - Arquivos/client/src/i18n/localesBundle.test.js|client/src/i18n/localesBundle.test.js]] | frontend | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/client/src/index.css|client/src/index.css]] | frontend | CSS | Arquivo do projeto.
+- [[20 - Arquivos/client/src/legal/legalSectionIds.js|client/src/legal/legalSectionIds.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/main.jsx|client/src/main.jsx]] | frontend | React JSX | Arquivo do projeto.
+- [[20 - Arquivos/client/src/pages/AdminAnalytics.jsx|client/src/pages/AdminAnalytics.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminBackups.jsx|client/src/pages/AdminBackups.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminBanners.jsx|client/src/pages/AdminBanners.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminBroadcast.jsx|client/src/pages/AdminBroadcast.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminCheckinMilestones.jsx|client/src/pages/AdminCheckinMilestones.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminCreators.jsx|client/src/pages/AdminCreators.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminDailyTasks.jsx|client/src/pages/AdminDailyTasks.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminDashboard.jsx|client/src/pages/AdminDashboard.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminDepositTickets.jsx|client/src/pages/AdminDepositTickets.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminFinance.jsx|client/src/pages/AdminFinance.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminFraudSignals.jsx|client/src/pages/AdminFraudSignals.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminInternalOfferwall.jsx|client/src/pages/AdminInternalOfferwall.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminLogin.jsx|client/src/pages/AdminLogin.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminLogs.jsx|client/src/pages/AdminLogs.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminMetrics.jsx|client/src/pages/AdminMetrics.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminMiners.jsx|client/src/pages/AdminMiners.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminMiniPass.jsx|client/src/pages/AdminMiniPass.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminMiniPassSeason.jsx|client/src/pages/AdminMiniPassSeason.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminOfferEventManage.jsx|client/src/pages/AdminOfferEventManage.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminOfferEvents.jsx|client/src/pages/AdminOfferEvents.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminReadEarn.jsx|client/src/pages/AdminReadEarn.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminStreaming.jsx|client/src/pages/AdminStreaming.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminSupport.jsx|client/src/pages/AdminSupport.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminTransparency.jsx|client/src/pages/AdminTransparency.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminUsers.jsx|client/src/pages/AdminUsers.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AdminUserSidebar.jsx|client/src/pages/AdminUserSidebar.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AutoMining.jsx|client/src/pages/AutoMining.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/AutoMining.test.jsx|client/src/pages/AutoMining.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Calculator.jsx|client/src/pages/Calculator.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Checkin.jsx|client/src/pages/Checkin.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/DailyTasks.jsx|client/src/pages/DailyTasks.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/DailyTasks.test.jsx|client/src/pages/DailyTasks.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Dashboard.jsx|client/src/pages/Dashboard.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/DashboardCryptoStream.jsx|client/src/pages/DashboardCryptoStream.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Faucet.jsx|client/src/pages/Faucet.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Faucet.test.jsx|client/src/pages/Faucet.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/ForgotPassword.jsx|client/src/pages/ForgotPassword.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Game2048Page.jsx|client/src/pages/Game2048Page.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Game2048Page.test.jsx|client/src/pages/Game2048Page.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Games.jsx|client/src/pages/Games.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Games.test.jsx|client/src/pages/Games.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/InternalOfferwall.jsx|client/src/pages/InternalOfferwall.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Inventory.jsx|client/src/pages/Inventory.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Landing.jsx|client/src/pages/Landing.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Landing.test.jsx|client/src/pages/Landing.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/LiveServer.jsx|client/src/pages/LiveServer.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Login.jsx|client/src/pages/Login.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Manual.jsx|client/src/pages/Manual.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/MiniPass.jsx|client/src/pages/MiniPass.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/PopularOffers.jsx|client/src/pages/PopularOffers.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/PowerStatistics.jsx|client/src/pages/PowerStatistics.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/PrivacyPolicy.jsx|client/src/pages/PrivacyPolicy.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/PrivacyPolicy.test.jsx|client/src/pages/PrivacyPolicy.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/PublicRoom.jsx|client/src/pages/PublicRoom.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Ranking.jsx|client/src/pages/Ranking.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/ReadEarn.jsx|client/src/pages/ReadEarn.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Register.jsx|client/src/pages/Register.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Roadmap.jsx|client/src/pages/Roadmap.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Settings.jsx|client/src/pages/Settings.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Shop.jsx|client/src/pages/Shop.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Shortlinks.jsx|client/src/pages/Shortlinks.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/ShortlinkStep.jsx|client/src/pages/ShortlinkStep.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Support.jsx|client/src/pages/Support.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/TermsOfUse.jsx|client/src/pages/TermsOfUse.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/TermsOfUse.test.jsx|client/src/pages/TermsOfUse.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Transparency.jsx|client/src/pages/Transparency.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Transparency.test.jsx|client/src/pages/Transparency.test.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Vault.jsx|client/src/pages/Vault.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/Wallet.jsx|client/src/pages/Wallet.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/pages/YouTubeWatch.jsx|client/src/pages/YouTubeWatch.jsx]] | frontend | React JSX | Página/tela de navegação do frontend.
+- [[20 - Arquivos/client/src/store/auth.js|client/src/store/auth.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/store/auth.test.js|client/src/store/auth.test.js]] | frontend | JavaScript | Arquivo de teste automatizado.
+- [[20 - Arquivos/client/src/store/game.js|client/src/store/game.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/test-setup.js|client/src/test-setup.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/utils/adminInternalOfferwallValidate.js|client/src/utils/adminInternalOfferwallValidate.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/adminInternalOfferwallValidate.test.js|client/src/utils/adminInternalOfferwallValidate.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/adminMiniPassForm.js|client/src/utils/adminMiniPassForm.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/calculatorEngine.js|client/src/utils/calculatorEngine.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/calculatorEngine.test.js|client/src/utils/calculatorEngine.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/csrfHeader.js|client/src/utils/csrfHeader.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/csrfHeader.test.js|client/src/utils/csrfHeader.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/depositChannel.js|client/src/utils/depositChannel.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/depositChannel.test.js|client/src/utils/depositChannel.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/eip1193ProviderEvents.js|client/src/utils/eip1193ProviderEvents.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/eip1193ProviderEvents.test.js|client/src/utils/eip1193ProviderEvents.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/inventoryRackUtils.js|client/src/utils/inventoryRackUtils.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/inventoryRackUtils.test.js|client/src/utils/inventoryRackUtils.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/inventoryStackKey.js|client/src/utils/inventoryStackKey.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/inventoryStackKey.test.js|client/src/utils/inventoryStackKey.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/landingAnalytics.js|client/src/utils/landingAnalytics.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/landingAnalytics.test.js|client/src/utils/landingAnalytics.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/machine.js|client/src/utils/machine.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/security.js|client/src/utils/security.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/sidebarNavMap.js|client/src/utils/sidebarNavMap.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/sidebarNavMap.test.jsx|client/src/utils/sidebarNavMap.test.jsx]] | frontend | React JSX | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/sidebarPathMatch.js|client/src/utils/sidebarPathMatch.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/sidebarPathMatch.test.js|client/src/utils/sidebarPathMatch.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/walletConnect.js|client/src/utils/walletConnect.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/walletProvider.js|client/src/utils/walletProvider.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/walletSessionPreference.js|client/src/utils/walletSessionPreference.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/utils/walletSessionPreference.test.js|client/src/utils/walletSessionPreference.test.js]] | frontend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/client/src/web3/appKitConfig.js|client/src/web3/appKitConfig.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/src/web3/blockMinerDepositAbi.js|client/src/web3/blockMinerDepositAbi.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/tailwind.config.js|client/tailwind.config.js]] | frontend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/client/vite.config.js|client/vite.config.js]] | frontend | JavaScript | Arquivo do projeto.

@@ -1505,6 +1505,7 @@
     "max_rooms": "You have already unlocked all available rooms.",
     "insufficient_balance": "Insufficient balance to unlock this room.",
     "install_success": "Machine installed successfully!",
+    "double_slot_row_edge": "Two-slot machines must start before the row edge. Use the previous slot.",
     "remove_success": "Machine removed from rack!",
     "load_error": "Error loading mining room.",
     "modal": {
@@ -2143,7 +2144,7 @@
   },
   "minerGames": {
     "temporary_power_title": "Temporary game power",
-    "temporary_power_tooltip": "Hash rate earned from Arena minigames (Memory Sync, Power Match, Chain 2048). It expires after the configured duration and does not replace rack machines.",
+    "temporary_power_tooltip": "Hash rate earned from Arena minigames (Memory Sync, Power Match, Cart Rush, Chain 2048). It expires after the configured duration and does not replace rack machines.",
     "permanent_power_label": "Permanent (rack)",
     "no_active_bonus": "No active game bonus",
     "breakdown_show": "Show breakdown",
@@ -2168,6 +2169,8 @@
     "memory_sync_desc": "Match coin pairs at high speed.",
     "power_match_title": "Power Match",
     "power_match_desc": "Chain cascades by swapping adjacent assets.",
+    "cart_rush_title": "Cart Rush",
+    "cart_rush_desc": "Steer the mining cart, collect coins, and dodge broken blocks.",
     "cooldown_label": "Cooldown: {{seconds}}s",
     "cta_start": "Start link",
     "time_value_seconds": "{{seconds}}s",
@@ -2180,7 +2183,8 @@
     },
     "game_finish": {
       "anti_cheat_timing": "Suspicious action detected: play time was unrealistically short.",
-      "session_ended": "Session ended."
+      "session_ended": "Session ended.",
+      "cart_crashed": "The cart crashed before reaching the target score."
     },
     "game_reward": {
       "full_term": "+50 H/s bonus active for {{days}} days!",
@@ -2519,6 +2523,7 @@
     "col_event": "Event",
     "col_user": "User",
     "col_ip": "IP / fingerprint",
+    "col_details": "Details",
     "load_error": "Could not load system logs.",
     "empty_none": "No log entries yet.",
     "empty_filter": "No entries match this filter."

@@ -1,0 +1,71 @@
+# 01 - Mapa Detalhado
+
+Vault gerado automaticamente a partir do filesystem do projeto.
+
+- Arquivos documentados individualmente: `2418`
+- Diretórios excluídos por serem dependências/cache/artefatos: `.git/`, `obsidian-vault/`, `node_modules/`, `client/node_modules/`, `contracts/node_modules/`, `.opencode/node_modules/`, `client/dist/`, `coverage/`, `client/coverage/`, `contracts/artifacts/`, `contracts/cache/`
+
+## Índices por área
+
+- [[30 - Índices/30 - Índice - __pycache__|__pycache__]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .claude|.claude]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .codex|.codex]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .cursor|.cursor]]: 11 arquivos
+- [[30 - Índices/30 - Índice - .deploy-ssh-last.log|.deploy-ssh-last.log]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .dockerignore|.dockerignore]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .env|.env]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .env.example|.env.example]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .env.production|.env.production]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .env.production.example|.env.production.example]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .env.production.vm-backup|.env.production.vm-backup]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .gitattributes|.gitattributes]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .githooks|.githooks]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .github|.github]]: 4 arquivos
+- [[30 - Índices/30 - Índice - .gitignore|.gitignore]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .openclaude-profile.json|.openclaude-profile.json]]: 1 arquivos
+- [[30 - Índices/30 - Índice - .opencode|.opencode]]: 5 arquivos
+- [[30 - Índices/30 - Índice - .prettierrc.json|.prettierrc.json]]: 1 arquivos
+- [[30 - Índices/30 - Índice - admin-export-db-20260305-194835.db|admin-export-db-20260305-194835.db]]: 1 arquivos
+- [[30 - Índices/30 - Índice - app|app]]: 1 arquivos
+- [[30 - Índices/30 - Índice - backup-2026-04-17T00-46-57-896Z.sql|backup-2026-04-17T00-46-57-896Z.sql]]: 1 arquivos
+- [[30 - Índices/30 - Índice - backups|backups]]: 97 arquivos
+- [[30 - Índices/30 - Índice - certbot-www|certbot-www]]: 1 arquivos
+- [[30 - Índices/30 - Índice - CHANGELOG.md|CHANGELOG.md]]: 1 arquivos
+- [[30 - Índices/30 - Índice - client|client]]: 206 arquivos
+- [[30 - Índices/30 - Índice - config|config]]: 2 arquivos
+- [[30 - Índices/30 - Índice - contracts|contracts]]: 6 arquivos
+- [[30 - Índices/30 - Índice - coverage-server.txt|coverage-server.txt]]: 1 arquivos
+- [[30 - Índices/30 - Índice - data|data]]: 2 arquivos
+- [[30 - Índices/30 - Índice - deploy-credentials.local.example.md|deploy-credentials.local.example.md]]: 1 arquivos
+- [[30 - Índices/30 - Índice - deploy-credentials.local.md|deploy-credentials.local.md]]: 1 arquivos
+- [[30 - Índices/30 - Índice - deploy.py|deploy.py]]: 1 arquivos
+- [[30 - Índices/30 - Índice - deploy.secrets.example|deploy.secrets.example]]: 1 arquivos
+- [[30 - Índices/30 - Índice - deploy.secrets.local|deploy.secrets.local]]: 1 arquivos
+- [[30 - Índices/30 - Índice - docker|docker]]: 7 arquivos
+- [[30 - Índices/30 - Índice - docker-compose.local.yml|docker-compose.local.yml]]: 1 arquivos
+- [[30 - Índices/30 - Índice - docker-compose.yml|docker-compose.yml]]: 1 arquivos
+- [[30 - Índices/30 - Índice - docker-entrypoint.sh|docker-entrypoint.sh]]: 1 arquivos
+- [[30 - Índices/30 - Índice - Dockerfile|Dockerfile]]: 1 arquivos
+- [[30 - Índices/30 - Índice - docs|docs]]: 8 arquivos
+- [[30 - Índices/30 - Índice - env_new.tmp|env_new.tmp]]: 1 arquivos
+- [[30 - Índices/30 - Índice - eslint.config.cjs|eslint.config.cjs]]: 1 arquivos
+- [[30 - Índices/30 - Índice - fazendinha.html|fazendinha.html]]: 1 arquivos
+- [[30 - Índices/30 - Índice - k8s|k8s]]: 2 arquivos
+- [[30 - Índices/30 - Índice - LiveDashboard|LiveDashboard]]: 3 arquivos
+- [[30 - Índices/30 - Índice - logs|logs]]: 4 arquivos
+- [[30 - Índices/30 - Índice - migration_error_actual.txt|migration_error_actual.txt]]: 1 arquivos
+- [[30 - Índices/30 - Índice - nginx|nginx]]: 3 arquivos
+- [[30 - Índices/30 - Índice - opencode.json|opencode.json]]: 1 arquivos
+- [[30 - Índices/30 - Índice - package-lock.json|package-lock.json]]: 1 arquivos
+- [[30 - Índices/30 - Índice - package.json|package.json]]: 1 arquivos
+- [[30 - Índices/30 - Índice - prisma_error_node.txt|prisma_error_node.txt]]: 1 arquivos
+- [[30 - Índices/30 - Índice - prisma_error.txt|prisma_error.txt]]: 1 arquivos
+- [[30 - Índices/30 - Índice - prisma.config.js|prisma.config.js]]: 1 arquivos
+- [[30 - Índices/30 - Índice - push_error_actual.txt|push_error_actual.txt]]: 1 arquivos
+- [[30 - Índices/30 - Índice - push_error_utf8.txt|push_error_utf8.txt]]: 1 arquivos
+- [[30 - Índices/30 - Índice - scripts|scripts]]: 64 arquivos
+- [[30 - Índices/30 - Índice - server|server]]: 400 arquivos
+- [[30 - Índices/30 - Índice - test_out.txt|test_out.txt]]: 1 arquivos
+- [[30 - Índices/30 - Índice - test.py|test.py]]: 1 arquivos
+- [[30 - Índices/30 - Índice - tests|tests]]: 79 arquivos
+- [[30 - Índices/30 - Índice - vendor-notebooklm|vendor-notebooklm]]: 1471 arquivos

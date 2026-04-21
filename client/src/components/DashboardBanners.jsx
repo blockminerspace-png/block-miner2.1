@@ -3,6 +3,16 @@ import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 
 const isVideo = (url) => url && /\.(mp4|webm|ogg|mov|avi)$/i.test(url);
 
+function resolveBannerAssetUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const u = url.trim();
+  if (!u) return null;
+  if (/^(https?:|data:|blob:)/i.test(u)) return u;
+  if (u.startsWith('/')) return u;
+  if (u.startsWith('uploads/')) return `/${u}`;
+  return u;
+}
+
 function useCountdown(endsAt) {
   const calc = useCallback(() => {
     if (!endsAt) return null;
@@ -26,22 +36,30 @@ function useCountdown(endsAt) {
 
 function BannerCard({ banner }) {
   const countdown = useCountdown(banner.endsAt);
+  const mediaUrl = resolveBannerAssetUrl(banner.imageUrl);
+  const [mediaFailed, setMediaFailed] = useState(false);
+  const shouldShowMedia = mediaUrl && !mediaFailed;
   const inner = (
     <div className="relative w-full h-full overflow-hidden rounded-2xl bg-slate-900 border border-white/[0.08] group cursor-pointer select-none">
       {/* Mídia */}
-      {banner.imageUrl ? (
-        isVideo(banner.imageUrl) ? (
+      {shouldShowMedia ? (
+        isVideo(mediaUrl) ? (
           <video
-            src={banner.imageUrl}
+            src={mediaUrl}
             className="w-full h-full object-cover"
             autoPlay muted loop playsInline
+            onError={() => setMediaFailed(true)}
           />
         ) : (
           <img
-            src={banner.imageUrl}
+            src={mediaUrl}
             alt={banner.title}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             draggable={false}
+            loading="lazy"
+            onError={(e) => {
+              setMediaFailed(true);
+            }}
           />
         )
       ) : (
@@ -102,9 +120,9 @@ export default function DashboardBanners() {
   useEffect(() => {
     const obs = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width;
-      if (w < 480)       setPerPage(1);
-      else if (w < 768)  setPerPage(2);
-      else if (w < 1100) setPerPage(3);
+      if (w < 640)       setPerPage(1);
+      else if (w < 900)  setPerPage(2);
+      else if (w < 1200) setPerPage(3);
       else               setPerPage(4);
     });
     if (trackRef.current) obs.observe(trackRef.current.parentElement);
@@ -150,7 +168,7 @@ export default function DashboardBanners() {
           {banners.map(b => (
             <div
               key={b.id}
-              className="shrink-0 px-1.5"
+              className="shrink-0 px-1 sm:px-1.5"
               style={{ width: `${cardW}%` }}
             >
               <div className="w-full" style={{ aspectRatio: '16/9' }}>
@@ -167,14 +185,14 @@ export default function DashboardBanners() {
           <button
             type="button"
             onClick={() => { go(-1); resetAuto(); }}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-10 w-8 h-8 rounded-full bg-black/60 border border-white/15 text-white flex items-center justify-center hover:bg-black/80 transition-colors shadow-lg"
+            className="absolute left-1 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white shadow-lg transition-colors hover:bg-black/80 sm:left-0 sm:-translate-x-2"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             type="button"
             onClick={() => { go(1); resetAuto(); }}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-10 w-8 h-8 rounded-full bg-black/60 border border-white/15 text-white flex items-center justify-center hover:bg-black/80 transition-colors shadow-lg"
+            className="absolute right-1 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white shadow-lg transition-colors hover:bg-black/80 sm:right-0 sm:translate-x-2"
           >
             <ChevronRight className="w-4 h-4" />
           </button>

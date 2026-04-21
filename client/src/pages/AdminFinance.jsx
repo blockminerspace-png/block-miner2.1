@@ -13,6 +13,10 @@ import {
     User,
     Filter,
     AlertTriangle,
+    Bell,
+    Bot,
+    Camera,
+    Save,
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -87,9 +91,15 @@ export default function AdminFinance() {
     const [userDetailLoading, setUserDetailLoading] = useState(false);
     const [userDetailData, setUserDetailData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [tab, setTab] = useState('withdrawals'); // 'withdrawals', 'blk', 'activity'
+    const [tab, setTab] = useState('withdrawals'); // 'withdrawals', 'blk', 'activity', 'telegram'
     const [completeModal, setCompleteModal] = useState(null);
     const [completeTxHash, setCompleteTxHash] = useState('');
+    const [telegramSettings, setTelegramSettings] = useState(null);
+    const [telegramSaving, setTelegramSaving] = useState(false);
+
+    const updateTelegramField = (field, value) => {
+        setTelegramSettings((prev) => (prev ? { ...prev, [field]: value } : prev));
+    };
 
     const activityFiltersRef = useRef({
         page: 1,
@@ -150,6 +160,31 @@ export default function AdminFinance() {
         }
     }, []);
 
+    const loadTelegramSettings = useCallback(async () => {
+        try {
+            const res = await api.get('/admin/withdrawals/telegram-settings');
+            if (res.data?.ok) {
+                setTelegramSettings({
+                    enabled: Boolean(res.data.settings?.enabled),
+                    privateAlertsEnabled: Boolean(res.data.settings?.privateAlertsEnabled),
+                    privateBotToken: '',
+                    privateBotTokenMasked: res.data.settings?.privateBotTokenMasked || '',
+                    privateChatId: res.data.settings?.privateChatId || '',
+                    publicProofsEnabled: Boolean(res.data.settings?.publicProofsEnabled),
+                    publicBotToken: '',
+                    publicBotTokenMasked: res.data.settings?.publicBotTokenMasked || '',
+                    publicChatId: res.data.settings?.publicChatId || '',
+                    publicTopicId: res.data.settings?.publicTopicId || '',
+                    captureEnabled: res.data.settings?.captureEnabled !== false,
+                    browserExecutablePath: res.data.settings?.browserExecutablePath || '',
+                    polygonscanBaseUrl: res.data.settings?.polygonscanBaseUrl || 'https://polygonscan.com',
+                });
+            }
+        } catch (err) {
+            toast.error('Erro ao carregar configurações de Telegram');
+        }
+    }, []);
+
     const fetchData = useCallback(async () => {
         try {
             setIsLoading(true);
@@ -189,6 +224,10 @@ export default function AdminFinance() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        loadTelegramSettings();
+    }, [loadTelegramSettings]);
 
     const applyActivityFilters = () => {
         loadActivity({ page: 1 });
@@ -293,6 +332,40 @@ export default function AdminFinance() {
         }
     };
 
+    const saveTelegramSettings = async () => {
+        if (!telegramSettings) return;
+        try {
+            setTelegramSaving(true);
+            const res = await api.put('/admin/withdrawals/telegram-settings', {
+                enabled: Boolean(telegramSettings.enabled),
+                privateAlertsEnabled: Boolean(telegramSettings.privateAlertsEnabled),
+                privateBotToken: telegramSettings.privateBotToken,
+                privateChatId: telegramSettings.privateChatId,
+                publicProofsEnabled: Boolean(telegramSettings.publicProofsEnabled),
+                publicBotToken: telegramSettings.publicBotToken,
+                publicChatId: telegramSettings.publicChatId,
+                publicTopicId: telegramSettings.publicTopicId,
+                captureEnabled: Boolean(telegramSettings.captureEnabled),
+                browserExecutablePath: telegramSettings.browserExecutablePath,
+                polygonscanBaseUrl: telegramSettings.polygonscanBaseUrl,
+            });
+            if (res.data?.ok) {
+                toast.success('Configurações de Telegram salvas.');
+                setTelegramSettings((prev) => prev ? ({
+                    ...prev,
+                    privateBotToken: '',
+                    privateBotTokenMasked: res.data.settings?.privateBotTokenMasked || prev.privateBotTokenMasked,
+                    publicBotToken: '',
+                    publicBotTokenMasked: res.data.settings?.publicBotTokenMasked || prev.publicBotTokenMasked,
+                }) : prev);
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao salvar Telegram');
+        } finally {
+            setTelegramSaving(false);
+        }
+    };
+
     if (isLoading && !overview) return <div className="p-8 text-slate-400 font-bold uppercase tracking-widest animate-pulse text-center py-40">Carregando financeiro...</div>;
 
     return (
@@ -316,8 +389,8 @@ export default function AdminFinance() {
 
             {/* Overview Stats */}
             {overview && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] shadow-lg flex items-center gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
+                    <div className="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-[2rem] shadow-lg flex items-center gap-4">
                         <div className="p-4 rounded-2xl bg-amber-500/10 text-amber-500">
                             <Wallet className="w-6 h-6" />
                         </div>
@@ -326,7 +399,7 @@ export default function AdminFinance() {
                             <h3 className="text-xl font-black text-white">{withdrawals.length}</h3>
                         </div>
                     </div>
-                    <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] shadow-lg flex items-center gap-4">
+                    <div className="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-[2rem] shadow-lg flex items-center gap-4">
                         <div className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-500">
                             <ArrowUpCircle className="w-6 h-6" />
                         </div>
@@ -335,7 +408,7 @@ export default function AdminFinance() {
                             <h3 className="text-xl font-black text-white">{Number(overview.deposits24h || 0).toFixed(2)} POL</h3>
                         </div>
                     </div>
-                    <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] shadow-lg flex items-center gap-4">
+                    <div className="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-[2rem] shadow-lg flex items-center gap-4">
                         <div className="p-4 rounded-2xl bg-red-500/10 text-red-500">
                             <ArrowDownCircle className="w-6 h-6" />
                         </div>
@@ -348,24 +421,30 @@ export default function AdminFinance() {
             )}
 
             {/* Tabs */}
-            <div className="flex gap-4 border-b border-slate-800 pb-px">
+            <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-2 sm:gap-4 sm:pb-px">
                 <button
                     onClick={() => setTab('withdrawals')}
-                    className={`px-6 py-3 font-black text-xs uppercase tracking-widest transition-all ${tab === 'withdrawals' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}
+                    className={`rounded-xl px-4 py-2.5 font-black text-[11px] uppercase tracking-widest transition-all sm:rounded-none sm:px-6 sm:py-3 sm:text-xs ${tab === 'withdrawals' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 sm:bg-transparent sm:border-x-0 sm:border-t-0 sm:border-b-2 sm:border-emerald-500' : 'border border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 sm:hover:bg-transparent'}`}
                 >
                     Saques POL
                 </button>
                 <button
                     onClick={() => setTab('blk')}
-                    className={`px-6 py-3 font-black text-xs uppercase tracking-widest transition-all ${tab === 'blk' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}
+                    className={`rounded-xl px-4 py-2.5 font-black text-[11px] uppercase tracking-widest transition-all sm:rounded-none sm:px-6 sm:py-3 sm:text-xs ${tab === 'blk' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 sm:bg-transparent sm:border-x-0 sm:border-t-0 sm:border-b-2 sm:border-emerald-500' : 'border border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 sm:hover:bg-transparent'}`}
                 >
                     Economia BLK
                 </button>
                 <button
                     onClick={() => setTab('activity')}
-                    className={`px-6 py-3 font-black text-xs uppercase tracking-widest transition-all ${tab === 'activity' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}
+                    className={`rounded-xl px-4 py-2.5 font-black text-[11px] uppercase tracking-widest transition-all sm:rounded-none sm:px-6 sm:py-3 sm:text-xs ${tab === 'activity' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 sm:bg-transparent sm:border-x-0 sm:border-t-0 sm:border-b-2 sm:border-emerald-500' : 'border border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 sm:hover:bg-transparent'}`}
                 >
                     Atividade Recente
+                </button>
+                <button
+                    onClick={() => setTab('telegram')}
+                    className={`rounded-xl px-4 py-2.5 font-black text-[11px] uppercase tracking-widest transition-all sm:rounded-none sm:px-6 sm:py-3 sm:text-xs ${tab === 'telegram' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 sm:bg-transparent sm:border-x-0 sm:border-t-0 sm:border-b-2 sm:border-emerald-500' : 'border border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 sm:hover:bg-transparent'}`}
+                >
+                    Telegram
                 </button>
             </div>
 
@@ -676,6 +755,171 @@ export default function AdminFinance() {
                                 </Link>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {tab === 'telegram' && telegramSettings && (
+                <div className="space-y-6">
+                    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 space-y-6">
+                            <div className="flex items-start gap-3">
+                                <div className="rounded-2xl bg-sky-500/10 p-3 text-sky-400">
+                                    <Bell className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-widest text-white">Automação de saques no Telegram</h3>
+                                    <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                                        Alerta privado quando o usuário pedir saque e prova pública quando o saque for concluído com `txHash`.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <label className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={telegramSettings.enabled}
+                                        onChange={(e) => updateTelegramField('enabled', e.target.checked)}
+                                    />
+                                    <span className="text-sm font-bold text-white">Habilitar automação</span>
+                                </label>
+                                <label className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={telegramSettings.captureEnabled}
+                                        onChange={(e) => updateTelegramField('captureEnabled', e.target.checked)}
+                                    />
+                                    <span className="flex items-center gap-2 text-sm font-bold text-white"><Camera className="w-4 h-4 text-sky-400" /> Capturar screenshot do Polygonscan</span>
+                                </label>
+                            </div>
+
+                            <div className="grid gap-6 xl:grid-cols-2">
+                                <div className="space-y-4 rounded-3xl border border-slate-800 bg-slate-950/50 p-5">
+                                    <div className="flex items-center gap-2">
+                                        <Bot className="w-4 h-4 text-amber-400" />
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Canal privado de alerta</h4>
+                                    </div>
+                                    <label className="flex items-center gap-3 text-sm text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={telegramSettings.privateAlertsEnabled}
+                                            onChange={(e) => updateTelegramField('privateAlertsEnabled', e.target.checked)}
+                                        />
+                                        Enviar novos pedidos de saque
+                                    </label>
+                                    <label className="block space-y-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Bot token</span>
+                                        <input
+                                            type="password"
+                                            value={telegramSettings.privateBotToken}
+                                            onChange={(e) => updateTelegramField('privateBotToken', e.target.value)}
+                                            placeholder={telegramSettings.privateBotTokenMasked || 'Cole um novo token para substituir'}
+                                            className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white"
+                                        />
+                                    </label>
+                                    <label className="block space-y-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Chat ou canal privado</span>
+                                        <input
+                                            type="text"
+                                            value={telegramSettings.privateChatId}
+                                            onChange={(e) => updateTelegramField('privateChatId', e.target.value)}
+                                            placeholder="-100..."
+                                            className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="space-y-4 rounded-3xl border border-slate-800 bg-slate-950/50 p-5">
+                                    <div className="flex items-center gap-2">
+                                        <Camera className="w-4 h-4 text-emerald-400" />
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Canal público de provas</h4>
+                                    </div>
+                                    <label className="flex items-center gap-3 text-sm text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={telegramSettings.publicProofsEnabled}
+                                            onChange={(e) => updateTelegramField('publicProofsEnabled', e.target.checked)}
+                                        />
+                                        Publicar provas de saque processado
+                                    </label>
+                                    <label className="block space-y-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Bot token</span>
+                                        <input
+                                            type="password"
+                                            value={telegramSettings.publicBotToken}
+                                            onChange={(e) => updateTelegramField('publicBotToken', e.target.value)}
+                                            placeholder={telegramSettings.publicBotTokenMasked || 'Cole um novo token para substituir'}
+                                            className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white"
+                                        />
+                                    </label>
+                                    <label className="block space-y-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Canal público</span>
+                                        <input
+                                            type="text"
+                                            value={telegramSettings.publicChatId}
+                                            onChange={(e) => updateTelegramField('publicChatId', e.target.value)}
+                                            placeholder="-100..."
+                                            className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white"
+                                        />
+                                    </label>
+                                    <label className="block space-y-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tópico (opcional)</span>
+                                        <input
+                                            type="text"
+                                            value={telegramSettings.publicTopicId}
+                                            onChange={(e) => updateTelegramField('publicTopicId', e.target.value)}
+                                            placeholder="message_thread_id"
+                                            className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <label className="block space-y-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Base do Polygonscan</span>
+                                    <input
+                                        type="text"
+                                        value={telegramSettings.polygonscanBaseUrl}
+                                        onChange={(e) => updateTelegramField('polygonscanBaseUrl', e.target.value)}
+                                        className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white"
+                                    />
+                                </label>
+                                <label className="block space-y-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Chromium executável (opcional)</span>
+                                    <input
+                                        type="text"
+                                        value={telegramSettings.browserExecutablePath}
+                                        onChange={(e) => updateTelegramField('browserExecutablePath', e.target.value)}
+                                        placeholder="/usr/bin/chromium"
+                                        className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white"
+                                    />
+                                </label>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={saveTelegramSettings}
+                                disabled={telegramSaving}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-emerald-500 disabled:opacity-60 sm:w-auto"
+                            >
+                                {telegramSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                Guardar Telegram
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 rounded-3xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-white">Fluxo</h4>
+                            <ol className="space-y-3 text-sm text-slate-300">
+                                <li>1. Usuário pede saque: o bot privado recebe usuário, valor, destino e data.</li>
+                                <li>2. Admin conclui o saque com `txHash`: a plataforma gera link e prova pública.</li>
+                                <li>3. Se a captura do navegador falhar, a mensagem ainda é enviada sem foto.</li>
+                            </ol>
+                            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-xs text-slate-400">
+                                A publicação pública só dispara para transações `withdrawal` quando o status muda para `completed`.
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

@@ -38,6 +38,7 @@ export function inferAuditCategory(action) {
   ) {
     return "auth";
   }
+  if (u.startsWith("USER_")) return "user_activity";
   if (u.startsWith("ECONOMY_")) return "economy";
   if (
     u.includes("WITHDRAW") ||
@@ -52,7 +53,6 @@ export function inferAuditCategory(action) {
   ) {
     return "economy";
   }
-  if (u.startsWith("USER_")) return "user_activity";
   if (u.startsWith("SYSTEM_")) return "system";
   if (
     u.includes("GAME") ||
@@ -88,6 +88,14 @@ function clampInt(n, min, max, fallback) {
 function mapAuditLogRow(r) {
   const action = r.action;
   const category = inferAuditCategory(action);
+  let details = null;
+  if (r.detailsJson) {
+    try {
+      details = JSON.parse(r.detailsJson);
+    } catch {
+      details = r.detailsJson;
+    }
+  }
   return {
     id: `log-${r.id}`,
     source: "audit_log",
@@ -100,6 +108,7 @@ function mapAuditLogRow(r) {
     ip: r.ip,
     user_agent: r.userAgent,
     details_json: r.detailsJson,
+    details,
     result_code: null,
     event_status: null,
   };
@@ -121,6 +130,7 @@ function mapAuditEventRow(r, userMap) {
     ip: r.ipHash ? `(hashed) ${String(r.ipHash).slice(0, 14)}…` : null,
     user_agent: r.userAgent,
     details_json: r.payload != null ? JSON.stringify(r.payload) : null,
+    details: r.payload ?? null,
     result_code: r.resultCode,
     event_status: r.status,
   };

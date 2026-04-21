@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './store/auth';
 
@@ -74,10 +74,10 @@ import DashboardCryptoStream from './pages/DashboardCryptoStream';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfUse from './pages/TermsOfUse';
 import Support from './pages/Support';
-import SidebarPathGate from './components/SidebarPathGate';
 
 const ProtectedLayout = () => {
   const { isAuthenticated, isLoading, checkSession } = useAuthStore();
+  const location = useLocation();
 
   useEffect(() => {
     void checkSession({ silent: true });
@@ -95,6 +95,8 @@ const ProtectedLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
+  const showPageAds = !['/dashboard', '/wallet', '/wallets'].includes(location.pathname);
+
   return (
     <div className="flex h-screen bg-background overflow-hidden text-gray-100 font-sans">
       <Sidebar />
@@ -102,10 +104,10 @@ const ProtectedLayout = () => {
         <Header />
         <BroadcastPopup />
         <main className="flex-1 overflow-y-auto scrollbar-hide mt-14 md:mt-0">
-          <div className="p-4 pb-24 md:p-8 md:pb-8 max-w-7xl mx-auto">
-            <AdBanner size="728x90" />
+          <div className="w-full max-w-7xl mx-auto px-3 py-4 pb-24 sm:px-4 md:p-8 md:pb-8">
+            {showPageAds && <AdBanner size="728x90" />}
             <Outlet />
-            <AdBanner size="728x90" />
+            {showPageAds && <AdBanner size="728x90" />}
           </div>
           <SiteFooter compact />
         </main>
@@ -169,14 +171,7 @@ function App() {
           <Route path="/wallets" element={<Navigate to="/wallet" replace />} />
           <Route path="/faucet" element={<Faucet />} />
           <Route path="/shortlinks" element={<Shortlinks />} />
-          <Route
-            path="/checkin"
-            element={
-              <SidebarPathGate requiredPath="/checkin">
-                <Checkin />
-              </SidebarPathGate>
-            }
-          />
+          <Route path="/checkin" element={<Checkin />} />
           <Route path="/read-earn" element={<ReadEarn />} />
           <Route path="/internal-offerwall" element={<InternalOfferwall />} />
           <Route path="/mini-pass" element={<MiniPass />} />

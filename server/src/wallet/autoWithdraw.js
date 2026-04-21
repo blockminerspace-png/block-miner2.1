@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
+import walletModel from "../../models/walletModel.js";
 
 const logger = loggerLib.child("AutoWithdraw");
 
@@ -70,10 +71,7 @@ export async function processApprovedWithdrawal(withdrawalId) {
         await tx.wait(1);
 
         // 5. Mark as completed
-        await prisma.transaction.update({
-            where: { id: withdrawalId },
-            data: { status: 'completed', completedAt: new Date() }
-        });
+        await walletModel.updateTransactionStatus(withdrawalId, 'completed', tx.hash);
 
         logger.info(`Withdrawal ${withdrawalId} confirmed and completed successfully!`);
         return { success: true, txHash: tx.hash };

@@ -153,6 +153,8 @@ export default function AdminUsers() {
     };
 
     const pageCount = Math.ceil(total / 20);
+    const standardMiners = minersList.filter((m) => !String(m.id).startsWith('event_'));
+    const eventMiners = minersList.filter((m) => String(m.id).startsWith('event_'));
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
@@ -268,9 +270,9 @@ export default function AdminUsers() {
 
             {/* Details Sidebar/Modal */}
             {selectedUser && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-center justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="w-full max-w-2xl h-full bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-500">
-                        <div className="sticky top-0 z-10 p-8 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between">
+                <div className="fixed inset-0 z-[100] flex items-end justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300 sm:items-center">
+                    <div className="h-[92dvh] w-full max-w-4xl overflow-y-auto rounded-t-[2rem] border border-slate-800 bg-slate-900 shadow-2xl animate-in slide-in-from-right duration-500 sm:h-full sm:rounded-none sm:border-y-0 sm:border-r-0">
+                        <div className="sticky top-0 z-10 p-4 sm:p-6 lg:p-8 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between">
                             <div>
                                 <h3 className="text-xl font-black text-white">Perfil do Usuário</h3>
                                 <p className="text-[10px] text-amber-500 font-black uppercase tracking-[0.2em] mt-1">ID #{selectedUser.user.id}</p>
@@ -284,7 +286,7 @@ export default function AdminUsers() {
                         </div>
 
                         {/* Tabs */}
-                        <div className="flex flex-wrap px-8 pt-4 gap-2 border-b border-slate-800">
+                        <div className="flex flex-wrap gap-2 border-b border-slate-800 px-4 pt-4 sm:px-6 lg:px-8">
                             {['perfil', 'transações', 'tickets', 'logs', 'enviar máquina'].map(tab => (
                                 <button
                                     key={tab}
@@ -311,11 +313,11 @@ export default function AdminUsers() {
                             ))}
                         </div>
 
-                        <div className="p-8 space-y-10 pb-20">
+                        <div className="space-y-8 p-4 pb-20 sm:p-6 lg:space-y-10 lg:p-8">
                             {/* Tab: Perfil */}
                             {detailsTab === 'perfil' && (
                                 <>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                                         <DetailCard label="Username" value={selectedUser.user.username || selectedUser.user.name} icon={Users} />
                                         <DetailCard label="E-mail" value={selectedUser.user.email} icon={Search} small />
                                         <DetailCard label="Carteira" value={selectedUser.user.walletAddress || 'Não vinculada'} icon={Wallet} small />
@@ -423,15 +425,8 @@ export default function AdminUsers() {
                             {/* Tab: Enviar Máquina */}
                             {detailsTab === 'enviar máquina' && (
                                 <div className="space-y-6">
-                                    <div className="flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
-                                        <Package className="w-5 h-5 text-emerald-400 shrink-0" />
-                                        <div>
-                                            <p className="text-xs font-black text-white">Enviar Máquina Gratuitamente</p>
-                                            <p className="text-[10px] text-slate-500 mt-0.5">A máquina vai direto pro inventário do usuário sem cobrar POL.</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
+                                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+                                        <div className="space-y-4 min-w-0">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Máquina</label>
                                             <select
@@ -440,12 +435,28 @@ export default function AdminUsers() {
                                                 className="w-full bg-slate-800 border border-slate-700 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-all"
                                             >
                                                 <option value="">Selecione uma máquina...</option>
-                                                {minersList.map(m => (
-                                                    <option key={m.id} value={m.id}>
-                                                        {m.name} — {Number(m.baseHashRate).toFixed(1)} H/s
-                                                    </option>
-                                                ))}
+                                                {standardMiners.length > 0 && (
+                                                    <optgroup label="Mineradoras normais">
+                                                        {standardMiners.map(m => (
+                                                            <option key={m.id} value={m.id}>
+                                                                {m.name} — {Number(m.baseHashRate).toFixed(1)} H/s
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                                {eventMiners.length > 0 && (
+                                                    <optgroup label="Máquinas de evento">
+                                                        {eventMiners.map(m => (
+                                                            <option key={m.id} value={m.id}>
+                                                                {m.name} — {Number(m.baseHashRate).toFixed(1)} H/s
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
                                             </select>
+                                            <p className="text-[10px] text-slate-500">
+                                                Envio direto para o inventário. Máquinas de evento aparecem separadas quando existirem ativas.
+                                            </p>
                                         </div>
 
                                         <div className="space-y-2">
@@ -479,13 +490,13 @@ export default function AdminUsers() {
                                         {sendMinerId && (() => {
                                             const m = minersList.find(x => String(x.id) === String(sendMinerId));
                                             return m ? (
-                                                <div className="flex items-center gap-4 p-4 bg-slate-900/60 border border-slate-800 rounded-2xl">
+                                                <div className="flex flex-col gap-3 p-4 bg-slate-900/60 border border-slate-800 rounded-2xl sm:flex-row sm:items-center sm:gap-4">
                                                     <img src={m.imageUrl || '/machines/reward1.png'} className="w-12 h-12 object-contain" alt={m.name} />
-                                                    <div className="flex-1">
+                                                    <div className="flex-1 min-w-0">
                                                         <p className="text-white font-bold text-sm">{m.name}</p>
                                                         <p className="text-slate-500 text-[10px]">{Number(m.baseHashRate).toFixed(1)} H/s — {m.slotSize} slot(s)</p>
                                                     </div>
-                                                    <div className="text-right">
+                                                    <div className="text-left sm:text-right">
                                                         <p className="text-emerald-400 font-black text-lg">{sendQty}x</p>
                                                         <p className="text-slate-500 text-[9px] uppercase">unidades</p>
                                                     </div>
@@ -505,6 +516,26 @@ export default function AdminUsers() {
                                                 <><Send className="w-4 h-4" /> Enviar para {selectedUser.user.username || selectedUser.user.email}</>
                                             )}
                                         </button>
+                                    </div>
+                                        <div className="rounded-3xl border border-slate-800 bg-slate-950/50 p-4 xl:sticky xl:top-4 xl:self-start">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Resumo</p>
+                                            <div className="mt-4 space-y-3">
+                                                <div className="flex items-start gap-3">
+                                                    <Package className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <p className="text-xs font-black text-white">Sem cobrança</p>
+                                                        <p className="text-[10px] text-slate-500">A máquina vai para o inventário do usuário.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-start gap-3">
+                                                    <Send className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <p className="text-xs font-black text-white">Compatível com evento</p>
+                                                        <p className="text-[10px] text-slate-500">IDs `event_*` são aceitos e enviados como owned machine.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}

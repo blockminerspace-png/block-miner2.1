@@ -20,7 +20,7 @@ import {
 import { notifyMiniPassLoginDay } from "../services/miniPass/miniPassMissionHookService.js";
 import { notifyDailyTaskLoginDay } from "../services/dailyTasks/dailyTaskHookService.js";
 import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
-import loggerLib from "../utils/logger.js";
+import loggerLib, { logUserActivity } from "../utils/logger.js";
 
 const checkinLog = loggerLib.child("Checkin");
 
@@ -602,6 +602,13 @@ async function confirmDailyCheckin(req, res) {
       { userId, walletLinked: true, checkinDate: today, txHash, cadence: "daily" },
       req
     );
+    logUserActivity("CHECKIN_DAILY_CONFIRMED", req, {
+      userId,
+      checkinDate: today,
+      cadence: "daily",
+      paymentMethod: "wallet",
+      txHash,
+    });
 
     return jsonSuccessWithStreak(res, userId, {
       status: "confirmed",
@@ -745,6 +752,13 @@ export async function checkinBalance(req, res) {
       },
       req
     );
+    logUserActivity("CHECKIN_DAILY_CONFIRMED", req, {
+      userId,
+      checkinDate: today,
+      cadence: "daily",
+      paymentMethod: "balance",
+      amountPol: Number(balanceWei) / 1e18,
+    });
 
     return jsonSuccessWithStreak(res, userId, {
       status: "confirmed",

@@ -1,6 +1,7 @@
 import prisma from '../src/db/prisma.js';
 import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { ethers } from "ethers";
+import { notifyWithdrawalCompleted } from "../services/withdrawalTelegramService.js";
 
 async function getUserBalance(userId) {
   const user = await prisma.user.findUnique({
@@ -219,7 +220,7 @@ async function getTransactions(userId, limit = 50) {
 
 async function updateTransactionStatus(transactionId, status, txHash = null) {
   const now = new Date();
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const transaction = await tx.transaction.findUnique({ where: { id: transactionId } });
     if (!transaction) return true;
 
@@ -268,8 +269,34 @@ async function updateTransactionStatus(transactionId, status, txHash = null) {
         }
       }
     }
-    return true;
+    return {
+      ok: true,
+      prevStatus,
+      nextStatus: status,
+      transactionType: transaction.type,
+    };
   });
+  if (
+    result?.ok &&
+    result.transactionType === "withdrawal" &&
+    result.prevStatus !== "completed" &&
+    result.nextStatus === "completed"
+  ) {
+    const completed = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
+    if (completed) void notifyWithdrawalCompleted(completed);
+  }
+  return true;
 }
 
 async function getPendingWithdrawals() {

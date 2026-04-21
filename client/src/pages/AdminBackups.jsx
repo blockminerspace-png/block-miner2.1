@@ -55,6 +55,9 @@ export default function AdminBackups() {
             withData: b.publicTablesWithRows,
           })}`;
         }
+        if (b?.bundleName) {
+          extra += ` — bundle ${b.bundleName}`;
+        }
         toast.success(`${t("adminBackups.create_success")}${extra}`);
         fetchBackups();
       }
@@ -179,6 +182,17 @@ export default function AdminBackups() {
                             })}
                           </div>
                         ) : null}
+                        {b.bundleName ? (
+                          <div className="text-sky-400">
+                            Bundle: {b.bundleName}
+                            {typeof b.bundleSize === "number" ? ` · ${formatBytes(b.bundleSize)}` : ""}
+                          </div>
+                        ) : null}
+                        {Array.isArray(b.bundleIncludedPaths) && b.bundleIncludedPaths.length > 0 ? (
+                          <div className="text-slate-600 break-all">
+                            Snapshot: {b.bundleIncludedPaths.join(", ")}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </td>
@@ -193,6 +207,17 @@ export default function AdminBackups() {
                         <Download className="w-3 h-3" aria-hidden />
                         {t("adminBackups.download")}
                       </a>
+                      {b.bundleName ? (
+                        <a
+                          href={`/api/admin/backups/download-bundle?file=${encodeURIComponent(b.bundleName)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
+                        >
+                          <Download className="w-3 h-3" aria-hidden />
+                          Bundle
+                        </a>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => handleDeleteBackup(b.name)}

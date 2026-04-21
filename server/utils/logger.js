@@ -198,9 +198,9 @@ const defaultLogger = new Logger();
  * @param {Record<string, unknown>} [details]
  */
 export function logUserActivity(activityType, req, details = {}) {
-  if (!levelAllowed("INFO")) return;
   const ctx = buildRequestLogContext(req);
   const { timestamp, ...restCtx } = ctx;
+  const normalizedDetails = normalizeDetails(details);
   const record = {
     level: "info",
     kind: "user_activity",
@@ -209,9 +209,33 @@ export function logUserActivity(activityType, req, details = {}) {
     category: "Activity",
     timestamp,
     ...restCtx,
-    ...(Object.keys(normalizeDetails(details)).length ? { details: normalizeDetails(details) } : {}),
+    ...(Object.keys(normalizedDetails).length ? { details: normalizedDetails } : {}),
   };
-  writeLine("INFO", record);
+  if (levelAllowed("INFO")) writeLine("INFO", record);
+
+  const shouldPersist =
+    process.env.NODE_ENV !== "test" &&
+    activityType &&
+    !(String(activityType).startsWith("AUTH_") && String(activityType) !== "AUTH_LOCKOUT_DENIED");
+  if (!shouldPersist) return;
+
+  const rawUserId = req?.user?.id ?? normalizedDetails.userId;
+  const userId = Number(rawUserId);
+  const safeUserId = Number.isInteger(userId) && userId > 0 ? userId : null;
+  const ip = req ? getRequestIp(req) : null;
+  const userAgent = req?.headers?.["user-agent"] || null;
+
+  import("../models/auditLogModel.js")
+    .then(({ createAuditLogBestEffort }) =>
+      createAuditLogBestEffort({
+        userId: safeUserId,
+        action: activityType,
+        ip,
+        userAgent,
+        details: normalizedDetails,
+      }),
+    )
+    .catch(() => {});
 }
 
 /**

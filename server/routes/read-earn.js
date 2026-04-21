@@ -2,8 +2,11 @@ import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import * as readEarnController from "../controllers/readEarnController.js";
+import { requireVisibleSidebarPath } from "../middleware/sidebarFeatureGate.js";
+import { SIDEBAR_ITEM_REGISTRY } from "../services/sidebarNavRegistry.js";
 
 export const readEarnRouter = express.Router();
+const readEarnPath = SIDEBAR_ITEM_REGISTRY.read_earn.path;
 
 const redeemLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
@@ -11,10 +14,11 @@ const redeemLimiter = createRateLimiter({
   message: "Too many redeem attempts. Try again later."
 });
 
-readEarnRouter.get("/campaigns", readEarnController.getPublicReadEarnCampaigns);
+readEarnRouter.get("/campaigns", requireVisibleSidebarPath(readEarnPath), readEarnController.getPublicReadEarnCampaigns);
 readEarnRouter.post(
   "/redeem",
   requireAuth,
+  requireVisibleSidebarPath(readEarnPath),
   redeemLimiter,
   readEarnController.postReadEarnRedeem
 );

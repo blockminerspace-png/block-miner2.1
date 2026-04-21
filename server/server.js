@@ -257,6 +257,20 @@ app.use(
   helmet({
     contentSecurityPolicy: getHelmetContentSecurityPolicyOptions(),
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    permissionsPolicy: {
+      features: {
+        camera: [],
+        microphone: [],
+        geolocation: [],
+        midi: [],
+        payment: [],
+        usb: [],
+        magnetometer: [],
+        gyroscope: [],
+        accelerometer: [],
+      },
+    },
   }),
 );
 app.use(cors(buildExpressCorsOptions()));

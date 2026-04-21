@@ -98,6 +98,7 @@ export async function startLiveRtmpPipeline(opts) {
     await page.goto(captureUrl, { waitUntil: "domcontentloaded", timeout: 120000 });
     await page
       .evaluate(async () => {
+        /* global document */
         try {
           const el = document.documentElement;
           if (el.requestFullscreen) await el.requestFullscreen();

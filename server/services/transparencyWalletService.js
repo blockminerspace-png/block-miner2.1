@@ -1,8 +1,9 @@
 /**
- * Polygon native (POL) movement summary for transparency admin.
- * Uses Etherscan API V2 (same as checkinChain) — set POLYGONSCAN_API_KEY for reliable quotas.
+ * Polygon native (POL) transparency wallet helpers.
+ * Supports one-off lookups and multi-wallet admin summaries.
  */
 import { ethers } from "ethers";
+import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 
 const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 const POLYGON_CHAIN_ID_STR = "137";
@@ -70,24 +71,18 @@ function weiFromTx(tx) {
   }
 }
 
-/**
- * @param {string} checksummedOrLower
- * @param {{ page?: number, offset?: number }} opts
- */
-export async function fetchWalletNativeActivity(checksummedOrLower, opts = {}) {
-  const page = Math.min(10, Math.max(1, Number(opts.page) || 1));
-  const offset = Math.min(100, Math.max(10, Number(opts.offset) || 50));
-
-  const addr = String(checksummedOrLower || "").trim().toLowerCase();
-  if (!addr || !ethers.isAddress(addr)) {
+function normalizeAddress(raw) {
+  const s = String(raw || "").trim();
+  if (!s || !ethers.isAddress(s)) {
     const err = new Error("Invalid wallet address.");
     err.code = "INVALID_ADDRESS";
     throw err;
   }
+  return ethers.getAddress(s);
+}
 
-  // Normal transactions only (avoids double-count with internal transfers for the same flow).
-  const normal = await fetchTxPage("txlist", addr, page, offset);
-
+function buildMovementSummary(address, normal) {
+  const addr = address.toLowerCase();
   const movements = [];
   let totalInWei = 0n;
   let totalOutWei = 0n;
@@ -126,27 +121,115 @@ export async function fetchWalletNativeActivity(checksummedOrLower, opts = {}) {
   movements.sort((a, b) => b.timeStamp - a.timeStamp);
 
   return {
-    address: ethers.getAddress(addr),
+    movements,
+    totalInWei,
+    totalOutWei,
+    totalInPol: Number(ethers.formatEther(totalInWei)),
+    totalOutPol: Number(ethers.formatEther(totalOutWei)),
+  };
+}
+
+/**
+ * @param {string} rawAddress
+ * @param {{ page?: number, offset?: number }} opts
+ */
+export async function fetchWalletNativeActivity(rawAddress, opts = {}) {
+  const page = Math.min(10, Math.max(1, Number(opts.page) || 1));
+  const offset = Math.min(100, Math.max(10, Number(opts.offset) || 50));
+  const address = normalizeAddress(rawAddress);
+  const normal = await fetchTxPage("txlist", address, page, offset);
+  const summary = buildMovementSummary(address, normal);
+  let polUsdPrice = null;
+  try {
+    polUsdPrice = Number(await getPolUsdPrice());
+  } catch {
+    polUsdPrice = null;
+  }
+
+  return {
+    address,
     page,
     offset,
     apiKeyConfigured: Boolean(getApiKey()),
     note: "POL native transfers from normal transactions (Polygon). Internal/token movements may appear only on Polygonscan.",
     summary: {
-      totalInPol: Number(ethers.formatEther(totalInWei)),
-      totalOutPol: Number(ethers.formatEther(totalOutWei)),
-      movementCount: movements.length,
+      totalInPol: summary.totalInPol,
+      totalOutPol: summary.totalOutPol,
+      totalInUsd: polUsdPrice != null ? Number((summary.totalInPol * polUsdPrice).toFixed(2)) : null,
+      totalOutUsd: polUsdPrice != null ? Number((summary.totalOutPol * polUsdPrice).toFixed(2)) : null,
+      movementCount: summary.movements.length,
+      polUsdPrice,
     },
-    movements: movements.slice(0, offset),
+    movements: summary.movements.slice(0, offset),
+  };
+}
+
+/**
+ * @param {Array<{ id?: number, label?: string | null, address: string, chain?: string | null, assetSymbol?: string | null, explorerBaseUrl?: string | null, includeInTotals?: boolean }>} wallets
+ * @param {{ offset?: number }} opts
+ */
+export async function fetchTrackedWalletsSummary(wallets, opts = {}) {
+  const offset = Math.min(100, Math.max(10, Number(opts.offset) || 25));
+  const activeWallets = Array.isArray(wallets) ? wallets : [];
+  let polUsdPrice = null;
+  try {
+    polUsdPrice = Number(await getPolUsdPrice());
+  } catch {
+    polUsdPrice = null;
+  }
+
+  const perWallet = [];
+  let totalInPol = 0;
+  let totalOutPol = 0;
+  let totalMovementCount = 0;
+
+  for (const wallet of activeWallets) {
+    const address = normalizeAddress(wallet.address);
+    const normal = await fetchTxPage("txlist", address, 1, offset);
+    const summary = buildMovementSummary(address, normal);
+    const includeInTotals = wallet.includeInTotals !== false;
+    if (includeInTotals) {
+      totalInPol += summary.totalInPol;
+      totalOutPol += summary.totalOutPol;
+      totalMovementCount += summary.movements.length;
+    }
+
+    perWallet.push({
+      id: wallet.id ?? null,
+      label: String(wallet.label || "").trim() || address,
+      address,
+      chain: String(wallet.chain || "polygon"),
+      assetSymbol: String(wallet.assetSymbol || "POL"),
+      explorerBaseUrl: wallet.explorerBaseUrl || "https://polygonscan.com/address",
+      includeInTotals,
+      summary: {
+        totalInPol: summary.totalInPol,
+        totalOutPol: summary.totalOutPol,
+        totalInUsd: polUsdPrice != null ? Number((summary.totalInPol * polUsdPrice).toFixed(2)) : null,
+        totalOutUsd: polUsdPrice != null ? Number((summary.totalOutPol * polUsdPrice).toFixed(2)) : null,
+        movementCount: summary.movements.length,
+      },
+      movements: summary.movements.slice(0, Math.min(10, offset)),
+    });
+  }
+
+  return {
+    apiKeyConfigured: Boolean(getApiKey()),
+    polUsdPrice,
+    summary: {
+      totalInPol: Number(totalInPol.toFixed(6)),
+      totalOutPol: Number(totalOutPol.toFixed(6)),
+      totalInUsd: polUsdPrice != null ? Number((totalInPol * polUsdPrice).toFixed(2)) : null,
+      totalOutUsd: polUsdPrice != null ? Number((totalOutPol * polUsdPrice).toFixed(2)) : null,
+      movementCount: totalMovementCount,
+      walletCount: perWallet.length,
+    },
+    wallets: perWallet,
   };
 }
 
 export function assertValidTransparencyWalletAddress(raw) {
   const s = String(raw || "").trim();
   if (!s) return null;
-  if (!ethers.isAddress(s)) {
-    const err = new Error("Invalid wallet address.");
-    err.code = "INVALID_ADDRESS";
-    throw err;
-  }
-  return ethers.getAddress(s);
+  return normalizeAddress(s);
 }

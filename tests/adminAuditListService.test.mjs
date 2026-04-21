@@ -18,6 +18,7 @@ describe("adminAuditListService.inferAuditCategory", () => {
 
   it("buckets user activity and system", () => {
     assert.equal(inferAuditCategory("USER_VIDEO_START"), "user_activity");
+    assert.equal(inferAuditCategory("USER_API_POST_VAULT_MOVE_TO_VAULT"), "user_activity");
     assert.equal(inferAuditCategory("SYSTEM_HEALTHCHECK"), "system");
   });
 });

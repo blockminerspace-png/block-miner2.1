@@ -1650,8 +1650,18 @@ model TransparencyEntry {
   providerUrl    String?  @map("provider_url")
   imageUrl       String?  @map("image_url")  // comprovante / logo do patrocinador
   amountUsd      Decimal  @map("amount_usd") @db.Decimal(20, 2)
+  amountOriginal Decimal? @map("amount_original") @db.Decimal(20, 8)
+  currencyCode   String   @default("USD") @map("currency_code")
+  fxRateUsd      Decimal? @map("fx_rate_usd") @db.Decimal(20, 8)
   // Período: monthly | annual | one_time | daily
   period         String   @default("monthly")
+  entryDate      DateTime? @map("entry_date")
+  direction      String?   @map("direction")
+  blockchain     String?   @map("blockchain")
+  walletAddress  String?   @map("wallet_address")
+  txHash         String?   @map("tx_hash")
+  referenceUrl   String?   @map("reference_url")
+  isOnChain      Boolean   @default(false) @map("is_on_chain")
   isPaid         Boolean  @default(true) @map("is_paid")
   isActive       Boolean  @default(true) @map("is_active")
   notes          String?  @db.Text
@@ -1674,6 +1684,25 @@ model TransparencyWalletSettings {
   @@map("transparency_wallet_settings")
 }
 
+model TransparencyTrackedWallet {
+  id              Int      @id @default(autoincrement())
+  label           String
+  address         String
+  chain           String   @default("polygon")
+  assetSymbol     String   @default("POL") @map("asset_symbol")
+  explorerBaseUrl String?  @map("explorer_base_url")
+  isActive        Boolean  @default(true) @map("is_active")
+  isPublic        Boolean  @default(true) @map("is_public")
+  includeInTotals Boolean  @default(true) @map("include_in_totals")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([chain, address])
+  @@index([isActive, sortOrder])
+  @@map("transparency_tracked_wallets")
+}
+
 /// Singleton (id = 1): user app sidebar visibility, order, and nesting under Rewards group.
 model SidebarNavConfig {
   id        Int      @id @default(1)
@@ -1681,4 +1710,23 @@ model SidebarNavConfig {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("sidebar_nav_config")
+}
+
+/// Singleton (id = 1): Telegram bots/chats/topics for withdrawal alerts and proof posts.
+model WithdrawalTelegramSettings {
+  id                    Int      @id @default(1)
+  enabled               Boolean  @default(false)
+  privateAlertsEnabled  Boolean  @default(false) @map("private_alerts_enabled")
+  privateBotToken       String?  @map("private_bot_token")
+  privateChatId         String?  @map("private_chat_id")
+  publicProofsEnabled   Boolean  @default(false) @map("public_proofs_enabled")
+  publicBotToken        String?  @map("public_bot_token")
+  publicChatId          String?  @map("public_chat_id")
+  publicTopicId         String?  @map("public_topic_id")
+  captureEnabled        Boolean  @default(true) @map("capture_enabled")
+  browserExecutablePath String?  @map("browser_executable_path")
+  polygonscanBaseUrl    String?  @map("polygonscan_base_url")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("withdrawal_telegram_settings")
 }

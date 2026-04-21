@@ -23,6 +23,7 @@ import {
   allocatePolygonHdAddress,
   allocatePolygonHdAddressRemote
 } from "../services/polygonHdWallet.js";
+import { notifyWithdrawalRequested } from "../services/withdrawalTelegramService.js";
 
 /** Minimum POL for a withdrawal request. */
 export const WITHDRAW_MIN_POL = 10;
@@ -196,6 +197,28 @@ export async function requestWithdrawal(req, res) {
     }
 
     const transaction = await walletModel.createWithdrawal(req.user.id, parsedAmount, address);
+    void prisma.transaction.findUnique({
+      where: { id: transaction.id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          },
+        },
+      },
+    })
+      .then((txWithUser) => {
+        if (txWithUser) return notifyWithdrawalRequested(txWithUser);
+        return null;
+      })
+      .catch((notifyError) => {
+        logger.warn("Withdrawal notification skipped", {
+          transactionId: transaction.id,
+          error: notifyError?.message || String(notifyError),
+        });
+      });
     res.json({
       ok: true,
       message: `Withdrawal request submitted. Processing time: up to ${WITHDRAW_PROCESSING_HOURS} business hours.`,

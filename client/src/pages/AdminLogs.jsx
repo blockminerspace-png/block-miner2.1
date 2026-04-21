@@ -40,6 +40,25 @@ function categoryBadgeClass(cat) {
   }
 }
 
+function formatLogDetails(log) {
+  const raw = log?.details ?? log?.details_json;
+  if (raw == null || raw === "") return "—";
+  let value = raw;
+  if (typeof raw === "string") {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      value = raw;
+    }
+  }
+  if (typeof value !== "object" || Array.isArray(value)) return String(value);
+  const pairs = Object.entries(value)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .slice(0, 5)
+    .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`);
+  return pairs.length ? pairs.join(" · ") : "—";
+}
+
 export default function AdminLogs() {
   const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
@@ -101,13 +120,15 @@ export default function AdminLogs() {
     const src = String(log.source || "").toLowerCase();
     const rc = String(log.result_code || "").toLowerCase();
     const cat = String(log.category || "").toLowerCase();
+    const details = formatLogDetails(log).toLowerCase();
     return (
       action.includes(q) ||
       email.includes(q) ||
       ip.includes(q) ||
       src.includes(q) ||
       rc.includes(q) ||
-      cat.includes(q)
+      cat.includes(q) ||
+      details.includes(q)
     );
   });
 
@@ -139,7 +160,7 @@ export default function AdminLogs() {
   const filtersActive = category !== "all" || source !== "all";
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="min-w-0 space-y-6 animate-in fade-in duration-700 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white flex items-center gap-3">
@@ -148,15 +169,15 @@ export default function AdminLogs() {
           </h2>
           <p className="text-slate-500 text-sm font-medium mt-1 max-w-2xl">{t("adminLogs.subtitle")}</p>
         </div>
-        <div className="flex gap-3 flex-wrap">
-          <div className="relative">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
+          <div className="relative w-full sm:w-auto">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden />
             <input
               type="text"
               placeholder={t("adminLogs.filter_placeholder")}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="bg-slate-900 border border-slate-700 text-white text-xs rounded-xl pl-9 pr-4 py-2 focus:outline-none focus:border-purple-500 transition-colors min-w-[200px]"
+              className="w-full min-w-0 rounded-xl border border-slate-700 bg-slate-900 py-2 pl-9 pr-4 text-xs text-white transition-colors focus:border-purple-500 focus:outline-none sm:min-w-[200px]"
             />
           </div>
           <button
@@ -165,7 +186,7 @@ export default function AdminLogs() {
               setOffset(0);
               void fetchLogs(0, false);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-700/50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-800 px-4 py-2 text-xs font-bold text-slate-300 transition-all hover:bg-slate-700 sm:w-auto"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden />
             {t("adminLogs.refresh")}
@@ -217,11 +238,11 @@ export default function AdminLogs() {
         ) : null}
       </div>
 
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-slate-800 flex flex-wrap justify-between items-center gap-2 bg-slate-900">
-          <div className="flex items-center gap-2 text-slate-400">
+      <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl">
+        <div className="flex flex-col justify-between gap-3 border-b border-slate-800 bg-slate-900 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6">
+          <div className="flex min-w-0 items-center gap-2 text-slate-400">
             <Filter className="w-4 h-4 shrink-0" aria-hidden />
-            <span className="text-[10px] font-bold uppercase tracking-widest">
+            <span className="min-w-0 text-[10px] font-bold uppercase tracking-wide sm:tracking-widest">
               {t("adminLogs.showing_filtered", { shown: filteredLogs.length, loaded: logs.length })}
               {totalApprox != null ? ` · ${t("adminLogs.total_approx", { n: totalApprox })}` : null}
             </span>
@@ -231,13 +252,58 @@ export default function AdminLogs() {
               type="button"
               disabled={isLoading}
               onClick={loadMore}
-              className="text-[10px] font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 disabled:opacity-50"
+              className="text-left text-[10px] font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 disabled:opacity-50 sm:text-right"
             >
               {t("adminLogs.load_more")}
             </button>
           ) : null}
         </div>
-        <div className="overflow-x-auto max-h-[600px] scrollbar-thin scrollbar-thumb-slate-800">
+        <div className="space-y-3 p-3 lg:hidden">
+          {filteredLogs.map((log) => {
+            const cat = log.category && typeof log.category === "string" ? log.category : "other";
+            const badgeClass = categoryBadgeClass(cat);
+            const details = formatLogDetails(log);
+            return (
+              <article key={log.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={`min-w-0 break-words rounded px-2 py-1 text-[10px] uppercase tracking-wide ${badgeClass}`}>
+                      {log.action || "—"}
+                    </span>
+                    <span className="shrink-0 text-right text-[10px] font-mono text-slate-500">
+                      {new Date(log.created_at || log.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-xs font-medium text-slate-400">
+                    <p className="min-w-0 break-words">
+                      <span className="font-bold uppercase tracking-wide text-slate-600">{t("adminLogs.col_user")}: </span>
+                      <span className="text-white">{log.user_email || (log.user_id != null ? `User #${log.user_id}` : "—")}</span>
+                    </p>
+                    <p className="min-w-0 break-words">
+                      <span className="font-bold uppercase tracking-wide text-slate-600">{t("adminLogs.col_source")}: </span>
+                      {log.source || "—"}
+                    </p>
+                    <p className="min-w-0 break-words">
+                      <span className="font-bold uppercase tracking-wide text-slate-600">{t("adminLogs.col_ip")}: </span>
+                      {log.ip || "—"}
+                    </p>
+                    <p className="min-w-0 break-words">
+                      <span className="font-bold uppercase tracking-wide text-slate-600">{t("adminLogs.col_details")}: </span>
+                      {details}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {filteredLogs.length === 0 && (
+            <div className="px-4 py-12 text-center text-sm italic text-slate-600">
+              {logs.length === 0 ? t("adminLogs.empty_none") : t("adminLogs.empty_filter")}
+            </div>
+          )}
+        </div>
+
+        <div className="hidden max-h-[600px] overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800 lg:block">
           <table className="w-full text-left text-sm text-slate-400">
             <thead className="bg-slate-900/50 text-[10px] uppercase font-bold tracking-widest text-slate-500 sticky top-0 backdrop-blur-md">
               <tr>
@@ -246,6 +312,7 @@ export default function AdminLogs() {
                 <th className="px-6 py-3">{t("adminLogs.col_event")}</th>
                 <th className="px-6 py-3">{t("adminLogs.col_user")}</th>
                 <th className="px-6 py-3">{t("adminLogs.col_ip")}</th>
+                <th className="px-6 py-3">{t("adminLogs.col_details")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50 font-medium font-mono text-xs">
@@ -270,12 +337,15 @@ export default function AdminLogs() {
                       {log.user_email || (log.user_id != null ? `User #${log.user_id}` : "—")}
                     </td>
                     <td className="px-6 py-3 text-slate-500">{log.ip || "—"}</td>
+                    <td className="px-6 py-3 max-w-md truncate text-slate-400" title={formatLogDetails(log)}>
+                      {formatLogDetails(log)}
+                    </td>
                   </tr>
                 );
               })}
               {filteredLogs.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-slate-600 italic">
+                  <td colSpan="6" className="px-6 py-12 text-center text-slate-600 italic">
                     {logs.length === 0 ? t("adminLogs.empty_none") : t("adminLogs.empty_filter")}
                   </td>
                 </tr>

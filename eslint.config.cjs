@@ -29,12 +29,58 @@ module.exports = [
         clearInterval: "readonly",
         Promise: "readonly",
         URL: "readonly",
+        URLSearchParams: "readonly",
+        fetch: "readonly",
+        AbortController: "readonly",
+        AbortSignal: "readonly",
+        FormData: "readonly",
+        Blob: "readonly",
+        setImmediate: "readonly",
         global: "readonly",
       },
     },
     rules: {
-      "no-unused-vars": "warn",
+      "no-unused-vars": ["warn", { caughtErrors: "none", argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-undef": "warn",
+    },
+  },
+  // Legacy CommonJS utilities and scripts that intentionally still use require/module.
+  {
+    files: [
+      "app/routes/registerAppRoutes.js",
+      "scripts/backup.js",
+      "scripts/check-db-tables.js",
+      "scripts/fix-inventory-gpu-image.js",
+      "scripts/fixDuplicateMinerImageUrls.js",
+      "scripts/inspect-faucet-inventory.js",
+      "scripts/inspect-faucet.js",
+      "scripts/seed-rewards-data.js",
+      "server/cron/autoMiningGpuCron.js",
+      "server/src/config/index.js",
+      "server/src/services/publicStateService.js",
+      "server/utils/autoMiningGpuUtils.js",
+      "server/utils/backup.js",
+      "server/utils/logParser.js",
+      "server/utils/miningRewardsLogger.js",
+      "server/utils/nonceManager.js",
+      "server/utils/rpcClient.js",
+    ],
+    languageOptions: {
+      sourceType: "script",
+      globals: {
+        require: "readonly",
+        module: "readonly",
+        exports: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        setInterval: "readonly",
+        clearTimeout: "readonly",
+        clearInterval: "readonly",
+      },
     },
   },
   // Hardhat / legacy CommonJS under contracts/
@@ -64,7 +110,7 @@ module.exports = [
   },
   // Legacy browser bundles (no ESM)
   {
-    files: ["public/js/**/*.js", "admin/**/*.js"],
+    files: ["public/js/**/*.js", "admin/**/*.js", "LiveDashboard/**/*.js"],
     languageOptions: {
       sourceType: "script",
       globals: {

@@ -4,8 +4,11 @@ import { getRequestIp } from "../utils/clientIp.js";
 import { requireCriticalIdempotency } from "../middleware/criticalIdempotency.js";
 import { requireAuth } from "../middleware/auth.js";
 import * as internalOfferwallController from "../controllers/internalOfferwallController.js";
+import { requireVisibleSidebarPath } from "../middleware/sidebarFeatureGate.js";
+import { SIDEBAR_ITEM_REGISTRY } from "../services/sidebarNavRegistry.js";
 
 export const internalOfferwallRouter = express.Router();
+const internalOfferwallPath = SIDEBAR_ITEM_REGISTRY.internal_offerwall.path;
 
 const limiter = createDistributedRateLimiter({
   windowMs: 60_000,
@@ -22,11 +25,12 @@ const writeLimiter = createDistributedRateLimiter({
   secondaryKeyGenerator: (req) => (req.user?.id ? `uid:${req.user.id}` : null),
 });
 
-internalOfferwallRouter.get("/status", limiter, internalOfferwallController.getFeatureStatus);
-internalOfferwallRouter.get("/offers", requireAuth, limiter, internalOfferwallController.getOffers);
+internalOfferwallRouter.get("/status", requireVisibleSidebarPath(internalOfferwallPath), limiter, internalOfferwallController.getFeatureStatus);
+internalOfferwallRouter.get("/offers", requireAuth, requireVisibleSidebarPath(internalOfferwallPath), limiter, internalOfferwallController.getOffers);
 internalOfferwallRouter.post(
   "/offers/:offerId/start",
   requireAuth,
+  requireVisibleSidebarPath(internalOfferwallPath),
   writeLimiter,
   requireCriticalIdempotency({ scope: "internal_offerwall_start" }),
   internalOfferwallController.postStart
@@ -34,6 +38,7 @@ internalOfferwallRouter.post(
 internalOfferwallRouter.post(
   "/attempts/:attemptId/partner-opened",
   requireAuth,
+  requireVisibleSidebarPath(internalOfferwallPath),
   writeLimiter,
   requireCriticalIdempotency({ scope: "internal_offerwall_partner_opened" }),
   internalOfferwallController.postPartnerOpened
@@ -41,6 +46,7 @@ internalOfferwallRouter.post(
 internalOfferwallRouter.post(
   "/attempts/:attemptId/submit",
   requireAuth,
+  requireVisibleSidebarPath(internalOfferwallPath),
   writeLimiter,
   requireCriticalIdempotency({ scope: "internal_offerwall_submit" }),
   internalOfferwallController.postSubmit
@@ -48,6 +54,7 @@ internalOfferwallRouter.post(
 internalOfferwallRouter.post(
   "/attempts/:attemptId/abandon",
   requireAuth,
+  requireVisibleSidebarPath(internalOfferwallPath),
   writeLimiter,
   requireCriticalIdempotency({ scope: "internal_offerwall_abandon" }),
   internalOfferwallController.postAbandon

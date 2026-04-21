@@ -20,6 +20,7 @@ import * as adminReadEarnController from "../controllers/adminReadEarnController
 import * as sidebarNavController from "../controllers/sidebarNavController.js";
 import * as adminDailyTasksController from "../controllers/adminDailyTasksController.js";
 import * as adminInternalOfferwallController from "../controllers/adminInternalOfferwallController.js";
+import * as adminWithdrawalTelegramController from "../controllers/adminWithdrawalTelegramController.js";
 import { adminYoutubeStreamRouter } from "./admin-youtube-stream.js";
 import prisma from "../src/db/prisma.js";
 import { bulkCreateInventoryWithOwnedMachinesTx } from "../services/userOwnedMachineService.js";
@@ -28,6 +29,7 @@ import {
     listSqlBackups,
     deleteSqlBackup,
     resolveBackupDownloadPath,
+    resolveBackupBundleDownloadPath,
 } from "../services/databaseBackupService.js";
 import { listUnifiedAdminAuditLogs } from "../services/adminAuditListService.js";
 import { listAdminFraudSignals } from "../services/adminFraudSignalsService.js";
@@ -382,6 +384,11 @@ adminRouter.post("/transparency", transparencyController.adminCreate);
 adminRouter.get("/transparency/wallet/settings", transparencyController.adminWalletGetSettings);
 adminRouter.put("/transparency/wallet/settings", transparencyController.adminWalletPutSettings);
 adminRouter.get("/transparency/wallet/activity", transparencyController.adminWalletGetActivity);
+adminRouter.get("/transparency/tracked-wallets", transparencyController.adminTrackedWalletList);
+adminRouter.post("/transparency/tracked-wallets", transparencyController.adminTrackedWalletCreate);
+adminRouter.get("/transparency/tracked-wallets/activity", transparencyController.adminTrackedWalletActivity);
+adminRouter.put("/transparency/tracked-wallets/:id", transparencyController.adminTrackedWalletUpdate);
+adminRouter.delete("/transparency/tracked-wallets/:id", transparencyController.adminTrackedWalletDelete);
 adminRouter.put("/transparency/:id", transparencyController.adminUpdate);
 adminRouter.delete("/transparency/:id", transparencyController.adminDelete);
 
@@ -550,6 +557,8 @@ adminRouter.get("/withdrawals/pending", adminController.listPendingWithdrawals);
 adminRouter.post("/withdrawals/:withdrawalId/approve", adminController.approveWithdrawal);
 adminRouter.post("/withdrawals/:withdrawalId/reject", adminController.rejectWithdrawal);
 adminRouter.post("/withdrawals/:withdrawalId/complete", adminController.completeWithdrawal);
+adminRouter.get("/withdrawals/telegram-settings", adminWithdrawalTelegramController.getSettings);
+adminRouter.put("/withdrawals/telegram-settings", adminWithdrawalTelegramController.putSettings);
 
 // BLK (USD-pegged internal currency, not withdrawable)
 adminRouter.get("/blk/economy", blkWalletController.adminGetEconomy);
@@ -742,6 +751,25 @@ adminRouter.get("/backups/download", async (req, res) => {
             return res.status(404).send("Not found");
         }
         backupLogger.error("admin_backup_download_failed", { message: error?.message || String(error) });
+        res.status(500).send("Download failed");
+    }
+});
+
+adminRouter.get("/backups/download-bundle", async (req, res) => {
+    try {
+        const { file } = req.query;
+        if (!file) return res.status(400).send("File name required");
+
+        const filePath = await resolveBackupBundleDownloadPath(String(file));
+        res.download(filePath);
+    } catch (error) {
+        if (error?.message === "Invalid backup bundle filename") {
+            return res.status(400).send("Invalid file name");
+        }
+        if (error?.message === "Backup bundle not found") {
+            return res.status(404).send("Not found");
+        }
+        backupLogger.error("admin_backup_bundle_download_failed", { message: error?.message || String(error) });
         res.status(500).send("Download failed");
     }
 });

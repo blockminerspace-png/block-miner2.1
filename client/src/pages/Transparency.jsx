@@ -78,6 +78,12 @@ function fmt(n, compact = false) {
   return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function fmtMaybe(n, digits = 2) {
+  const num = Number(n);
+  if (!isFinite(num)) return null;
+  return num.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
 // ─── Chart tooltips ─────────────────────────────────────────────────────────
 
 function CustomPieTooltip({ active, payload }) {
@@ -214,14 +220,46 @@ function IncomeCard({ entry }) {
             : <p className="text-xs text-gray-500 font-semibold">{entry.provider}</p>
         )}
         <div className="flex items-center justify-between mt-auto pt-1">
-          <span className="text-sm font-black text-emerald-300">
-            {fmt(entry.amountUsd)}
-            <span className="text-[11px] text-gray-500 ml-1">/{t(`transparency.period.${periodKey}`)}</span>
-          </span>
+          <div>
+            <span className="text-sm font-black text-emerald-300">
+              {fmt(entry.amountUsd)}
+              <span className="text-[11px] text-gray-500 ml-1">/{t(`transparency.period.${periodKey}`)}</span>
+            </span>
+            {entry.amountOriginal != null ? (
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                {Number(entry.amountOriginal).toLocaleString('en-US', { maximumFractionDigits: 8 })} {entry.currencyCode || 'USD'}
+                {entry.fxRateUsd ? ` · fx ${fmtMaybe(entry.fxRateUsd, 4)}` : ''}
+              </p>
+            ) : null}
+          </div>
           {entry.isPaid
             ? <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">{t('transparency.status.received')}</span>
             : <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">{t('transparency.status.pending')}</span>}
         </div>
+        {entry.isOnChain && (entry.walletAddress || entry.txHash) ? (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {entry.walletAddress ? (
+              <a
+                href={`https://polygonscan.com/address/${entry.walletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-1 text-[10px] font-bold text-sky-300"
+              >
+                Carteira <ExternalLink className="w-3 h-3" />
+              </a>
+            ) : null}
+            {entry.txHash ? (
+              <a
+                href={`https://polygonscan.com/tx/${entry.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-1 text-[10px] font-bold text-purple-300"
+              >
+                Tx <ExternalLink className="w-3 h-3" />
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -259,19 +297,75 @@ function EntryRow({ entry }) {
         ) : <span className="text-xs text-gray-700">&#8212;</span>}
       </td>
       <td className="py-3 px-4 text-right whitespace-nowrap">
-        <span className="text-sm font-black text-white">{fmt(entry.amountUsd)}</span>
-        <span className="text-[11px] text-gray-600 ml-1">/{t(`transparency.period.${periodKey}`)}</span>
+        <div>
+          <span className="text-sm font-black text-white">{fmt(entry.amountUsd)}</span>
+          <span className="text-[11px] text-gray-600 ml-1">/{t(`transparency.period.${periodKey}`)}</span>
+          {entry.amountOriginal != null ? (
+            <div className="text-[10px] text-gray-600 mt-0.5">
+              {Number(entry.amountOriginal).toLocaleString('en-US', { maximumFractionDigits: 8 })} {entry.currencyCode || 'USD'}
+            </div>
+          ) : null}
+        </div>
       </td>
       <td className="py-3 px-4 text-right">
-        {entry.isPaid
-          ? <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
-              <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> {t('transparency.status.paid')}
+        <div className="flex flex-col items-end gap-1">
+          {entry.isPaid
+            ? <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
+                <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> {t('transparency.status.paid')}
+              </span>
+            : <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full">
+                <Clock className="w-3 h-3" aria-hidden="true" /> {t('transparency.status.pending')}
+              </span>}
+          {entry.isOnChain ? (
+            <span className="text-[10px] font-bold text-sky-300">
+              {entry.blockchain || 'polygon'}{entry.direction ? ` · ${entry.direction}` : ''}
             </span>
-          : <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full">
-              <Clock className="w-3 h-3" aria-hidden="true" /> {t('transparency.status.pending')}
-            </span>}
+          ) : null}
+        </div>
       </td>
     </tr>
+  );
+}
+
+function TrackedWalletsPanel({ wallets }) {
+  if (!Array.isArray(wallets) || wallets.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 overflow-hidden">
+      <div className="px-6 py-4 border-b border-sky-500/10 bg-sky-500/5 flex items-center gap-2">
+        <Wallet className="w-4 h-4 text-sky-300" aria-hidden="true" />
+        <p className="text-xs font-black text-sky-300 uppercase tracking-widest">
+          Carteiras rastreadas
+        </p>
+        <span className="ml-auto text-[10px] text-slate-500">
+          {wallets.length} carteira{wallets.length > 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className="grid gap-4 p-6 md:grid-cols-2">
+        {wallets.map((wallet) => (
+          <div key={wallet.id || wallet.address} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-white">{wallet.label || 'Carteira'}</p>
+                <p className="mt-1 break-all font-mono text-[11px] text-slate-400">{wallet.address}</p>
+              </div>
+              <a
+                href={`${wallet.explorerBaseUrl || 'https://polygonscan.com/address'}/${wallet.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 rounded-lg bg-sky-500/10 p-2 text-sky-300 hover:bg-sky-500/20"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-widest">
+              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-300">{wallet.chain || 'polygon'}</span>
+              <span className="rounded-full bg-white/5 px-2 py-1 text-slate-400">{wallet.assetSymbol || 'POL'}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -412,6 +506,7 @@ export default function Transparency() {
   const { t } = useTranslation();
   const [entries, setEntries] = useState([]);
   const [trackedWallet, setTrackedWallet] = useState(null);
+  const [trackedWallets, setTrackedWallets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
@@ -427,6 +522,7 @@ export default function Transparency() {
         if (d.ok) {
           setEntries(d.entries);
           setTrackedWallet(typeof d.trackedWallet === 'string' && d.trackedWallet.startsWith('0x') ? d.trackedWallet : null);
+          setTrackedWallets(Array.isArray(d.trackedWallets) ? d.trackedWallets : []);
         } else setErr(t('transparency.loading_error'));
       })
       .catch(() => {
@@ -674,6 +770,7 @@ export default function Transparency() {
 
           {/* ── Investment wallet ──────────────────────────────────────── */}
           <InvestmentWallet resolvedAddress={trackedWallet || FALLBACK_INVESTMENT_WALLET} />
+          <TrackedWalletsPanel wallets={trackedWallets} />
 
           {/* ── Full expense breakdown ─────────────────────────────────── */}
           {expenses.length === 0 ? (

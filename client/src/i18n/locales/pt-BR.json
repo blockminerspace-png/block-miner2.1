@@ -1506,6 +1506,7 @@
     "max_rooms": "Você já desbloqueou todas as salas disponíveis.",
     "insufficient_balance": "Saldo insuficiente para desbloquear esta sala.",
     "install_success": "Máquina instalada com sucesso!",
+    "double_slot_row_edge": "Máquinas de 2 slots precisam começar antes do fim da linha. Use o slot anterior.",
     "remove_success": "Máquina removida do rack!",
     "load_error": "Erro ao carregar sala de mineração.",
     "modal": {
@@ -2148,7 +2149,7 @@
   },
   "minerGames": {
     "temporary_power_title": "Poder temporário dos jogos",
-    "temporary_power_tooltip": "Hash rate ganho nos minigames da Arena (Memory Sync, Power Match, Chain 2048). Expira após o tempo configurado e não substitui máquinas no rack.",
+    "temporary_power_tooltip": "Hash rate ganho nos minigames da Arena (Memory Sync, Power Match, Cart Rush, Chain 2048). Expira após o tempo configurado e não substitui máquinas no rack.",
     "permanent_power_label": "Permanente (rack)",
     "no_active_bonus": "Sem bônus ativo dos jogos",
     "breakdown_show": "Ver detalhes por jogo",
@@ -2173,6 +2174,8 @@
     "memory_sync_desc": "Combine pares de moedas em alta velocidade.",
     "power_match_title": "Power Match",
     "power_match_desc": "Gere cascatas de energia minerando ativos.",
+    "cart_rush_title": "Cart Rush",
+    "cart_rush_desc": "Controle o carrinho, colete moedas e desvie dos blocos quebrados.",
     "cooldown_label": "Espera: {{seconds}}s",
     "cta_start": "Iniciar link",
     "time_value_seconds": "{{seconds}}s",
@@ -2185,7 +2188,8 @@
     },
     "game_finish": {
       "anti_cheat_timing": "Ação suspeita detectada: tempo de jogo irreal.",
-      "session_ended": "Sessão encerrada."
+      "session_ended": "Sessão encerrada.",
+      "cart_crashed": "O carrinho bateu antes de alcançar a pontuação-alvo."
     },
     "game_reward": {
       "full_term": "Bônus de +50 H/s ativo por {{days}} dias!",
@@ -2524,6 +2528,7 @@
     "col_event": "Evento",
     "col_user": "Utilizador",
     "col_ip": "IP / impressão digital",
+    "col_details": "Detalhes",
     "load_error": "Não foi possível carregar os logs.",
     "empty_none": "Ainda não há registos.",
     "empty_filter": "Nenhum registo corresponde ao filtro."

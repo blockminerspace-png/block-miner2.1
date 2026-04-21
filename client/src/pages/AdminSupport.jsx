@@ -290,9 +290,9 @@ export default function AdminSupport() {
         </button>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-6 min-h-[min(360px,calc(100dvh-11rem))] h-[calc(100dvh-11rem)] max-h-[calc(100dvh-11rem)] lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)]">
-        <div className="lg:col-span-4 flex min-h-0 flex-col space-y-4 overflow-hidden max-lg:max-h-[min(40vh,320px)] max-lg:shrink-0">
-          <div className="flex gap-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-4 min-h-[min(420px,calc(100dvh-8rem))] h-[calc(100dvh-8rem)] max-h-[calc(100dvh-8rem)] xl:grid-cols-[400px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:gap-6">
+        <div className="flex min-h-0 flex-col space-y-4 overflow-hidden max-xl:max-h-[min(38vh,340px)] max-xl:shrink-0">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input
@@ -306,7 +306,7 @@ export default function AdminSupport() {
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="bg-slate-900 border border-slate-800 rounded-xl px-3 text-xs text-slate-300 focus:outline-none"
+              className="h-12 bg-slate-900 border border-slate-800 rounded-xl px-3 text-xs text-slate-300 focus:outline-none"
             >
               <option value="all">{t('admin_support.filter_all')}</option>
               <option value="unread">{t('admin_support.filter_unread')}</option>
@@ -315,7 +315,7 @@ export default function AdminSupport() {
             </select>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-slate-800">
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-800">
             {loading && messages.length === 0 ? (
               [...Array(5)].map((_, i) => (
                 <div key={i} className="h-20 bg-slate-900/50 rounded-2xl animate-pulse" />
@@ -328,9 +328,9 @@ export default function AdminSupport() {
                   key={msg.id}
                   type="button"
                   onClick={() => selectMessage(msg)}
-                  className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${
+                  className={`w-full text-left p-4 rounded-3xl border transition-all duration-300 ${
                     selectedMessage?.id === msg.id
-                      ? 'bg-amber-500/10 border-amber-500/30'
+                      ? 'bg-amber-500/10 border-amber-500/30 shadow-lg shadow-amber-500/5'
                       : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
                   }`}
                 >
@@ -368,14 +368,14 @@ export default function AdminSupport() {
           )}
         </div>
 
-        <div className="lg:col-span-8 flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/50 max-lg:min-h-[min(50vh,480px)]">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-[2rem] border border-slate-800 bg-slate-950/50 max-xl:min-h-[min(56vh,620px)]">
           {loadingDetails ? (
             <div className="flex-1 flex items-center justify-center">
               <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
             </div>
           ) : selectedMessage ? (
-            <div className="flex-1 flex flex-col min-h-0 p-8 overflow-hidden gap-6">
-              <div className="flex justify-between items-start border-b border-slate-800 pb-6 shrink-0">
+            <div className="flex-1 flex flex-col min-h-0 p-5 sm:p-6 xl:p-8 overflow-hidden gap-6">
+              <div className="flex flex-col gap-4 border-b border-slate-800 pb-6 shrink-0 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-1">
                   <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">
                     {selectedMessage.subject}
@@ -406,7 +406,7 @@ export default function AdminSupport() {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain space-y-6 pr-4 scrollbar-thin scrollbar-thumb-slate-800">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain space-y-6 pr-2 sm:pr-3 xl:pr-4 scrollbar-thin scrollbar-thumb-slate-800">
                 <AdminSupportPlayerDossier
                   bundle={dossierBundle}
                   loading={dossierLoading}
@@ -417,18 +417,18 @@ export default function AdminSupport() {
                     if (selectedMessage?.id) setDossierParams((p) => ({ ...p }));
                   }}
                 />
-                <div className="rounded-3xl border border-slate-800/50 bg-slate-900/30 p-4 sm:p-5">
+                <div className="rounded-3xl border border-slate-800/50 bg-slate-900/30 p-4 sm:p-5 xl:p-6">
                   <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase text-slate-500">
                     <User className="h-3 w-3" /> {t('admin_support.label_user')}
                   </div>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-6">
-                    <div className="min-w-0 flex-1 rounded-xl border border-slate-800/40 bg-slate-950/30 p-4">
-                      <p className="break-words whitespace-pre-wrap text-base leading-7 text-slate-300">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:gap-6">
+                    <div className="min-w-0 flex-1 rounded-2xl border border-slate-800/40 bg-slate-950/30 p-4 xl:p-5">
+                      <p className="break-words whitespace-pre-wrap text-sm leading-7 text-slate-300 sm:text-base">
                         {selectedMessage.body ?? selectedMessage.message}
                       </p>
                     </div>
                     {selectedMessage.attachments?.length ? (
-                      <div className="shrink-0 lg:max-w-[min(100%,26rem)] lg:border-l lg:border-slate-800/50 lg:pl-6">
+                      <div className="shrink-0 xl:max-w-[min(100%,28rem)] xl:border-l xl:border-slate-800/50 xl:pl-6">
                         <SupportAttachmentThumbnails
                           attachments={selectedMessage.attachments}
                           variant="adminStrip"
@@ -440,7 +440,7 @@ export default function AdminSupport() {
 
                 {selectedMessage.reply &&
                   (!selectedMessage.replies || selectedMessage.replies.length === 0) && (
-                    <div className="bg-amber-500/5 p-6 rounded-3xl border border-amber-500/20 relative ml-8">
+                    <div className="bg-amber-500/5 p-4 sm:p-6 rounded-3xl border border-amber-500/20 relative sm:ml-8">
                       <div className="absolute -top-3 left-6 bg-amber-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase italic">
                         {t('admin_support.legacy_reply')}
                       </div>
@@ -453,10 +453,10 @@ export default function AdminSupport() {
                 {selectedMessage.replies?.map((r) => (
                   <div
                     key={r.id}
-                    className={`p-6 rounded-3xl border relative ${
+                    className={`p-4 sm:p-5 xl:p-6 rounded-3xl border relative ${
                       r.isAdmin
-                        ? 'bg-amber-500/5 border-amber-500/20 ml-8'
-                        : 'bg-slate-900/30 border-slate-800/50 mr-8'
+                        ? 'bg-amber-500/5 border-amber-500/20 sm:ml-8'
+                        : 'bg-slate-900/30 border-slate-800/50 sm:mr-8'
                     }`}
                   >
                     <div
@@ -470,7 +470,7 @@ export default function AdminSupport() {
                         {new Date(r.createdAt).toLocaleString()}
                       </span>
                     </div>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-stretch md:gap-4">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-stretch xl:gap-4">
                       <div className="min-w-0 flex-1 rounded-xl border border-slate-800/30 bg-slate-950/20 p-3 md:p-4">
                         <p
                           className={`whitespace-pre-wrap leading-relaxed ${
@@ -481,7 +481,7 @@ export default function AdminSupport() {
                         </p>
                       </div>
                       {r.attachments?.length ? (
-                        <div className="shrink-0 md:max-w-[min(100%,22rem)] md:border-l md:border-slate-700/40 md:pl-4">
+                        <div className="shrink-0 xl:max-w-[min(100%,24rem)] xl:border-l xl:border-slate-700/40 xl:pl-4">
                           <SupportAttachmentThumbnails attachments={r.attachments} variant="adminStrip" />
                         </div>
                       ) : null}
@@ -537,7 +537,7 @@ export default function AdminSupport() {
                         ))}
                       </div>
                     )}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-bold text-slate-300 hover:border-amber-500/40">
                         <ImagePlus className="h-4 w-4" />
                         {t('admin_support.add_images')}
@@ -553,7 +553,7 @@ export default function AdminSupport() {
                         type="button"
                         onClick={handleReply}
                         disabled={sendingReply || (!reply.trim() && replyFiles.length === 0)}
-                        className="flex h-12 min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-xs font-black uppercase tracking-[0.2em] text-white italic transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                        className="flex h-12 min-w-[140px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 text-xs font-black uppercase tracking-[0.2em] text-white italic transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 sm:flex-1"
                       >
                         {sendingReply ? (
                           <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />

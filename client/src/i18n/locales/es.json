@@ -1139,6 +1139,7 @@
     "max_rooms": "Ya has desbloqueado todas las salas disponibles.",
     "insufficient_balance": "Saldo insuficiente para desbloquear esta sala.",
     "install_success": "¡Máquina instalada con éxito!",
+    "double_slot_row_edge": "Las máquinas de 2 espacios deben comenzar antes del borde de la fila. Usa el slot anterior.",
     "remove_success": "¡Máquina retirada del rack!",
     "load_error": "Error al cargar la sala de minería.",
     "modal": {
@@ -1777,7 +1778,7 @@
   },
   "minerGames": {
     "temporary_power_title": "Poder temporal de los juegos",
-    "temporary_power_tooltip": "Hash rate ganado en los minijuegos de la Arena (Memory Sync, Power Match, Chain 2048). Caduca tras el tiempo configurado y no sustituye las máquinas en el rack.",
+    "temporary_power_tooltip": "Hash rate ganado en los minijuegos de la Arena (Memory Sync, Power Match, Cart Rush, Chain 2048). Caduca tras el tiempo configurado y no sustituye las máquinas en el rack.",
     "permanent_power_label": "Permanente (rack)",
     "no_active_bonus": "Sin bonificación activa de juegos",
     "breakdown_show": "Ver desglose por juego",
@@ -1802,6 +1803,8 @@
     "memory_sync_desc": "Empareja monedas a alta velocidad.",
     "power_match_title": "Power Match",
     "power_match_desc": "Encadena cascadas intercambiando fichas adyacentes.",
+    "cart_rush_title": "Cart Rush",
+    "cart_rush_desc": "Conduce el carrito, recoge monedas y esquiva bloques rotos.",
     "cooldown_label": "Enfriamiento: {{seconds}}s",
     "cta_start": "Iniciar enlace",
     "time_value_seconds": "{{seconds}}s",
@@ -1814,7 +1817,8 @@
     },
     "game_finish": {
       "anti_cheat_timing": "Acción sospechosa: el tiempo de juego no es realista.",
-      "session_ended": "Sesión finalizada."
+      "session_ended": "Sesión finalizada.",
+      "cart_crashed": "El carrito chocó antes de alcanzar la puntuación objetivo."
     },
     "game_reward": {
       "full_term": "¡Bono de +50 H/s activo durante {{days}} días!",
@@ -2370,6 +2374,7 @@
     "col_event": "Evento",
     "col_user": "Usuario",
     "col_ip": "IP / huella",
+    "col_details": "Detalles",
     "load_error": "No se pudieron cargar los registros.",
     "empty_none": "Aún no hay entradas.",
     "empty_filter": "Ninguna entrada coincide con el filtro."

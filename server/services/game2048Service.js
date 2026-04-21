@@ -584,7 +584,7 @@ export async function claimGame2048Reward(userId, sessionId, meta = {}, now = ne
     await tx.auditLog.create({
       data: {
         userId,
-        action: "game2048_claim",
+        action: "GAME2048_CLAIM",
         ip: meta.ip ? String(meta.ip).slice(0, 64) : null,
         userAgent: meta.userAgent ? String(meta.userAgent).slice(0, 512) : null,
         detailsJson: JSON.stringify({

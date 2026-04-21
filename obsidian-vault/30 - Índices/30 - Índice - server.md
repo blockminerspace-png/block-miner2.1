@@ -1,0 +1,406 @@
+# Índice server
+
+Total de arquivos nesta área: `400`
+
+## Arquivos
+
+- [[20 - Arquivos/server/controllers/adminAuditController.js|server/controllers/adminAuditController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminAuthController.js|server/controllers/adminAuthController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminCheckinMilestoneController.js|server/controllers/adminCheckinMilestoneController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminController.js|server/controllers/adminController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminDailyTasksController.js|server/controllers/adminDailyTasksController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminInternalOfferwallController.js|server/controllers/adminInternalOfferwallController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminMiniPassController.js|server/controllers/adminMiniPassController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminOfferEventController.js|server/controllers/adminOfferEventController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminReadEarnController.js|server/controllers/adminReadEarnController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminSupportController.js|server/controllers/adminSupportController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminUserInsightsController.js|server/controllers/adminUserInsightsController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminWithdrawalTelegramController.js|server/controllers/adminWithdrawalTelegramController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/adminYoutubeStreamController.js|server/controllers/adminYoutubeStreamController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/autoMiningGpuController.js|server/controllers/autoMiningGpuController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/autoMiningRewardsController.js|server/controllers/autoMiningRewardsController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/autoMiningV2Controller.js|server/controllers/autoMiningV2Controller.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/bannerController.js|server/controllers/bannerController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/blkWalletController.js|server/controllers/blkWalletController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/btcpayDepositController.js|server/controllers/btcpayDepositController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/btcpayWebhookController.js|server/controllers/btcpayWebhookController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/chatController.js|server/controllers/chatController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/checkinController.js|server/controllers/checkinController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/creatorController.js|server/controllers/creatorController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/dailyTasksController.js|server/controllers/dailyTasksController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/database/serverDatabaseController.js|server/controllers/database/serverDatabaseController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/depositTicketController.js|server/controllers/depositTicketController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/faucetController.js|server/controllers/faucetController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/game2048Controller.js|server/controllers/game2048Controller.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/gamesPowerController.js|server/controllers/gamesPowerController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/healthController.js|server/controllers/healthController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/internalOfferwallController.js|server/controllers/internalOfferwallController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/inventoryController.js|server/controllers/inventoryController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/machinesController.js|server/controllers/machinesController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/miningController.js|server/controllers/miningController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/miniPassController.js|server/controllers/miniPassController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/notificationController.js|server/controllers/notificationController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/offerEventController.js|server/controllers/offerEventController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/powerStatsController.js|server/controllers/powerStatsController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/ptpController.js|server/controllers/ptpController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/publicLiveStatsController.js|server/controllers/publicLiveStatsController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/racksController.js|server/controllers/racksController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/readEarnController.js|server/controllers/readEarnController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/roomsController.js|server/controllers/roomsController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/sessionController.js|server/controllers/sessionController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/shopController.js|server/controllers/shopController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/shortlinkController.js|server/controllers/shortlinkController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/sidebarNavController.js|server/controllers/sidebarNavController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/supportController.js|server/controllers/supportController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/swapController.js|server/controllers/swapController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/transparencyController.js|server/controllers/transparencyController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/userController.js|server/controllers/userController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/vaultController.js|server/controllers/vaultController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/walletController.js|server/controllers/walletController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/controllers/youtubeController.js|server/controllers/youtubeController.js]] | backend | JavaScript | Orquestra request/response e chama serviços.
+- [[20 - Arquivos/server/cron/autoMiningGpuCron.js|server/cron/autoMiningGpuCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/backupCron.js|server/cron/backupCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/blkRewardCycleCron.js|server/cron/blkRewardCycleCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/callbackQueueCron.js|server/cron/callbackQueueCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/checkinPendingCron.js|server/cron/checkinPendingCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/cronActionRunner.js|server/cron/cronActionRunner.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/depositsCron.js|server/cron/depositsCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/gamePowerCleanup.js|server/cron/gamePowerCleanup.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/index.js|server/cron/index.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/miningCron.js|server/cron/miningCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/offerEventsExpireCron.js|server/cron/offerEventsExpireCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/securityArtifactCleanupCron.js|server/cron/securityArtifactCleanupCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/shortlinkResetCron.js|server/cron/shortlinkResetCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/cron/withdrawalsCron.js|server/cron/withdrawalsCron.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-13.log|server/logs/error-2026-03-13.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-15.log|server/logs/error-2026-03-15.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-16.log|server/logs/error-2026-03-16.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-17.log|server/logs/error-2026-03-17.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-18.log|server/logs/error-2026-03-18.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-19.log|server/logs/error-2026-03-19.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-23.log|server/logs/error-2026-03-23.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-24.log|server/logs/error-2026-03-24.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-25.log|server/logs/error-2026-03-25.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-26.log|server/logs/error-2026-03-26.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-28.log|server/logs/error-2026-03-28.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-29.log|server/logs/error-2026-03-29.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-03-31.log|server/logs/error-2026-03-31.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-02.log|server/logs/error-2026-04-02.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-03.log|server/logs/error-2026-04-03.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-04.log|server/logs/error-2026-04-04.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-08.log|server/logs/error-2026-04-08.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-09.log|server/logs/error-2026-04-09.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-10.log|server/logs/error-2026-04-10.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-11.log|server/logs/error-2026-04-11.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-12.log|server/logs/error-2026-04-12.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-13.log|server/logs/error-2026-04-13.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-16.log|server/logs/error-2026-04-16.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-17.log|server/logs/error-2026-04-17.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/error-2026-04-21.log|server/logs/error-2026-04-21.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-13.log|server/logs/info-2026-03-13.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-15.log|server/logs/info-2026-03-15.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-16.log|server/logs/info-2026-03-16.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-17.log|server/logs/info-2026-03-17.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-18.log|server/logs/info-2026-03-18.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-19.log|server/logs/info-2026-03-19.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-23.log|server/logs/info-2026-03-23.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-24.log|server/logs/info-2026-03-24.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-28.log|server/logs/info-2026-03-28.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-03-31.log|server/logs/info-2026-03-31.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-03.log|server/logs/info-2026-04-03.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-04.log|server/logs/info-2026-04-04.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-08.log|server/logs/info-2026-04-08.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-09.log|server/logs/info-2026-04-09.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-10.log|server/logs/info-2026-04-10.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-11.log|server/logs/info-2026-04-11.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-12.log|server/logs/info-2026-04-12.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-13.log|server/logs/info-2026-04-13.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-14.log|server/logs/info-2026-04-14.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-17.log|server/logs/info-2026-04-17.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/info-2026-04-21.log|server/logs/info-2026-04-21.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-15.log|server/logs/warn-2026-03-15.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-16.log|server/logs/warn-2026-03-16.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-18.log|server/logs/warn-2026-03-18.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-19.log|server/logs/warn-2026-03-19.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-24.log|server/logs/warn-2026-03-24.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-25.log|server/logs/warn-2026-03-25.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-26.log|server/logs/warn-2026-03-26.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-28.log|server/logs/warn-2026-03-28.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-29.log|server/logs/warn-2026-03-29.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-03-31.log|server/logs/warn-2026-03-31.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-03.log|server/logs/warn-2026-04-03.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-04.log|server/logs/warn-2026-04-04.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-08.log|server/logs/warn-2026-04-08.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-09.log|server/logs/warn-2026-04-09.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-10.log|server/logs/warn-2026-04-10.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-11.log|server/logs/warn-2026-04-11.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-12.log|server/logs/warn-2026-04-12.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-13.log|server/logs/warn-2026-04-13.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-14.log|server/logs/warn-2026-04-14.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/logs/warn-2026-04-17.log|server/logs/warn-2026-04-17.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/middleware/admin.js|server/middleware/admin.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/adminAuth.js|server/middleware/adminAuth.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/adminPageAuth.js|server/middleware/adminPageAuth.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/auth.js|server/middleware/auth.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/criticalIdempotency.js|server/middleware/criticalIdempotency.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/csp.js|server/middleware/csp.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/csrf.js|server/middleware/csrf.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/distributedRateLimit.js|server/middleware/distributedRateLimit.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/httpRequestLogger.js|server/middleware/httpRequestLogger.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/httpsEnforcement.js|server/middleware/httpsEnforcement.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/rateLimit.js|server/middleware/rateLimit.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/sidebarFeatureGate.js|server/middleware/sidebarFeatureGate.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/turnstile.js|server/middleware/turnstile.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/userActivityAudit.js|server/middleware/userActivityAudit.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/middleware/validate.js|server/middleware/validate.js]] | backend | JavaScript | Intercepta fluxo HTTP/socket para validação, segurança ou auditoria.
+- [[20 - Arquivos/server/models/auditLogModel.js|server/models/auditLogModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/autoMiningGpuModel.js|server/models/autoMiningGpuModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/autoMiningRewardsModel.js|server/models/autoMiningRewardsModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/blkEconomyModel.js|server/models/blkEconomyModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/blkWalletModel.js|server/models/blkWalletModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/database/serverDatabaseModel.js|server/models/database/serverDatabaseModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/db.js|server/models/db.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/inventoryModel.js|server/models/inventoryModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/machineModel.js|server/models/machineModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/minerProfileModel.js|server/models/minerProfileModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/minersModel.js|server/models/minersModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/rackModel.js|server/models/rackModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/referralModel.js|server/models/referralModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/refreshTokenModel.js|server/models/refreshTokenModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/shortlinkModel.js|server/models/shortlinkModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/shortlinkRewardModel.js|server/models/shortlinkRewardModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/userModel.js|server/models/userModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/vaultModel.js|server/models/vaultModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/models/walletModel.js|server/models/walletModel.js]] | backend | JavaScript | Camada de acesso e modelagem de dados.
+- [[20 - Arquivos/server/phdServer.js|server/phdServer.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/prisma/migrations/20260402180000_offer_events/migration.sql|server/prisma/migrations/20260402180000_offer_events/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260407120000_blk_currency/migration.sql|server/prisma/migrations/20260407120000_blk_currency/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260408130000_blk_non_withdrawable/migration.sql|server/prisma/migrations/20260408130000_blk_non_withdrawable/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260408140000_blk_time_rewards/migration.sql|server/prisma/migrations/20260408140000_blk_time_rewards/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260408200000_mining_payout_mode/migration.sql|server/prisma/migrations/20260408200000_mining_payout_mode/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260408210000_mining_payout_pol_or_blk_only/migration.sql|server/prisma/migrations/20260408210000_mining_payout_pol_or_blk_only/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260409120000_auto_mining_v2/migration.sql|server/prisma/migrations/20260409120000_auto_mining_v2/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260409140000_ccpayment_deposit_events/migration.sql|server/prisma/migrations/20260409140000_ccpayment_deposit_events/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260410000000_add_user_rooms_and_racks/migration.sql|server/prisma/migrations/20260410000000_add_user_rooms_and_racks/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260410120000_read_earn_campaigns/migration.sql|server/prisma/migrations/20260410120000_read_earn_campaigns/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260410190000_mini_pass/migration.sql|server/prisma/migrations/20260410190000_mini_pass/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260410200000_daily_tasks/migration.sql|server/prisma/migrations/20260410200000_daily_tasks/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260411120000_sidebar_nav_config/migration.sql|server/prisma/migrations/20260411120000_sidebar_nav_config/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260412140000_minigame_sessions/migration.sql|server/prisma/migrations/20260412140000_minigame_sessions/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260412190000_game2048_drop_minigame_sessions/migration.sql|server/prisma/migrations/20260412190000_game2048_drop_minigame_sessions/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260415000000_add_transparency_entries/migration.sql|server/prisma/migrations/20260415000000_add_transparency_entries/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260415100000_transparency_income_image/migration.sql|server/prisma/migrations/20260415100000_transparency_income_image/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260415110000_checkin_streak_milestones/migration.sql|server/prisma/migrations/20260415110000_checkin_streak_milestones/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260415120000_daily_tasks_reset_cadence/migration.sql|server/prisma/migrations/20260415120000_daily_tasks_reset_cadence/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260416103000_daily_checkins_ensure_columns/migration.sql|server/prisma/migrations/20260416103000_daily_checkins_ensure_columns/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260416180000_polygon_hd_addresses/migration.sql|server/prisma/migrations/20260416180000_polygon_hd_addresses/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260416200000_polygon_hd_incoming_scan_cursor/migration.sql|server/prisma/migrations/20260416200000_polygon_hd_incoming_scan_cursor/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260417100000_internal_offerwall/migration.sql|server/prisma/migrations/20260417100000_internal_offerwall/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260417120000_transparency_wallet_settings/migration.sql|server/prisma/migrations/20260417120000_transparency_wallet_settings/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260417130000_transactions_deposit_txhash_unique/migration.sql|server/prisma/migrations/20260417130000_transactions_deposit_txhash_unique/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260418100000_streaming_and_task_metadata/migration.sql|server/prisma/migrations/20260418100000_streaming_and_task_metadata/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260419100000_user_owned_machines/migration.sql|server/prisma/migrations/20260419100000_user_owned_machines/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260420120000_internal_offerwall_frame_hosts/migration.sql|server/prisma/migrations/20260420120000_internal_offerwall_frame_hosts/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260421120000_internal_offerwall_partner_opened_at/migration.sql|server/prisma/migrations/20260421120000_internal_offerwall_partner_opened_at/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260422120000_periodic_checkins/migration.sql|server/prisma/migrations/20260422120000_periodic_checkins/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260423120000_withdrawal_telegram_settings/migration.sql|server/prisma/migrations/20260423120000_withdrawal_telegram_settings/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/20260423140000_transparency_wallets_and_metadata/migration.sql|server/prisma/migrations/20260423140000_transparency_wallets_and_metadata/migration.sql]] | backend | SQL | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/migrations/migration_lock.toml|server/prisma/migrations/migration_lock.toml]] | backend | TOML | Migração de banco de dados Prisma.
+- [[20 - Arquivos/server/prisma/schema_minimal.prisma|server/prisma/schema_minimal.prisma]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/prisma/schema.prisma|server/prisma/schema.prisma]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/prisma/seed.js|server/prisma/seed.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/routes/admin-auth.js|server/routes/admin-auth.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/admin-auto-mining-rewards.js|server/routes/admin-auto-mining-rewards.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/admin-logs.js|server/routes/admin-logs.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/admin-mini-pass.js|server/routes/admin-mini-pass.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/admin-offer-events.js|server/routes/admin-offer-events.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/admin-youtube-stream.js|server/routes/admin-youtube-stream.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/admin.js|server/routes/admin.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/auth.js|server/routes/auth.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/auto-mining-gpu.js|server/routes/auto-mining-gpu.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/broadcast.js|server/routes/broadcast.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/chat.js|server/routes/chat.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/checkin.js|server/routes/checkin.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/daily-tasks.js|server/routes/daily-tasks.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/deposit-tickets.js|server/routes/deposit-tickets.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/faucet.js|server/routes/faucet.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/game2048.routes.js|server/routes/game2048.routes.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/games.js|server/routes/games.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/internal-offerwall.js|server/routes/internal-offerwall.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/inventory.js|server/routes/inventory.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/machines.js|server/routes/machines.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/mini-pass.js|server/routes/mini-pass.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/mining.js|server/routes/mining.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/notification.js|server/routes/notification.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/offer-events.js|server/routes/offer-events.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/ptp.js|server/routes/ptp.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/racks.js|server/routes/racks.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/ranking.js|server/routes/ranking.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/read-earn.js|server/routes/read-earn.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/rooms.js|server/routes/rooms.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/session.js|server/routes/session.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/shop.js|server/routes/shop.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/shortlink.js|server/routes/shortlink.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/sidebar-nav.js|server/routes/sidebar-nav.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/stats.js|server/routes/stats.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/support.js|server/routes/support.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/swap.js|server/routes/swap.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/user.js|server/routes/user.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/vault.js|server/routes/vault.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/wallet.js|server/routes/wallet.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/routes/youtube.js|server/routes/youtube.js]] | backend | JavaScript | Define endpoints e entrada HTTP.
+- [[20 - Arquivos/server/scripts/global_rescue.js|server/scripts/global_rescue.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/server.js|server/server.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/services/accountLockoutService.js|server/services/accountLockoutService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/adminAccountCollisionService.js|server/services/adminAccountCollisionService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/adminAuditListService.js|server/services/adminAuditListService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/adminFraudSignalsService.js|server/services/adminFraudSignalsService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/autoMiningV2/autoMiningV2DbAvailability.js|server/services/autoMiningV2/autoMiningV2DbAvailability.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/autoMiningV2/autoMiningV2Domain.js|server/services/autoMiningV2/autoMiningV2Domain.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/autoMiningV2/autoMiningV2Service.js|server/services/autoMiningV2/autoMiningV2Service.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/blkRewardDistributionService.js|server/services/blkRewardDistributionService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/blockMinerDepositAbi.js|server/services/blockMinerDepositAbi.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/btcpayService.js|server/services/btcpayService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/checkinChain.js|server/services/checkinChain.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/checkinMilestoneService.js|server/services/checkinMilestoneService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/contractDepositLog.js|server/services/contractDepositLog.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/contractDepositSync.js|server/services/contractDepositSync.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/dailyTasks/dailyTaskClaimService.js|server/services/dailyTasks/dailyTaskClaimService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/dailyTasks/dailyTaskConstants.js|server/services/dailyTasks/dailyTaskConstants.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/dailyTasks/dailyTaskDashboardService.js|server/services/dailyTasks/dailyTaskDashboardService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/dailyTasks/dailyTaskDefinitionAdminValidation.js|server/services/dailyTasks/dailyTaskDefinitionAdminValidation.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/dailyTasks/dailyTaskHookService.js|server/services/dailyTasks/dailyTaskHookService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/dailyTasks/dailyTaskPeriod.js|server/services/dailyTasks/dailyTaskPeriod.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/dailyTasks/dailyTaskProgressService.js|server/services/dailyTasks/dailyTaskProgressService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/databaseBackupService.js|server/services/databaseBackupService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/depositVerifier.js|server/services/depositVerifier.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/distributedLockService.js|server/services/distributedLockService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/emailTwoFactorService.js|server/services/emailTwoFactorService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/game2048Engine.js|server/services/game2048Engine.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/game2048Service.js|server/services/game2048Service.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/idempotencyService.js|server/services/idempotencyService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/buildUserAuditSnapshot.js|server/services/internalOfferwall/buildUserAuditSnapshot.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/grantInternalOfferwallReward.js|server/services/internalOfferwall/grantInternalOfferwallReward.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/iframeHostAllowlistCache.js|server/services/internalOfferwall/iframeHostAllowlistCache.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/internalOfferwallCompletionWebhook.js|server/services/internalOfferwall/internalOfferwallCompletionWebhook.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/internalOfferwallConstants.js|server/services/internalOfferwall/internalOfferwallConstants.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/internalOfferwallFeature.js|server/services/internalOfferwall/internalOfferwallFeature.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/internalOfferwallLimitState.js|server/services/internalOfferwall/internalOfferwallLimitState.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/internalOfferwallMinView.js|server/services/internalOfferwall/internalOfferwallMinView.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/internalOfferwallService.js|server/services/internalOfferwall/internalOfferwallService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/internalOfferwallTaskMetadata.js|server/services/internalOfferwall/internalOfferwallTaskMetadata.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/internalOfferwall/validateIframeUrl.js|server/services/internalOfferwall/validateIframeUrl.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassAdminValidation.js|server/services/miniPass/miniPassAdminValidation.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassClaimService.js|server/services/miniPass/miniPassClaimService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassConstants.js|server/services/miniPass/miniPassConstants.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassDashboardService.js|server/services/miniPass/miniPassDashboardService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassI18n.js|server/services/miniPass/miniPassI18n.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassLevelMath.js|server/services/miniPass/miniPassLevelMath.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassMissionHookService.js|server/services/miniPass/miniPassMissionHookService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassPeriod.js|server/services/miniPass/miniPassPeriod.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassPurchaseService.js|server/services/miniPass/miniPassPurchaseService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassRewardFulfillmentService.js|server/services/miniPass/miniPassRewardFulfillmentService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassSeasonLive.js|server/services/miniPass/miniPassSeasonLive.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/miniPass/miniPassXpService.js|server/services/miniPass/miniPassXpService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/networkHashrateService.js|server/services/networkHashrateService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/offerEventHelpers.js|server/services/offerEventHelpers.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/offerEventPurchaseService.js|server/services/offerEventPurchaseService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/polygonDepositConfig.js|server/services/polygonDepositConfig.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/polygonHdConfig.js|server/services/polygonHdConfig.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/polygonHdDepositScanner.js|server/services/polygonHdDepositScanner.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/polygonHdSweep.js|server/services/polygonHdSweep.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/polygonHdWallet.js|server/services/polygonHdWallet.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/polygonProvider.js|server/services/polygonProvider.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/publicLiveStatsService.js|server/services/publicLiveStatsService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/readEarnService.js|server/services/readEarnService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/redisClient.js|server/services/redisClient.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/shopIdempotencyStore.js|server/services/shopIdempotencyStore.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/sidebarNavRegistry.js|server/services/sidebarNavRegistry.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/sidebarNavService.js|server/services/sidebarNavService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/slidingWindowRateLimit.js|server/services/slidingWindowRateLimit.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/streaming/liveRtmpPipeline.js|server/services/streaming/liveRtmpPipeline.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/streaming/streamAdminValidation.js|server/services/streaming/streamAdminValidation.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/streaming/streamEnvCheck.js|server/services/streaming/streamEnvCheck.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/streaming/streamRestartPolicy.js|server/services/streaming/streamRestartPolicy.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/streaming/streamRunner.js|server/services/streaming/streamRunner.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/streaming/streamSecrets.js|server/services/streaming/streamSecrets.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/streaming/youtubeStreamService.js|server/services/streaming/youtubeStreamService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/supportPlayerDossierService.js|server/services/supportPlayerDossierService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/supportRealtime.js|server/services/supportRealtime.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/supportTicketService.js|server/services/supportTicketService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/transparencyWalletService.js|server/services/transparencyWalletService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/userOwnedMachineService.js|server/services/userOwnedMachineService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/services/withdrawalTelegramService.js|server/services/withdrawalTelegramService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/src/audit/constants.js|server/src/audit/constants.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/index.js|server/src/audit/index.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/middleware.js|server/src/audit/middleware.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/query/filters.js|server/src/audit/query/filters.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/query/pagination.js|server/src/audit/query/pagination.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/query/repository.js|server/src/audit/query/repository.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/query/service.js|server/src/audit/query/service.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/repository.js|server/src/audit/repository.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/schemas.js|server/src/audit/schemas.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/service.js|server/src/audit/service.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/utils.js|server/src/audit/utils.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/audit/worker.js|server/src/audit/worker.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/bootstrap/ensureFaucetReward.js|server/src/bootstrap/ensureFaucetReward.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/config/index.js|server/src/config/index.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/db/database.sql|server/src/db/database.sql]] | backend | SQL | Arquivo do projeto.
+- [[20 - Arquivos/server/src/db/prisma.js|server/src/db/prisma.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/db/prismaNamespace.js|server/src/db/prismaNamespace.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/db/sqlite.js|server/src/db/sqlite.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/miningEngine.js|server/src/miningEngine.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/miningEngineInstance.js|server/src/miningEngineInstance.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/runtime/miningRuntime.js|server/src/runtime/miningRuntime.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/services/publicStateService.js|server/src/services/publicStateService.js]] | backend | JavaScript | Implementa regra de negócio e integrações.
+- [[20 - Arquivos/server/src/socket/registerGamesSocketHandlers.js|server/src/socket/registerGamesSocketHandlers.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/socket/registerMinerSocketHandlers.js|server/src/socket/registerMinerSocketHandlers.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/socket/registerSupportSocketHandlers.js|server/src/socket/registerSupportSocketHandlers.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/src/wallet/autoWithdraw.js|server/src/wallet/autoWithdraw.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/audit/.gitkeep|server/storage/logs/audit/.gitkeep]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/critical/.gitkeep|server/storage/logs/critical/.gitkeep]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/critical/error.log|server/storage/logs/critical/error.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/critical/warn.log|server/storage/logs/critical/warn.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/general/.gitkeep|server/storage/logs/general/.gitkeep]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/general/info.log|server/storage/logs/general/info.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/security/.gitkeep|server/storage/logs/security/.gitkeep]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/security/warn.log|server/storage/logs/security/warn.log]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/logs/transactions/.gitkeep|server/storage/logs/transactions/.gitkeep]] | backend | Arquivo | Arquivo do projeto.
+- [[20 - Arquivos/server/storage/README.md|server/storage/README.md]] | backend | Markdown | Documento descritivo ou operacional.
+- [[20 - Arquivos/server/test_db.js|server/test_db.js]] | backend | JavaScript | Arquivo do projeto.
+- [[20 - Arquivos/server/utils/adminPasswordResetPolicy.js|server/utils/adminPasswordResetPolicy.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/authTokens.js|server/utils/authTokens.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/autoMiningGpuUtils.js|server/utils/autoMiningGpuUtils.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/backup.js|server/utils/backup.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/checkinDate.js|server/utils/checkinDate.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/checkinStreak.js|server/utils/checkinStreak.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/clientIp.js|server/utils/clientIp.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/corsConfig.js|server/utils/corsConfig.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/criticalMutationIdempotency.js|server/utils/criticalMutationIdempotency.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/cryptoPrice.js|server/utils/cryptoPrice.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/game2048Constants.js|server/utils/game2048Constants.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/logger.js|server/utils/logger.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/logParser.js|server/utils/logParser.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/machineInstanceState.js|server/utils/machineInstanceState.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/mailer.js|server/utils/mailer.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/memoryGameConstants.js|server/utils/memoryGameConstants.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/minerUtils.js|server/utils/minerUtils.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/miningRewardsLogger.js|server/utils/miningRewardsLogger.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/nonceManager.js|server/utils/nonceManager.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/normalizeIdempotencyKey.js|server/utils/normalizeIdempotencyKey.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/pgAdvisoryLocks.js|server/utils/pgAdvisoryLocks.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/rackMinerRelease.js|server/utils/rackMinerRelease.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/readEarnConstants.js|server/utils/readEarnConstants.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/readEarnSchemas.js|server/utils/readEarnSchemas.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/requestPublicOrigin.js|server/utils/requestPublicOrigin.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/rpcClient.js|server/utils/rpcClient.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/securityErrors.js|server/utils/securityErrors.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/securityLogger.js|server/utils/securityLogger.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/securityStoreMode.js|server/utils/securityStoreMode.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/socketHandshakeAuthPolicy.js|server/utils/socketHandshakeAuthPolicy.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/stableRequestHash.js|server/utils/stableRequestHash.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/supportMessagePayload.js|server/utils/supportMessagePayload.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/token.js|server/utils/token.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/transactionLocks.js|server/utils/transactionLocks.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/utils/vaultSchemas.js|server/utils/vaultSchemas.js]] | backend | JavaScript | Função utilitária compartilhada.
+- [[20 - Arquivos/server/validation/registerBodySchema.js|server/validation/registerBodySchema.js]] | backend | JavaScript | Arquivo do projeto.

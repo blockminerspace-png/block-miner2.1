@@ -8,12 +8,14 @@ import { getBrazilCheckinDateKey } from '../../utils/checkinDate.js';
 import { notifyMiniPassGamePlayed } from '../../services/miniPass/miniPassMissionHookService.js';
 import { notifyDailyTaskGamePlayed } from '../../services/dailyTasks/dailyTaskHookService.js';
 import { getMemoryMismatchRevealMs } from '../../utils/memoryGameConstants.js';
+import { createAuditLogBestEffort } from '../../models/auditLogModel.js';
 
 const logger = loggerLib.child("GamesSocket");
 const GAME_SESSIONS = new Map();
 const GAME_NAMES = {
   'crypto-memory': 'Memory Sync',
   'crypto-match-3': 'Power Match',
+  'cart-rush': 'Cart Rush',
 };
 const LAST_GAME_FINISH = new Map(); // key: `${userId}-${gameSlug}`
 const GAME_COOLDOWN_MS = Number(process.env.GAME_COOLDOWN_MS) || 180000;
@@ -25,6 +27,24 @@ const MEMORY_MISMATCH_TOTAL_MS = MEMORY_FLIP_OPEN_SETTLE_MS + MEMORY_MISMATCH_HO
 
 const SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano', 'polkadot', 'dogecoin', 'polygon'];
 const MATCH3_SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano'];
+const CART_LANES = 3;
+const CART_TICK_MS = 200;
+const CART_TARGET_SCORE = 1500;
+const CART_MAX_HEALTH = 3;
+const CART_COLLISION_PROGRESS = 0.9;
+const CART_DESPAWN_PROGRESS = 1.18;
+const CART_DIFFICULTY_RAMP_MS = 90000;
+const CART_BASE_SPEED = 0.48;
+const CART_MAX_SPEED = 0.9;
+const CART_BASE_SPAWN_MS = 900;
+const CART_MIN_SPAWN_MS = 360;
+const CART_SCORE_PER_TICK = 12;
+const CART_SCORE_DIFFICULTY_BONUS = 6;
+const CART_ENEMY_VARIANTS = [
+  { body: "#f97316", accent: "#fdba74", glow: "rgba(249,115,22,0.45)" },
+  { body: "#ef4444", accent: "#fca5a5", glow: "rgba(239,68,68,0.45)" },
+  { body: "#fb7185", accent: "#fecdd3", glow: "rgba(251,113,133,0.42)" },
+];
 
 /**
  * Fisher–Yates shuffle using cryptographically strong indices.
@@ -105,6 +125,24 @@ export function registerGamesSocketHandlers({ io, engine }) {
         else if (gameSlug === 'crypto-match-3') {
           initialState.board = generateStableBoard();
           socket.emit("game:started", { game: gameSlug, board: initialState.board, score: 0 });
+        } else if (gameSlug === 'cart-rush') {
+          initialState.lane = 1;
+          initialState.health = CART_MAX_HEALTH;
+          initialState.events = [];
+          initialState.distance = 0;
+          initialState.elapsedMs = 0;
+          initialState.roadSpeed = CART_BASE_SPEED;
+          initialState.spawnCooldownMs = 450;
+          initialState.cartTickTimer = setInterval(() => tickCartRush(socket, initialState, engine), CART_TICK_MS);
+          socket.emit("game:started", {
+            game: gameSlug,
+            lane: initialState.lane,
+            lanes: CART_LANES,
+            health: initialState.health,
+            targetScore: CART_TARGET_SCORE,
+            score: 0,
+            roadSpeed: initialState.roadSpeed,
+            });
         }
 
         GAME_SESSIONS.set(socket.id, initialState);
@@ -161,6 +199,12 @@ export function registerGamesSocketHandlers({ io, engine }) {
       else if (state.slug === 'crypto-match-3' && action.type === 'swap') {
         handleMatch3Swap(socket, state, action.from, action.to, engine);
       }
+      else if (state.slug === 'cart-rush' && action.type === 'lane') {
+        const lane = Number(action.lane);
+        if (!Number.isInteger(lane) || lane < 0 || lane >= CART_LANES) return;
+        state.lane = lane;
+        socket.emit("game:cart_lane", { lane: state.lane });
+      }
     });
 
     socket.on("game:end", () => {
@@ -185,6 +229,10 @@ function clearMemoryMismatchTimer(state) {
   if (state?.memoryMismatchTimeout) {
     clearTimeout(state.memoryMismatchTimeout);
     state.memoryMismatchTimeout = null;
+  }
+  if (state?.cartTickTimer) {
+    clearInterval(state.cartTickTimer);
+    state.cartTickTimer = null;
   }
 }
 
@@ -266,7 +314,84 @@ function processCascades(board, matches) {
   }
 }
 
-async function finishGame(socket, state, success, engine) {
+function cartDifficultyFactor(state) {
+  const elapsedMs = Math.max(0, Number(state?.elapsedMs) || 0);
+  return Math.min(1, elapsedMs / CART_DIFFICULTY_RAMP_MS);
+}
+
+function createCartEvent(distance, difficulty) {
+  const variant = CART_ENEMY_VARIANTS[crypto.randomInt(0, CART_ENEMY_VARIANTS.length)];
+  const speedRange = CART_MAX_SPEED - CART_BASE_SPEED;
+  const speed = CART_BASE_SPEED + speedRange * (0.45 + difficulty * 0.4 + Math.random() * 0.18);
+  return {
+    id: `${distance}-${crypto.randomUUID()}`,
+    lane: crypto.randomInt(0, CART_LANES),
+    kind: "enemy-car",
+    progress: 0,
+    speed,
+    variant,
+  };
+}
+
+function tickCartRush(socket, state, engine) {
+  if (!state || state.isFinished || state.slug !== "cart-rush") return;
+  const tickSeconds = CART_TICK_MS / 1000;
+  state.distance += 1;
+  state.elapsedMs = (Number(state.elapsedMs) || 0) + CART_TICK_MS;
+  const difficulty = cartDifficultyFactor(state);
+  state.roadSpeed = CART_BASE_SPEED + (CART_MAX_SPEED - CART_BASE_SPEED) * difficulty;
+  state.events = (state.events || [])
+    .map((event) => ({
+      ...event,
+      progress: Number(event.progress || 0) + Number(event.speed || state.roadSpeed) * tickSeconds,
+    }))
+    .filter((event) => Number(event.progress || 0) <= CART_DESPAWN_PROGRESS);
+
+  let hit = null;
+  const survivors = [];
+  for (const event of state.events) {
+    if (Number(event.progress || 0) >= CART_COLLISION_PROGRESS) {
+      if (event.lane === state.lane) {
+        hit = event;
+        state.health -= 1;
+        continue;
+      }
+    }
+    survivors.push(event);
+  }
+  state.events = survivors;
+
+  state.spawnCooldownMs = Math.max(0, Number(state.spawnCooldownMs || 0) - CART_TICK_MS);
+  if (state.spawnCooldownMs <= 0) {
+    state.events.push(createCartEvent(state.distance, difficulty));
+    const spawnSpread = CART_BASE_SPAWN_MS - CART_MIN_SPAWN_MS;
+    state.spawnCooldownMs =
+      CART_BASE_SPAWN_MS - spawnSpread * difficulty + crypto.randomInt(-90, 140);
+    if (state.spawnCooldownMs < CART_MIN_SPAWN_MS) state.spawnCooldownMs = CART_MIN_SPAWN_MS;
+  }
+
+  state.score += CART_SCORE_PER_TICK + Math.round(CART_SCORE_DIFFICULTY_BONUS * difficulty);
+
+  socket.emit("game:cart_update", {
+    lane: state.lane,
+    score: state.score,
+    health: state.health,
+    distance: state.distance,
+    events: state.events,
+    hit,
+    targetScore: CART_TARGET_SCORE,
+    roadSpeed: state.roadSpeed,
+    difficulty,
+  });
+
+  if (state.score >= CART_TARGET_SCORE) {
+    finishGame(socket, state, true, engine);
+  } else if (state.health <= 0) {
+    finishGame(socket, state, false, engine, "cart_crashed");
+  }
+}
+
+async function finishGame(socket, state, success, engine, failureCode = "session_ended") {
   if (state.isFinished) return;
   clearMemoryMismatchTimer(state);
   state.isFinished = true;
@@ -317,6 +442,20 @@ async function finishGame(socket, state, success, engine) {
         userPowerGameId: powerRow.id,
         gameSlug: String(state.slug || "")
       }).catch(() => {});
+      createAuditLogBestEffort({
+        userId: Number(state.userId),
+        action: "MINIGAME_PLAYED_REWARD",
+        ip: socket.handshake?.address || socket.request?.socket?.remoteAddress || null,
+        userAgent: socket.request?.headers?.["user-agent"] || null,
+        details: {
+          gameSlug: String(state.slug || ""),
+          score: Number(state.score || 0),
+          success: true,
+          rewardHashRate: 50,
+          rewardDays: powerDays,
+          userPowerGameId: powerRow.id,
+        },
+      }).catch(() => {});
       const total = await syncUserBaseHashRate(state.userId);
       const miner = engine.miners.get(state.userId.toString());
       if (miner) miner.baseHashRate = total;
@@ -336,9 +475,21 @@ async function finishGame(socket, state, success, engine) {
       });
     }
   } else {
+    createAuditLogBestEffort({
+      userId: Number(state.userId),
+      action: "MINIGAME_PLAYED_FAILED",
+      ip: socket.handshake?.address || socket.request?.socket?.remoteAddress || null,
+      userAgent: socket.request?.headers?.["user-agent"] || null,
+      details: {
+        gameSlug: String(state.slug || ""),
+        score: Number(state.score || 0),
+        success: false,
+        reason: failureCode,
+      },
+    }).catch(() => {});
     socket.emit("game:finished", {
       success: false,
-      messageCode: "session_ended",
+      messageCode: failureCode,
       cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000),
     });
   }

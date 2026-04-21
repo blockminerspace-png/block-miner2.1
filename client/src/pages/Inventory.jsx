@@ -25,6 +25,15 @@ function groupIntoRacks(racks) {
   return groups;
 }
 
+function canMachineFitVisualSlot(slot, machine) {
+  if (!slot || !machine) return false;
+  const slotSize = Math.max(1, Number(machine.slotSize) || 1);
+  if (slotSize <= 1) return true;
+  const position = Number(slot.position);
+  if (!Number.isInteger(position)) return false;
+  return position % 4 <= 4 - slotSize;
+}
+
 /**
  * Accessible confirmation dialog for dismantling every machine in one visual rack.
  * Focus trap, Escape to close (when not loading), and restore focus are handled by the parent via onClose.
@@ -299,7 +308,18 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                   {groupedInventory.map((group) => {
                     const desc = getMachineDescriptor({ hashRate: group.hashRate, slotSize: group.slotSize, imageUrl: group.imageUrl });
                     return (
-                      <button key={inventoryStackKey(group)} type="button" onClick={() => onInstall(slot.rack.id, group.items[0].id)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-800/30 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/10">
+                      <button
+                        key={inventoryStackKey(group)}
+                        type="button"
+                        onClick={() => {
+                          if (!canMachineFitVisualSlot(slot.rack, group)) {
+                            toast.error(t("inventory.double_slot_row_edge"));
+                            return;
+                          }
+                          onInstall(slot.rack.id, group.items[0].id);
+                        }}
+                        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-800/30 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/10"
+                      >
                         <div className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 bg-gray-900 rounded-lg p-2 shrink-0 relative">
                             <img src={desc.image} alt={group.minerName} className="w-full h-full object-contain" onError={(e) => { e.target.src = DEFAULT_MINER_IMAGE_URL; }} />
@@ -421,7 +441,7 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
           </button>
         )}
       </div>
-      <div className="p-2.5 sm:p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-4 gap-1.5 p-2 sm:gap-3 sm:p-4">
         {(() => {
           const rendered = [];
           let i = 0;
@@ -503,17 +523,17 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
                       }
                     : undefined
                 }
-                className={`group relative flex min-h-[5.25rem] flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border p-1.5 text-center transition-all duration-200 sm:min-h-0 ${
+                className={`group relative flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border p-1 text-center transition-all duration-200 sm:rounded-2xl sm:p-1.5 ${
                   isOccupied
                     ? "border-primary/30 bg-primary/5"
                     : isDragTarget
                     ? "scale-[1.02] border-primary bg-primary/15 shadow-glow sm:scale-[1.04]"
                     : "border-gray-800/50 bg-gray-900/30 hover:border-gray-700"
-                } ${isDoubleSlot ? "sm:aspect-[2/1]" : "sm:aspect-square"}`}
+                } ${isDoubleSlot ? "aspect-[2/1]" : "aspect-square"}`}
               >
                 {isOccupied ? (
                   <>
-                    <div className="pointer-events-none flex min-h-0 w-full flex-1 items-center justify-center p-1 sm:p-2">
+                    <div className="pointer-events-none flex min-h-0 w-full flex-1 items-center justify-center p-0.5 sm:p-2">
                       <img
                         src={descriptor.image}
                         alt=""
@@ -523,7 +543,7 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
                         }}
                       />
                     </div>
-                    <div className="pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                    <div className="pointer-events-none absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary sm:right-1.5 sm:top-1.5" />
                     {isDoubleSlot && (
                       <div className="pointer-events-none absolute bottom-1 left-1 rounded bg-amber-500/90 px-1 text-[7px] font-black leading-tight text-black">2×</div>
                     )}
@@ -531,12 +551,12 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
                 ) : isDragTarget ? (
                   <div className="flex flex-col items-center justify-center gap-0.5 px-0.5">
                     <Plus className="h-6 w-6 shrink-0 animate-pulse text-primary" aria-hidden />
-                    <span className="hidden text-[8px] font-bold uppercase leading-tight text-primary/90 sm:inline">{t("inventory.slot_add_machine")}</span>
+                    <span className="hidden text-[8px] font-bold uppercase leading-tight text-primary/90 md:inline">{t("inventory.slot_add_machine")}</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center gap-1 px-0.5">
                     <Plus className="h-5 w-5 shrink-0 text-gray-600 transition-colors group-hover:text-gray-400" aria-hidden />
-                    <span className="max-w-[5.5rem] text-[8px] font-bold uppercase leading-tight tracking-wide text-gray-500 group-hover:text-gray-400 sm:max-w-none sm:text-[9px]">
+                    <span className="hidden max-w-[5.5rem] text-[8px] font-bold uppercase leading-tight tracking-wide text-gray-500 group-hover:text-gray-400 md:inline md:max-w-none md:text-[9px]">
                       {t("inventory.slot_add_machine")}
                     </span>
                   </div>
@@ -619,6 +639,12 @@ export default function Inventory() {
 
   const handleInstall = async (rackId, inventoryId) => {
     if (!Number.isInteger(rackId) || rackId <= 0 || !Number.isInteger(inventoryId) || inventoryId <= 0) { toast.error(t("common.error")); return; }
+    const targetRack = rooms.flatMap((room) => room.racks || []).find((rack) => rack.id === rackId);
+    const inventoryItem = inventory.find((item) => item.id === inventoryId);
+    if (inventoryItem && !canMachineFitVisualSlot(targetRack, inventoryItem)) {
+      toast.error(t("inventory.double_slot_row_edge"));
+      return;
+    }
     try {
       const res = await api.post("/rooms/rack/install", { rackId, inventoryId });
       if (res.data.ok) { toast.success(t("inventory.install_success")); setSelectedSlot(null); await fetchData(); }

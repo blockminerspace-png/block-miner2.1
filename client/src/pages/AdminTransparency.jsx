@@ -54,7 +54,17 @@ const EMPTY_FORM = {
   providerUrl:    '',
   imageUrl:       '',
   amountUsd:      '',
+  amountOriginal: '',
+  currencyCode:   'USD',
+  fxRateUsd:      '',
   period:         'monthly',
+  entryDate:      '',
+  direction:      'out',
+  blockchain:     'polygon',
+  walletAddress:  '',
+  txHash:         '',
+  referenceUrl:   '',
+  isOnChain:      false,
   isPaid:         true,
   isActive:       true,
   notes:          '',
@@ -98,6 +108,21 @@ export default function AdminTransparency() {
   const [walletSaving, setWalletSaving] = useState(false);
   const [activity, setActivity]         = useState(null);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [trackedWallets, setTrackedWallets] = useState([]);
+  const [trackedWalletActivity, setTrackedWalletActivity] = useState(null);
+  const [trackedWalletLoading, setTrackedWalletLoading] = useState(false);
+  const [trackedWalletSaving, setTrackedWalletSaving] = useState(false);
+  const [trackedWalletForm, setTrackedWalletForm] = useState({
+    label: '',
+    address: '',
+    chain: 'polygon',
+    assetSymbol: 'POL',
+    explorerBaseUrl: 'https://polygonscan.com/address',
+    includeInTotals: true,
+    isPublic: true,
+    isActive: true,
+    sortOrder: 0,
+  });
 
   const jsonHeaders = () => ({
     'Content-Type': 'application/json',
@@ -117,6 +142,17 @@ export default function AdminTransparency() {
       toast.error(t('transparency.admin.toast_error'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadTrackedWallets() {
+    try {
+      const r = await fetch('/api/admin/transparency/tracked-wallets', { credentials: 'include' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      if (d.ok) setTrackedWallets(d.wallets || []);
+    } catch {
+      toast.error('Erro ao carregar carteiras rastreadas');
     }
   }
 
@@ -174,9 +210,85 @@ export default function AdminTransparency() {
     }
   }
 
+  async function refreshTrackedWalletActivity() {
+    setTrackedWalletLoading(true);
+    try {
+      const r = await fetch('/api/admin/transparency/tracked-wallets/activity', { credentials: 'include' });
+      const d = await r.json();
+      if (d.ok) {
+        setTrackedWalletActivity(d);
+      } else {
+        toast.error(d.message || t('transparency.admin.toast_error'));
+        setTrackedWalletActivity(null);
+      }
+    } catch {
+      toast.error(t('transparency.admin.toast_error'));
+      setTrackedWalletActivity(null);
+    } finally {
+      setTrackedWalletLoading(false);
+    }
+  }
+
+  async function saveTrackedWallet() {
+    setTrackedWalletSaving(true);
+    try {
+      const r = await fetch('/api/admin/transparency/tracked-wallets', {
+        method: 'POST',
+        credentials: 'include',
+        headers: jsonHeaders(),
+        body: JSON.stringify(trackedWalletForm),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        toast.success('Carteira rastreada salva');
+        setTrackedWalletForm({
+          label: '',
+          address: '',
+          chain: 'polygon',
+          assetSymbol: 'POL',
+          explorerBaseUrl: 'https://polygonscan.com/address',
+          includeInTotals: true,
+          isPublic: true,
+          isActive: true,
+          sortOrder: 0,
+        });
+        loadTrackedWallets();
+        refreshTrackedWalletActivity();
+      } else {
+        toast.error(d.message || 'Erro ao salvar carteira rastreada');
+      }
+    } catch {
+      toast.error('Erro ao salvar carteira rastreada');
+    } finally {
+      setTrackedWalletSaving(false);
+    }
+  }
+
+  async function removeTrackedWallet(id) {
+    try {
+      const r = await fetch(`/api/admin/transparency/tracked-wallets/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: jsonHeaders(),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        toast.success('Carteira removida');
+        loadTrackedWallets();
+        refreshTrackedWalletActivity();
+      } else {
+        toast.error(d.message || 'Erro ao remover carteira');
+      }
+    } catch {
+      toast.error('Erro ao remover carteira');
+    }
+  }
+
   useEffect(() => {
     load();
     loadWalletSettings();
+    loadTrackedWallets();
+    refreshTrackedWalletActivity();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Form helpers ───────────────────────────────────────────────────────────
@@ -199,7 +311,17 @@ export default function AdminTransparency() {
       providerUrl:    entry.providerUrl || '',
       imageUrl:       entry.imageUrl || '',
       amountUsd:      String(entry.amountUsd),
+      amountOriginal: entry.amountOriginal != null ? String(entry.amountOriginal) : '',
+      currencyCode:   entry.currencyCode || 'USD',
+      fxRateUsd:      entry.fxRateUsd != null ? String(entry.fxRateUsd) : '',
       period:         entry.period,
+      entryDate:      entry.entryDate ? String(entry.entryDate).slice(0, 10) : '',
+      direction:      entry.direction || (entry.type === 'income' ? 'in' : 'out'),
+      blockchain:     entry.blockchain || 'polygon',
+      walletAddress:  entry.walletAddress || '',
+      txHash:         entry.txHash || '',
+      referenceUrl:   entry.referenceUrl || '',
+      isOnChain:      Boolean(entry.isOnChain),
       isPaid:         entry.isPaid,
       isActive:       entry.isActive,
       notes:          entry.notes || '',
@@ -260,7 +382,13 @@ export default function AdminTransparency() {
         method,
         credentials: 'include',
         headers: jsonHeaders(),
-        body: JSON.stringify({ ...form, amountUsd: parseFloat(form.amountUsd) }),
+        body: JSON.stringify({
+          ...form,
+          amountUsd: parseFloat(form.amountUsd),
+          amountOriginal: form.amountOriginal ? parseFloat(form.amountOriginal) : null,
+          fxRateUsd: form.fxRateUsd ? parseFloat(form.fxRateUsd) : null,
+          entryDate: form.entryDate || null,
+        }),
       });
       const d = await r.json();
       if (d.ok) {
@@ -415,6 +543,7 @@ export default function AdminTransparency() {
               <p className="text-lg font-black text-white tabular-nums mt-1">
                 {Number(activity.summary.totalInPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL
               </p>
+              {activity.summary.totalInUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(activity.summary.totalInUsd).toFixed(2)}</p> : null}
             </div>
             <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
               <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1">
@@ -424,6 +553,7 @@ export default function AdminTransparency() {
               <p className="text-lg font-black text-white tabular-nums mt-1">
                 {Number(activity.summary.totalOutPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL
               </p>
+              {activity.summary.totalOutUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(activity.summary.totalOutUsd).toFixed(2)}</p> : null}
             </div>
             <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
               <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
@@ -475,6 +605,92 @@ export default function AdminTransparency() {
                 ))}
               </tbody>
             </table>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-xs font-black text-sky-400 uppercase tracking-widest">Carteiras rastreadas</h2>
+            <p className="text-[11px] text-gray-500 max-w-3xl mt-0.5">
+              Use várias carteiras para consolidar total depositado, total enviado e a visão pública de tesouraria.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={trackedWalletLoading}
+            onClick={refreshTrackedWalletActivity}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 text-xs font-bold uppercase tracking-widest disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${trackedWalletLoading ? 'animate-spin' : ''}`} /> Atualizar totais
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px_160px]">
+          <input className={inputCls} placeholder="Carteira tesouraria, hot wallet..." value={trackedWalletForm.label} onChange={(e) => setTrackedWalletForm((f) => ({ ...f, label: e.target.value }))} />
+          <input className={`${inputCls} font-mono text-xs`} placeholder="0x..." value={trackedWalletForm.address} onChange={(e) => setTrackedWalletForm((f) => ({ ...f, address: e.target.value }))} />
+          <input className={inputCls} placeholder="POL" value={trackedWalletForm.assetSymbol} onChange={(e) => setTrackedWalletForm((f) => ({ ...f, assetSymbol: e.target.value }))} />
+          <input className={inputCls} type="number" min="0" value={trackedWalletForm.sortOrder} onChange={(e) => setTrackedWalletForm((f) => ({ ...f, sortOrder: e.target.value }))} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={trackedWalletForm.includeInTotals} onChange={(e) => setTrackedWalletForm((f) => ({ ...f, includeInTotals: e.target.checked }))} />
+            entra nos totais
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={trackedWalletForm.isPublic} onChange={(e) => setTrackedWalletForm((f) => ({ ...f, isPublic: e.target.checked }))} />
+            visível no portal
+          </label>
+          <button
+            type="button"
+            disabled={trackedWalletSaving}
+            onClick={saveTrackedWallet}
+            className="px-4 py-2 rounded-xl bg-sky-600/30 border border-sky-500/40 hover:bg-sky-600/40 text-sky-100 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+          >
+            {trackedWalletSaving ? 'Salvando...' : 'Adicionar carteira'}
+          </button>
+        </div>
+
+        {trackedWalletActivity?.summary ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total recebido</p>
+              <p className="text-lg font-black text-white mt-1">{Number(trackedWalletActivity.summary.totalInPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL</p>
+              {trackedWalletActivity.summary.totalInUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(trackedWalletActivity.summary.totalInUsd).toFixed(2)}</p> : null}
+            </div>
+            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total enviado</p>
+              <p className="text-lg font-black text-white mt-1">{Number(trackedWalletActivity.summary.totalOutPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL</p>
+              {trackedWalletActivity.summary.totalOutUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(trackedWalletActivity.summary.totalOutUsd).toFixed(2)}</p> : null}
+            </div>
+            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Carteiras</p>
+              <p className="text-lg font-black text-white mt-1">{trackedWalletActivity.summary.walletCount}</p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Movimentos</p>
+              <p className="text-lg font-black text-white mt-1">{trackedWalletActivity.summary.movementCount}</p>
+            </div>
+          </div>
+        ) : null}
+
+        {trackedWallets.length > 0 ? (
+          <div className="space-y-3">
+            {trackedWallets.map((wallet) => (
+              <div key={wallet.id} className="flex flex-col gap-3 rounded-xl border border-white/8 bg-black/20 p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-white">{wallet.label}</p>
+                  <p className="font-mono text-xs text-slate-400 break-all">{wallet.address}</p>
+                  <p className="text-[11px] text-slate-500 mt-1">{wallet.chain} · {wallet.assetSymbol} · ordem {wallet.sortOrder}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${wallet.includeInTotals ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>Totais</span>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${wallet.isPublic ? 'bg-sky-500/10 text-sky-300' : 'bg-slate-800 text-slate-400'}`}>Público</span>
+                  <button type="button" onClick={() => removeTrackedWallet(wallet.id)} className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-[10px] font-bold uppercase tracking-widest">Remover</button>
+                </div>
+              </div>
+            ))}
           </div>
         ) : null}
       </div>
@@ -571,6 +787,39 @@ export default function AdminTransparency() {
               />
             </Field>
 
+            <Field label="Valor original">
+              <input
+                className={inputCls}
+                type="number"
+                min="0"
+                step="0.00000001"
+                placeholder="0.00"
+                value={form.amountOriginal}
+                onChange={e => setForm(f => ({ ...f, amountOriginal: e.target.value }))}
+              />
+            </Field>
+
+            <Field label="Moeda">
+              <input
+                className={inputCls}
+                placeholder="USD, POL, BRL..."
+                value={form.currencyCode}
+                onChange={e => setForm(f => ({ ...f, currencyCode: e.target.value.toUpperCase() }))}
+              />
+            </Field>
+
+            <Field label="Taxa para USD">
+              <input
+                className={inputCls}
+                type="number"
+                min="0"
+                step="0.00000001"
+                placeholder="1.00"
+                value={form.fxRateUsd}
+                onChange={e => setForm(f => ({ ...f, fxRateUsd: e.target.value }))}
+              />
+            </Field>
+
             <Field label={t('transparency.admin.field_period')}>
               <select
                 className={inputCls}
@@ -594,6 +843,15 @@ export default function AdminTransparency() {
               />
             </Field>
 
+            <Field label="Data da entrada">
+              <input
+                className={inputCls}
+                type="date"
+                value={form.entryDate}
+                onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))}
+              />
+            </Field>
+
             <Field label={t('transparency.admin.field_provider_url')}>
               <input
                 className={inputCls}
@@ -612,12 +870,52 @@ export default function AdminTransparency() {
               />
             </Field>
 
+            <Field label="Link de referência">
+              <input
+                className={inputCls}
+                placeholder="https://..."
+                value={form.referenceUrl}
+                onChange={e => setForm(f => ({ ...f, referenceUrl: e.target.value }))}
+              />
+            </Field>
+
             <Field label={t('transparency.admin.field_notes')}>
               <input
                 className={inputCls}
                 placeholder={t('transparency.admin.placeholder_notes')}
                 value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              />
+            </Field>
+
+            <Field label="Direção">
+              <select className={inputCls} value={form.direction} onChange={e => setForm(f => ({ ...f, direction: e.target.value }))}>
+                <option value="in">Entrada</option>
+                <option value="out">Saída</option>
+              </select>
+            </Field>
+
+            <Field label="Blockchain">
+              <select className={inputCls} value={form.blockchain} onChange={e => setForm(f => ({ ...f, blockchain: e.target.value }))}>
+                <option value="polygon">Polygon</option>
+              </select>
+            </Field>
+
+            <Field label="Carteira">
+              <input
+                className={`${inputCls} font-mono text-xs`}
+                placeholder="0x..."
+                value={form.walletAddress}
+                onChange={e => setForm(f => ({ ...f, walletAddress: e.target.value }))}
+              />
+            </Field>
+
+            <Field label="Hash da transação">
+              <input
+                className={`${inputCls} font-mono text-xs`}
+                placeholder="0x..."
+                value={form.txHash}
+                onChange={e => setForm(f => ({ ...f, txHash: e.target.value }))}
               />
             </Field>
 
@@ -684,7 +982,7 @@ export default function AdminTransparency() {
           </Field>
 
           {/* Checkboxes */}
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-6">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -704,6 +1002,15 @@ export default function AdminTransparency() {
                 data-testid="check-active"
               />
               <span className="text-xs text-gray-400">{t('transparency.admin.check_visible')}</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-primary"
+                checked={form.isOnChain}
+                onChange={e => setForm(f => ({ ...f, isOnChain: e.target.checked }))}
+              />
+              <span className="text-xs text-gray-400">Vinculado a carteira / tx</span>
             </label>
           </div>
 
@@ -745,6 +1052,7 @@ export default function AdminTransparency() {
                 <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('transparency.admin.col_name')}</th>
                 <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest hidden md:table-cell">{t('transparency.admin.col_provider')}</th>
                 <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('transparency.admin.col_amount')}</th>
+                <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest hidden lg:table-cell">Moeda / chain</th>
                 <th className="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase tracking-widest hidden sm:table-cell">{t('transparency.admin.col_paid')}</th>
                 <th className="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('transparency.admin.col_public')}</th>
                 <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('transparency.admin.col_actions')}</th>
@@ -785,6 +1093,19 @@ export default function AdminTransparency() {
                   <td className="px-4 py-3 text-right">
                     <span className="font-black text-white text-sm">{fmt(entry.amountUsd)}</span>
                     <span className="text-[11px] text-gray-500 ml-1">/{getPeriodLabel(entry.period)}</span>
+                    {entry.amountOriginal != null ? (
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        {Number(entry.amountOriginal).toLocaleString('en-US', { maximumFractionDigits: 8 })} {entry.currencyCode || 'USD'}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <div className="space-y-1 text-[11px]">
+                      <div className="text-slate-400">{entry.currencyCode || 'USD'}{entry.fxRateUsd ? ` · fx ${Number(entry.fxRateUsd).toLocaleString('en-US', { maximumFractionDigits: 6 })}` : ''}</div>
+                      <div className={entry.isOnChain ? 'text-sky-300' : 'text-slate-600'}>
+                        {entry.isOnChain ? `${entry.blockchain || 'polygon'}${entry.direction ? ` · ${entry.direction}` : ''}` : 'manual / off-chain'}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-center hidden sm:table-cell">
                     <span className={`text-[11px] font-bold ${entry.isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>

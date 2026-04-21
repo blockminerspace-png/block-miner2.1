@@ -22,6 +22,7 @@ const logger = loggerLib.child("Rooms");
 
 const RACKS_PER_ROOM = parseInt(process.env.RACKS_PER_ROOM || "192", 10);
 const ROOM_MAX = parseInt(process.env.ROOM_MAX || "4", 10);
+const RACK_VISUAL_COLUMNS = 4;
 
 function getRoomPrices() {
   const raw = process.env.ROOM_PRICES || "0,100,500,750";
@@ -251,6 +252,14 @@ export async function installMiner(req, res) {
     const slotSize = inventoryItem.slotSize || 1;
     let adjacentRack = null;
     if (slotSize >= 2) {
+      if (rack.position % RACK_VISUAL_COLUMNS > RACK_VISUAL_COLUMNS - slotSize) {
+        logger.warn("installMiner: 2-slot miner cannot start at row edge", { userId, rackId, position: rack.position, slotSize });
+        return res.status(400).json({
+          ok: false,
+          code: "ROW_EDGE_NO_SPACE",
+          message: "Máquinas de 2 slots precisam começar antes do fim da linha do rack.",
+        });
+      }
       adjacentRack = await prisma.userRack.findFirst({
         where: { roomId: rack.roomId, position: rack.position + (slotSize - 1) },
       });

@@ -7,8 +7,11 @@ import { fileURLToPath } from "url";
 import * as supportController from "../controllers/supportController.js";
 import { requireAuth, authenticateTokenOptional } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
+import { requireVisibleSidebarPath } from "../middleware/sidebarFeatureGate.js";
+import { SIDEBAR_ITEM_REGISTRY } from "../services/sidebarNavRegistry.js";
 
 const supportRouter = express.Router();
+const supportPath = SIDEBAR_ITEM_REGISTRY.support.path;
 
 const supportLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
@@ -44,17 +47,18 @@ const supportImageUpload = multer({
   }
 });
 
-supportRouter.post("/", supportLimiter, authenticateTokenOptional, supportController.createMessage);
-supportRouter.get("/", requireAuth, supportController.listMessages);
+supportRouter.post("/", requireVisibleSidebarPath(supportPath), supportLimiter, authenticateTokenOptional, supportController.createMessage);
+supportRouter.get("/", requireAuth, requireVisibleSidebarPath(supportPath), supportController.listMessages);
 supportRouter.post(
   "/upload-image",
   supportUploadLimiter,
   requireAuth,
+  requireVisibleSidebarPath(supportPath),
   supportImageUpload.single("image"),
   supportController.uploadSupportImage
 );
-supportRouter.get("/:id", requireAuth, supportController.getMessage);
-supportRouter.post("/:id/reply", supportLimiter, requireAuth, supportController.replyToMessage);
+supportRouter.get("/:id", requireAuth, requireVisibleSidebarPath(supportPath), supportController.getMessage);
+supportRouter.post("/:id/reply", supportLimiter, requireAuth, requireVisibleSidebarPath(supportPath), supportController.replyToMessage);
 
 supportRouter.use((err, _req, res, _next) => {
   if (err?.message) return res.status(400).json({ ok: false, message: err.message });
