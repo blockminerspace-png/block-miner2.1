@@ -1,0 +1,42 @@
+/** Must match `legal.termsOfUse.sections.*` keys in locale JSON files. */
+export const TERMS_OF_USE_SECTION_IDS = [
+  'generalProvisions',
+  'useOfServicesAndConduct',
+  'personalDataConsent',
+  'inactiveAccounts',
+  'contentStandards',
+  'monitoring',
+  'noProfessionalAdvice',
+  'userWarranties',
+  'intellectualProperty',
+  'liability',
+  'risksAndRestrictions',
+  'payments',
+  'referralProgram',
+  'thirdPartyAndAdvertising',
+  'amendments',
+  'electronicCommunications',
+  'governingLawDisputes',
+  'regulatoryCompliancePrograms',
+  'finalProvisions',
+  'contact',
+];
+
+/** Must match `legal.privacyPolicy.sections.*` keys in locale JSON files. */
+export const PRIVACY_POLICY_SECTION_IDS = [
+  'controllerContact',
+  'scopeDefinitions',
+  'categoriesCollected',
+  'purposesLegalBases',
+  'cookiesIdentifiers',
+  'walletsBlockchain',
+  'minors',
+  'sources',
+  'recipients',
+  'internationalTransfers',
+  'retentionSecurity',
+  'breachesAutomation',
+  'rights',
+  'marketingOptOut',
+  'updatesComplaints',
+];

@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll GitHub main and deploy BlockMiner every 3 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+---
+description: After substantive changes, sync Git and deploy so the server matches the repo.
+alwaysApply: true
+---
+
+# Git, container sync, and deploy (mandatory closure)
+
+When the user asks to ship work, finish a feature, or explicitly requests deploy:
+
+1. **Working tree must be complete and intentional**
+   - Stage all project changes that belong in Git (source, tests, docs the user asked for, Cursor rules).
+   - Do **not** commit generated artifacts (e.g. `client/coverage/`, `coverage-server.txt`, local-only secrets) unless the user explicitly requests them.
+
+2. **Git: 100% up to date on the remote**
+   - Run tests relevant to the change (`npm test`, client `npm run test` when UI changed).
+   - `git status` must be clean after commit (except ignored locals).
+   - Commit with a clear English message; `git push` to the tracked default branch (usually `main`).
+
+3. **Container / VPS: 100% aligned with Git**
+   - **Production:** use the project deploy path (`deploy.py` on Windows per `docs/DEPLOYMENT.md`, or the workflow the repo documents).
+   - **Test VM (89.167.114.67):** when tests pass after a change, run **`python3 scripts/deploy-test-vm-remote.py`** from repo root (see `blockminer-test-vm.mdc` and `.cursor/skills/blockminer-ship-test-vm/`). Do this **automatically** without waiting for an extra “deploy” message when credentials exist locally (`vm_config_secret.py` or `VM_*` env).
+   - On the server: pull the same branch/commit you just pushed, install deps, build, restart the app process, then verify health.
+
+4. **Configuration**
+   - Ensure required server env vars exist for the target environment; never commit `.env` or passwords. Use existing secret injection (e.g. `deploy.secrets.local`, `BLOCKMINER_VPS_PW`, `.deploy-pw.txt` as documented in `deploy.py`).
+
+5. **If production deploy cannot run** (missing SSH key/password, `deploy.py` needs Windows), **still** push Git and, when possible, run **test VM** deploy via `scripts/deploy-test-vm-remote.py`. Report any remaining blocker (e.g. missing `vm_config_secret.py`, HTTPS push needs PAT).

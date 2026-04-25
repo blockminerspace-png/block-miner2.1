@@ -1,0 +1,19 @@
+---
+description: >-
+  Optional OpenCode @opencoder agent; Cursor’s primary second model is OpenRouter
+  via scripts/openrouter-ask.mjs (see blockminer-openrouter-second-brain.mdc).
+alwaysApply: false
+---
+
+# OpenCoder (OpenCode) — optional
+
+## In the repo
+
+- **Agent prompt:** `.opencode/agents/opencoder.md` — use in the **OpenCode** TUI with **`@opencoder`** if you use OpenCode locally.
+- **`opencode.json`:** schema marker only.
+
+## For Cursor agents
+
+**Default second-brain via API:** use **`node scripts/openrouter-ask.mjs`** with **`OPENROUTER_API_KEY`** (see **`blockminer-openrouter-second-brain.mdc`**). OpenCode is **not** required for that.
+
+For planning style only (no API call), you may still **read** `.opencode/agents/opencoder.md` (§ BlockMiner project brain) and mirror its structure.

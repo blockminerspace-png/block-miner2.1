@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    # Gitflow: main/master = production integration; develop = test/staging integration
+    branches: [main, master, develop]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=server/prisma/schema.prisma
+      - name: Create data directory
+        run: mkdir -p data
+      - name: Run tests
+        run: npm test
+      - name: Coverage gate (min 80% lines — scoped; see client/vite.config.js & package.json)
+        run: npm run coverage:gate
+      - name: Run lint
+        run: npm run lint

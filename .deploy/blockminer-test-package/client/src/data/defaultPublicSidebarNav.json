@@ -1,0 +1,49 @@
+[
+  {
+    "section": "main",
+    "titleKey": "sidebar.categories.main",
+    "items": [
+      { "itemId": "dashboard", "labelKey": "sidebar.dashboard", "icon": "LayoutDashboard", "path": "/dashboard" },
+      { "itemId": "power_stats", "labelKey": "sidebar.power_stats", "icon": "BarChart3", "path": "/power-stats" },
+      { "itemId": "machines", "labelKey": "sidebar.machines", "icon": "Cpu", "path": "/inventory" },
+      { "itemId": "shop", "labelKey": "sidebar.shop", "icon": "ShoppingCart", "path": "/shop" },
+      { "itemId": "offers", "labelKey": "sidebar.offers", "icon": "Tag", "path": "/offers" },
+      { "itemId": "wallet", "labelKey": "sidebar.wallet", "icon": "Wallet", "path": "/wallet" },
+      { "itemId": "support", "labelKey": "sidebar.support", "icon": "LifeBuoy", "path": "/support" }
+    ]
+  },
+  {
+    "section": "earn",
+    "titleKey": "sidebar.categories.earn",
+    "items": [
+      { "itemId": "checkin", "labelKey": "sidebar.checkin", "icon": "Calendar", "path": "/checkin" },
+      { "itemId": "mini_pass", "labelKey": "sidebar.mini_pass", "icon": "Trophy", "path": "/mini-pass" },
+      { "itemId": "daily_tasks", "labelKey": "sidebar.daily_tasks", "icon": "ListChecks", "path": "/tasks" },
+      {
+        "itemId": "rewards_group",
+        "labelKey": "sidebar.rewards",
+        "icon": "Folder",
+        "children": [
+          { "itemId": "internal_offerwall", "labelKey": "sidebar.internal_offerwall", "icon": "LayoutGrid", "path": "/internal-offerwall" },
+          { "itemId": "faucet", "labelKey": "sidebar.faucet", "icon": "Gift", "path": "/faucet" },
+          { "itemId": "shortlinks", "labelKey": "sidebar.shortlinks", "icon": "Link", "path": "/shortlinks" },
+          { "itemId": "auto_mining", "labelKey": "sidebar.auto_mining", "icon": "Zap", "path": "/auto-mining" },
+          { "itemId": "youtube", "labelKey": "sidebar.youtube", "icon": "Youtube", "path": "/youtube" },
+          { "itemId": "read_earn", "labelKey": "sidebar.read_earn", "icon": "Sparkles", "path": "/read-earn" }
+        ]
+      }
+    ]
+  },
+  {
+    "section": "social",
+    "titleKey": "sidebar.categories.social",
+    "items": [
+      { "itemId": "games", "labelKey": "sidebar.games", "icon": "Gamepad2", "path": "/games" },
+      { "itemId": "calculator", "labelKey": "sidebar.calculator", "icon": "Calculator", "path": "/calculator" },
+      { "itemId": "manual", "labelKey": "sidebar.manual", "icon": "BookOpen", "path": "/manual" },
+      { "itemId": "ranking", "labelKey": "sidebar.ranking", "icon": "Trophy", "path": "/ranking" },
+      { "itemId": "roadmap", "labelKey": "sidebar.roadmap", "icon": "Map", "path": "/roadmap" },
+      { "itemId": "transparency", "labelKey": "sidebar.transparency", "icon": "Eye", "path": "/transparency" }
+    ]
+  }
+]

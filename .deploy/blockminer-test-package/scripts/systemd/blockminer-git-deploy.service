@@ -1,0 +1,17 @@
+[Unit]
+Description=BlockMiner git pull + safe deploy when main changed
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+# Optional: echo 'APP_ROOT=/root/block-miner' > /etc/default/blockminer-git-deploy
+EnvironmentFile=-/etc/default/blockminer-git-deploy
+Environment=APP_ROOT=/root/block-miner
+Environment=GIT_BRANCH=main
+# Replace /root/block-miner if your clone lives elsewhere (must match APP_ROOT).
+ExecStart=/usr/bin/bash /root/block-miner/scripts/vm-poll-deploy.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3532 @@
+--- TABLES ---
+Table: users
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "name",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "username",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "email",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "password_hash",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "last_login_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "ip",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "user_agent",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "is_banned",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 10,
+    "name": "pol_balance",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 11,
+    "name": "btc_balance",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 12,
+    "name": "eth_balance",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 13,
+    "name": "usdt_balance",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 14,
+    "name": "usdc_balance",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 15,
+    "name": "zer_balance",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 16,
+    "name": "ref_code",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 17,
+    "name": "referred_by",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 114
+Preview:[
+  {
+    "id": 1,
+    "name": "ElonMuskBR",
+    "username": "ElonMuskBR",
+    "email": "gustavo.empresarial.br@gmail.com",
+    "password_hash": "$2b$10$uE91GPo/pO9Lht8aVGrP3eXPEOjgNHYGcCVYcLYgZVJakdjoGAsou",
+    "created_at": 1771861795122,
+    "last_login_at": 1772730257679,
+    "ip": "172.18.0.0/24",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    "is_banned": 0,
+    "pol_balance": 20.73200091478565,
+    "btc_balance": 0,
+    "eth_balance": 0,
+    "usdt_balance": 0,
+    "usdc_balance": 13.9999179385,
+    "zer_balance": 0,
+    "ref_code": "1fbfb1e964",
+    "referred_by": null
+  },
+  {
+    "id": 2,
+    "name": "ElonMuskBRr",
+    "username": "ElonMuskBRr",
+    "email": "conta.de.app01@gmail.com",
+    "password_hash": "$2b$10$yKJ1IGC9L0tdyz9JLuN8oO6rkCTLmNo4Hv/f4V/dmMLn9DXBa3QTW",
+    "created_at": 1771886300376,
+    "last_login_at": 1772732072699,
+    "ip": "172.18.0.0/24",
+    "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36",
+    "is_banned": 0,
+    "pol_balance": 0.009238088673262439,
+    "btc_balance": 0,
+    "eth_balance": 0,
+    "usdt_balance": 0,
+    "usdc_balance": 1.68578124,
+    "zer_balance": 0,
+    "ref_code": "9b4b42f81b",
+    "referred_by": 1
+  },
+  {
+    "id": 3,
+    "name": "devilofwallstreet",
+    "username": "devilofwallstreet",
+    "email": "devilofwallstreet@gmail.com",
+    "password_hash": "$2b$10$voehFSXZOlruonURclcCHu5tE1cZUhXbJSFTRjd.0lo0WErBQ2Squ",
+    "created_at": 1772035745329,
+    "last_login_at": 1772642472897,
+    "ip": "172.18.0.0/24",
+    "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 WebView MetaMaskMobile",
+    "is_banned": 0,
+    "pol_balance": 10.62884678874296,
+    "btc_balance": 0,
+    "eth_balance": 0,
+    "usdt_balance": 0,
+    "usdc_balance": 0,
+    "zer_balance": 0,
+    "ref_code": "f7a6b07301",
+    "referred_by": null
+  }
+]
+----------------
+Table: sqlite_sequence
+[
+  {
+    "cid": 0,
+    "name": "name",
+    "type": "",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 1,
+    "name": "seq",
+    "type": "",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 28
+Preview:[
+  {
+    "name": "miners",
+    "seq": 8
+  },
+  {
+    "name": "faucet_rewards",
+    "seq": 1
+  },
+  {
+    "name": "auto_mining_rewards",
+    "seq": 1
+  }
+]
+----------------
+Table: sessions
+[
+  {
+    "cid": 0,
+    "name": "token",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "expires_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 0
+----------------
+Table: refresh_tokens
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "token_id",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "token_hash",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "expires_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "revoked_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "replaced_by",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 504
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "token_id": "ae74b5a2-4aa6-426f-8709-58e7add23f9f",
+    "token_hash": "bbc29be53f45875ffce5aabfb1c84cf76d0d407131963a372014f9e29e14147d",
+    "created_at": 1771861795136,
+    "expires_at": 1774453795136,
+    "revoked_at": null,
+    "replaced_by": null
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "token_id": "7d831e72-1e88-4b6c-9be5-f2cee7fe4e77",
+    "token_hash": "cf671a799b950099a95ec2c130f8af5ffc83d808f66cf423272f5faf79b806e6",
+    "created_at": 1771868636756,
+    "expires_at": 1774460636756,
+    "revoked_at": 1771870244150,
+    "replaced_by": null
+  },
+  {
+    "id": 3,
+    "user_id": 1,
+    "token_id": "81c8ca3b-a143-4a4c-bd61-4ab49d8f30cc",
+    "token_hash": "597a5b20f59104665c951349456fe13c9da32660002ecaf4801c2bb5c2e5d684",
+    "created_at": 1771870246069,
+    "expires_at": 1774462246069,
+    "revoked_at": 1771876491659,
+    "replaced_by": null
+  }
+]
+----------------
+Table: audit_logs
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "action",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "ip",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "user_agent",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "details_json",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 648
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "action": "register",
+    "ip": "172.18.0.0/24",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    "details_json": "{\"email\":\"gustavo.empresarial.br@gmail.com\",\"referredBy\":null}",
+    "created_at": 1771861795152
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "action": "login",
+    "ip": "172.18.0.0/24",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    "details_json": "{\"email\":\"g***@gmail.com\"}",
+    "created_at": 1771868636768
+  },
+  {
+    "id": 3,
+    "user_id": null,
+    "action": "logout",
+    "ip": "172.18.0.0/24",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    "details_json": "{}",
+    "created_at": 1771870244156
+  }
+]
+----------------
+Table: auth_lockouts
+[
+  {
+    "cid": 0,
+    "name": "kind",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "value",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 2
+  },
+  {
+    "cid": 2,
+    "name": "count",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "locked_until",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "last_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 2
+Preview:[
+  {
+    "kind": "email",
+    "value": "heslytso@gmail.com",
+    "count": 3,
+    "locked_until": 0,
+    "last_at": 1772734296077
+  },
+  {
+    "kind": "email",
+    "value": "rajonbd07@yahoo.com",
+    "count": 1,
+    "locked_until": 0,
+    "last_at": 1772738910719
+  }
+]
+----------------
+Table: referrals
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "referrer_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "referred_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 89
+Preview:[
+  {
+    "id": 1,
+    "referrer_id": 1,
+    "referred_id": 2,
+    "created_at": 1771886300383
+  },
+  {
+    "id": 2,
+    "referrer_id": 2,
+    "referred_id": 4,
+    "created_at": 1772070583478
+  },
+  {
+    "id": 3,
+    "referrer_id": 4,
+    "referred_id": 9,
+    "created_at": 1772590762533
+  }
+]
+----------------
+Table: referral_earnings
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "referrer_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "referred_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "amount",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "source",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 0
+----------------
+Table: users_temp_power
+[
+  {
+    "cid": 0,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "username",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "wallet_address",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "rigs",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "base_hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "balance",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "lifetime_mined",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "total_withdrawn",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  }
+]
+Count: 114
+Preview:[
+  {
+    "user_id": 1,
+    "username": "ElonMuskBR",
+    "wallet_address": "0x628f347900D225A856054b6fe67683279a046122",
+    "rigs": 30,
+    "base_hash_rate": 629,
+    "balance": 20.73200091478565,
+    "lifetime_mined": 42.92605865230294,
+    "created_at": 1771861797313,
+    "updated_at": 1772740113051,
+    "total_withdrawn": 10
+  },
+  {
+    "user_id": 2,
+    "username": "ElonMuskBRr",
+    "wallet_address": null,
+    "rigs": 3,
+    "base_hash_rate": 9,
+    "balance": 0.009238088673262439,
+    "lifetime_mined": 6.823880351156512,
+    "created_at": 1771886305016,
+    "updated_at": 1772740113051,
+    "total_withdrawn": 0
+  },
+  {
+    "user_id": 3,
+    "username": "devilofwallstreet",
+    "wallet_address": "0x130d1397593256db97ffcce9d8a7d4e175cbb5b8",
+    "rigs": 20,
+    "base_hash_rate": 22,
+    "balance": 10.62884678874296,
+    "lifetime_mined": 10.628846788742957,
+    "created_at": 1772035748086,
+    "updated_at": 1772740113052,
+    "total_withdrawn": 0
+  }
+]
+----------------
+Table: users_wallets
+[
+  {
+    "cid": 0,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "wallet_address",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 28
+Preview:[
+  {
+    "user_id": 1,
+    "wallet_address": "0x628f347900D225A856054b6fe67683279a046122",
+    "created_at": 1771887195220,
+    "updated_at": 1771887195508
+  },
+  {
+    "user_id": 3,
+    "wallet_address": "0x130d1397593256db97ffcce9d8a7d4e175cbb5b8",
+    "created_at": 1772472965600,
+    "updated_at": 1772472965600
+  },
+  {
+    "user_id": 4,
+    "wallet_address": "0x6c5f296eefe074748dc269520cef35f5cbc16c60",
+    "created_at": 1772673191621,
+    "updated_at": 1772673191621
+  }
+]
+----------------
+Table: miners
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "name",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "slug",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "base_hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "price",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0.5",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "slot_size",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "image_url",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "is_active",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "show_in_shop",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  }
+]
+Count: 8
+Preview:[
+  {
+    "id": 1,
+    "name": "Faucet Miner",
+    "slug": "faucet-1ghs",
+    "base_hash_rate": 1,
+    "price": 0,
+    "slot_size": 1,
+    "image_url": "/assets/machines/reward1.png",
+    "is_active": 1,
+    "created_at": 1771861770442,
+    "show_in_shop": 0
+  },
+  {
+    "id": 2,
+    "name": "GPU 1 GHS",
+    "slug": "auto-gpu-1-ghs",
+    "base_hash_rate": 1,
+    "price": 0,
+    "slot_size": 1,
+    "image_url": "/assets/machines/reward2.png",
+    "is_active": 1,
+    "created_at": 1771870717043,
+    "show_in_shop": 0
+  },
+  {
+    "id": 3,
+    "name": "Shortlink Reward 5 GHS",
+    "slug": "shortlink-5ghs-reward",
+    "base_hash_rate": 5,
+    "price": 0,
+    "slot_size": 1,
+    "image_url": "/assets/machines/reward3.png",
+    "is_active": 1,
+    "created_at": 1771886173701,
+    "show_in_shop": 0
+  }
+]
+----------------
+Table: faucet_rewards
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "miner_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "is_active",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "miner_id": 1,
+    "is_active": 1,
+    "created_at": 1771861770452
+  }
+]
+----------------
+Table: games
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "name",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "slug",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "is_active",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "name": "Memory Game",
+    "slug": "memory-game",
+    "is_active": 1,
+    "created_at": 1772035936057
+  }
+]
+----------------
+Table: daily_checkins
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "checkin_date",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "confirmed_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "tx_hash",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "status",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": "'pending'",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "amount",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0.01",
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "chain_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 16
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "checkin_date": "2026-02-22",
+    "created_at": 1771861851862,
+    "confirmed_at": 1771861860154,
+    "tx_hash": "0x27ce9eb247128ac33fb000a5ff2931d997b9abc69152a88880c2adcba661863c",
+    "status": "confirmed",
+    "amount": 0.01,
+    "chain_id": 137
+  },
+  {
+    "id": 2,
+    "user_id": 4,
+    "checkin_date": "2026-02-25",
+    "created_at": 1772070893029,
+    "confirmed_at": 1772070911535,
+    "tx_hash": "0x8a3b966ec78d542f7e7583f53e13260b3cd6fb3ee753ff81e32e1f4e85620e98",
+    "status": "confirmed",
+    "amount": 0.01,
+    "chain_id": 137
+  },
+  {
+    "id": 3,
+    "user_id": 16,
+    "checkin_date": "2026-03-03",
+    "created_at": 1772591901505,
+    "confirmed_at": 1772648345051,
+    "tx_hash": "0x2ea3d6d1944ffbaf957aef85c1a1bcf9dbaa9076c5b0d4046bf5fcebc68d94b4",
+    "status": "confirmed",
+    "amount": 0.01,
+    "chain_id": 137
+  }
+]
+----------------
+Table: faucet_claims
+[
+  {
+    "cid": 0,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "claimed_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "total_claims",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "day_key",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 27
+Preview:[
+  {
+    "user_id": 1,
+    "claimed_at": 1772475418978,
+    "total_claims": 1,
+    "day_key": "2026-03-01"
+  },
+  {
+    "user_id": 2,
+    "claimed_at": 1772460814341,
+    "total_claims": 1,
+    "day_key": "2026-03-01"
+  },
+  {
+    "user_id": 3,
+    "claimed_at": 1772374161052,
+    "total_claims": 1,
+    "day_key": "2026-02-28"
+  }
+]
+----------------
+Table: users_powers_games
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "game_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "played_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "expires_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "checkin_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "is_expired",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  }
+]
+Count: 4561
+Preview:[
+  {
+    "id": 30,
+    "user_id": 8,
+    "game_id": 1,
+    "hash_rate": 5,
+    "played_at": 1772593366803,
+    "expires_at": 1773198166803,
+    "checkin_id": 4,
+    "is_expired": 0
+  },
+  {
+    "id": 32,
+    "user_id": 8,
+    "game_id": 1,
+    "hash_rate": 5,
+    "played_at": 1772593404104,
+    "expires_at": 1773198204104,
+    "checkin_id": 4,
+    "is_expired": 0
+  },
+  {
+    "id": 37,
+    "user_id": 8,
+    "game_id": 1,
+    "hash_rate": 5,
+    "played_at": 1772593569162,
+    "expires_at": 1773198369162,
+    "checkin_id": 4,
+    "is_expired": 0
+  }
+]
+----------------
+Table: payouts
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "amount_pol",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "source",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "tx_hash",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 0
+----------------
+Table: user_miners
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "miner_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "slot_index",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "level",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "is_active",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "purchased_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "slot_size",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  }
+]
+Count: 1118
+Preview:[
+  {
+    "id": 7,
+    "user_id": 2,
+    "miner_id": 1,
+    "slot_index": 0,
+    "level": 1,
+    "hash_rate": 1,
+    "is_active": 1,
+    "purchased_at": 1771887260141,
+    "slot_size": 1
+  },
+  {
+    "id": 9,
+    "user_id": 2,
+    "miner_id": 1,
+    "slot_index": 1,
+    "level": 1,
+    "hash_rate": 1,
+    "is_active": 1,
+    "purchased_at": 1771894216115,
+    "slot_size": 1
+  },
+  {
+    "id": 11,
+    "user_id": 2,
+    "miner_id": 1,
+    "slot_index": 2,
+    "level": 1,
+    "hash_rate": 1,
+    "is_active": 1,
+    "purchased_at": 1772061615633,
+    "slot_size": 1
+  }
+]
+----------------
+Table: user_inventory
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "miner_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "miner_name",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "level",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "slot_size",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "image_url",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "acquired_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 660
+Preview:[
+  {
+    "id": 33,
+    "user_id": 3,
+    "miner_id": 1,
+    "miner_name": "Faucet Miner",
+    "level": 1,
+    "hash_rate": 1,
+    "slot_size": 1,
+    "image_url": null,
+    "acquired_at": 1772374329099,
+    "updated_at": 1772374329099
+  },
+  {
+    "id": 68,
+    "user_id": 5,
+    "miner_id": 1,
+    "miner_name": "Faucet Miner",
+    "level": 1,
+    "hash_rate": 1,
+    "slot_size": 1,
+    "image_url": "/assets/machines/reward1.png",
+    "acquired_at": 1772493995837,
+    "updated_at": 1772493995837
+  },
+  {
+    "id": 90,
+    "user_id": 19,
+    "miner_id": 8,
+    "miner_name": "Welcome Miner",
+    "level": 1,
+    "hash_rate": 10,
+    "slot_size": 1,
+    "image_url": "/assets/machines/reward1.png",
+    "acquired_at": 1772591967844,
+    "updated_at": 1772591967844
+  }
+]
+----------------
+Table: rack_configs
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "rack_index",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "custom_name",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 20
+Preview:[
+  {
+    "id": 1,
+    "user_id": 5,
+    "rack_index": 1,
+    "custom_name": "slot 1 do nerd",
+    "created_at": 1772493666299,
+    "updated_at": 1772493666299
+  },
+  {
+    "id": 2,
+    "user_id": 8,
+    "rack_index": 1,
+    "custom_name": "Rack 1",
+    "created_at": 1772590676257,
+    "updated_at": 1772595638892
+  },
+  {
+    "id": 3,
+    "user_id": 16,
+    "rack_index": 1,
+    "custom_name": "Free",
+    "created_at": 1772634987411,
+    "updated_at": 1772634987411
+  }
+]
+----------------
+Table: ptp_ads
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "title",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "url",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "hash",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "created_at",
+    "type": "DATETIME",
+    "notnull": 0,
+    "dflt_value": "CURRENT_TIMESTAMP",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "status",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": "'active'",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "views",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "paid_usd",
+    "type": "REAL",
+    "notnull": 0,
+    "dflt_value": "0.10",
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "target_views",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 10,
+    "name": "asset",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": "'POOL'",
+    "pk": 0
+  },
+  {
+    "cid": 11,
+    "name": "cost_usd",
+    "type": "REAL",
+    "notnull": 0,
+    "dflt_value": "0.10",
+    "pk": 0
+  },
+  {
+    "cid": 12,
+    "name": "cost_asset",
+    "type": "REAL",
+    "notnull": 0,
+    "dflt_value": "0",
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "title": "Monetag - 01",
+    "url": "https://omg10.com/4/10180845",
+    "hash": "98ec2d10f1119e42",
+    "created_at": "2026-03-04 13:03:43",
+    "status": "active",
+    "views": 1,
+    "paid_usd": 0.1,
+    "target_views": 1000,
+    "asset": "USDC",
+    "cost_usd": 0.1,
+    "cost_asset": 0.1
+  }
+]
+----------------
+Table: ptp_views
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "ad_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "viewer_hash",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "viewed_at",
+    "type": "DATETIME",
+    "notnull": 0,
+    "dflt_value": "CURRENT_TIMESTAMP",
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "ad_id": 1,
+    "viewer_hash": "c884fcee93c0c613",
+    "viewed_at": "2026-03-05 18:15:48"
+  }
+]
+----------------
+Table: ptp_earnings
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "ad_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "amount_usd",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "paid_at",
+    "type": "DATETIME",
+    "notnull": 0,
+    "dflt_value": "CURRENT_TIMESTAMP",
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "ad_id": 1,
+    "amount_usd": 0.0001,
+    "paid_at": "2026-03-05 18:15:48"
+  }
+]
+----------------
+Table: zerads_ptc_callbacks
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "username",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "amount_zer",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "exchange_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "payout_amount",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "clicks",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "request_ip",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "callback_hash",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "callback_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 10,
+    "name": "created_at",
+    "type": "DATETIME",
+    "notnull": 0,
+    "dflt_value": "CURRENT_TIMESTAMP",
+    "pk": 0
+  }
+]
+Count: 0
+----------------
+Table: transactions
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "type",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "amount",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "address",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "tx_hash",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "raw_tx",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "tx_nonce",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "tx_gas_price",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "tx_gas_limit",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 10,
+    "name": "from_address",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 11,
+    "name": "status",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": "'pending'",
+    "pk": 0
+  },
+  {
+    "cid": 12,
+    "name": "funds_reserved",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 13,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 14,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 15,
+    "name": "completed_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 19
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "type": "withdrawal",
+    "amount": 10,
+    "address": "0xE998A62018aD3729D60A42c784b2911dE6D16653",
+    "tx_hash": null,
+    "raw_tx": null,
+    "tx_nonce": null,
+    "tx_gas_price": null,
+    "tx_gas_limit": null,
+    "from_address": null,
+    "status": "completed",
+    "funds_reserved": 0,
+    "created_at": 1772480269070,
+    "updated_at": 1772481075323,
+    "completed_at": 1772481075323
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "type": "withdrawal",
+    "amount": 10,
+    "address": "0x628f347900D225A856054b6fe67683279a046122",
+    "tx_hash": null,
+    "raw_tx": null,
+    "tx_nonce": null,
+    "tx_gas_price": null,
+    "tx_gas_limit": null,
+    "from_address": null,
+    "status": "failed",
+    "funds_reserved": 0,
+    "created_at": 1772481729186,
+    "updated_at": 1772483240361,
+    "completed_at": null
+  },
+  {
+    "id": 3,
+    "user_id": 3,
+    "type": "withdrawal",
+    "amount": 10.47447,
+    "address": "0x130d1397593256db97ffcce9d8a7d4e175cbb5b8",
+    "tx_hash": null,
+    "raw_tx": null,
+    "tx_nonce": null,
+    "tx_gas_price": null,
+    "tx_gas_limit": null,
+    "from_address": null,
+    "status": "failed",
+    "funds_reserved": 0,
+    "created_at": 1772582005227,
+    "updated_at": 1772728421538,
+    "completed_at": null
+  }
+]
+----------------
+Table: deposits
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "amount",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "tx_hash",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "from_address",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "to_address",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "status",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": "'pending'",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "confirmed_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 10
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "amount": 0.1,
+    "tx_hash": "0xfea190e4f0950c10078d4f78ce72e74c3694056fac1d12f4a405d754cc4e7032",
+    "from_address": "0x628f347900d225a856054b6fe67683279a046122",
+    "to_address": "0x1ca03755c5132e238ae4e0f50d4929ea0d58b897",
+    "status": "completed",
+    "created_at": 1772729172189,
+    "updated_at": 1772729400761,
+    "confirmed_at": 1772729400761
+  },
+  {
+    "id": 2,
+    "user_id": 15,
+    "amount": 6,
+    "tx_hash": "0x2bf6ac65a730e06e1ba002e211d1f2c3b5856aee7e636a3b77b38a24fa04f2d5",
+    "from_address": "0x6b9c02f102298f4b61f0efbf0718d11a755b07ce",
+    "to_address": "0x1ca03755c5132e238ae4e0f50d4929ea0d58b897",
+    "status": "completed",
+    "created_at": 1772729617201,
+    "updated_at": 1772729700713,
+    "confirmed_at": 1772729700713
+  },
+  {
+    "id": 3,
+    "user_id": 15,
+    "amount": 12,
+    "tx_hash": "0xe5e9e3471580e0b2e9235d59369cb73cfaa47d903089cf13cd9fcf1d0d2abd54",
+    "from_address": "0x6b9c02f102298f4b61f0efbf0718d11a755b07ce",
+    "to_address": "0x1ca03755c5132e238ae4e0f50d4929ea0d58b897",
+    "status": "completed",
+    "created_at": 1772730384483,
+    "updated_at": 1772730605254,
+    "confirmed_at": 1772730605254
+  }
+]
+----------------
+Table: auto_mining_rewards
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "name",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "slug",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "gpu_hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "image_url",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "description",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "is_active",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "name": "GPU 1 GHS",
+    "slug": "gpu-1-ghs",
+    "gpu_hash_rate": 1,
+    "image_url": "/assets/machines/reward2.png",
+    "description": "Distribui apenas uma GPU de 1 GHS para cada usuário a cada 5 minutos",
+    "is_active": 1,
+    "created_at": 1771861770782,
+    "updated_at": 1772732160163
+  }
+]
+----------------
+Table: auto_mining_gpu
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "reward_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "gpu_hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "is_available",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "is_claimed",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "released_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "claimed_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "expires_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 1408
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "reward_id": 1,
+    "gpu_hash_rate": 1,
+    "is_available": 1,
+    "is_claimed": 1,
+    "released_at": 1771870717024,
+    "claimed_at": 1771870717031,
+    "expires_at": null
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "reward_id": 1,
+    "gpu_hash_rate": 1,
+    "is_available": 1,
+    "is_claimed": 1,
+    "released_at": 1771871437165,
+    "claimed_at": 1771871437171,
+    "expires_at": null
+  },
+  {
+    "id": 3,
+    "user_id": 3,
+    "reward_id": 1,
+    "gpu_hash_rate": 1,
+    "is_available": 1,
+    "is_claimed": 1,
+    "released_at": 1772368799703,
+    "claimed_at": 1772368799710,
+    "expires_at": null
+  }
+]
+----------------
+Table: auto_mining_gpu_logs
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "gpu_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "reward_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "gpu_hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "action",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "source",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "claimed_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "expires_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "notes",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 1412
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "gpu_id": 1,
+    "reward_id": 1,
+    "gpu_hash_rate": 1,
+    "action": "claim",
+    "source": "user_claim",
+    "claimed_at": 1771870717036,
+    "expires_at": null,
+    "notes": null
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "gpu_id": 2,
+    "reward_id": 1,
+    "gpu_hash_rate": 1,
+    "action": "claim",
+    "source": "user_claim",
+    "claimed_at": 1771871437178,
+    "expires_at": null,
+    "notes": null
+  },
+  {
+    "id": 3,
+    "user_id": 3,
+    "gpu_id": 3,
+    "reward_id": 1,
+    "gpu_hash_rate": 1,
+    "action": "claim",
+    "source": "user_claim",
+    "claimed_at": 1772368799714,
+    "expires_at": null,
+    "notes": null
+  }
+]
+----------------
+Table: callback_queue
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "callback_type",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "username",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "amount",
+    "type": "REAL",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "exchange_rate",
+    "type": "REAL",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "payout_amount",
+    "type": "REAL",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "data",
+    "type": "JSON",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "status",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": "'pending'",
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "error_message",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 10,
+    "name": "retry_count",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 11,
+    "name": "max_retries",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "3",
+    "pk": 0
+  },
+  {
+    "cid": 12,
+    "name": "request_ip",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 13,
+    "name": "callback_hash",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 14,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 15,
+    "name": "processed_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 16,
+    "name": "next_retry_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 0
+----------------
+Table: mining_rewards_log
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "block_number",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "work_accumulated",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "total_network_work",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "share_percentage",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "reward_amount",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "balance_after_reward",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 16898
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "block_number": 1,
+    "work_accumulated": 2074,
+    "total_network_work": 2074,
+    "share_percentage": 100,
+    "reward_amount": 0.1,
+    "balance_after_reward": 0.10000579864811635,
+    "created_at": 1771877430699
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "block_number": 1,
+    "work_accumulated": 2404,
+    "total_network_work": 2404,
+    "share_percentage": 100,
+    "reward_amount": 0.1,
+    "balance_after_reward": 0.10000579864811635,
+    "created_at": 1771878384752
+  },
+  {
+    "id": 3,
+    "user_id": 1,
+    "block_number": 2,
+    "work_accumulated": 2400,
+    "total_network_work": 2400,
+    "share_percentage": 100,
+    "reward_amount": 0.1,
+    "balance_after_reward": 0.20000579864811635,
+    "created_at": 1771878985595
+  }
+]
+----------------
+Table: shortlink_completions
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "shortlink_type",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": "'internal'",
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "current_step",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "daily_runs",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "completed_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "reset_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 16
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "shortlink_type": "internal",
+    "current_step": 0,
+    "daily_runs": 0,
+    "completed_at": null,
+    "reset_at": 1771934400001,
+    "created_at": 1771892605307
+  },
+  {
+    "id": 2,
+    "user_id": 2,
+    "shortlink_type": "internal",
+    "current_step": 0,
+    "daily_runs": 0,
+    "completed_at": null,
+    "reset_at": 1772539200001,
+    "created_at": 1771895032320
+  },
+  {
+    "id": 3,
+    "user_id": 5,
+    "shortlink_type": "internal",
+    "current_step": 0,
+    "daily_runs": 0,
+    "completed_at": null,
+    "reset_at": 1772539200001,
+    "created_at": 1772494040520
+  }
+]
+----------------
+Table: shortlink_rewards
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "shortlink_type",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "miner_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "reward_name",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "slot_size",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "image_url",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "is_active",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "shortlink_type": "internal",
+    "miner_id": 3,
+    "reward_name": "Shortlink Reward 5 GHS",
+    "hash_rate": 5,
+    "slot_size": 1,
+    "image_url": "/assets/machines/reward3.png",
+    "is_active": 1,
+    "created_at": 1771886173701,
+    "updated_at": 1772734848464
+  }
+]
+----------------
+Table: youtube_watch_user_powers
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "claimed_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "expires_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "source_video_id",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "is_expired",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  }
+]
+Count: 18386
+Preview:[
+  {
+    "id": 3777,
+    "user_id": 28,
+    "hash_rate": 3,
+    "claimed_at": 1772642029656,
+    "expires_at": 1772728429656,
+    "source_video_id": "DqT8B1zUgyc",
+    "is_expired": 1
+  },
+  {
+    "id": 3778,
+    "user_id": 47,
+    "hash_rate": 3,
+    "claimed_at": 1772642030165,
+    "expires_at": 1772728430165,
+    "source_video_id": "I0OFJuqILa8",
+    "is_expired": 1
+  },
+  {
+    "id": 3779,
+    "user_id": 16,
+    "hash_rate": 3,
+    "claimed_at": 1772642030239,
+    "expires_at": 1772728430239,
+    "source_video_id": "qI0dDfB1gJI",
+    "is_expired": 1
+  }
+]
+----------------
+Table: youtube_watch_power_history
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "hash_rate",
+    "type": "REAL",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "claimed_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "expires_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "source_video_id",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "status",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": "'granted'",
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 22162
+Preview:[
+  {
+    "id": 1,
+    "user_id": 3,
+    "hash_rate": 3,
+    "claimed_at": 1772368418581,
+    "expires_at": 1772454818581,
+    "source_video_id": "MBIqEC3fU0o",
+    "status": "expired",
+    "created_at": 1772368418581
+  },
+  {
+    "id": 2,
+    "user_id": 15,
+    "hash_rate": 3,
+    "claimed_at": 1772591172357,
+    "expires_at": 1772677572357,
+    "source_video_id": "ugRgQ_95X4Y",
+    "status": "expired",
+    "created_at": 1772591172357
+  },
+  {
+    "id": 3,
+    "user_id": 15,
+    "hash_rate": 3,
+    "claimed_at": 1772591344353,
+    "expires_at": 1772677744353,
+    "source_video_id": "ugRgQ_95X4Y",
+    "status": "expired",
+    "created_at": 1772591344353
+  }
+]
+----------------
+Table: chat_messages
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "username",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "message",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 81
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "username": "ElonMuskBR",
+    "message": "oioio",
+    "created_at": 1772222564148
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "username": "ElonMuskBR",
+    "message": "😎",
+    "created_at": 1772222567684
+  },
+  {
+    "id": 3,
+    "user_id": 1,
+    "username": "ElonMuskBR",
+    "message": "🚀🚀🚀",
+    "created_at": 1772479221693
+  }
+]
+----------------
+Table: faucet_partner_visits
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "user_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "day_key",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "opened_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "eligible_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 40
+Preview:[
+  {
+    "id": 1,
+    "user_id": 1,
+    "day_key": "2026-02-27",
+    "opened_at": 1772290032342,
+    "eligible_at": 1772290037342,
+    "created_at": 1772289982116,
+    "updated_at": 1772290032342
+  },
+  {
+    "id": 3,
+    "user_id": 3,
+    "day_key": "2026-02-28",
+    "opened_at": 1772374153805,
+    "eligible_at": 1772374158805,
+    "created_at": 1772374153805,
+    "updated_at": 1772374153805
+  },
+  {
+    "id": 4,
+    "user_id": 2,
+    "day_key": "2026-03-01",
+    "opened_at": 1772460808370,
+    "eligible_at": 1772460813370,
+    "created_at": 1772460808370,
+    "updated_at": 1772460808370
+  }
+]
+----------------
+Table: dashboard_updates
+[
+  {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "version",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "title",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "description",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "is_active",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "1",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "starts_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "ends_at",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "created_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "updated_at",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  }
+]
+Count: 1
+Preview:[
+  {
+    "id": 1,
+    "version": "2026.03.04",
+    "title": "Latest Updates",
+    "description": "Welcome to the new BlockMiner dashboard updates popup.\n- Security and stability improvements\n- RPC and logging refactors\n- Financial safeguards and test coverage",
+    "is_active": 1,
+    "starts_at": 1772728484665,
+    "ends_at": null,
+    "created_at": 1772728484665,
+    "updated_at": 1772728484665
+  }
+]
+----------------

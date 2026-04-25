@@ -97,7 +97,7 @@ function Get-ViteEnvOverrideMap {
         'DB_PUBLISH_PORT',
         'NGINX_PUBLISH_HTTP',
         'NGINX_PUBLISH_HTTPS',
-        # API CORS allowlist (production). Required when the SPA origin differs from vm-backup defaults (e.g. tests.blockminer.space).
+        # API CORS allowlist (production). Required when the SPA origin differs from vm-backup defaults (e.g. test.blockminer.space).
         'CORS_ORIGINS',
         # Server-side AES key for encrypting RTMP stream keys at rest (64 hex chars). Merge into uploaded .env.production.
         'STREAM_ENCRYPTION_KEY',

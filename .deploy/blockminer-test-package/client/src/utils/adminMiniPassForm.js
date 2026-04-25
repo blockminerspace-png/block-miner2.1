@@ -1,0 +1,153 @@
+/**
+ * Client-side helpers for Admin Mini Pass UI (mirrors server rules where noted).
+ * Does not replace server validation.
+ */
+
+export function toDatetimeLocalValue(d) {
+  const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return "";
+  x.setMinutes(x.getMinutes() - x.getTimezoneOffset());
+  return x.toISOString().slice(0, 16);
+}
+
+export function defaultSeasonDateRange() {
+  const start = new Date();
+  const end = new Date(start);
+  end.setDate(end.getDate() + 14);
+  return { startsAt: toDatetimeLocalValue(start), endsAt: toDatetimeLocalValue(end) };
+}
+
+/**
+ * Each tier L requires totalXp >= (L-1) * xpPerLevel to claim that level's reward (see computePassLevel).
+ */
+export function buildProgressionTiers(maxLevel, xpPerLevel) {
+  const max = Math.max(1, Math.min(500, parseInt(String(maxLevel), 10) || 1));
+  const step = Math.max(1, Math.min(1_000_000, parseInt(String(xpPerLevel), 10) || 1));
+  const rows = [];
+  for (let level = 1; level <= max; level += 1) {
+    const minTotalXp = (level - 1) * step;
+    const xpToAdvance = level < max ? step : 0;
+    rows.push({ level, minTotalXp, xpToAdvance });
+  }
+  return rows;
+}
+
+function positiveInt(n) {
+  const v = parseInt(String(n), 10);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+function positiveDecimalString(s) {
+  if (s == null || String(s).trim() === "") return null;
+  const n = Number(String(s).replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? String(s).trim() : null;
+}
+
+/** @returns {{ ok: true } | { ok: false, errorKey: string }} */
+export function validateRewardDraft(draft) {
+  const kind = String(draft.rewardKind || "NONE").toUpperCase();
+  if (kind === "NONE") return { ok: true };
+
+  if (kind === "SHOP_MINER") {
+    if (!positiveInt(draft.minerId)) return { ok: false, errorKey: "reward_shop_miner" };
+    return { ok: true };
+  }
+  if (kind === "EVENT_MINER") {
+    if (!positiveInt(draft.eventMinerId)) return { ok: false, errorKey: "reward_event_miner" };
+    return { ok: true };
+  }
+  if (kind === "HASHRATE_TEMP") {
+    const hr = Number(draft.hashRate);
+    const days = parseInt(String(draft.hashRateDays), 10);
+    if (!Number.isFinite(hr) || hr <= 0) return { ok: false, errorKey: "reward_hashrate" };
+    if (!Number.isFinite(days) || days < 1 || days > 365) return { ok: false, errorKey: "reward_hashrate_days" };
+    return { ok: true };
+  }
+  if (kind === "BLK") {
+    if (!positiveDecimalString(draft.blkAmount)) return { ok: false, errorKey: "reward_blk" };
+    return { ok: true };
+  }
+  if (kind === "POL") {
+    if (!positiveDecimalString(draft.polAmount)) return { ok: false, errorKey: "reward_pol" };
+    return { ok: true };
+  }
+  return { ok: false, errorKey: "reward_unknown_kind" };
+}
+
+/** @returns {string[]} i18n error keys under adminMiniPass.errors */
+export function validateSeasonForm(form) {
+  const keys = [];
+  const slug = String(form.slug || "")
+    .trim()
+    .toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(slug)) keys.push("invalid_slug");
+
+  const titleEn = String(form.titleEn || "").trim();
+  const titlePt = String(form.titlePtBR || "").trim();
+  const titleEs = String(form.titleEs || "").trim();
+  if (!titleEn && !titlePt && !titleEs) keys.push("title_required");
+
+  const start = form.startsAt ? new Date(form.startsAt) : null;
+  const end = form.endsAt ? new Date(form.endsAt) : null;
+  if (!start || Number.isNaN(start.getTime())) keys.push("invalid_start");
+  if (!end || Number.isNaN(end.getTime())) keys.push("invalid_end");
+  if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end <= start) {
+    keys.push("end_before_start");
+  }
+
+  const maxLevel = parseInt(String(form.maxLevel), 10);
+  const xpPerLevel = parseInt(String(form.xpPerLevel), 10);
+  if (!Number.isFinite(maxLevel) || maxLevel < 1 || maxLevel > 500) keys.push("invalid_max_level");
+  if (!Number.isFinite(xpPerLevel) || xpPerLevel < 1 || xpPerLevel > 1_000_000) keys.push("invalid_xp_per_level");
+
+  return keys;
+}
+
+export function summarizeRewardRow(r) {
+  if (!r || r.rewardKind == null || String(r.rewardKind).trim() === "") return "—";
+  const kind = String(r.rewardKind || "NONE").toUpperCase();
+  if (kind === "NONE") return "—";
+  if (kind === "SHOP_MINER") return `Miner #${r.minerId ?? "?"}`;
+  if (kind === "EVENT_MINER") return `Event #${r.eventMinerId ?? "?"}`;
+  if (kind === "HASHRATE_TEMP") return `${r.hashRate ?? "?"} H/s × ${r.hashRateDays ?? "?"}d`;
+  if (kind === "BLK") return `BLK ${r.blkAmount ?? "?"}`;
+  if (kind === "POL") return `POL ${r.polAmount ?? "?"}`;
+  return kind;
+}
+
+/** @returns {{ ok: true } | { ok: false, errorKey: string }} */
+export function validateMissionDraft(missionDraft) {
+  const en = String(missionDraft.titleEn || "").trim();
+  const pt = String(missionDraft.titlePtBR || "").trim();
+  const es = String(missionDraft.titleEs || "").trim();
+  if (!en && !pt && !es) return { ok: false, errorKey: "mission_title_required" };
+
+  let targetNum;
+  try {
+    targetNum = Number(String(missionDraft.targetValue ?? "0").replace(",", "."));
+  } catch {
+    targetNum = NaN;
+  }
+  if (!Number.isFinite(targetNum) || targetNum <= 0) return { ok: false, errorKey: "mission_target" };
+
+  const xp = Math.floor(Number(missionDraft.xpReward) || 0);
+  if (!Number.isFinite(xp) || xp < 0 || xp > 1_000_000) return { ok: false, errorKey: "mission_xp" };
+
+  const dEn = String(missionDraft.descriptionEn || "").trim();
+  const dPt = String(missionDraft.descriptionPtBR || "").trim();
+  const dEs = String(missionDraft.descriptionEs || "").trim();
+  if ((dPt || dEs) && !dEn) return { ok: false, errorKey: "mission_desc_en" };
+
+  const rawSlug = String(missionDraft.gameSlug || "").trim();
+  if (rawSlug && !/^[a-z0-9][a-z0-9-]{0,62}$/.test(rawSlug.toLowerCase())) {
+    return { ok: false, errorKey: "mission_game_slug" };
+  }
+
+  return { ok: true };
+}
+
+export function countRewardLevels(rewards, maxLevel) {
+  const max = Math.max(1, Math.min(500, parseInt(String(maxLevel), 10) || 1));
+  const set = new Set((rewards || []).map((r) => r.level).filter((n) => n >= 1 && n <= max));
+  return { defined: set.size, expected: max, missingLevels: Array.from({ length: max }, (_, i) => i + 1).filter((l) => !set.has(l)) };
+}

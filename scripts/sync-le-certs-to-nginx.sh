@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Copia fullchain/privkey do Let's Encrypt para nginx/certs (nomes esperados pelo nginx.conf)
 # e recarrega o contentor nginx. Usar após certbot renew (deploy-hook) ou primeiro setup.
-# Uso na VPS: DOMAIN=tests.blockminer.space PROJECT_ROOT=/root/block-miner ./scripts/sync-le-certs-to-nginx.sh
+# Uso na VPS: DOMAIN=test.blockminer.space PROJECT_ROOT=/root/block-miner ./scripts/sync-le-certs-to-nginx.sh
 set -euo pipefail
-DOMAIN="${DOMAIN:-tests.blockminer.space}"
+DOMAIN="${DOMAIN:-test.blockminer.space}"
 PROJECT_ROOT="${PROJECT_ROOT:-/root/block-miner}"
 LIVE="/etc/letsencrypt/live/${DOMAIN}"
 if [[ ! -f "${LIVE}/fullchain.pem" ]] || [[ ! -f "${LIVE}/privkey.pem" ]]; then

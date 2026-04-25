@@ -1,0 +1,118 @@
+# Gitflow — auto deploy to TEST VM after CI passes on `develop`.
+#
+# Enable: Variable ENABLE_TEST_VM_DEPLOY=true
+# Required secret: TEST_VPS_PASSWORD (root SSH password — never commit it)
+#
+# Defaults (override with Variables if needed):
+#   TEST_VPS_HOST, TEST_VPS_USER, TEST_VPS_APP_PATH, TEST_REPO_URL, TEST_GIT_BRANCH
+#   TEST_VPS_APP_HOST_PORT — host port for the app (default 3001 if unset; avoids :3000 clashes)
+#
+# Optional: use SSH key instead of password — set secrets TEST_VPS_SSH_PRIVATE_KEY
+# and leave TEST_VPS_PASSWORD empty (then add key to the action step below).
+# Optional: secrets.TEST_VPS_SSH_FINGERPRINT (SHA256 host key) if host key verification fails.
+name: Deploy Test VM
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [develop]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: >-
+      vars.ENABLE_TEST_VM_DEPLOY == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'develop'
+        )
+      )
+    steps:
+      - name: Deploy via SSH (develop)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.TEST_VPS_HOST || '89.167.114.67' }}
+          username: ${{ vars.TEST_VPS_USER || 'root' }}
+          password: ${{ secrets.TEST_VPS_PASSWORD }}
+          port: ${{ vars.TEST_VPS_PORT || '22' }}
+          fingerprint: ${{ secrets.TEST_VPS_SSH_FINGERPRINT }}
+          request_pty: true
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+            APP_ROOT="${{ vars.TEST_VPS_APP_PATH }}"
+            APP_ROOT="${APP_ROOT:-/root/block-miner-v3}"
+            REPO_URL="${{ vars.TEST_REPO_URL }}"
+            REPO_URL="${REPO_URL:-https://github.com/blockminerspace-png/block-miner-v3.git}"
+            GIT_BRANCH="${{ vars.TEST_GIT_BRANCH }}"
+            GIT_BRANCH="${GIT_BRANCH:-develop}"
+            export APP_ROOT GIT_BRANCH
+
+            if [[ ! -d "$APP_ROOT/.git" ]]; then
+              echo "[bootstrap] clone $REPO_URL -> $APP_ROOT (prefer branch $GIT_BRANCH)"
+              mkdir -p "$(dirname "$APP_ROOT")"
+              parent="$(dirname "$APP_ROOT")"
+              base="$(basename "$APP_ROOT")"
+              cd "$parent"
+              if [[ -e "$base" ]] && [[ ! -d "$base/.git" ]]; then
+                echo "[bootstrap] removing stale path (not a git repo): $parent/$base"
+                rm -rf "$base"
+              fi
+              if [[ ! -d "$base/.git" ]]; then
+                git clone "$REPO_URL" "$base"
+              fi
+              cd "$APP_ROOT"
+              git fetch origin --prune
+              if git show-ref --verify --quiet "refs/remotes/origin/$GIT_BRANCH"; then
+                git checkout -B "$GIT_BRANCH" "refs/remotes/origin/$GIT_BRANCH"
+              else
+                echo "[bootstrap] origin/$GIT_BRANCH missing; using main (set GIT_BRANCH=main for deploy script)"
+                export GIT_BRANCH=main
+                if git show-ref --verify --quiet refs/remotes/origin/main; then
+                  git checkout -B main refs/remotes/origin/main
+                elif git show-ref --verify --quiet refs/remotes/origin/master; then
+                  export GIT_BRANCH=master
+                  git checkout -B master refs/remotes/origin/master
+                else
+                  echo "[bootstrap] ERROR: remote has no main/master to fall back"; exit 1
+                fi
+              fi
+            fi
+
+            cd "$APP_ROOT"
+            if [[ ! -f scripts/deploy-production-safe.sh ]]; then
+              echo "ERROR: scripts/deploy-production-safe.sh missing in $APP_ROOT"
+              exit 1
+            fi
+
+            # Sync repo BEFORE bash reads deploy-production-safe.sh (otherwise an old on-disk
+            # script runs for the whole job even after git pull inside that old script).
+            echo "[preflight] git fetch / reset to origin/$GIT_BRANCH"
+            git fetch origin --prune
+            if git show-ref --verify --quiet "refs/remotes/origin/$GIT_BRANCH"; then
+              git checkout "$GIT_BRANCH"
+              git reset --hard "origin/$GIT_BRANCH"
+            elif git show-ref --verify --quiet refs/remotes/origin/main; then
+              echo "[preflight] WARN: origin/$GIT_BRANCH missing; using origin/main"
+              export GIT_BRANCH=main
+              git checkout main
+              git reset --hard origin/main
+            else
+              echo "[preflight] ERROR: cannot resolve origin/$GIT_BRANCH or origin/main"; exit 1
+            fi
+
+            # Compose uses ${APP_HOST_PORT:-3000}; test VMs often have host :3000 taken.
+            REMOTE_APP_PORT='${{ vars.TEST_VPS_APP_HOST_PORT }}'
+            export APP_HOST_PORT="${REMOTE_APP_PORT:-3001}"
+
+            export SKIP_APP_TARBALL=1
+            export DEPLOY_GIT_MODE=reset
+            export START_NGINX_PROXY=1
+            bash scripts/deploy-production-safe.sh

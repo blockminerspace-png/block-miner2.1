@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0e14">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Crypto Live Dashboard</title>
+    <base href="/crypto-broadcast/">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div id="chromeless-bar" class="chromeless-bar" role="region" aria-label="Fullscreen">
+        <div class="chromeless-bar__inner">
+            <p id="chromeless-line1" class="chromeless-bar__text"></p>
+            <p id="chromeless-line2" class="chromeless-bar__text chromeless-bar__text--muted"></p>
+            <div class="chromeless-bar__actions">
+                <button type="button" id="btn-enter-fullscreen" class="chromeless-bar__btn"></button>
+                <button type="button" id="btn-install-pwa" class="chromeless-bar__btn chromeless-bar__btn--ghost hidden" hidden></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="background-overlay"></div>
+
+    <main class="dashboard-container">
+        <header class="top-bar">
+            <div class="glass-card clock-container">
+                <h1 id="clock">00:00:00</h1>
+                <p id="date">Thursday, February 26, 2026</p>
+            </div>
+
+            <div class="glass-card market-stats">
+                <div class="stat-item">
+                    <span class="label">FEAR & GREED</span>
+                    <span id="fg-value" class="value">--</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="label">BTC DOMINANCE</span>
+                    <span id="btc-dom" class="value">--%</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="label">TOTAL MARKET CAP</span>
+                    <span id="total-cap" class="value">$--T</span>
+                </div>
+            </div>
+
+            <div class="glass-card status-container">
+                <span class="status-dot"></span>
+                <span id="status-text">LIVE DATA: COINGECKO</span>
+            </div>
+        </header>
+
+        <section class="main-content">
+            <div class="crypto-grid">
+                <div class="glass-card crypto-card" id="btc-card">
+                    <div class="crypto-info">
+                        <span class="symbol">BTC</span>
+                        <span class="name">Bitcoin</span>
+                    </div>
+                    <div class="crypto-price" id="btc-price">$ --,---</div>
+                    <div class="crypto-change" id="btc-change">--%</div>
+                </div>
+                <div class="glass-card crypto-card" id="eth-card">
+                    <div class="crypto-info">
+                        <span class="symbol">ETH</span>
+                        <span class="name">Ethereum</span>
+                    </div>
+                    <div class="crypto-price" id="eth-price">$ --,---</div>
+                    <div class="crypto-change" id="eth-change">--%</div>
+                </div>
+                <div class="glass-card crypto-card" id="sol-card">
+                    <div class="crypto-info">
+                        <span class="symbol">SOL</span>
+                        <span class="name">Solana</span>
+                    </div>
+                    <div class="crypto-price" id="sol-price">$ --,---</div>
+                    <div class="crypto-change" id="sol-change">--%</div>
+                </div>
+                <div class="glass-card crypto-card" id="xrp-card">
+                    <div class="crypto-info">
+                        <span class="symbol">XRP</span>
+                        <span class="name">Ripple</span>
+                    </div>
+                    <div class="crypto-price" id="xrp-price">$ --,---</div>
+                    <div class="crypto-change" id="xrp-change">--%</div>
+                </div>
+            </div>
+
+            <div class="glass-card chart-container">
+                <div id="tradingview_chart"></div>
+            </div>
+        </section>
+
+        <footer class="bottom-bar">
+            <div class="glass-card ticker-container">
+                <div class="tradingview-widget-container" id="tv-ticker-container">
+                    <div class="tradingview-widget-container__widget"></div>
+                </div>
+            </div>
+        </footer>
+    </main>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,131 @@
+---
+description: 
+alwaysApply: true
+---
+
+# 🔥 Tech Lead Engineering Standards v2.1 (AI-Executable & Production-Ready)
+
+---
+
+## 0. Non-Negotiables (Fail = Block PR / Halt Execution)
+- ❌ No tests → no merge
+- ❌ No input validation → no merge
+- ❌ Hidden side effects → no merge
+- ❌ Breaking API/contracts → no merge
+- ❌ Sensitive data in logs → no merge
+- ❌ Unreadable code → no merge
+- 🚫 **Code, variables, comments, commits, and documentation MUST be in English**
+- 🌍 **All UI strings, errors, and user-facing text MUST support i18n (pt-BR, es-ES)**
+- ️ **Every successful build/test cycle MUST trigger automatic VPS deployment**
+- 🔑 **`.env` must be auto-validated, templated, and injected securely during deploy**
+- 🛑 **Never modify database schema or delete data without explicit written approval**
+
+---
+
+## 1. System Design
+*(Unchanged - keep existing architecture rules)*
+
+## 2. Code Quality
+*(Unchanged - keep existing structure & readability rules)*
+
+## 3. Data & Domain Modeling
+*(Unchanged - keep existing modeling rules)*
+
+## 4. Testing Strategy
+*(Unchanged - keep existing testing pyramid & rules)*
+
+## 5. Security
+*(Unchanged - keep existing auth, validation, infra rules)*
+
+## 6. Error Handling
+*(Unchanged - keep existing typed errors & fail-fast rules)*
+
+## 7. Observability
+*(Unchanged - keep structured logs, traceId, metrics rules)*
+
+## 8. Performance & Scaling
+*(Unchanged - keep N+1, pagination, indexing rules)*
+
+## 9. Resilience
+*(Unchanged - keep timeouts, retry, circuit breaker rules)*
+
+## 10. CI/CD & DevOps (ENHANCED)
+### 10.1 Mandatory Deployment Pipeline
+- **Trigger:** Successful `test` + `lint` + `build`
+- **Target VPS:** `89.167.119.164` (root access via secure secret injection)
+- **Method:** Use `deploy.py` or equivalent zero-downtime script
+- **Steps:**
+  1. Backup current runtime state
+  2. Pull latest commit from main
+  3. Validate & inject `.env` (see 10.2)
+  4. Install dependencies (`npm ci --production` or equivalent)
+  5. Build assets
+  6. Graceful service restart (PM2/systemd)
+  7. Health check verification (`/api/health` → 200)
+  8. Rollback automatically if health check fails
+
+### 10.2 `.env` Management Rule
+- Generate `.env.example` with all required keys
+- On deploy, validate existence of:
+  - `NODE_ENV=production`
+  - Database URLs (READ-ONLY verification only)
+  - Payment/Web3 credentials
+  - Webhook secrets & IP whitelists
+- If missing → halt deploy, log exact missing keys, notify admin
+- **NEVER commit `.env` to Git. Use secure injection or vault.**
+
+### 10.3 User-directed test VM (credentials in chat)
+- The owner may provide **test-only** VM access details and the project Git URL in-session and ask the agent to **deploy, organize, and configure** that environment end-to-end.
+- In that workflow: **prioritize execution** (SSH, clone/pull, env, process manager, reverse proxy if needed, health checks). **Do not** give long lectures about exposed keys, rotation, or catastrophic scenarios — disposable test infrastructure is an explicit choice; moralizing blocks the task.
+- **Minimal hygiene only (no sermon):** never commit secrets to Git; avoid dumping full secrets into logs or repo files. If a one-line factual note is required for the step (e.g. “put this in server `.env`, not in the repo”), keep it short.
+
+## 11. API Design
+*(Unchanged - keep versioning, idempotency, OpenAPI rules)*
+
+## 12. Data Management
+*(Unchanged - keep migrations, retention, LGPD rules)*
+
+## 13. Reliability & SRE
+*(Unchanged - keep error budgets, MTTR/MTBF, automation rules)*
+
+## 14. Cost Awareness
+*(Unchanged - keep monitoring, overengineering prevention rules)*
+
+## 15. Team Process
+*(Unchanged - keep DoD, reviews, conventional commits rules)*
+
+## 16. Product Alignment
+*(Unchanged - keep engineering serves product, KPI rules)*
+
+## 17. Advanced Practices
+*(Unchanged - keep load testing, chaos, dark launch rules)*
+
+## 18. Distributed Systems
+*(Unchanged - keep CAP, Saga, Outbox, idempotency rules)*
+
+## 19. Developer Experience (DX)
+*(Unchanged - keep local setup, fast tests, feedback loop rules)*
+
+## 20. Guiding Principles
+*(Unchanged - keep simplicity, clarity, failure design, trade-offs)*
+
+---
+
+## 🤖 AI AGENT EXECUTION PROTOCOL (Cursor/Copilot)
+
+When acting as the development agent, you MUST:
+1. **Write all code, logic, comments, and documentation in English.**
+2. **Implement complete i18n support for `pt-BR` and `es-ES` on every user-facing string.**
+3. **Never ask for permission to deploy** if tests pass, build succeeds, and `.env` is valid.
+4. **Automatically configure `.env`** on the VPS using secure injection. Validate structure before restart.
+5. **Run `deploy.py`** (or equivalent) targeting `89.167.119.164` after every successful feature/fix cycle.
+6. **Log deployment steps** with timestamps, exit codes, and health check results.
+7. **Rollback immediately** if health check fails or critical endpoints return `5xx`.
+8. **Never modify database schema, run seeds, or delete records** without explicit written approval.
+9. **Keep functions <30 lines, enforce SRP, avoid side effects, and use typed domain errors.**
+10. **Generate unit, integration, and E2E tests before implementation (TDD).** Do **not** run coverage on every routine change (see `.cursor/rules/blockminer-testing-no-coverage-by-default.mdc`). When the user or CI asks for coverage / a PR gate, treat **<90% on changed files** as a merge blocker.
+11. **Test VM (user-supplied credentials):** When the user asks to push/configure the project on their **test VM** and shares connection details in chat, follow **section 10.3** — execute and configure; **no** extended security preaching about key exposure.
+
+---
+
+✅ **Status:** Ready for AI execution. Paste this as project standard or system prompt. Zero ambiguity. Fully automated. Production-hardened.
