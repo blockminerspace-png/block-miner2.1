@@ -8,7 +8,13 @@ describe("multi-account risk scoring", () => {
       signalType: "device_fingerprint",
       key: "localhost",
       users: [
-        { id: 1, email: "127.0.0.1@fake.test", username: "undefined", walletAddress: "0x123", userAgent: "[object Object]" },
+        {
+          id: 1,
+          email: "127.0.0.1@blockminer.space.test",
+          username: "undefined",
+          walletAddress: "0x123",
+          userAgent: "[object Object]",
+        },
       ],
       ipIntelligence: { reverseDns: "blockminer.space", asnOrg: "Example Hosting", normalizedIp: "10.0.0.1" },
     });
@@ -107,5 +113,36 @@ describe("multi-account risk scoring", () => {
     });
     assert.ok(risk.falsePositiveWarnings.some((x) => x.includes("ASN")));
     assert.notEqual(risk.decision.recommendedAction, "ban_candidate");
+  });
+
+  it("downgrades mass same-IP registration clusters when reverse DNS looks like our nginx / Docker hop", () => {
+    const risk = calculateMultiAccountRisk({
+      signalType: "registration_ip",
+      key: "177.18.0.7",
+      userCount: 460,
+      users: Array.from({ length: 3 }, (_, i) => ({
+        id: i + 1,
+        email: `u${i}@example.com`,
+        username: `user${i}`,
+        walletAddress: `0x${String(i + 1).padStart(40, "1")}`,
+        userAgent: "Mozilla/5.0",
+      })),
+      ipIntelligence: { reverseDns: "block-miner-nginx-1.block-miner.default", providerType: "unknown" },
+    });
+    assert.equal(risk.recommendedAction, "ignore");
+    assert.ok(risk.score <= 15);
+    assert.ok(risk.falsePositiveWarnings.some((w) => /TRUST_PROXY/i.test(w)));
+  });
+
+  it("downgrades mass same private IP clusters as proxy misconfiguration", () => {
+    const risk = calculateMultiAccountRisk({
+      signalType: "last_ip",
+      key: "172.19.0.3",
+      userCount: 100,
+      users: [],
+      ipIntelligence: null,
+    });
+    assert.equal(risk.recommendedAction, "ignore");
+    assert.ok(risk.falsePositiveWarnings.length >= 1);
   });
 });

@@ -6,6 +6,84 @@ const LEVELS = [
 ];
 
 const LOW_TRUST_IP_SIGNAL_TYPES = new Set(["registration_ip", "last_ip", "auth_ip_history", "ip_network"]);
+
+/** PTR/hostnames that usually mean "our reverse proxy / container", not an end-user ISP. */
+const INFRA_REVERSE_DNS_MARKERS = [
+  "nginx",
+  "docker",
+  "ingress",
+  "traefik",
+  "haproxy",
+  "envoy",
+  "caddy",
+  "kube-proxy",
+  "cloudflare",
+  "akamai",
+  "fastly",
+  "loadbalancer",
+  "load-balancer",
+  "block-miner-nginx",
+  "blockminer-nginx",
+];
+
+const MASS_SHARED_IP_MIN_USERS = 25;
+
+function looksLikeInfrastructureReverseDns(value) {
+  const t = String(value || "").toLowerCase();
+  if (!t) return false;
+  return INFRA_REVERSE_DNS_MARKERS.some((m) => t.includes(m));
+}
+
+function isInfrastructureMassSharedIp(group) {
+  const st = group?.signalType;
+  if (!LOW_TRUST_IP_SIGNAL_TYPES.has(st)) return false;
+  const n = Number(group.userCount || group.users?.length || 0);
+  if (n < MASS_SHARED_IP_MIN_USERS) return false;
+  const key = String(group.key || "").trim();
+  if (hasPrivateNetworkMarker(key)) return true;
+  const ptr = String(group.ipIntelligence?.reverseDns || "").trim();
+  if (ptr && looksLikeInfrastructureReverseDns(ptr)) return true;
+  return false;
+}
+
+function buildInfrastructureMisconfigurationDecision(group) {
+  const n = Number(group.userCount || group.users?.length || 0);
+  const warnings = [
+    `${n} accounts share one stored IP — that is almost never real "multi-account" fraud; it usually means the app recorded the reverse-proxy/Docker hop (wrong client IP) instead of the visitor.`,
+    "Fix production env: set TRUST_PROXY=1 and TRUSTED_PROXY_CIDRS to the proxy network (e.g. 172.16.0.0/12 for Docker bridge). Ensure nginx sends X-Real-IP / X-Forwarded-For (see repo nginx.conf). New sessions will store real IPs; treat this cluster as infrastructure noise, not ban evidence.",
+  ];
+  return {
+    score: 5,
+    level: "low",
+    confidence: "low",
+    reasons: ["Likely proxy/IP capture misconfiguration (many users on one stored IP)."],
+    falsePositiveWarnings: warnings,
+    alerts: [],
+    identityVectors: [],
+    identityVectorCount: 0,
+    correlation: {
+      wallet: false,
+      fingerprint: false,
+      asnProvider: false,
+      mandatorySatisfied: false,
+      ptrAsn: {
+        type: "unknown",
+        confidence: "Low",
+        reason: "Signal suppressed: mass shared stored IP matches infra / private hop heuristics.",
+      },
+      geolocationCoherent: false,
+      suspiciousIp: false,
+    },
+    decision: {
+      confidence: "Low",
+      recommendedAction: "ignore",
+      destructiveAllowed: false,
+      reason: "Hundreds of accounts on one IP in DB indicates misconfigured client-IP capture behind nginx, not coordinated multi-accounting.",
+      requiresManualReview: false,
+    },
+    recommendedAction: "ignore",
+  };
+}
 const SHARED_NETWORK_PROVIDER_TYPES = new Set(["residential", "mobile", "corporate", "education", "public_wifi"]);
 const SUSPICIOUS_PROVIDER_TYPES = new Set(["hosting", "vpn_proxy", "tor"]);
 const SCRIPT_GARBAGE_TERMS = ["undefined", "null", "[object object]", "unknown"];
@@ -135,10 +213,18 @@ function detectTechnicalAnomalies(group) {
   for (const candidate of candidates) {
     const value = String(candidate.value || "").trim();
     if (!value) continue;
+    if (candidate.label === "ip.reverseDns" && looksLikeInfrastructureReverseDns(value)) {
+      continue;
+    }
     if (hasPrivateNetworkMarker(value)) {
       anomalies.push(`${candidate.label}: private_or_loopback_network_marker`);
     }
-    if (hasPlatformSelfReference(value, platformIndicators)) {
+    const skipPlatformOnIpMeta =
+      candidate.label === "ip.reverseDns" ||
+      candidate.label === "ip.providerLabel" ||
+      candidate.label === "ip.asnOrg" ||
+      candidate.label === "ip.normalizedIp";
+    if (!skipPlatformOnIpMeta && hasPlatformSelfReference(value, platformIndicators)) {
       anomalies.push(`${candidate.label}: platform_self_reference`);
     }
     if (hasScriptGarbage(value)) {
@@ -257,6 +343,9 @@ function buildDecision({ score, identityVectors, mandatoryCorrelation, falsePosi
 }
 
 export function calculateMultiAccountRisk(group) {
+  if (isInfrastructureMassSharedIp(group)) {
+    return buildInfrastructureMisconfigurationDecision(group);
+  }
   const technicalAnomalies = detectTechnicalAnomalies(group || {});
   if (technicalAnomalies.length > 0) {
     return buildTechnicalAnomalyDecision(technicalAnomalies);
