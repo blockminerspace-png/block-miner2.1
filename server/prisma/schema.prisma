@@ -50,6 +50,7 @@ model User {
   transactions  Transaction[]
   payouts       Payout[]
   auditLogs     AuditLog[]
+  ipLogs        UserIpLog[]
   sessions      Session[]
   refreshTokens RefreshToken[]
   checkins           DailyCheckin[]
@@ -132,6 +133,15 @@ model IpIntelligenceCache {
   confidence                  String   @default("low")
   source                      String?
   error                       String?
+  proxyDetected               Boolean? @map("proxy_detected")
+  proxyType                   String?  @map("proxy_type")
+  proxyRiskScore              Int?     @map("proxy_risk_score")
+  proxyProvider               String?  @map("proxy_provider")
+  proxyLastSeenAt             DateTime? @map("proxy_last_seen_at")
+  proxyCheckedAt              DateTime? @map("proxy_checked_at")
+  proxyExpiresAt              DateTime? @map("proxy_expires_at")
+  proxySource                 String?  @map("proxy_source")
+  proxyError                  String?  @map("proxy_error")
   checkedAt                   DateTime @map("checked_at")
   expiresAt                   DateTime @map("expires_at")
   createdAt                   DateTime @default(now()) @map("created_at")
@@ -140,6 +150,8 @@ model IpIntelligenceCache {
   @@index([ip])
   @@index([asn])
   @@index([providerType])
+  @@index([proxyDetected])
+  @@index([proxyCheckedAt])
   @@index([expiresAt])
   @@map("ip_intelligence_cache")
 }
@@ -405,6 +417,31 @@ model Miner {
   @@index([baseHashRate])
   @@index([createdAt])
   @@map("miners")
+}
+
+model UserIpLog {
+  id                Int      @id @default(autoincrement())
+  userId            Int      @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip                String
+  deviceFingerprint String   @default("unknown") @map("device_fingerprint")
+  networkCidr       String?  @map("network_cidr")
+  asn               Int?
+  providerType      String   @default("unknown") @map("provider_type")
+  firstSeen         DateTime @default(now()) @map("first_seen")
+  lastSeen          DateTime @default(now()) @map("last_seen")
+  loginCount        Int      @default(0) @map("login_count")
+  registerCount     Int      @default(0) @map("register_count")
+  lastUserAgent     String?  @map("last_user_agent")
+
+  @@unique([userId, ip, deviceFingerprint])
+  @@index([ip])
+  @@index([networkCidr])
+  @@index([asn])
+  @@index([providerType])
+  @@index([deviceFingerprint])
+  @@index([lastSeen])
+  @@map("ip_logs")
 }
 
 model UserMiner {

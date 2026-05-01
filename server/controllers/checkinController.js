@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import prisma from "../src/db/prisma.js";
 import { Prisma } from "../src/db/prismaNamespace.js";
 import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
-import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
+import { getBrazilCheckinDateKey, getBrazilDateKeyAliases, normalizeBrazilDateKey } from "../utils/checkinDate.js";
 import { computeCheckinStreak } from "../utils/checkinStreak.js";
 import {
   assertValidTxHash,
@@ -19,6 +19,7 @@ import {
 } from "../services/checkinMilestoneService.js";
 import { notifyMiniPassLoginDay } from "../services/miniPass/miniPassMissionHookService.js";
 import { notifyDailyTaskLoginDay } from "../services/dailyTasks/dailyTaskHookService.js";
+import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
 import loggerLib, { logUserActivity } from "../utils/logger.js";
 
@@ -97,22 +98,59 @@ function periodKeyForCadence(cadence, now = new Date()) {
   return null;
 }
 
-async function getDailyRowForToday(userId) {
-  const today = getBrazilCheckinDateKey();
-  return prisma.dailyCheckin.findUnique({
-    where: { userId_checkinDate: { userId, checkinDate: today } }
+function buildDailyCheckinDayWhere(userId, dateOrKey = new Date()) {
+  return {
+    userId,
+    checkinDate: {
+      in: getBrazilDateKeyAliases(dateOrKey)
+    }
+  };
+}
+
+async function findDailyCheckinForBrazilDay(db, userId, dateOrKey = new Date(), extra = {}) {
+  return db.dailyCheckin.findFirst({
+    where: buildDailyCheckinDayWhere(userId, dateOrKey),
+    orderBy: [{ confirmedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+    ...extra
   });
+}
+
+async function writeDailyCheckinForBrazilDay(tx, userId, normalizedDateKey, existingRow, data) {
+  const normalized = normalizeBrazilDateKey(normalizedDateKey);
+  if (!normalized) {
+    throw new Error(`Invalid daily check-in key: ${String(normalizedDateKey)}`);
+  }
+  if (existingRow?.id) {
+    return tx.dailyCheckin.update({
+      where: { id: existingRow.id },
+      data: {
+        checkinDate: normalized,
+        ...data
+      }
+    });
+  }
+  return tx.dailyCheckin.create({
+    data: {
+      userId,
+      checkinDate: normalized,
+      ...data
+    }
+  });
+}
+
+async function getDailyRowForToday(userId) {
+  return findDailyCheckinForBrazilDay(prisma, userId);
 }
 
 async function loadRecentHistory(userId, take = 21) {
   const rows = await prisma.dailyCheckin.findMany({
     where: { userId, status: "confirmed" },
-    orderBy: { checkinDate: "desc" },
+    orderBy: [{ confirmedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     take,
     select: { checkinDate: true, confirmedAt: true }
   });
   return rows.map((r) => ({
-    date: r.checkinDate,
+    date: normalizeBrazilDateKey(r.checkinDate) || r.checkinDate,
     confirmedAt: r.confirmedAt ? r.confirmedAt.toISOString() : null
   }));
 }
@@ -459,9 +497,7 @@ async function confirmDailyCheckin(req, res) {
     );
   }
 
-  const existingQuick = await prisma.dailyCheckin.findUnique({
-    where: { userId_checkinDate: { userId, checkinDate: today } }
-  });
+  const existingQuick = await findDailyCheckinForBrazilDay(prisma, userId, today);
   if (existingQuick?.status === "confirmed") {
     return jsonSuccessWithStreak(res, userId, {
       alreadyCheckedIn: true,
@@ -506,65 +542,33 @@ async function confirmDailyCheckin(req, res) {
       await advisoryXactTryLockOrThrow(tx, `checkin:${userId}`);
       await lockUserRowForUpdate(tx, userId);
 
-      const existing = await tx.dailyCheckin.findUnique({
-        where: { userId_checkinDate: { userId, checkinDate: today } }
-      });
+      const existing = await findDailyCheckinForBrazilDay(tx, userId, today);
       if (existing?.status === "confirmed") {
         return { type: "already" };
       }
 
       if (evalResult.state === "pending") {
-        await tx.dailyCheckin.upsert({
-          where: { userId_checkinDate: { userId, checkinDate: today } },
-          create: {
-            userId,
-            checkinDate: today,
-            ...baseRow,
-            status: "pending",
-            confirmedAt: null
-          },
-          update: {
-            ...baseRow,
-            status: "pending",
-            confirmedAt: null
-          }
+        await writeDailyCheckinForBrazilDay(tx, userId, today, existing, {
+          ...baseRow,
+          status: "pending",
+          confirmedAt: null
         });
         return { type: "pending" };
       }
 
       if (evalResult.state === "failed") {
-        await tx.dailyCheckin.upsert({
-          where: { userId_checkinDate: { userId, checkinDate: today } },
-          create: {
-            userId,
-            checkinDate: today,
-            ...baseRow,
-            status: "failed",
-            confirmedAt: null
-          },
-          update: {
-            ...baseRow,
-            status: "failed",
-            confirmedAt: null
-          }
+        await writeDailyCheckinForBrazilDay(tx, userId, today, existing, {
+          ...baseRow,
+          status: "failed",
+          confirmedAt: null
         });
         return { type: "failed", reason: evalResult.reason || "This transaction cannot be used for check-in." };
       }
 
-      await tx.dailyCheckin.upsert({
-        where: { userId_checkinDate: { userId, checkinDate: today } },
-        create: {
-          userId,
-          checkinDate: today,
-          ...baseRow,
-          status: "confirmed",
-          confirmedAt: new Date()
-        },
-        update: {
-          ...baseRow,
-          status: "confirmed",
-          confirmedAt: new Date()
-        }
+      await writeDailyCheckinForBrazilDay(tx, userId, today, existing, {
+        ...baseRow,
+        status: "confirmed",
+        confirmedAt: new Date()
       });
       return { type: "confirmed" };
     });
@@ -668,9 +672,7 @@ export async function checkinBalance(req, res) {
         throw err;
       }
 
-      const existing = await tx.dailyCheckin.findUnique({
-        where: { userId_checkinDate: { userId, checkinDate: today } }
-      });
+      const existing = await findDailyCheckinForBrazilDay(tx, userId, today);
       if (existing?.status === "confirmed") {
         return { kind: "already" };
       }
@@ -697,26 +699,13 @@ export async function checkinBalance(req, res) {
         select: { polBalance: true }
       });
 
-      await tx.dailyCheckin.upsert({
-        where: { userId_checkinDate: { userId, checkinDate: today } },
-        create: {
-          userId,
-          checkinDate: today,
-          txHash: synthTx,
-          status: "confirmed",
-          confirmedAt: new Date(),
-          amount: Number(balanceWei) / 1e18,
-          chainId: CHAIN_INTERNAL_CHECKIN,
-          paymentMethod: "balance"
-        },
-        update: {
-          txHash: synthTx,
-          status: "confirmed",
-          confirmedAt: new Date(),
-          amount: Number(balanceWei) / 1e18,
-          chainId: CHAIN_INTERNAL_CHECKIN,
-          paymentMethod: "balance"
-        }
+      await writeDailyCheckinForBrazilDay(tx, userId, today, existing, {
+        txHash: synthTx,
+        status: "confirmed",
+        confirmedAt: new Date(),
+        amount: Number(balanceWei) / 1e18,
+        chainId: CHAIN_INTERNAL_CHECKIN,
+        paymentMethod: "balance"
       });
 
       return { kind: "ok", polBalance: Number(updatedUser?.polBalance ?? 0), debit: Number(cost) };
@@ -732,6 +721,9 @@ export async function checkinBalance(req, res) {
     }
 
     applyUserBalanceDelta(userId, -outcome.debit);
+    getMiningEngine()?.reloadMinerProfile(userId, { forceBalanceSync: true }).catch((e) =>
+      logCheckinSideEffectFailure("reloadMinerProfile after balance checkin", e)
+    );
 
     await applyStreakMilestoneRewards(userId);
     notifyMiniPassLoginDay(userId, today).catch((e) =>

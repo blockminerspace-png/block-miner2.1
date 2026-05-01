@@ -53,6 +53,18 @@ function attachRackUninstallIdempotency(req) {
   };
 }
 
+function attachRackUninstallBatchIdempotency(req) {
+  const path = "/api/rooms/rack/uninstall-batch";
+  req.path = path;
+  req.params = {};
+  const idempotencyKey = `batch9999-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  req.criticalIdempotency = {
+    scope: "rooms_rack_uninstall_batch",
+    idempotencyKey,
+    requestHash: stableRequestHash({ body: req.body, params: {}, path }),
+  };
+}
+
 // â”€â”€ Testes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // 1. listRooms â€” retorna salas desbloqueadas + stubs bloqueados
@@ -520,4 +532,109 @@ test("getSlotsSummary retorna 500 em erro de banco", async () => {
   }
 });
 
+test("uninstallMinerBatch remove varias maquinas em uma unica mutacao", async () => {
+  const origTransaction = prisma.$transaction;
+  const origMinerFindMany = prisma.userMiner.findMany;
+  const origPowerGame = prisma.userPowerGame?.findMany;
+  const origYtPower = prisma.youtubeWatchPower?.findMany;
+  const origGpuPower = prisma.autoMiningGpu?.findMany;
 
+  let inventoryCreates = 0;
+  let rackUpdates = 0;
+  let minerDeletes = 0;
+
+  prisma.$transaction = async (fn) => {
+    const fakeTx = {
+      $queryRaw: async () => [{ ok: true }],
+      userOwnedMachine: {
+        create: async () => ({ id: 3000 + inventoryCreates }),
+        update: async () => ({}),
+      },
+      userRack: {
+        findMany: async () => [
+          {
+            id: 10,
+            userId: 1,
+            roomId: 1,
+            userMiner: {
+              id: 55,
+              minerId: 3,
+              level: 1,
+              hashRate: 500,
+              slotSize: 1,
+              imageUrl: null,
+              ownedMachineId: null,
+              miner: { name: "GPU-X" },
+            },
+          },
+          {
+            id: 11,
+            userId: 1,
+            roomId: 1,
+            userMiner: {
+              id: 56,
+              minerId: 4,
+              level: 2,
+              hashRate: 900,
+              slotSize: 1,
+              imageUrl: null,
+              ownedMachineId: null,
+              miner: { name: "GPU-Y" },
+            },
+          },
+        ],
+        update: async () => {
+          rackUpdates += 1;
+        },
+        updateMany: async () => ({ count: 0 }),
+      },
+      userInventory: {
+        create: async () => {
+          inventoryCreates += 1;
+          return {};
+        },
+      },
+      userMiner: {
+        update: async () => ({}),
+        delete: async () => {
+          minerDeletes += 1;
+        },
+      },
+    };
+    return fn(fakeTx);
+  };
+  prisma.userMiner.findMany = async () => [];
+  if (prisma.userPowerGame) prisma.userPowerGame.findMany = async () => [];
+  if (prisma.youtubeWatchPower) prisma.youtubeWatchPower.findMany = async () => [];
+  if (prisma.autoMiningGpu) prisma.autoMiningGpu.findMany = async () => [];
+
+  try {
+    const req = createReq({ id: 1 }, { rackIds: [10, 11] });
+    attachRackUninstallBatchIdempotency(req);
+    const res = createRes();
+    await roomsController.uninstallMinerBatch(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.movedCount, 2);
+    assert.equal(inventoryCreates, 2);
+    assert.equal(rackUpdates, 2);
+    assert.equal(minerDeletes, 2);
+  } finally {
+    prisma.$transaction = origTransaction;
+    prisma.userMiner.findMany = origMinerFindMany;
+    if (prisma.userPowerGame && origPowerGame) prisma.userPowerGame.findMany = origPowerGame;
+    if (prisma.youtubeWatchPower && origYtPower) prisma.youtubeWatchPower.findMany = origYtPower;
+    if (prisma.autoMiningGpu && origGpuPower) prisma.autoMiningGpu.findMany = origGpuPower;
+  }
+});
+
+test("uninstallMinerBatch retorna 400 para rackIds invalidos", async () => {
+  const req = createReq({ id: 1 }, { rackIds: ["x", 0] });
+  const res = createRes();
+  await roomsController.uninstallMinerBatch(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.ok, false);
+  assert.match(res.body.message, /rackIds/i);
+});

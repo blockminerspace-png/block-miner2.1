@@ -25,6 +25,7 @@ const IDEMPOTENCY_PATH_MARKERS = [
     '/offer-events/purchase',
     '/rooms/rack/install',
     '/rooms/rack/uninstall',
+    '/rooms/rack/uninstall-batch',
     '/wallet/deposit',
     '/wallet/deposit/submit',
     '/wallet/withdraw',

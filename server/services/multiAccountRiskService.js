@@ -5,6 +5,19 @@ const LEVELS = [
   { min: 0, level: "low" },
 ];
 
+const LOW_TRUST_IP_SIGNAL_TYPES = new Set(["registration_ip", "last_ip", "auth_ip_history", "ip_network"]);
+const SHARED_NETWORK_PROVIDER_TYPES = new Set(["residential", "mobile", "corporate", "education", "public_wifi"]);
+const SUSPICIOUS_PROVIDER_TYPES = new Set(["hosting", "vpn_proxy", "tor"]);
+const SCRIPT_GARBAGE_TERMS = ["undefined", "null", "[object object]", "unknown"];
+const PLATFORM_TERMS = ["blockminer", "blockminer.space", "test.blockminer.space", "www.blockminer.space"];
+const PRIVATE_NETWORK_REGEXES = [
+  /\b127\.0\.0\.1\b/i,
+  /\blocalhost\b/i,
+  /\b192\.168\.\d{1,3}\.\d{1,3}\b/i,
+  /\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/i,
+  /\b172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}\b/i,
+];
+
 function clampScore(score) {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -13,93 +26,371 @@ function levelFor(score) {
   return LEVELS.find((x) => score >= x.min)?.level || "low";
 }
 
-function recommendedAction(score, strongSignals, providerType) {
-  if (score >= 85 && strongSignals >= 2) return "ban_candidate";
-  if (score >= 65 && strongSignals >= 1) return providerType === "residential" ? "review" : "restrict";
-  if (score >= 35) return "review";
-  if (score >= 15) return "monitor";
-  return "ignore";
+function normalizeConfidenceLevel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "high") return "High";
+  if (normalized === "medium") return "Medium";
+  return "Low";
 }
 
-export function calculateMultiAccountRisk(group) {
-  const reasons = [];
-  const falsePositiveWarnings = [];
-  const providerType = group.ipIntelligence?.providerType || "unknown";
-  const userCount = Number(group.userCount || group.users?.length || 0);
-  let score = 0;
-  let strongSignals = 0;
+function pushUnique(target, value) {
+  if (value && !target.includes(value)) target.push(value);
+}
 
-  if (group.signalType === "profile_wallet" || group.signalType === "onchain_wallet") {
-    score += group.signalType === "onchain_wallet" ? 70 : 62;
-    strongSignals += 1;
-    reasons.push(group.signalType === "onchain_wallet" ? "Same on-chain wallet appears on multiple accounts." : "Same profile wallet appears on multiple accounts.");
+function parseHost(value) {
+  try {
+    const host = new URL(String(value || "").trim()).hostname;
+    return host ? host.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+function getPlatformIndicators() {
+  const envHosts = [
+    process.env.APP_URL,
+    process.env.SUPPORT_ADMIN_PUBLIC_URL,
+    process.env.VITE_PUBLIC_WALLET_APP_URL,
+  ].map(parseHost).filter(Boolean);
+  const envIps = [
+    process.env.SERVER_IP,
+    process.env.SERVER_PUBLIC_IP,
+    process.env.HOST_IP,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  return new Set([...PLATFORM_TERMS, ...envHosts, ...envIps].map((value) => String(value || "").toLowerCase()).filter(Boolean));
+}
+
+function hasPrivateNetworkMarker(value) {
+  const text = String(value || "").toLowerCase();
+  return PRIVATE_NETWORK_REGEXES.some((pattern) => pattern.test(text));
+}
+
+function hasScriptGarbage(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return SCRIPT_GARBAGE_TERMS.includes(text);
+}
+
+function hasPlatformSelfReference(value, platformIndicators) {
+  const text = String(value || "").toLowerCase();
+  if (!text) return false;
+  return [...platformIndicators].some((term) => term && text.includes(term));
+}
+
+function buildTechnicalAnomalyDecision(anomalies) {
+  return {
+    score: 100,
+    level: "critical",
+    confidence: "high",
+    reasons: ["Technical anomalies/Environment spoofing"],
+    falsePositiveWarnings: [],
+    alerts: ["Technical anomalies/Environment spoofing"],
+    identityVectors: ["technical_anomaly"],
+    identityVectorCount: 1,
+    correlation: {
+      wallet: false,
+      fingerprint: false,
+      asnProvider: false,
+      mandatorySatisfied: false,
+      ptrAsn: {
+        type: "blocked_pre_score",
+        confidence: "High",
+        reason: "Entrada interrompida pela Sanitizacao Primal de Dados.",
+      },
+      geolocationCoherent: false,
+      suspiciousIp: true,
+    },
+    decision: {
+      confidence: "High",
+      recommendedAction: "ban_candidate",
+      destructiveAllowed: true,
+      reason: "Technical anomalies/Environment spoofing",
+      requiresManualReview: false,
+      anomalies,
+    },
+    recommendedAction: "ban_candidate",
+  };
+}
+
+function detectTechnicalAnomalies(group) {
+  const anomalies = [];
+  const platformIndicators = getPlatformIndicators();
+  const candidates = [
+    { label: "group.key", value: group.key },
+    { label: "group.signalType", value: group.signalType },
+    { label: "ip.reverseDns", value: group.ipIntelligence?.reverseDns },
+    { label: "ip.normalizedIp", value: group.ipIntelligence?.normalizedIp },
+    { label: "ip.providerLabel", value: group.ipIntelligence?.providerLabel },
+    { label: "ip.asnOrg", value: group.ipIntelligence?.asnOrg },
+  ];
+
+  for (const user of Array.isArray(group.users) ? group.users : []) {
+    candidates.push(
+      { label: `user.${user.id}.email`, value: user.email },
+      { label: `user.${user.id}.username`, value: user.username },
+      { label: `user.${user.id}.walletAddress`, value: user.walletAddress },
+      { label: `user.${user.id}.userAgent`, value: user.userAgent },
+    );
   }
 
-  if (group.signalType === "registration_ip" || group.signalType === "last_ip" || group.signalType === "ip_network" || group.signalType === "asn") {
-    if (userCount >= 10) {
-      score += 28;
-      reasons.push(`${userCount} accounts share the same network signal.`);
-    } else if (userCount >= 4) {
-      score += 18;
-      reasons.push(`${userCount} accounts share the same network signal.`);
-    } else {
-      score += 8;
-      reasons.push("Small shared-IP cluster; IP alone is not proof of fraud.");
+  for (const candidate of candidates) {
+    const value = String(candidate.value || "").trim();
+    if (!value) continue;
+    if (hasPrivateNetworkMarker(value)) {
+      anomalies.push(`${candidate.label}: private_or_loopback_network_marker`);
+    }
+    if (hasPlatformSelfReference(value, platformIndicators)) {
+      anomalies.push(`${candidate.label}: platform_self_reference`);
+    }
+    if (hasScriptGarbage(value)) {
+      anomalies.push(`${candidate.label}: script_garbage`);
     }
   }
 
-  if (group.sameWalletCount > 0) {
-    score += 34;
-    strongSignals += 1;
-    reasons.push("Repeated wallet signal inside the group.");
+  return anomalies;
+}
+
+function hasCoherentGeo(ipIntelligence = {}, geolocation = null) {
+  if (!geolocation || typeof geolocation !== "object") return false;
+  const confidence = String(geolocation.confidence || "").toLowerCase();
+  const country = String(geolocation.countryCode || geolocation.country || "").trim();
+  if (!country) return false;
+  if (["high", "medium"].includes(confidence)) return true;
+  return ipIntelligence.providerType === "residential" || ipIntelligence.providerType === "mobile";
+}
+
+function classifyPtrAsnCorrelation(ipIntelligence = {}) {
+  ipIntelligence = ipIntelligence && typeof ipIntelligence === "object" ? ipIntelligence : {};
+  const ptrText = String(ipIntelligence.reverseDns || "").toLowerCase();
+  const asnText = String(ipIntelligence.asnOrg || "").toLowerCase();
+  if (!ptrText && !asnText) {
+    return {
+      type: "unknown",
+      confidence: "Low",
+      reason: "PTR/ASN indisponiveis; rede permanece metadado de baixa confianca.",
+    };
   }
-  if (group.sameDeviceCount > 0) {
-    score += 30;
-    strongSignals += 1;
-    reasons.push("Same device/fingerprint appears inside the group.");
+
+  const carrierTerms = ["telecom", "fibra", "fiber", "broadband", "residential", "residencial", "mobile", "wireless", "telefonica", "telef", "claro", "vivo", "tim", "oi"];
+  const datacenterTerms = ["hosting", "datacenter", "data center", "server", "servers", "cloud", "aws", "amazon", "google", "azure", "digitalocean", "hetzner", "ovh", "linode", "oracle", "vpn", "proxy", "tor"];
+  const combined = `${ptrText} ${asnText}`;
+
+  if (carrierTerms.some((term) => combined.includes(term))) {
+    return {
+      type: "residential_like",
+      confidence: "Medium",
+      reason: "PTR/ASN sugerem operadora residencial ou movel.",
+    };
   }
-  if (group.shortCreationWindow) {
+  if (datacenterTerms.some((term) => combined.includes(term))) {
+    return {
+      type: "datacenter_like",
+      confidence: "Medium",
+      reason: "PTR/ASN sugerem datacenter, hosting ou VPN.",
+    };
+  }
+  return {
+    type: "unknown",
+    confidence: "Low",
+    reason: "PTR/ASN nao permitem classificar a rede com seguranca.",
+  };
+}
+
+function buildIdentityVectors(group, ptrAsnCorrelation) {
+  const vectors = [];
+  if (group.signalType === "profile_wallet" || group.signalType === "onchain_wallet" || Number(group.sameWalletCount) > 0) {
+    vectors.push("wallet");
+  }
+  if (group.signalType === "device_fingerprint" || Number(group.sameDeviceCount) > 0) {
+    vectors.push("fingerprint");
+  }
+  if (group.signalType === "asn" || SUSPICIOUS_PROVIDER_TYPES.has(group.ipIntelligence?.providerType) || ptrAsnCorrelation.type === "datacenter_like") {
+    vectors.push("asn_provider");
+  }
+  if (Boolean(group.shortCreationWindow) || Boolean(group.sessionTimingCorrelation)) {
+    vectors.push("session_timing");
+  }
+  if (Number(group.similarIdentityCount) > 0) {
+    vectors.push("profile_pattern");
+  }
+  return vectors;
+}
+
+function buildDecision({ score, identityVectors, mandatoryCorrelation, falsePositiveAlert }) {
+  const vectorCount = identityVectors.length;
+  const destructiveAllowed = mandatoryCorrelation && vectorCount >= 3 && !falsePositiveAlert;
+  let action = "ignore";
+  let reason = "Sinais insuficientes para acao.";
+  let confidence = "Low";
+
+  if (mandatoryCorrelation && vectorCount >= 4 && score >= 85 && !falsePositiveAlert) {
+    action = destructiveAllowed ? "ban_candidate" : "manual_review";
+    confidence = destructiveAllowed ? "High" : "Medium";
+    reason = destructiveAllowed
+      ? "Tres vetores de identidade convergem com correlacao obrigatoria wallet + fingerprint + ASN/provedor."
+      : "Risco alto, mas sem permissao para acao destrutiva automatica.";
+  } else if (mandatoryCorrelation && vectorCount >= 2 && score >= 65) {
+    action = "restrict";
+    confidence = "High";
+    reason = "Correlacao wallet + fingerprint + ASN/provedor presente, mas abaixo do limiar destrutivo.";
+  } else if (score >= 45 || vectorCount >= 2) {
+    action = "review";
+    confidence = score >= 65 ? "Medium" : "Low";
+    reason = "Ha correlacoes relevantes, mas sem prova suficiente para punicao automatica.";
+  } else if (score >= 25 || vectorCount >= 1) {
+    action = "monitor";
+    confidence = "Low";
+    reason = "Somente monitoramento; IP e rede continuam metadados de baixa confianca.";
+  }
+
+  if (falsePositiveAlert) {
+    action = action === "ignore" ? "monitor" : "review";
+    confidence = confidence === "High" ? "Medium" : confidence;
+    reason = "Conflito detectado entre IP suspeito e geolocalizacao coerente; revisar manualmente.";
+  }
+
+  return {
+    confidence,
+    action,
+    destructiveAllowed,
+    reason,
+  };
+}
+
+export function calculateMultiAccountRisk(group) {
+  const technicalAnomalies = detectTechnicalAnomalies(group || {});
+  if (technicalAnomalies.length > 0) {
+    return buildTechnicalAnomalyDecision(technicalAnomalies);
+  }
+
+  const reasons = [];
+  const falsePositiveWarnings = [];
+  const alerts = [];
+  const providerType = group.ipIntelligence?.providerType || "unknown";
+  const userCount = Number(group.userCount || group.users?.length || 0);
+  const geolocation = group.geolocation || null;
+  const ptrAsnCorrelation = classifyPtrAsnCorrelation(group.ipIntelligence);
+  let score = 0;
+
+  const walletCorrelation = group.signalType === "profile_wallet" || group.signalType === "onchain_wallet" || Number(group.sameWalletCount) > 0;
+  const fingerprintCorrelation = group.signalType === "device_fingerprint" || Number(group.sameDeviceCount) > 0;
+  const asnProviderCorrelation = group.signalType === "asn" || SUSPICIOUS_PROVIDER_TYPES.has(providerType) || ptrAsnCorrelation.type === "datacenter_like";
+  const mandatoryCorrelation = walletCorrelation && fingerprintCorrelation && asnProviderCorrelation;
+
+  if (walletCorrelation) {
+    score += group.signalType === "onchain_wallet" ? 32 : 28;
+    pushUnique(reasons, group.signalType === "onchain_wallet"
+      ? "Mesma carteira on-chain aparece em multiplas contas."
+      : "Mesmo wallet ID aparece em multiplas contas.");
+  }
+
+  if (fingerprintCorrelation) {
+    score += group.signalType === "device_fingerprint" ? 34 : 24;
+    pushUnique(reasons, "Mesmo fingerprint/hardware do navegador aparece em multiplas contas.");
+  }
+
+  if (group.signalType === "asn") {
+    score += userCount >= 10 ? 16 : userCount >= 4 ? 10 : 4;
+    pushUnique(reasons, `${userCount} contas convergem no mesmo ASN/provedor.`);
+    pushUnique(falsePositiveWarnings, "ASN isolado e apenas contexto; nao use como prova automatica.");
+  }
+
+  if (group.signalType === "ip_network") {
+    score += userCount >= 10 ? 10 : userCount >= 4 ? 6 : 2;
+    pushUnique(reasons, `${userCount} contas compartilham a mesma rede derivada.`);
+    pushUnique(falsePositiveWarnings, "Sub-rede isolada e apenas contexto; revisar com wallet e fingerprint.");
+  }
+
+  if (LOW_TRUST_IP_SIGNAL_TYPES.has(group.signalType)) {
+    score += userCount >= 10 ? 8 : userCount >= 4 ? 5 : 1;
+    pushUnique(reasons, `${userCount} contas compartilham sinal de IP, tratado como metadado de baixa confianca.`);
+    pushUnique(falsePositiveWarnings, "Repeticao isolada de IP deve ser ignorada para evitar falso positivo em rede compartilhada.");
+  }
+
+  if (Boolean(group.shortCreationWindow) || Boolean(group.sessionTimingCorrelation)) {
+    score += 12;
+    pushUnique(reasons, "Comportamento temporal/sessao converge entre as contas.");
+  }
+
+  if (Number(group.similarIdentityCount) > 0) {
+    score += 8;
+    pushUnique(reasons, "Padrao de identidade similar entre usuarios.");
+  }
+
+  if (SUSPICIOUS_PROVIDER_TYPES.has(providerType)) {
+    score += providerType === "hosting" ? 16 : 22;
+    pushUnique(reasons, providerType === "hosting"
+      ? "PTR/ASN indicam datacenter ou hosting."
+      : "PTR/ASN indicam VPN, proxy ou Tor.");
+  }
+
+  if (group.ipIntelligence?.proxyDetected === true) {
     score += 14;
-    reasons.push("Accounts were created close together.");
-  }
-  if (group.similarIdentityCount > 0) {
-    score += 10;
-    reasons.push("Email or username patterns look similar.");
+    pushUnique(reasons, group.ipIntelligence?.proxyType
+      ? `Proxycheck marcou a conexao como ${group.ipIntelligence.proxyType}.`
+      : "Proxycheck marcou a conexao como proxy/VPN.");
   }
 
-  if (providerType === "hosting" || providerType === "vpn_proxy" || providerType === "tor") {
-    score += providerType === "hosting" ? 24 : 32;
-    reasons.push(providerType === "hosting" ? "IP intelligence suggests datacenter/hosting network." : "IP intelligence suggests VPN/proxy/Tor.");
+  if (SHARED_NETWORK_PROVIDER_TYPES.has(providerType)) {
+    score -= providerType === "mobile" ? 18 : 12;
+    pushUnique(falsePositiveWarnings, providerType === "mobile"
+      ? "Rede movel/CGNAT pode concentrar muitos usuarios legitimos no mesmo IP."
+      : "Rede residencial/organizacional compartilhada pode concentrar usuarios legitimos.");
   }
 
-  if (providerType === "residential") {
-    score -= 16;
-    falsePositiveWarnings.push("Residential ISP: same household or shared Wi-Fi is plausible.");
-  }
-  if (providerType === "mobile") {
-    score -= 20;
-    falsePositiveWarnings.push("Mobile/CGNAT carrier: many unrelated users can share an IP.");
-  }
-  if (providerType === "corporate" || providerType === "education" || providerType === "public_wifi") {
-    score -= 12;
-    falsePositiveWarnings.push("Shared organization/public network: review before action.");
-  }
-  if ((group.signalType === "registration_ip" || group.signalType === "last_ip") && strongSignals === 0) {
-    falsePositiveWarnings.push("Shared IP alone should not be used as automatic fraud proof.");
-  }
-  if (userCount <= 3 && strongSignals === 0) {
+  if (ptrAsnCorrelation.type === "residential_like") {
     score -= 8;
-    falsePositiveWarnings.push("Only 2-3 accounts and no repeated wallet/device signal.");
+    pushUnique(falsePositiveWarnings, "PTR/ASN sugerem operadora residencial; trate IP como apoio e nao como prova.");
+  } else if (ptrAsnCorrelation.type === "datacenter_like") {
+    score += 6;
+    pushUnique(reasons, "Cruze PTR/ASN com outros vetores: a rede parece datacenter-like.");
   }
 
+  const coherentGeo = hasCoherentGeo(group.ipIntelligence, geolocation);
+  const suspiciousIp = SUSPICIOUS_PROVIDER_TYPES.has(providerType) || group.ipIntelligence?.proxyDetected === true || ptrAsnCorrelation.type === "datacenter_like";
+  const falsePositiveAlert = coherentGeo && suspiciousIp;
+  if (falsePositiveAlert) {
+    const alert = "Alerta de Falso Positivo";
+    pushUnique(alerts, alert);
+    pushUnique(falsePositiveWarnings, `${alert}: geolocalizacao coerente conflita com IP suspeito.`);
+    pushUnique(reasons, "Geolocalizacao coerente reduz confianca do sinal de rede suspeito.");
+    score -= 14;
+  }
+
+  if (!mandatoryCorrelation) {
+    pushUnique(falsePositiveWarnings, "Sem correlacao obrigatoria entre wallet, fingerprint e ASN/provedor, a acao deve permanecer conservadora.");
+  }
+
+  const identityVectors = buildIdentityVectors(group, ptrAsnCorrelation);
   score = clampScore(score);
-  const confidence = strongSignals >= 2 || score >= 85 ? "high" : strongSignals >= 1 || score >= 45 ? "medium" : "low";
+  const level = levelFor(score);
+  const decision = buildDecision({ score, identityVectors, mandatoryCorrelation, falsePositiveAlert });
+  const legacyConfidence = normalizeConfidenceLevel(decision.confidence).toLowerCase();
+
   return {
     score,
-    level: levelFor(score),
-    confidence,
-    reasons: reasons.length ? reasons : ["No strong multi-account signal found."],
+    level,
+    confidence: legacyConfidence,
+    reasons: reasons.length ? reasons : ["Nenhum vetor forte de identidade coincidiu."],
     falsePositiveWarnings,
-    recommendedAction: recommendedAction(score, strongSignals, providerType),
+    alerts,
+    identityVectors,
+    identityVectorCount: identityVectors.length,
+    correlation: {
+      wallet: walletCorrelation,
+      fingerprint: fingerprintCorrelation,
+      asnProvider: asnProviderCorrelation,
+      mandatorySatisfied: mandatoryCorrelation,
+      ptrAsn: ptrAsnCorrelation,
+      geolocationCoherent: coherentGeo,
+      suspiciousIp,
+    },
+    decision: {
+      confidence: decision.confidence,
+      recommendedAction: decision.action,
+      destructiveAllowed: decision.destructiveAllowed,
+      reason: decision.reason,
+      requiresManualReview: decision.action === "review" || decision.action === "manual_review",
+    },
+    recommendedAction: decision.action,
   };
 }

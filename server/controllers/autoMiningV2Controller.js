@@ -14,6 +14,7 @@ import {
   registerBannerClick,
   claimTurbo
 } from "../services/autoMiningV2/autoMiningV2Service.js";
+import { notifyMiniPassAutoMiningTurbo } from "../services/miniPass/miniPassMissionHookService.js";
 
 const logger = loggerLib.child("AutoMiningV2Controller");
 
@@ -168,6 +169,7 @@ export async function postClaimTurbo(req, res) {
       });
     }
     const result = await claimTurbo(req.user.id, impressionId);
+    await notifyMiniPassAutoMiningTurbo(req.user.id, result.grant?.id);
     await syncEngineForUser(req.user.id);
     const payload = await getStatusPayload(req.user.id);
     res.json({

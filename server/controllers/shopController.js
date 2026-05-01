@@ -16,10 +16,11 @@ import {
   beginIdempotencyLease,
   commitIdempotencyResult,
 } from "../services/idempotencyService.js";
-import { logUserActivity } from "../utils/logger.js";
-import { logSecurityEvent } from "../utils/securityLogger.js";
+import loggerLib, { logUserActivity } from "../utils/logger.js";
+import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
+const logger = loggerLib.child("Shop");
 
 export async function listMiners(req, res) {
   try {
@@ -46,7 +47,7 @@ export async function listMiners(req, res) {
       miners: items,
     });
   } catch (error) {
-    console.error("Error loading miners:", error);
+    logger.error("listMiners error", { message: error?.message }, req);
     res.status(500).json({ ok: false, message: "Unable to load miners." });
   }
 }
@@ -60,13 +61,18 @@ export async function purchaseMiner(req, res) {
   try {
     const minerId = Number(req.body?.minerId);
     const quantity = Number(req.body?.quantity || 1);
-    const maxBulk = Number(process.env.SHOP_MAX_BULK_QUANTITY || 25);
+    const rawMaxBulk = Number(process.env.SHOP_MAX_BULK_QUANTITY || 25);
+    const maxBulk = Number.isInteger(rawMaxBulk) && rawMaxBulk > 0 ? rawMaxBulk : 25;
+
+    logger.info("purchaseMiner attempt", { minerId, quantity }, req);
 
     if (!Number.isInteger(minerId) || minerId <= 0) {
+      logger.warn("purchaseMiner invalid minerId", { minerId }, req);
       res.status(400).json({ ok: false, message: "Invalid miner ID." });
       return;
     }
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > maxBulk) {
+      logger.warn("purchaseMiner invalid quantity", { minerId, quantity, maxBulk }, req);
       res.status(400).json({ ok: false, message: `Quantity must be between 1 and ${maxBulk}.` });
       return;
     }
@@ -79,9 +85,11 @@ export async function purchaseMiner(req, res) {
     });
 
     if (phase.type === "mismatch") {
+      logSecurityWarn("SHOP_IDEMPOTENCY_MISMATCH", { minerId, quantity }, req);
       return res.status(400).json(buildSecurityErrorJson(SecurityErrorCodes.INVALID_REQUEST_SIGNATURE));
     }
     if (phase.type === "busy") {
+      logSecurityWarn("SHOP_IDEMPOTENCY_BUSY", { minerId, quantity }, req);
       return res
         .status(409)
         .json(
@@ -91,7 +99,7 @@ export async function purchaseMiner(req, res) {
         );
     }
     if (phase.type === "replay") {
-      logSecurityEvent("SHOP_IDEMPOTENCY_REPLAY", { minerId }, req);
+      logSecurityEvent("SHOP_IDEMPOTENCY_REPLAY", { minerId, quantity }, req);
       const p = phase.responseJson;
       return res.json({
         ok: true,
@@ -112,6 +120,7 @@ export async function purchaseMiner(req, res) {
     const miner = await minersModel.getActiveMinerById(minerId);
     if (!miner) {
       await abortIdempotencyLease(lease);
+      logger.warn("purchaseMiner miner not found", { minerId, quantity }, req);
       res.status(404).json({ ok: false, message: "Miner not found." });
       return;
     }
@@ -121,12 +130,14 @@ export async function purchaseMiner(req, res) {
     const slotSize = Number(miner.slotSize || 1);
     if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(baseHashRate) || baseHashRate <= 0) {
       await abortIdempotencyLease(lease);
+      logger.error("purchaseMiner invalid miner data", { minerId, quantity, price, baseHashRate }, req);
       res.status(500).json({ ok: false, message: "Miner data invalid." });
       return;
     }
 
     if (!Number.isInteger(slotSize) || slotSize < 1 || slotSize > 2) {
       await abortIdempotencyLease(lease);
+      logger.error("purchaseMiner invalid slot size", { minerId, quantity, slotSize }, req);
       res.status(500).json({ ok: false, message: "Miner slot size invalid." });
       return;
     }
@@ -164,7 +175,8 @@ export async function purchaseMiner(req, res) {
           }
 
           const user = await tx.user.findUnique({ where: { id: req.user.id } });
-          if (!user || Number(user.polBalance) < currentTotalPrice) {
+          const balanceBefore = Number(user?.polBalance || 0);
+          if (!user || balanceBefore < currentTotalPrice) {
             throw new Error("Insufficient balance.");
           }
 
@@ -198,25 +210,31 @@ export async function purchaseMiner(req, res) {
 
         return {
           newUser,
+          balanceBefore,
           minerName: currentMiner.name,
+          unitPrice: currentPrice,
           totalPrice: currentTotalPrice,
         };
       });
     } catch (error) {
       await abortIdempotencyLease(lease);
       if (["Miner unavailable.", "Miner out of stock.", "Miner purchase limit reached."].includes(error.message)) {
+        logger.warn("purchaseMiner rejected", { minerId, quantity, reason: error.message }, req);
         return res.status(400).json({ ok: false, message: error.message });
       }
       if (error.message === "Insufficient balance.") {
+        logger.warn("purchaseMiner insufficient balance", { minerId, quantity }, req);
         return res.status(400).json({ ok: false, message: "Insufficient balance." });
       }
       if (error?.code === "P2034") {
+        logSecurityWarn("SHOP_PURCHASE_TX_CONFLICT", { minerId, quantity, prismaCode: error.code }, req);
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
       if (error?.code === "DISTRIBUTED_LOCK_BUSY") {
+        logSecurityWarn("SHOP_PURCHASE_LOCK_BUSY", { minerId, quantity }, req);
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      console.error("Error purchasing miner:", error);
+      logger.error("purchaseMiner transaction error", { minerId, quantity, message: error?.message, code: error?.code }, req);
       return res.status(500).json({ ok: false, message: "Purchase error." });
     }
 
@@ -240,10 +258,26 @@ export async function purchaseMiner(req, res) {
 
     logUserActivity("FIN_SHOP_PURCHASE", req, {
       minerId,
+      minerName: txResult.minerName,
       quantity,
+      unitPrice: txResult.unitPrice,
       totalPrice: txResult.totalPrice,
+      balanceBefore: txResult.balanceBefore,
       newBalance: Number(txResult.newUser?.polBalance || 0),
     });
+    logger.info(
+      "purchaseMiner success",
+      {
+        minerId,
+        minerName: txResult.minerName,
+        quantity,
+        unitPrice: txResult.unitPrice,
+        totalPrice: txResult.totalPrice,
+        balanceBefore: txResult.balanceBefore,
+        newBalance: Number(txResult.newUser?.polBalance || 0),
+      },
+      req,
+    );
 
     res.json({
       ok: true,
@@ -251,7 +285,7 @@ export async function purchaseMiner(req, res) {
       newBalance: Number(txResult.newUser?.polBalance || 0),
     });
   } catch (error) {
-    console.error("Error purchasing miner:", error);
+    logger.error("purchaseMiner fatal error", { message: error?.message, code: error?.code }, req);
     res.status(500).json({ ok: false, message: "Purchase error." });
   }
 }

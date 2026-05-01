@@ -49,6 +49,34 @@ function ipToBigInt(ip) {
   return full.reduce((acc, part) => (acc << 16n) + part, 0n);
 }
 
+function expandIpv6Hextets(ip) {
+  const normalized = normalizeIp(ip);
+  if (!normalized || net.isIP(normalized) !== 6) return null;
+  const pieces = normalized.split("::");
+  const head = pieces[0] ? pieces[0].split(":") : [];
+  const tail = pieces[1] ? pieces[1].split(":") : [];
+  const missing = Math.max(0, 8 - head.length - tail.length);
+  const full = [...head, ...Array(missing).fill("0"), ...tail];
+  if (full.length !== 8) return null;
+  return full.map((part) => {
+    const value = Number.parseInt(part || "0", 16);
+    return Number.isInteger(value) && value >= 0 && value <= 0xffff ? value : null;
+  });
+}
+
+export function deriveDefaultNetworkCidr(ip) {
+  const normalized = normalizeIp(ip);
+  if (!normalized) return null;
+  if (net.isIP(normalized) !== 6) return null;
+  const hextets = expandIpv6Hextets(normalized);
+  if (!hextets || hextets.some((value) => value === null)) return null;
+  const prefix = hextets
+    .slice(0, 4)
+    .map((value) => Number(value).toString(16))
+    .join(":");
+  return `${prefix}::/64`;
+}
+
 export function isIpInCidr(ip, cidr) {
   const normalizedIp = normalizeIp(ip);
   if (!normalizedIp || typeof cidr !== "string") return false;

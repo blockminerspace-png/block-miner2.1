@@ -3,9 +3,12 @@ import {
   CADENCE_DAILY,
   CADENCE_EVENT,
   CADENCE_WEEKLY,
+  MISSION_AUTO_MINING_TURBO,
+  MISSION_INTERNAL_OFFERWALL,
   MISSION_LOGIN_DAY,
   MISSION_MINE_BLK,
   MISSION_PLAY_GAMES,
+  MISSION_WATCH_YOUTUBE,
   REWARD_BLK,
   REWARD_EVENT_MINER,
   REWARD_HASHRATE_TEMP,
@@ -15,13 +18,21 @@ import {
 } from "../services/miniPass/miniPassConstants.js";
 import {
   normalizeDescriptionI18n,
+  nonNegativeDecimalString,
   normalizeTitleI18nForMiniPass,
   validateAndNormalizeLevelRewardInput,
   validateMissionInput
 } from "../services/miniPass/miniPassAdminValidation.js";
 
 const CADENCES = new Set([CADENCE_EVENT, CADENCE_DAILY, CADENCE_WEEKLY]);
-const MISSION_TYPES = new Set([MISSION_PLAY_GAMES, MISSION_MINE_BLK, MISSION_LOGIN_DAY]);
+const MISSION_TYPES = new Set([
+  MISSION_PLAY_GAMES,
+  MISSION_MINE_BLK,
+  MISSION_LOGIN_DAY,
+  MISSION_WATCH_YOUTUBE,
+  MISSION_AUTO_MINING_TURBO,
+  MISSION_INTERNAL_OFFERWALL
+]);
 const REWARD_KINDS = new Set([
   REWARD_NONE,
   REWARD_SHOP_MINER,
@@ -62,7 +73,13 @@ export async function adminGetMiniPassSeason(req, res) {
     const row = await prisma.miniPassSeason.findFirst({
       where: { id, deletedAt: null },
       include: {
-        levelRewards: { orderBy: { level: "asc" } },
+        levelRewards: {
+          orderBy: { level: "asc" },
+          include: {
+            miner: { select: { id: true, name: true, isActive: true } },
+            eventMiner: { select: { id: true, name: true, isActive: true } }
+          }
+        },
         missions: { orderBy: { sortOrder: "asc" } }
       }
     });
@@ -97,6 +114,14 @@ export async function adminCreateMiniPassSeason(req, res) {
     if (endsAt <= startsAt) {
       return res.status(400).json({ ok: false, message: "endsAt must be after startsAt." });
     }
+    const buyLevelPricePol = nonNegativeDecimalString(b.buyLevelPricePol ?? "0");
+    if (buyLevelPricePol == null) {
+      return res.status(400).json({ ok: false, message: "buyLevelPricePol must be a number >= 0." });
+    }
+    const completePassPricePol = nonNegativeDecimalString(b.completePassPricePol ?? "0");
+    if (completePassPricePol == null) {
+      return res.status(400).json({ ok: false, message: "completePassPricePol must be a number >= 0." });
+    }
 
     const row = await prisma.miniPassSeason.create({
       data: {
@@ -107,8 +132,8 @@ export async function adminCreateMiniPassSeason(req, res) {
         endsAt,
         maxLevel,
         xpPerLevel,
-        buyLevelPricePol: String(b.buyLevelPricePol ?? "0"),
-        completePassPricePol: String(b.completePassPricePol ?? "0"),
+        buyLevelPricePol,
+        completePassPricePol,
         bannerImageUrl: b.bannerImageUrl || null,
         isActive: Boolean(b.isActive !== false)
       }
@@ -152,8 +177,20 @@ export async function adminUpdateMiniPassSeason(req, res) {
     if (b.xpPerLevel !== undefined) {
       data.xpPerLevel = Math.max(1, Math.min(1_000_000, parseInt(b.xpPerLevel, 10) || 1));
     }
-    if (b.buyLevelPricePol !== undefined) data.buyLevelPricePol = String(b.buyLevelPricePol);
-    if (b.completePassPricePol !== undefined) data.completePassPricePol = String(b.completePassPricePol);
+    if (b.buyLevelPricePol !== undefined) {
+      const normalized = nonNegativeDecimalString(b.buyLevelPricePol);
+      if (normalized == null) {
+        return res.status(400).json({ ok: false, message: "buyLevelPricePol must be a number >= 0." });
+      }
+      data.buyLevelPricePol = normalized;
+    }
+    if (b.completePassPricePol !== undefined) {
+      const normalized = nonNegativeDecimalString(b.completePassPricePol);
+      if (normalized == null) {
+        return res.status(400).json({ ok: false, message: "completePassPricePol must be a number >= 0." });
+      }
+      data.completePassPricePol = normalized;
+    }
     if (b.bannerImageUrl !== undefined) data.bannerImageUrl = b.bannerImageUrl || null;
     if (b.isActive !== undefined) data.isActive = Boolean(b.isActive);
 
@@ -224,6 +261,30 @@ export async function adminUpsertLevelReward(req, res) {
     });
     if (!checked.ok) {
       return res.status(400).json({ ok: false, message: checked.message });
+    }
+
+    if (rewardKind === REWARD_SHOP_MINER) {
+      const miner = await prisma.miner.findFirst({
+        where: { id: checked.normalized.minerId, isActive: true },
+        select: { id: true }
+      });
+      if (!miner) {
+        return res.status(400).json({ ok: false, message: "Selected shop miner was not found or is inactive." });
+      }
+    }
+
+    if (rewardKind === REWARD_EVENT_MINER) {
+      const eventMiner = await prisma.eventMiner.findFirst({
+        where: {
+          id: checked.normalized.eventMinerId,
+          isActive: true,
+          event: { isActive: true, deletedAt: null }
+        },
+        select: { id: true }
+      });
+      if (!eventMiner) {
+        return res.status(400).json({ ok: false, message: "Selected event miner was not found or is inactive." });
+      }
     }
 
     const payload = {

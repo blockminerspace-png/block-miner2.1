@@ -9,8 +9,11 @@ import CommunityShortcuts from './CommunityShortcuts';
 export default function Header() {
   const { t } = useTranslation();
   const location = useLocation();
-  const { toggleChat, notifications, markNotificationRead, fetchNotifications } = useGameStore();
-  const { user } = useAuthStore();
+  const toggleChat = useGameStore((state) => state.toggleChat);
+  const notifications = useGameStore((state) => state.notifications);
+  const markNotificationRead = useGameStore((state) => state.markNotificationRead);
+  const fetchNotifications = useGameStore((state) => state.fetchNotifications);
+  const user = useAuthStore((state) => state.user);
   
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notificationRef = useRef(null);

@@ -30,9 +30,11 @@ import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from '../games/cryptoGameIcons
 
 const SOCKET_URL = '/';
 const LOGICAL = MINER_GAMES_LOGICAL_SIZE;
-const CART_LOGICAL_WIDTH = 960;
-const CART_LOGICAL_HEIGHT = 420;
+const CART_LOGICAL_WIDTH = 750;
+const CART_LOGICAL_HEIGHT = 500;
 const CART_TOUCH_SWIPE_THRESHOLD = 26;
+const CART_TARGET_SCORE = 750;
+const CART_TIME_LIMIT_SECONDS = 120;
 
 /** Must match server MEMORY_FLIP_OPEN_SETTLE_MS (~client open animation). */
 const MEMORY_CARD_OPEN_ANIM_MS = 300;
@@ -78,10 +80,10 @@ function getCanvasViewportStyle(activeGame) {
 }
 
 function getCartTrackLayout(lanes, logicalWidth = CART_LOGICAL_WIDTH, logicalHeight = CART_LOGICAL_HEIGHT) {
-  const roadX = Math.round(logicalWidth * 0.04);
-  const roadY = Math.round(logicalHeight * 0.41);
-  const roadW = logicalWidth - roadX * 2;
-  const roadH = Math.round(logicalHeight * 0.41);
+  const roadX = 0;
+  const roadY = 50;
+  const roadW = logicalWidth;
+  const roadH = logicalHeight - 100;
   const laneH = roadH / lanes;
   return { roadX, roadY, roadW, roadH, laneH };
 }
@@ -131,8 +133,11 @@ export default function Games() {
     steer: 0,
     lanes: 3,
     health: 3,
+    score: 0,
     events: [],
-    targetScore: 1500,
+    targetScore: CART_TARGET_SCORE,
+    distance: 0,
+    btcCount: 0,
     hit: null,
     roadSpeed: 0.48,
     roadOffset: 0,
@@ -285,8 +290,11 @@ export default function Games() {
           steer: 0,
           lanes: Number(data.lanes) || 3,
           health: Number(data.health) || 3,
+          score: Number(data.score) || 0,
           events: [],
-          targetScore: Number(data.targetScore) || 1500,
+          targetScore: Number(data.targetScore) || CART_TARGET_SCORE,
+          distance: Number(data.distance) || 0,
+          btcCount: Number(data.btcCount) || 0,
           hit: null,
           roadSpeed: Number(data.roadSpeed) || 0.48,
           roadOffset: 0,
@@ -300,7 +308,13 @@ export default function Games() {
         setSessionReady(false);
       }
 
-      setTimeLeft(data.game === 'crypto-memory' ? 70 : data.game === 'cart-rush' ? 90 : 180);
+      setTimeLeft(
+        data.game === 'crypto-memory'
+          ? 70
+          : data.game === 'cart-rush'
+            ? Number(data.timeLimitSeconds) || CART_TIME_LIMIT_SECONDS
+            : 180,
+      );
     });
 
     newSocket.on('game:card_flipped', (data) => {
@@ -407,7 +421,10 @@ export default function Games() {
         lane: nextLane,
         renderLane: Number.isFinite(cartStateRef.current.renderLane) ? cartStateRef.current.renderLane : nextLane,
         health: Number(data.health) || 0,
+        score: Number(data.score) || 0,
         targetScore: Number(data.targetScore) || cartStateRef.current.targetScore,
+        distance: Number(data.distance) || 0,
+        btcCount: Number(data.btcCount) || 0,
         events: Array.isArray(data.events)
           ? data.events.map((event) => ({
               ...event,
@@ -420,7 +437,6 @@ export default function Games() {
         difficulty: Number(data.difficulty) || 0,
         lastServerUpdateAt: serverNow,
       };
-      setHudScore(Number(data.score) || 0);
       if (data.hit?.kind === 'enemy-car') {
         const lanes = Math.max(3, Number(cartStateRef.current.lanes) || 3);
         const { roadX, roadY, roadW, roadH, laneH } = getCartTrackLayout(lanes, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
@@ -718,388 +734,248 @@ export default function Games() {
     const now = performance.now();
     const hit = state.hit;
     const serverRoadSpeed = Number(state.roadSpeed) || 0.48;
-    const roadPixelsPerSecond = 320 + serverRoadSpeed * 240;
-    state.roadOffset = ((Number(state.roadOffset) || 0) + roadPixelsPerSecond * deltaSeconds) % 120;
+    const roadPixelsPerSecond = 220 + serverRoadSpeed * 230;
+    state.roadOffset = ((Number(state.roadOffset) || 0) + roadPixelsPerSecond * deltaSeconds) % CART_LOGICAL_WIDTH;
     const scroll = state.roadOffset;
-    const interpolateSeconds = Math.max(0, Math.min(0.45, (now - (Number(state.lastServerUpdateAt) || now)) / 1000));
+    const missionProgress = Math.max(0, Math.min(1, (Number(state.score) || 0) / Math.max(1, Number(state.targetScore) || CART_TARGET_SCORE)));
 
-    // --- BACKGROUND: NEON CITY DUSK ---
+    const CAR_WIDTH = 110;
+    const CAR_HEIGHT = 50;
+    const BTC_SIZE = 22;
+
+    ctx.save();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
     
-    // Sky Gradient
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, roadY);
-    skyGrad.addColorStop(0, '#0f172a'); // Deep dark blue
-    skyGrad.addColorStop(0.6, '#1e293b');
-    skyGrad.addColorStop(1, '#334155');
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, roadY);
-
-    // Stars/Distant Lights
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    for(let i=0; i<20; i++) {
-       const sx = (i * 137 + scroll * 0.05) % CART_LOGICAL_WIDTH;
-       const sy = (i * 23) % (roadY - 100);
-       ctx.fillRect(sx, sy, 2, 2);
-    }
-
-    // Distant Buildings (Layer 1 - Very Slow)
-    const bg1Scroll = (scroll * 0.1) % 600;
-    ctx.fillStyle = '#1e293b';
-    for (let i = -1; i < 3; i++) {
-      const bx = i * 600 - bg1Scroll;
-      ctx.fillRect(bx, roadY - 240, 180, 240);
-      ctx.fillRect(bx + 250, roadY - 180, 140, 180);
-      ctx.fillRect(bx + 450, roadY - 280, 100, 280);
-    }
-
-    // Mid Buildings (Layer 2 - Medium)
-    const bg2Scroll = (scroll * 0.25) % 400;
-    for (let i = -1; i < 4; i++) {
-      const bx = i * 400 - bg2Scroll;
-      const bw = 140 + (i % 2) * 40;
-      const bh = 120 + ((i + 1) % 3) * 70;
-      
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(bx, roadY - bh, bw, bh);
-      
-      // Windows with color variants
-      for (let wx = 15; wx < bw - 15; wx += 25) {
-        for (let wy = 20; wy < bh - 20; wy += 35) {
-          const winSeed = (i + wx + wy) % 10;
-          if (winSeed > 6) {
-            ctx.fillStyle = winSeed > 8 ? '#fef08a' : '#38bdf8';
-            ctx.globalAlpha = 0.4 + Math.sin(now/1000 + i) * 0.2;
-            ctx.fillRect(bx + wx, roadY - bh + wy, 12, 16);
-            ctx.globalAlpha = 1.0;
-          }
-        }
-      }
-    }
-
-    // Sidewalk & Grass
-    ctx.fillStyle = '#1e293b'; // Dark concrete
-    ctx.fillRect(0, roadY - 30, CART_LOGICAL_WIDTH, 30);
-    ctx.fillStyle = '#064e3b'; // Deep grass
-    ctx.fillRect(0, roadY - 10, CART_LOGICAL_WIDTH, 10);
-
-    // Fence/Rail
-    ctx.fillStyle = '#475569';
-    for (let x = -20; x < CART_LOGICAL_WIDTH + 40; x += 80) {
-      const fx = x - (scroll * 0.8) % 80;
-      ctx.fillRect(fx, roadY - 45, 6, 40);
-      ctx.fillRect(fx - 40, roadY - 35, 80, 4);
-    }
-
-    // --- ROAD ---
-    const roadGrad = ctx.createLinearGradient(0, roadY, 0, roadY + roadH);
-    roadGrad.addColorStop(0, '#1e293b');
-    roadGrad.addColorStop(0.5, '#334155');
-    roadGrad.addColorStop(1, '#1e293b');
-    ctx.fillStyle = roadGrad;
-    ctx.fillRect(0, roadY, CART_LOGICAL_WIDTH, roadH);
-
-    // Road Texture/Noise
-    ctx.fillStyle = 'rgba(255,255,255,0.03)';
-    for(let i=0; i<15; i++) {
-      const rx = (i * 211 + scroll) % CART_LOGICAL_WIDTH;
-      const ry = roadY + (i * 37) % roadH;
-      ctx.fillRect(rx, ry, 30, 1);
-    }
-
-    // Road Markings (Yellow Side Lines)
-    ctx.fillStyle = '#eab308';
-    for (let x = -60; x < CART_LOGICAL_WIDTH + 60; x += 120) {
-      const mx = x - scroll % 120;
-      ctx.fillRect(mx, roadY + 2, 50, 4);
-      ctx.fillRect(mx, roadY + roadH - 6, 50, 4);
-    }
-
-    // Lane Dividers
+    ctx.fillStyle = '#2d6a4f';
+    ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, 50);
+    ctx.fillRect(0, CART_LOGICAL_HEIGHT - 50, CART_LOGICAL_WIDTH, 50);
+    
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.setLineDash([60, 40]);
+    ctx.lineDashOffset = -scroll;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
     for (let i = 1; i < lanes; i++) {
       const ly = roadY + laneH * i;
-      ctx.setLineDash([80, 50]);
-      ctx.lineDashOffset = -scroll * 1.1;
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
       ctx.moveTo(0, ly);
       ctx.lineTo(CART_LOGICAL_WIDTH, ly);
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-    // --- ENTITIES ---
-
-    const drawPixelCar = (cx, cy, width, height, bodyColor, isPlayer = false) => {
+    const drawPlayerCar = (x, y, tilt, alpha = 1) => {
       ctx.save();
-      ctx.translate(cx, cy);
-      
-      // Dynamic bounce & tilt
-      const bounce = isPlayer ? Math.sin(now / 100) * 2.5 : Math.sin(now / 150 + cx) * 1.5;
-      const tilt = isPlayer ? (state.lane - state.renderLane) * 0.15 : 0;
-      ctx.translate(0, bounce);
+      ctx.translate(x, y);
       ctx.rotate(tilt);
+      ctx.globalAlpha = alpha;
 
-      // Better Shadow
-      const shadowGrad = ctx.createRadialGradient(0, height * 0.4, 0, 0, height * 0.4, width * 0.6);
-      shadowGrad.addColorStop(0, 'rgba(0,0,0,0.5)');
-      shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = shadowGrad;
-      ctx.beginPath();
-      ctx.ellipse(0, height * 0.4, width * 0.55, height * 0.15, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Exhaust Smoke (Player Only)
-      if (isPlayer) {
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        for(let i=0; i<3; i++) {
-           const ex = -width * 0.5 - (now/50 + i*15) % 30;
-           const ey = height * 0.2 + Math.sin(now/100 + i) * 5;
-           const es = 5 + i * 3;
-           ctx.beginPath();
-           ctx.arc(ex, ey, es, 0, Math.PI * 2);
-           ctx.fill();
-        }
+      if (alpha === 1) {
+          ctx.save();
+          const lightGrad = ctx.createLinearGradient(CAR_WIDTH/2, 0, CAR_WIDTH/2 + 250, 0);
+          lightGrad.addColorStop(0, 'rgba(255, 255, 230, 0.15)');
+          lightGrad.addColorStop(1, 'rgba(255, 255, 230, 0)');
+          ctx.fillStyle = lightGrad;
+          ctx.beginPath();
+          ctx.moveTo(CAR_WIDTH/2 - 10, -16);
+          ctx.lineTo(CAR_WIDTH/2 + 240, -45);
+          ctx.lineTo(CAR_WIDTH/2 + 240, 5);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(CAR_WIDTH/2 - 10, 16);
+          ctx.lineTo(CAR_WIDTH/2 + 240, 45);
+          ctx.lineTo(CAR_WIDTH/2 + 240, -5);
+          ctx.fill();
+          ctx.restore();
       }
 
-      // Body Main
-      const grad = ctx.createLinearGradient(0, -height*0.5, 0, height*0.5);
-      grad.addColorStop(0, bodyColor);
-      grad.addColorStop(0.5, bodyColor);
-      grad.addColorStop(1, '#000000');
-      
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(2, 6, CAR_WIDTH/2 + 4, CAR_HEIGHT/2 + 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#111';
+      [[-35, -28], [18, -28], [-35, 18], [18, 18]].forEach(p => {
+          ctx.fillRect(p[0], p[1], 24, 12);
+      });
+
+      const grad = ctx.createLinearGradient(-CAR_WIDTH/2, 0, CAR_WIDTH/2, 0);
+      grad.addColorStop(0, '#d00000');
+      grad.addColorStop(1, '#ff1f1f');
       ctx.fillStyle = grad;
-      // Modern Rounded Body
       ctx.beginPath();
-      ctx.roundRect(-width * 0.48, -height * 0.25, width * 0.96, height * 0.5, 8);
+      ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 12);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(-CAR_WIDTH/2, -6, CAR_WIDTH, 12);
+
+      ctx.fillStyle = '#1b263b';
+      ctx.beginPath();
+      ctx.roundRect(0, -18, 25, 36, 5);
       ctx.fill();
       
-      // Body Highlight
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(-width * 0.44, -height * 0.22, width * 0.88, 4);
-
-      if (isPlayer) {
-        // Cockpit / Glass
-        ctx.fillStyle = '#334155';
-        ctx.beginPath();
-        ctx.roundRect(-width * 0.25, -height * 0.45, width * 0.6, height * 0.35, 6);
-        ctx.fill();
-        // Glass Reflection
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.beginPath();
-        ctx.moveTo(-width * 0.1, -height * 0.45);
-        ctx.lineTo(width * 0.1, -height * 0.45);
-        ctx.lineTo(width * 0.25, -height * 0.15);
-        ctx.lineTo(width * 0.05, -height * 0.15);
-        ctx.fill();
-        
-        // Driver
-        ctx.fillStyle = '#d97706'; // Fur
-        ctx.fillRect(-width * 0.05, -height * 0.55, 22, 22);
-        ctx.fillStyle = '#000000'; // Cool glasses
-        ctx.fillRect(5, -height * 0.5, 12, 4);
-      } else {
-        // Enemy Roof
-        ctx.fillStyle = bodyColor;
-        ctx.beginPath();
-        ctx.roundRect(-width * 0.3, -height * 0.55, width * 0.7, height * 0.4, 4);
-        ctx.fill();
-        // Window
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(width * 0.05, -height * 0.5, width * 0.3, height * 0.25);
-      }
-
-      // Lights
-      // Headlights (Right side)
-      ctx.fillStyle = '#fef9c3';
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = '#fef9c3';
-      ctx.fillRect(width * 0.4, -height * 0.15, 6, 12);
-      ctx.shadowBlur = 0;
-      
-      // Taillights (Left side)
-      ctx.fillStyle = isPlayer ? '#ef4444' : '#991b1b';
-      ctx.fillRect(-width * 0.48, -height * 0.15, 4, 12);
-
-      // Wheels (Animated)
-      const wheelSize = height * 0.3;
-      const wheelSpin = (now / 40) % (Math.PI * 2);
-      
-      const drawWheel = (wx, wy) => {
-        ctx.save();
-        ctx.translate(wx, wy);
-        ctx.rotate(wheelSpin);
-        ctx.fillStyle = '#020617';
-        ctx.beginPath();
-        ctx.arc(0, 0, wheelSize/2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        // Spokes
-        ctx.beginPath();
-        ctx.moveTo(-wheelSize/2, 0); ctx.lineTo(wheelSize/2, 0);
-        ctx.moveTo(0, -wheelSize/2); ctx.lineTo(0, wheelSize/2);
-        ctx.stroke();
-        ctx.restore();
-      };
-      
-      drawWheel(-width * 0.32, height * 0.22);
-      drawWheel(width * 0.32, height * 0.22);
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(5, -12); ctx.lineTo(20, -10);
+      ctx.stroke();
 
       ctx.restore();
     };
 
-    const drawCoin = (cx, cy) => {
+    const drawEnemyCar = (x, y, color) => {
       ctx.save();
-      ctx.translate(cx, cy);
-      const pulse = Math.sin(now / 200) * 4;
-      const spinScale = Math.abs(Math.sin(now / 400));
-      ctx.translate(0, pulse);
-      ctx.scale(spinScale, 1.0);
-      
-      // Outer Glow
-      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 25);
-      glow.addColorStop(0, 'rgba(245, 158, 11, 0.4)');
-      glow.addColorStop(1, 'rgba(245, 158, 11, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(0,0, 25, 0, Math.PI*2); ctx.fill();
+      ctx.translate(x, y);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(-CAR_WIDTH/2 + 4, -CAR_HEIGHT/2 + 4, CAR_WIDTH, CAR_HEIGHT);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 8);
+      ctx.fill();
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-15, -18, 32, 36);
+      ctx.restore();
+    };
 
-      // Coin Body
-      ctx.fillStyle = '#fbbf24'; // Brighter gold
-      ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#92400e';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      
-      ctx.fillStyle = '#92400e';
-      ctx.font = 'bold 22px serif';
+    const drawBTC = (x, y, rot) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(Math.cos(rot), 1);
+      const grad = ctx.createRadialGradient(-4, -4, 2, 0, 0, BTC_SIZE);
+      grad.addColorStop(0, '#ffd60a');
+      grad.addColorStop(1, '#ff9f1c');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, BTC_SIZE, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 24px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('₿', 0, 1);
       ctx.restore();
     };
 
-    const drawCone = (cx, cy) => {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.fillStyle = '#f97316';
-      ctx.beginPath();
-      ctx.moveTo(0, -25); ctx.lineTo(-18, 15); ctx.lineTo(18, 15);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(-10, -5, 20, 6);
-      // Base
-      ctx.fillStyle = '#ea580c';
-      ctx.fillRect(-22, 15, 44, 5);
-      ctx.restore();
-    };
-
-    const drawBarrier = (cx, cy) => {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(-35, 10, 8, 15);
-      ctx.fillRect(27, 10, 8, 15);
-      // Main Board
-      for (let i = 0; i < 7; i++) {
-        ctx.fillStyle = i % 2 === 0 ? '#ef4444' : '#ffffff';
-        ctx.fillRect(-35 + i * 10, -10, 10, 20);
+    if (!state.localEvents) state.localEvents = [];
+    
+    if (state.lastProcessedUpdate !== state.lastServerUpdateAt) {
+      state.lastProcessedUpdate = state.lastServerUpdateAt;
+      const localMap = new Map(state.localEvents.map(e => [e.id, e]));
+      const newLocalEvents = [];
+      
+      for (const s_evt of state.events || []) {
+        if (!s_evt.id) {
+          newLocalEvents.push({ ...s_evt });
+          continue;
+        }
+        let l_evt = localMap.get(s_evt.id);
+        if (l_evt) {
+          const diff = s_evt.progress - l_evt.progress;
+          if (Math.abs(diff) > 0.15) {
+             l_evt.progress = s_evt.progress;
+          }
+          l_evt.speed = s_evt.speed;
+          l_evt.lane = s_evt.lane;
+          newLocalEvents.push(l_evt);
+        } else {
+          newLocalEvents.push({ ...s_evt });
+        }
       }
-      ctx.restore();
-    };
+      state.localEvents = newLocalEvents;
+    }
+    
+    state.localEvents.forEach(e => {
+      e.progress += deltaSeconds * (e.speed || serverRoadSpeed);
+    });
 
-    const drawPothole = (cx, cy) => {
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 38, 14, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-      ctx.stroke();
-    };
+    const btcRotation = now / 200;
 
-    // Draw Events
-    for (const event of state.events || []) {
+    for (const event of state.localEvents) {
       const lane = clampCartLane(Number(event.lane) || 0, lanes);
-      const progress = Math.max(0, Math.min(1.25, (Number(event.progress) || 0) + interpolateSeconds * (Number(event.speed) || serverRoadSpeed)));
+      const progress = Math.max(0, Math.min(1.25, event.progress));
       const y = roadY + laneH * lane + laneH / 2;
-      const x = roadX + roadW - progress * (roadW + 140) + 50;
+      const x = roadX + roadW - progress * (roadW + 180) + 60;
 
       switch (event.kind) {
-        case 'coin': drawCoin(x, y); break;
-        case 'cone': drawCone(x, y); break;
-        case 'barrier': drawBarrier(x, y); break;
-        case 'pothole': drawPothole(x, y); break;
+        case 'coin': drawBTC(x, y, btcRotation); break;
+        case 'cone': 
+        case 'barrier': 
+        case 'pothole': 
         case 'enemy-car':
         default:
-          drawPixelCar(x, y, 95, 55, event.variant?.body || '#ef4444');
+          drawEnemyCar(x, y, event.variant?.body || '#457b9d');
           break;
       }
     }
 
-    // Player Car
     const carLane = clampCartLane(Number(state.lane) || 0, lanes);
     const renderLane = Number.isFinite(state.renderLane) ? state.renderLane : carLane;
     const nextRenderLane = renderLane + (carLane - renderLane) * 0.22;
     state.renderLane = Math.abs(carLane - nextRenderLane) < 0.001 ? carLane : nextRenderLane;
     const carX = roadX + 160;
     const carY = roadY + laneH * state.renderLane + laneH / 2;
+    const tilt = (state.lane - state.renderLane) * 0.18;
 
-    drawPixelCar(carX, carY, 105, 60, '#facc15', true);
-
-    // Screen Shake on Hit
     if (hit) {
       ctx.save();
-      const shakeX = (Math.random() - 0.5) * 20;
-      const shakeY = (Math.random() - 0.5) * 20;
-      ctx.translate(shakeX, shakeY);
-      ctx.fillStyle = 'rgba(239,68,68,0.4)';
-      ctx.fillRect(-50, -50, CART_LOGICAL_WIDTH + 100, CART_LOGICAL_HEIGHT + 100);
-      ctx.restore();
+      ctx.translate((Math.random() - 0.5) * 18, (Math.random() - 0.5) * 18);
     }
 
-    // --- HUD OVERLAY (Arcade Style) ---
+    drawPlayerCar(carX, carY, tilt, hit ? (now % 200 < 100 ? 0.5 : 1) : 1);
+
+    if (hit) ctx.restore();
+
+    const v = ctx.createRadialGradient(CART_LOGICAL_WIDTH/2, CART_LOGICAL_HEIGHT/2, CART_LOGICAL_WIDTH/3, CART_LOGICAL_WIDTH/2, CART_LOGICAL_HEIGHT/2, CART_LOGICAL_WIDTH/1.2);
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(1, 'rgba(0,0,0,0.5)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
+
+    ctx.restore();
+
     ctx.save();
-    
-    // Glassmorphism HUD Bar
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
-    ctx.beginPath();
-    ctx.roundRect(10, 10, 480, 60, 12);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.stroke();
-
-    // Health Hearts
-    for (let i = 0; i < 3; i++) {
-      const hx = 40 + i * 45;
-      const hy = 40;
-      const full = i < state.health;
-      ctx.fillStyle = full ? '#ef4444' : '#334155';
+    const drawHudBox = (x, y, w, h, label, value, valueColor = '#ffffff') => {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
       ctx.beginPath();
-      ctx.arc(hx - 7, hy - 4, 7, 0, Math.PI * 2);
-      ctx.arc(hx + 7, hy - 4, 7, 0, Math.PI * 2);
-      ctx.moveTo(hx - 14, hy - 4);
-      ctx.lineTo(hx, hy + 12);
-      ctx.lineTo(hx + 14, hy - 4);
+      ctx.roundRect(x, y, w, h, 6);
       ctx.fill();
-    }
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.stroke();
+      ctx.fillStyle = '#999';
+      ctx.font = '700 10px Roboto, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, x + 14, y + 18);
+      ctx.fillStyle = valueColor;
+      ctx.font = '900 22px Roboto, sans-serif';
+      ctx.fillText(value, x + 14, y + h - 14);
+    };
 
-    // Score
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath(); ctx.arc(190, 40, 12, 0, Math.PI*2); ctx.fill();
+    drawHudBox(20, 20, 122, 56, 'TEMPO', `${timeLeft}s`, '#4cc9f0');
+    drawHudBox(156, 20, 122, 56, 'PONTOS', `${Number(state.score) || 0}`, '#f72585');
+    drawHudBox(CART_LOGICAL_WIDTH - 280, 20, 122, 56, 'VIDAS', '❤️'.repeat(Math.max(0, Number(state.health) || 0)) || '0', '#e63946');
+    drawHudBox(CART_LOGICAL_WIDTH - 142, 20, 122, 56, 'DISTÂNCIA', `${Math.floor(Number(state.distance) || 0)}m`, '#ffffff');
+
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath();
+    ctx.roundRect(CART_LOGICAL_WIDTH / 2 - 150, CART_LOGICAL_HEIGHT - 26, 300, 6, 3);
+    ctx.fill();
+
+    const progressGrad = ctx.createLinearGradient(CART_LOGICAL_WIDTH / 2 - 150, 0, CART_LOGICAL_WIDTH / 2 + 150, 0);
+    progressGrad.addColorStop(0, '#f72585');
+    progressGrad.addColorStop(1, '#4cc9f0');
+    ctx.fillStyle = progressGrad;
+    ctx.beginPath();
+    ctx.roundRect(CART_LOGICAL_WIDTH / 2 - 150, CART_LOGICAL_HEIGHT - 26, 300 * missionProgress, 6, 3);
+    ctx.fill();
+
     ctx.fillStyle = '#ffffff';
-    ctx.font = '900 28px monospace';
-    ctx.fillText(`${hudScore}`, 215, 50);
-    ctx.font = 'bold 11px monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText(`TARGET: ${state.targetScore}`, 215, 62);
-
-    // Timer
-    ctx.fillStyle = '#38bdf8';
-    ctx.beginPath(); ctx.arc(360, 40, 12, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '900 28px monospace';
-    ctx.fillText(`${timeLeft}s`, 385, 50);
-
+    ctx.textAlign = 'center';
+    ctx.font = '900 24px Roboto, sans-serif';
+    ctx.fillText('MISSION: 750', CART_LOGICAL_WIDTH / 2, 54);
+    ctx.font = '700 12px Roboto, sans-serif';
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText(`1 BTC = 50 pontos  •  10 metros = 1 ponto  •  Meta ${state.targetScore}`, CART_LOGICAL_WIDTH / 2, 76);
     ctx.restore();
   }, [hudScore, timeLeft]);
 
@@ -1378,8 +1254,11 @@ export default function Games() {
       steer: 0,
       lanes: 3,
       health: 3,
+      score: 0,
       events: [],
-      targetScore: 1500,
+      targetScore: CART_TARGET_SCORE,
+      distance: 0,
+      btcCount: 0,
       hit: null,
       roadSpeed: 0.48,
       roadOffset: 0,
@@ -1462,46 +1341,6 @@ export default function Games() {
               />
             </div>
           </div>
-
-          {activeGame === 'cart' ? (
-            <div className="pointer-events-none flex shrink-0 justify-center px-3 pb-3">
-              <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-sky-500/20 bg-slate-950/78 px-3 py-2 shadow-[0_0_24px_rgba(14,165,233,0.14)] backdrop-blur">
-                <button
-                  type="button"
-                  aria-label="Move up"
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    moveCartByStep(-1);
-                  }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    moveCartByStep(-1);
-                  }}
-                  className="min-h-14 min-w-14 rounded-2xl border border-sky-400/30 bg-sky-500/15 px-5 text-2xl font-black text-sky-200 transition hover:bg-sky-500/25 active:scale-95"
-                >
-                  ▲
-                </button>
-                <div className="text-center text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-                  {t('minerGames.cart_rush_title')}
-                </div>
-                <button
-                  type="button"
-                  aria-label="Move down"
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    moveCartByStep(1);
-                  }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    moveCartByStep(1);
-                  }}
-                  className="min-h-14 min-w-14 rounded-2xl border border-sky-400/30 bg-sky-500/15 px-5 text-2xl font-black text-sky-200 transition hover:bg-sky-500/25 active:scale-95"
-                >
-                  ▼
-                </button>
-              </div>
-            </div>
-          ) : null}
         </div>
       )}
 

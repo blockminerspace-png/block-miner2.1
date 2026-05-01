@@ -36,6 +36,7 @@ import {
 } from "./iframeHostAllowlistCache.js";
 import { assertMinViewForSubmit } from "./internalOfferwallMinView.js";
 import { notifyInternalOfferwallCompletion } from "./internalOfferwallCompletionWebhook.js";
+import { notifyMiniPassInternalOfferwall } from "../miniPass/miniPassMissionHookService.js";
 
 /**
  * @param {unknown} v
@@ -771,6 +772,17 @@ export async function userSubmitAttempt(userId, attemptId) {
     });
   }
 
+  try {
+    await notifyMiniPassInternalOfferwall(userId, attempt.id);
+  } catch (bumpErr) {
+    console.error("internalOfferwall userSubmitAttempt: notifyMiniPassInternalOfferwall failed after grant", {
+      userId,
+      attemptId,
+      offerId: attempt.offerId,
+      message: bumpErr?.message
+    });
+  }
+
   const { syncUserBaseHashRate } = await import("../../models/minerProfileModel.js");
   const { getMiningEngine } = await import("../../src/miningEngineInstance.js");
   if (String(attempt.offer.rewardKind).toUpperCase() === REWARD_HASHRATE_TEMP) {
@@ -844,6 +856,17 @@ export async function adminApproveAttempt(attemptId) {
     });
   } catch (bumpErr) {
     console.error("internalOfferwall adminApproveAttempt: bumpDailyTasksForUser failed after grant", {
+      userId: attempt.userId,
+      attemptId,
+      offerId: attempt.offerId,
+      message: bumpErr?.message
+    });
+  }
+
+  try {
+    await notifyMiniPassInternalOfferwall(attempt.userId, attempt.id);
+  } catch (bumpErr) {
+    console.error("internalOfferwall adminApproveAttempt: notifyMiniPassInternalOfferwall failed after grant", {
       userId: attempt.userId,
       attemptId,
       offerId: attempt.offerId,

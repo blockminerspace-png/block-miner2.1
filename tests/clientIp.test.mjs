@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { getClientIp, isIpInCidr, normalizeIp } from "../server/utils/clientIp.js";
+import { deriveDefaultNetworkCidr, getClientIp, isIpInCidr, normalizeIp } from "../server/utils/clientIp.js";
 
 const oldEnv = { ...process.env };
 
@@ -44,5 +44,10 @@ describe("secure client IP capture", () => {
     assert.equal(isIpInCidr("10.2.3.4", "10.0.0.0/8"), true);
     assert.equal(isIpInCidr("11.2.3.4", "10.0.0.0/8"), false);
     assert.equal(isIpInCidr("2001:db8::5", "2001:db8::/32"), true);
+  });
+
+  it("derives IPv6 /64 network keys without treating IPv4 as a shared subnet", () => {
+    assert.equal(deriveDefaultNetworkCidr("2001:db8:abcd:0012::beef"), "2001:db8:abcd:12::/64");
+    assert.equal(deriveDefaultNetworkCidr("203.0.113.7"), null);
   });
 });

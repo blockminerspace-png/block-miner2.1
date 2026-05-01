@@ -55,3 +55,19 @@ test("MiningEngine.distributeRewards rollback restores lastPersistedBalance when
   assert.equal(miner.balance, 5, "balance must revert so persistMinerProfile does not apply a bogus negative delta");
   assert.equal(miner.lastPersistedBalance, 5, "lastPersistedBalance must revert with balance or POL would be decremented wrongly");
 });
+
+test("MiningEngine.getPublicState omits leaderboard by default and only includes it on demand", () => {
+  const engine = new MiningEngine();
+  const miner = engine.createOrGetMiner({
+    userId: 505,
+    username: "leader",
+    profile: { rigs: 1, base_hash_rate: 25, balance: 1.5 }
+  });
+
+  const defaultState = engine.getPublicState(miner.id);
+  assert.equal(Object.prototype.hasOwnProperty.call(defaultState, "leaderboard"), false);
+
+  const withLeaderboard = engine.getPublicState(miner.id, { includeLeaderboard: true });
+  assert.equal(Array.isArray(withLeaderboard.leaderboard), true);
+  assert.equal(withLeaderboard.leaderboard[0]?.username, "leader");
+});

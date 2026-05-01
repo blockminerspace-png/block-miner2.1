@@ -47,12 +47,6 @@ RUN apt-get update && \
 COPY package*.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
-# Playwright Chromium + OS libs (headful capture on virtual X display)
-RUN apt-get update && \
-    npx playwright install-deps chromium && \
-    npx playwright install chromium && \
-    rm -rf /var/lib/apt/lists/*
-
 # Copy Prisma schema and config, then generate client
 COPY server/prisma ./server/prisma/
 COPY prisma.config.js ./

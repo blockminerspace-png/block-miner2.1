@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ShoppingCart, Zap, TrendingUp, Info, X, CheckCircle2, AlertTriangle, Loader2, Minus, Plus } from 'lucide-react';
 import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
-import { formatHashrate } from '../utils/machine';
+import { DEFAULT_MINER_IMAGE_URL, formatHashrate } from '../utils/machine';
 
 const MAX_QTY = 25;
 
@@ -28,6 +28,7 @@ export default function Shop() {
                 }
             } catch (err) {
                 console.error("Erro ao buscar mineradoras", err);
+                toast.error(t('shop.loading_error', { defaultValue: 'Não foi possível carregar a loja.' }));
             } finally {
                 setIsLoading(false);
             }
@@ -37,6 +38,10 @@ export default function Shop() {
     }, []);
 
     const openConfirmModal = (miner) => {
+        if (!miner?.id || !Number.isFinite(Number(miner?.price)) || Number(miner.price) <= 0) {
+            toast.error(t('shop.invalid_miner', { defaultValue: 'Este equipamento não está disponível para compra.' }));
+            return;
+        }
         setSelectedMiner(miner);
         setQuantity(1);
         setShowConfirmModal(true);
@@ -44,6 +49,11 @@ export default function Shop() {
 
     const handlePurchase = async () => {
         if (isPurchasing || !selectedMiner) return;
+        const safeQuantity = Math.min(MAX_QTY, Math.max(1, Number(quantity) || 1));
+        if (!Number.isInteger(safeQuantity)) {
+            toast.error(t('shop.invalid_quantity', { defaultValue: 'Quantidade inválida.' }));
+            return;
+        }
 
         try {
             setIsPurchasing(true);
@@ -53,7 +63,7 @@ export default function Shop() {
                     : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
             const res = await api.post('/shop/purchase', {
                 minerId: selectedMiner.id,
-                quantity,
+                quantity: safeQuantity,
                 idempotencyKey,
             });
             if (res.data.ok) {
@@ -111,7 +121,12 @@ export default function Shop() {
                             </div>
 
                             <div className="aspect-square bg-gray-900/50 rounded-3xl p-6 border border-gray-800 group-hover:scale-105 transition-transform duration-500">
-                                <img src={miner.imageUrl} alt={miner.name} className="w-full h-full object-contain" />
+                                <img
+                                    src={miner.imageUrl}
+                                    alt={miner.name}
+                                    className="w-full h-full object-contain"
+                                    onError={(e) => { e.currentTarget.src = DEFAULT_MINER_IMAGE_URL; }}
+                                />
                             </div>
 
                             <div className="space-y-1">
@@ -178,7 +193,12 @@ export default function Shop() {
                             <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-6 space-y-4">
                                 <div className="flex items-center gap-4 text-left">
                                     <div className="w-16 h-16 bg-gray-800 rounded-2xl p-2 border border-gray-700 shrink-0">
-                                        <img src={selectedMiner.imageUrl} className="w-full h-full object-contain" />
+                                        <img
+                                            src={selectedMiner.imageUrl}
+                                            alt={selectedMiner.name}
+                                            className="w-full h-full object-contain"
+                                            onError={(e) => { e.currentTarget.src = DEFAULT_MINER_IMAGE_URL; }}
+                                        />
                                     </div>
                                     <div>
                                         <h4 className="font-bold text-white leading-none">{selectedMiner.name}</h4>

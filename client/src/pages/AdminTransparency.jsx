@@ -193,7 +193,7 @@ export default function AdminTransparency() {
   async function refreshWalletActivity() {
     setActivityLoading(true);
     try {
-      const r = await fetch('/api/admin/transparency/wallet/activity?page=1&offset=50', { credentials: 'include' });
+      const r = await fetch('/api/admin/transparency/wallet/activity', { credentials: 'include' });
       const d = await r.json();
         if (d.ok) {
         setActivity(d);
@@ -563,7 +563,20 @@ export default function AdminTransparency() {
             </div>
           </div>
         ) : null}
-        {activity?.note ? <p className="text-[10px] text-gray-600 leading-relaxed">{activity.note}</p> : null}
+        {activity?.summary ? (
+          <div className="space-y-1">
+            <p className="text-[10px] text-gray-600 leading-relaxed">
+              {t('transparency.admin.wallet_history_note')}
+            </p>
+            <p className="text-[10px] text-gray-600 leading-relaxed">
+              {t(
+                activity.summary.historyMayBeTruncated
+                  ? 'transparency.admin.wallet_history_limit_note'
+                  : 'transparency.admin.wallet_history_scope_note'
+              )}
+            </p>
+          </div>
+        ) : null}
         {activity?.movements?.length ? (
           <div className="overflow-x-auto rounded-xl border border-white/8 max-h-72 overflow-y-auto">
             <table className="w-full text-left text-xs">
@@ -653,25 +666,32 @@ export default function AdminTransparency() {
         </div>
 
         {trackedWalletActivity?.summary ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total recebido</p>
-              <p className="text-lg font-black text-white mt-1">{Number(trackedWalletActivity.summary.totalInPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL</p>
-              {trackedWalletActivity.summary.totalInUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(trackedWalletActivity.summary.totalInUsd).toFixed(2)}</p> : null}
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total recebido</p>
+                <p className="text-lg font-black text-white mt-1">{Number(trackedWalletActivity.summary.totalInPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL</p>
+                {trackedWalletActivity.summary.totalInUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(trackedWalletActivity.summary.totalInUsd).toFixed(2)}</p> : null}
+              </div>
+              <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total enviado</p>
+                <p className="text-lg font-black text-white mt-1">{Number(trackedWalletActivity.summary.totalOutPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL</p>
+                {trackedWalletActivity.summary.totalOutUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(trackedWalletActivity.summary.totalOutUsd).toFixed(2)}</p> : null}
+              </div>
+              <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Carteiras</p>
+                <p className="text-lg font-black text-white mt-1">{trackedWalletActivity.summary.walletCount}</p>
+              </div>
+              <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Movimentos</p>
+                <p className="text-lg font-black text-white mt-1">{trackedWalletActivity.summary.movementCount}</p>
+              </div>
             </div>
-            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total enviado</p>
-              <p className="text-lg font-black text-white mt-1">{Number(trackedWalletActivity.summary.totalOutPol || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })} POL</p>
-              {trackedWalletActivity.summary.totalOutUsd != null ? <p className="text-xs text-slate-400 mt-1">~ ${Number(trackedWalletActivity.summary.totalOutUsd).toFixed(2)}</p> : null}
-            </div>
-            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Carteiras</p>
-              <p className="text-lg font-black text-white mt-1">{trackedWalletActivity.summary.walletCount}</p>
-            </div>
-            <div className="rounded-xl border border-white/8 bg-black/20 px-4 py-3">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Movimentos</p>
-              <p className="text-lg font-black text-white mt-1">{trackedWalletActivity.summary.movementCount}</p>
-            </div>
+            <p className="text-[10px] text-gray-600 leading-relaxed">
+              {trackedWalletActivity.summary.historyMayBeTruncated
+                ? 'Totais consolidados usam o histórico de transações normais até o teto de 10.000 registros da API por carteira.'
+                : 'Totais consolidados usam o histórico completo de transações normais de cada carteira rastreada.'}
+            </p>
           </div>
         ) : null}
 

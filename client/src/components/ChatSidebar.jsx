@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Send, Smile, ShieldCheck, X, Reply, CornerDownRight, MessageSquare, User, ArrowLeft, Eye, MoreVertical, AtSign } from 'lucide-react';
 import { useGameStore } from '../store/game';
 import { useAuthStore, api } from '../store/auth';
+import { useShallow } from 'zustand/react/shallow';
 
 const QUICK_EMOJIS = ["😀", "😂", "🤣", "😍", "😎", "🤝", "🔥", "🚀", "💎", "⛏️", "🎉", "✅", "💬", "👏"];
 
@@ -28,14 +29,33 @@ function renderMessageText(text, currentUsername) {
 export default function ChatSidebar() {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const user = useAuthStore((state) => state.user);
     const { 
         messages, privateMessages, conversations, activePrivateUser,
         sendMessage, sendPrivateMessage, initSocket, fetchMessages, 
         fetchPrivateMessages, fetchConversations, setActivePrivateUser, 
         clearActivePrivateUser, isChatOpen, closeChat,
         unreadPms, hasMention, clearMention, clearUnreadPms
-    } = useGameStore();
+    } = useGameStore(useShallow((state) => ({
+        messages: state.messages,
+        privateMessages: state.privateMessages,
+        conversations: state.conversations,
+        activePrivateUser: state.activePrivateUser,
+        sendMessage: state.sendMessage,
+        sendPrivateMessage: state.sendPrivateMessage,
+        initSocket: state.initSocket,
+        fetchMessages: state.fetchMessages,
+        fetchPrivateMessages: state.fetchPrivateMessages,
+        fetchConversations: state.fetchConversations,
+        setActivePrivateUser: state.setActivePrivateUser,
+        clearActivePrivateUser: state.clearActivePrivateUser,
+        isChatOpen: state.isChatOpen,
+        closeChat: state.closeChat,
+        unreadPms: state.unreadPms,
+        hasMention: state.hasMention,
+        clearMention: state.clearMention,
+        clearUnreadPms: state.clearUnreadPms
+    })));
 
     const [chatMode, setChatOpenMode] = useState('global'); // 'global', 'list', 'private'
     const [newMessage, setNewMessage] = useState('');

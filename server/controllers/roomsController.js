@@ -34,6 +34,52 @@ function rackSlotIndex(roomNumber, position) {
   return 1000 + (roomNumber - 1) * RACKS_PER_ROOM + position;
 }
 
+function normalizeRackIds(raw) {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))];
+}
+
+async function moveRackMinerBackToInventoryTx(tx, rack, miner, acquiredAt) {
+  const minerName = miner.miner?.name || (!miner.minerId ? "Máquina custom" : "Máquina");
+  const imageUrl = miner.imageUrl ?? miner.miner?.imageUrl ?? null;
+
+  await tx.userRack.update({
+    where: { id: rack.id },
+    data: { userMinerId: null, installedAt: null },
+  });
+
+  await tx.userRack.updateMany({
+    where: { roomId: rack.roomId, blockedByMinerId: miner.id },
+    data: { blockedByMinerId: null },
+  });
+
+  const omId = await ensureOwnedMachineForUserMinerTx(tx, miner, minerName);
+  await tx.userInventory.create({
+    data: {
+      userId: rack.userId,
+      minerId: miner.minerId,
+      minerName,
+      level: miner.level,
+      hashRate: miner.hashRate,
+      slotSize: miner.slotSize,
+      imageUrl,
+      acquiredAt,
+      ownedMachineId: omId,
+    },
+  });
+  await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.INVENTORY, {
+    minerId: miner.minerId,
+    minerName,
+    level: miner.level,
+    hashRate: miner.hashRate,
+    slotSize: miner.slotSize ?? 1,
+    imageUrl,
+  });
+
+  await tx.userMiner.delete({ where: { id: miner.id } });
+  return { minerName };
+}
+
 export async function listRooms(req, res) {
   try {
     const userId = req.user.id;
@@ -43,14 +89,31 @@ export async function listRooms(req, res) {
 
     const rooms = await prisma.userRoom.findMany({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        roomNumber: true,
+        pricePaid: true,
+        unlockedAt: true,
         racks: {
           orderBy: { position: "asc" },
-          include: {
+          select: {
+            id: true,
+            position: true,
+            installedAt: true,
+            blockedByMinerId: true,
+            userMinerId: true,
             userMiner: {
-              include: { miner: true }
-            }
-          }
+              select: {
+                id: true,
+                minerId: true,
+                hashRate: true,
+                imageUrl: true,
+                level: true,
+                slotSize: true,
+                miner: { select: { name: true } },
+              },
+            },
+          },
         },
       },
       orderBy: { roomNumber: "asc" },
@@ -381,8 +444,6 @@ export async function uninstallMiner(req, res) {
     }
 
     const miner = rack.userMiner;
-    const minerName =
-      miner.miner?.name || (!miner.minerId ? "Máquina custom" : "Máquina");
 
     const idem = await resolveCriticalMutation(req, res);
     if (!idem) return;
@@ -391,40 +452,7 @@ export async function uninstallMiner(req, res) {
     try {
       await prisma.$transaction(async (tx) => {
         await advisoryXactTryLockOrThrow(tx, `user_ops:${userId}`);
-        await tx.userRack.update({
-          where: { id: rackId },
-          data: { userMinerId: null, installedAt: null },
-        });
-
-          await tx.userRack.updateMany({
-            where: { roomId: rack.roomId, blockedByMinerId: miner.id },
-            data: { blockedByMinerId: null },
-          });
-
-          const omId = await ensureOwnedMachineForUserMinerTx(tx, miner, minerName);
-          await tx.userInventory.create({
-            data: {
-              userId,
-              minerId: miner.minerId,
-              minerName,
-              level: miner.level,
-              hashRate: miner.hashRate,
-              slotSize: miner.slotSize,
-              imageUrl: miner.imageUrl ?? miner.miner?.imageUrl ?? null,
-              acquiredAt: new Date(),
-              ownedMachineId: omId,
-            },
-          });
-          await syncOwnedMachineSnapshotTx(tx, omId, MachineLocation.INVENTORY, {
-            minerId: miner.minerId,
-            minerName,
-            level: miner.level,
-            hashRate: miner.hashRate,
-            slotSize: miner.slotSize ?? 1,
-            imageUrl: miner.imageUrl ?? miner.miner?.imageUrl ?? null,
-          });
-
-        await tx.userMiner.delete({ where: { id: miner.id } });
+        await moveRackMinerBackToInventoryTx(tx, rack, miner, new Date());
       });
 
       await syncUserBaseHashRate(userId);
@@ -437,7 +465,7 @@ export async function uninstallMiner(req, res) {
         userId,
         rackId,
         minerId: miner.minerId,
-        returnedMinerName: minerName,
+        returnedMinerName: miner.miner?.name || (!miner.minerId ? "Máquina custom" : "Máquina"),
       });
       const payload = { ok: true, message: "Máquina removida do rack com sucesso!" };
       await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
@@ -453,6 +481,90 @@ export async function uninstallMiner(req, res) {
   } catch (err) {
     logger.error("uninstallMiner error", { err: err.message });
     return res.status(500).json({ ok: false, message: "Erro ao remover máquina." });
+  }
+}
+
+export async function uninstallMinerBatch(req, res) {
+  try {
+    const userId = req.user.id;
+    const rackIds = normalizeRackIds(req.body?.rackIds);
+
+    if (rackIds.length === 0) {
+      logger.warn("uninstallMinerBatch: invalid rackIds", { userId, rackIds: req.body?.rackIds });
+      return res.status(400).json({ ok: false, message: "rackIds inválidos." });
+    }
+
+    logger.info("uninstallMinerBatch attempt", { userId, rackCount: rackIds.length });
+
+    const idem = await resolveCriticalMutation(req, res);
+    if (!idem) return;
+    const { lease, ci } = idem;
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await advisoryXactTryLockOrThrow(tx, `user_ops:${userId}`);
+        const racks = await tx.userRack.findMany({
+          where: { id: { in: rackIds }, userId },
+          include: {
+            userMiner: {
+              include: { miner: true },
+            },
+          },
+        });
+        const racksById = new Map(racks.map((rack) => [rack.id, rack]));
+
+        for (const rackId of rackIds) {
+          const rack = racksById.get(rackId);
+          if (!rack) {
+            const err = new Error("RACK_NOT_FOUND");
+            /** @type {any} */ (err).http = 404;
+            throw err;
+          }
+          if (!rack.userMiner) {
+            const err = new Error("RACK_EMPTY");
+            /** @type {any} */ (err).code = "RACK_EMPTY";
+            throw err;
+          }
+        }
+
+        const acquiredAt = new Date();
+        for (const rackId of rackIds) {
+          const rack = racksById.get(rackId);
+          await moveRackMinerBackToInventoryTx(tx, rack, rack.userMiner, acquiredAt);
+        }
+      });
+
+      await syncUserBaseHashRate(userId);
+      const engine = getMiningEngine();
+      if (engine) {
+        await engine.reloadMinerProfile(userId);
+      }
+
+      logger.info("uninstallMinerBatch: success", { userId, rackCount: rackIds.length });
+      const payload = {
+        ok: true,
+        movedCount: rackIds.length,
+        message: "Máquinas removidas do rack com sucesso!",
+      };
+      await finalizeCriticalMutationSuccess(lease, { requestHash: ci.requestHash, responseJson: payload });
+      return res.json(payload);
+    } catch (err) {
+      await cancelCriticalMutation(lease);
+      if (/** @type {any} */ (err)?.code === "DISTRIBUTED_LOCK_BUSY") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      if (err?.message === "RACK_NOT_FOUND" || /** @type {any} */ (err)?.http === 404) {
+        return res.status(404).json({ ok: false, message: "Rack não encontrado." });
+      }
+      if (err?.message === "RACK_EMPTY" || /** @type {any} */ (err)?.code === "RACK_EMPTY") {
+        return res.status(400).json({ ok: false, code: "RACK_EMPTY", message: "Um dos racks não tem máquina instalada." });
+      }
+      logger.error("uninstallMinerBatch error", { err: err.message, userId, rackCount: rackIds.length });
+      return res.status(500).json({ ok: false, message: "Erro ao remover máquinas." });
+    }
+  } catch (err) {
+    logger.error("uninstallMinerBatch error", { err: err.message });
+    return res.status(500).json({ ok: false, message: "Erro ao remover máquinas." });
   }
 }
 

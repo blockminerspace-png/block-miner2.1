@@ -1,9 +1,12 @@
 import { Prisma } from "../../src/db/prismaNamespace.js";
 import prisma from "../../src/db/prisma.js";
 import {
+  MISSION_AUTO_MINING_TURBO,
+  MISSION_INTERNAL_OFFERWALL,
   MISSION_LOGIN_DAY,
   MISSION_MINE_BLK,
   MISSION_PLAY_GAMES,
+  MISSION_WATCH_YOUTUBE,
   XP_SOURCE_MISSION
 } from "./miniPassConstants.js";
 import { resolveMissionPeriodKey } from "./miniPassPeriod.js";
@@ -178,6 +181,60 @@ export async function notifyMiniPassLoginDay(userId, checkinDateKey) {
           delta: 1,
           periodKey
         });
+      });
+    }
+  }
+}
+
+export async function notifyMiniPassYoutubeWatch(userId, youtubeWatchHistoryId) {
+  if (!userId || !youtubeWatchHistoryId) return;
+  const seasons = await loadLiveSeasonsWithMissions(MISSION_WATCH_YOUTUBE);
+  const now = new Date();
+  for (const season of seasons) {
+    if (!isMiniPassSeasonLive(season)) continue;
+    for (const mission of season.missions) {
+      const periodKey = resolveMissionPeriodKey(mission.cadence, mission.missionType, now);
+      const dedupeKey = `yt-${youtubeWatchHistoryId}`;
+      await prisma.$transaction(async (tx) => {
+        const ok = await tryConsumeDedupe(tx, mission.id, dedupeKey);
+        if (!ok) return;
+        await bumpMissionProgress(tx, { userId, season, mission, delta: 1, periodKey });
+      });
+    }
+  }
+}
+
+export async function notifyMiniPassAutoMiningTurbo(userId, turboGrantId) {
+  if (!userId || !turboGrantId) return;
+  const seasons = await loadLiveSeasonsWithMissions(MISSION_AUTO_MINING_TURBO);
+  const now = new Date();
+  for (const season of seasons) {
+    if (!isMiniPassSeasonLive(season)) continue;
+    for (const mission of season.missions) {
+      const periodKey = resolveMissionPeriodKey(mission.cadence, mission.missionType, now);
+      const dedupeKey = `turbo-${turboGrantId}`;
+      await prisma.$transaction(async (tx) => {
+        const ok = await tryConsumeDedupe(tx, mission.id, dedupeKey);
+        if (!ok) return;
+        await bumpMissionProgress(tx, { userId, season, mission, delta: 1, periodKey });
+      });
+    }
+  }
+}
+
+export async function notifyMiniPassInternalOfferwall(userId, attemptId) {
+  if (!userId || !attemptId) return;
+  const seasons = await loadLiveSeasonsWithMissions(MISSION_INTERNAL_OFFERWALL);
+  const now = new Date();
+  for (const season of seasons) {
+    if (!isMiniPassSeasonLive(season)) continue;
+    for (const mission of season.missions) {
+      const periodKey = resolveMissionPeriodKey(mission.cadence, mission.missionType, now);
+      const dedupeKey = `iof-${attemptId}`;
+      await prisma.$transaction(async (tx) => {
+        const ok = await tryConsumeDedupe(tx, mission.id, dedupeKey);
+        if (!ok) return;
+        await bumpMissionProgress(tx, { userId, season, mission, delta: 1, periodKey });
       });
     }
   }

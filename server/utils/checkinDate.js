@@ -1,14 +1,104 @@
+const BRAZIL_TIME_ZONE = "America/Sao_Paulo";
+const BRAZIL_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA-u-ca-iso8601", {
+  timeZone: BRAZIL_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function buildNormalizedBrazilDateKey(year, month, day) {
+  return `${String(year)}-${pad2(month)}-${pad2(day)}`;
+}
+
+function formatBrazilDateParts(date) {
+  const parts = BRAZIL_DAY_FORMATTER.formatToParts(date);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  if (!year || !month || !day) {
+    throw new Error("Unable to format Brazil calendar date.");
+  }
+  return { year, month, day };
+}
+
+/**
+ * Legacy deployments have produced more than one textual shape for the same Brazil day.
+ * Normalize them to a single YYYY-MM-DD key before comparing streaks or loading today's row.
+ */
+export function normalizeBrazilDateKey(input) {
+  if (input instanceof Date) {
+    return getBrazilCheckinDateKey(input);
+  }
+
+  if (typeof input !== "string") return "";
+  const raw = input.trim();
+  if (!raw) return "";
+
+  const ymdDash = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+  if (ymdDash) {
+    return buildNormalizedBrazilDateKey(ymdDash[1], ymdDash[2], ymdDash[3]);
+  }
+
+  const ymdSlash = raw.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:[T\s].*)?$/);
+  if (ymdSlash) {
+    return buildNormalizedBrazilDateKey(ymdSlash[1], ymdSlash[2], ymdSlash[3]);
+  }
+
+  const mdySlash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[T\s].*)?$/);
+  if (mdySlash) {
+    return buildNormalizedBrazilDateKey(mdySlash[3], mdySlash[1], mdySlash[2]);
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return getBrazilCheckinDateKey(parsed);
+  }
+
+  return "";
+}
+
 /** Calendar date in America/Sao_Paulo (same semantics as streak math in addDaysToBrazilDateKey). */
 export function getBrazilCheckinDateKey(date = new Date()) {
-  return date.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const { year, month, day } = formatBrazilDateParts(date);
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Textual aliases that have appeared for the same Brazil calendar day.
+ * Reads use this to prevent legacy rows from breaking streaks or today's status.
+ */
+export function getBrazilDateKeyAliases(input = new Date()) {
+  const normalized = normalizeBrazilDateKey(input);
+  if (!normalized) return [];
+  const [year, month, day] = normalized.split("-");
+  const m = String(Number(month));
+  const d = String(Number(day));
+  return Array.from(
+    new Set([
+      normalized,
+      `${year}-${m}-${d}`,
+      `${year}/${month}/${day}`,
+      `${year}/${m}/${d}`,
+      `${month}/${day}/${year}`,
+      `${m}/${d}/${year}`
+    ])
+  );
 }
 
 /** Calendar day in America/Sao_Paulo, offset by whole days (streak math). */
 export function addDaysToBrazilDateKey(dateKey, deltaDays) {
-  const [Y, M, D] = dateKey.split("-").map(Number);
+  const normalized = normalizeBrazilDateKey(dateKey);
+  if (!normalized) {
+    throw new Error(`Invalid Brazil date key: ${String(dateKey)}`);
+  }
+  const [Y, M, D] = normalized.split("-").map(Number);
   const noonBrUtc = new Date(Date.UTC(Y, M - 1, D, 15, 0, 0));
   const shifted = new Date(noonBrUtc.getTime() + Number(deltaDays) * 86400000);
-  return shifted.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  return getBrazilCheckinDateKey(shifted);
 }
 
 /** First day of calendar month in America/Sao_Paulo (YYYY-MM). */

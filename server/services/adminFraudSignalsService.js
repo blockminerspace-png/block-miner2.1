@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { normalizeIp } from "../utils/clientIp.js";
+import { deriveDefaultNetworkCidr, normalizeIp } from "../utils/clientIp.js";
 import { getCachedIpIntelligence } from "./ipIntelligenceService.js";
 import { calculateMultiAccountRisk } from "./multiAccountRiskService.js";
 
@@ -7,6 +7,7 @@ const ALLOWED_SCOPES = new Set([
   "all",
   "wallets",
   "ips",
+  "devices",
   "chain",
   "ip_exact",
   "ip_network",
@@ -16,6 +17,7 @@ const ALLOWED_SCOPES = new Set([
   "false_positive",
   "shared_residential",
 ]);
+const DERIVED_IP_SCAN_LIMIT = 1500;
 
 function parsePage(value) {
   if (value === undefined || value === null || value === "") return 1;
@@ -108,7 +110,24 @@ function buildGroup({ signalType, kind, key, users, ipIntelligence = null }) {
     confidence: risk.confidence,
     reasons: risk.reasons,
     falsePositiveWarnings: risk.falsePositiveWarnings,
+    alerts: risk.alerts,
+    identityVectors: risk.identityVectors,
+    identityVectorCount: risk.identityVectorCount,
+    correlation: risk.correlation,
+    decision: risk.decision,
     recommendedAction: risk.recommendedAction,
+  };
+}
+
+function buildUser(row) {
+  return {
+    id: Number(row.id),
+    username: row.username ?? null,
+    email: String(row.email || ""),
+    walletAddress: row.walletAddress ?? null,
+    userAgent: row.userAgent ?? null,
+    createdAt: row.createdAt,
+    lastLoginAt: row.lastLoginAt ?? null,
   };
 }
 
@@ -117,15 +136,7 @@ function pushGrouped(groups, { rows, kind, signalType, keyField = "key" }) {
   for (const row of rows) {
     const key = String(row[keyField] || "").trim();
     if (!key) continue;
-    const user = {
-      id: Number(row.id),
-      username: row.username ?? null,
-      email: String(row.email || ""),
-      walletAddress: row.walletAddress ?? null,
-      userAgent: row.userAgent ?? null,
-      createdAt: row.createdAt,
-      lastLoginAt: row.lastLoginAt ?? null,
-    };
+    const user = buildUser(row);
     if (!Number.isSafeInteger(user.id)) continue;
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(user);
@@ -178,6 +189,18 @@ async function queryIpUsers(prisma, { column, qLike, limit = 600 }) {
   `;
 }
 
+async function queryAllIpUsers(prisma, { column, limit = DERIVED_IP_SCAN_LIMIT }) {
+  const userFieldSql = Prisma.raw(`u.${column}`);
+  return prisma.$queryRaw`
+    SELECT u.id, u.username, u.email, u.wallet_address AS "walletAddress", u.user_agent AS "userAgent",
+           u.created_at AS "createdAt", u.last_login_at AS "lastLoginAt", ${userFieldSql} AS key
+    FROM users u
+    WHERE ${userFieldSql} IS NOT NULL AND BTRIM(${userFieldSql}) <> ''
+    ORDER BY COALESCE(u.last_login_at, u.created_at) DESC, u.id DESC
+    LIMIT ${limit}
+  `;
+}
+
 async function queryTransactionAddressUsers(prisma, { column, qLike, limit = 700 }) {
   const fieldSql = Prisma.raw(column);
   const txFieldSql = Prisma.raw(`t.${column}`);
@@ -202,11 +225,86 @@ async function queryTransactionAddressUsers(prisma, { column, qLike, limit = 700
   `;
 }
 
+async function queryIpLogUsers(prisma, { column, qLike, limit = 700 }) {
+  const fieldSql = Prisma.raw(`l.${column}`);
+  return prisma.$queryRaw`
+    WITH d AS (
+      SELECT ${fieldSql} AS k, COUNT(DISTINCT l.user_id)::int AS c
+      FROM ip_logs l
+      WHERE ${fieldSql} IS NOT NULL AND BTRIM(${fieldSql}) <> ''
+      GROUP BY ${fieldSql}
+      HAVING COUNT(DISTINCT l.user_id) > 1
+    )
+    SELECT u.id, u.username, u.email, u.wallet_address AS "walletAddress", u.user_agent AS "userAgent",
+           u.created_at AS "createdAt", u.last_login_at AS "lastLoginAt", ${fieldSql} AS key
+    FROM ip_logs l
+    INNER JOIN d ON ${fieldSql} = d.k
+    INNER JOIN users u ON u.id = l.user_id
+    WHERE 1=1 ${signalSearchSql(Prisma.raw(`LOWER(${fieldSql})`), qLike)}
+    ORDER BY d.c DESC, key, u.id
+    LIMIT ${limit}
+  `;
+}
+
+async function loadCachedIpIntelligenceMap(prisma, ips) {
+  const uniqueIps = [...new Set((ips || []).map((ip) => normalizeIp(ip)).filter(Boolean))];
+  if (!uniqueIps.length || !prisma?.ipIntelligenceCache?.findMany) return new Map();
+  const rows = await prisma.ipIntelligenceCache.findMany({ where: { ip: { in: uniqueIps } } }).catch(() => []);
+  return new Map(rows.map((row) => [normalizeIp(row.ip), {
+    ip: row.ip,
+    ipVersion: row.ipVersion,
+    normalizedIp: row.ip,
+    reverseDns: row.reverseDns,
+    reverseDnsForwardConfirmed: row.reverseDnsForwardConfirmed,
+    asn: row.asn,
+    asnOrg: row.asnOrg,
+    networkCidr: row.networkCidr,
+    providerLabel: row.providerLabel,
+    providerType: row.providerType,
+    confidence: row.confidence,
+    source: row.source,
+    error: row.error,
+    proxyDetected: row.proxyDetected ?? null,
+    proxyType: row.proxyType ?? null,
+    proxyRiskScore: Number.isInteger(row.proxyRiskScore) ? row.proxyRiskScore : null,
+    proxyProvider: row.proxyProvider ?? null,
+    proxyLastSeenAt: row.proxyLastSeenAt ?? null,
+    proxyCheckedAt: row.proxyCheckedAt ?? null,
+    proxyExpiresAt: row.proxyExpiresAt ?? null,
+    proxySource: row.proxySource ?? null,
+    proxyError: row.proxyError ?? null,
+    checkedAt: row.checkedAt,
+    expiresAt: row.expiresAt,
+  }]));
+}
+
+function pushDerivedGrouped(groups, { rows, kind, signalType, deriveKey, intelForGroup }) {
+  const byKey = new Map();
+  for (const row of rows) {
+    const key = deriveKey(row);
+    if (!key) continue;
+    const user = buildUser(row);
+    if (!Number.isSafeInteger(user.id)) continue;
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        users: [],
+        ipIntelligence: intelForGroup ? intelForGroup(row, key) : null,
+      });
+    }
+    byKey.get(key).users.push(user);
+  }
+  for (const [key, entry] of byKey) {
+    if (new Set(entry.users.map((user) => user.id)).size < 2) continue;
+    groups.push({ kind, signalType, key, users: entry.users, ipIntelligence: entry.ipIntelligence });
+  }
+}
+
 function scopeWants(scope, group) {
   if (scope === "all") return true;
   if (scope === "wallets") return group.signalType === "profile_wallet";
   if (scope === "chain") return group.signalType === "onchain_wallet";
-  if (scope === "ips" || scope === "ip_exact") return group.signalType === "registration_ip" || group.signalType === "last_ip";
+  if (scope === "ips" || scope === "ip_exact") return group.signalType === "registration_ip" || group.signalType === "last_ip" || group.signalType === "auth_ip_history";
+  if (scope === "devices") return group.signalType === "device_fingerprint";
   if (scope === "ip_network") return group.signalType === "ip_network";
   if (scope === "asn") return group.signalType === "asn";
   if (scope === "high_risk") return group.riskLevel === "high" || group.riskLevel === "critical";
@@ -232,6 +330,10 @@ function groupMatchesSearch(group, q) {
     intel.networkCidr,
     intel.providerLabel,
     intel.providerType,
+    intel.proxyDetected === true ? "proxy" : "",
+    intel.proxyType,
+    intel.proxyProvider,
+    Number.isInteger(intel.proxyRiskScore) ? String(intel.proxyRiskScore) : "",
     ...(group.users || []).flatMap((u) => [String(u.id), u.email, u.username, u.walletAddress]),
   ];
   return values.some((value) => String(value || "").toLowerCase().includes(needle));
@@ -264,6 +366,56 @@ export async function listAdminFraudSignals(prisma, opts = {}) {
       kind: "duplicate_last_ip",
       signalType: "last_ip",
     });
+    pushGrouped(rawGroups, {
+      rows: await queryIpLogUsers(prisma, { column: "ip", qLike }),
+      kind: "shared_auth_ip_history",
+      signalType: "auth_ip_history",
+    });
+  }
+  if (["all", "devices", "high_risk", "low_confidence", "false_positive"].includes(scope)) {
+    pushGrouped(rawGroups, {
+      rows: await queryIpLogUsers(prisma, { column: "device_fingerprint", qLike }),
+      kind: "shared_device_fingerprint",
+      signalType: "device_fingerprint",
+    });
+  }
+  if (["all", "ip_network", "asn", "shared_residential", "high_risk", "low_confidence", "false_positive"].includes(scope)) {
+    const [registrationRows, lastRows] = await Promise.all([
+      queryAllIpUsers(prisma, { column: "registration_ip" }),
+      queryAllIpUsers(prisma, { column: "last_ip" }),
+    ]);
+    const derivedRows = [...registrationRows, ...lastRows]
+      .map((row) => {
+        const normalizedIp = normalizeIp(row.key);
+        return normalizedIp ? { ...row, normalizedIp } : null;
+      })
+      .filter(Boolean);
+    const cachedIntelligence = await loadCachedIpIntelligenceMap(prisma, derivedRows.map((row) => row.normalizedIp));
+    const rowsWithIntel = derivedRows.map((row) => ({
+      ...row,
+      ipIntelligence: cachedIntelligence.get(row.normalizedIp) || {
+        normalizedIp: row.normalizedIp,
+        networkCidr: deriveDefaultNetworkCidr(row.normalizedIp),
+        providerType: "unknown",
+        confidence: "low",
+      },
+    }));
+
+    pushDerivedGrouped(rawGroups, {
+      rows: rowsWithIntel,
+      kind: "shared_ipv6_subnet",
+      signalType: "ip_network",
+      deriveKey: (row) => deriveDefaultNetworkCidr(row.normalizedIp),
+      intelForGroup: (row, key) => ({ ...(row.ipIntelligence || {}), normalizedIp: row.normalizedIp, networkCidr: key }),
+    });
+
+    pushDerivedGrouped(rawGroups, {
+      rows: rowsWithIntel.filter((row) => Number.isInteger(row.ipIntelligence?.asn)),
+      kind: "shared_asn_provider",
+      signalType: "asn",
+      deriveKey: (row) => `AS${row.ipIntelligence.asn}`,
+      intelForGroup: (row) => row.ipIntelligence || null,
+    });
   }
   if (["all", "chain", "high_risk", "low_confidence", "false_positive"].includes(scope)) {
     pushGrouped(rawGroups, {
@@ -280,9 +432,9 @@ export async function listAdminFraudSignals(prisma, opts = {}) {
 
   const enriched = [];
   for (const group of rawGroups) {
-    let ipIntelligence = null;
+    let ipIntelligence = group.ipIntelligence || null;
     const ip = normalizeIp(group.key);
-    if (ip && (group.signalType === "registration_ip" || group.signalType === "last_ip")) {
+    if (!ipIntelligence && ip && (group.signalType === "registration_ip" || group.signalType === "last_ip" || group.signalType === "auth_ip_history")) {
       ipIntelligence = await getCachedIpIntelligence(prisma, ip);
     }
     enriched.push(buildGroup({ ...group, ipIntelligence }));

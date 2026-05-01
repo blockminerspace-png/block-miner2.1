@@ -14,7 +14,7 @@ import {
   parseBoard,
   spawnRandomTile
 } from "./game2048Engine.js";
-import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
+import { getBrazilDateKeyAliases } from "../utils/checkinDate.js";
 import {
   GAME2048_GAME_SLUG,
   game2048CooldownMs,
@@ -80,12 +80,16 @@ async function lockUserFor2048(tx, userId) {
  * @param {Date} now
  */
 async function userHasConfirmedCheckinBrazilToday(tx, userId, now) {
-  const todayKey = getBrazilCheckinDateKey(now);
-  const row = await tx.dailyCheckin.findUnique({
-    where: { userId_checkinDate: { userId, checkinDate: todayKey } },
-    select: { status: true }
+  const row = await tx.dailyCheckin.findFirst({
+    where: {
+      userId,
+      status: "confirmed",
+      checkinDate: { in: getBrazilDateKeyAliases(now) }
+    },
+    select: { id: true },
+    orderBy: [{ confirmedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
   });
-  return Boolean(row && row.status === "confirmed");
+  return Boolean(row);
 }
 
 /**

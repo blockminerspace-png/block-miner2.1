@@ -310,6 +310,12 @@ export default function AdminUsers() {
                                                 {u.lastIpIntelligence?.asn ? `AS${u.lastIpIntelligence.asn} · ` : ''}
                                                 {u.lastIpIntelligence?.providerType || 'provider desconhecido'}
                                             </p>
+                                            {u.lastIpIntelligence?.proxyDetected === true ? (
+                                                <p className="font-sans text-[10px] font-bold text-red-300">
+                                                    Proxy: {u.lastIpIntelligence.proxyType || 'detectado'}
+                                                    {Number.isInteger(u.lastIpIntelligence.proxyRiskScore) ? ` · risco ${u.lastIpIntelligence.proxyRiskScore}` : ''}
+                                                </p>
+                                            ) : null}
                                         </div>
                                     </td>
                                     <td className="max-w-[220px] px-6 py-5 text-xs">
@@ -440,6 +446,7 @@ function ProfileTab({ selectedUser, onBan }) {
                 <DetailCard label="IP cadastro" value={user.registrationIp || '--'} icon={Fingerprint} mono><CopyButton value={user.registrationIp} /></DetailCard>
                 <DetailCard label="Último IP" value={user.ip || '--'} icon={Fingerprint} mono><CopyButton value={user.ip} /></DetailCard>
                 <DetailCard label="ASN / Provider" value={intel ? `${intel.asn ? `AS${intel.asn} · ` : ''}${intel.providerType || 'unknown'}` : '--'} icon={Fingerprint} />
+                <DetailCard label="Anti-proxy" value={intel ? (intel.proxyDetected ? `${intel.proxyType || 'detectado'}${Number.isInteger(intel.proxyRiskScore) ? ` · risco ${intel.proxyRiskScore}` : ''}` : (intel.proxyCheckedAt ? 'sem proxy' : 'sem consulta')) : '--'} icon={Fingerprint} color={intel?.proxyDetected ? 'red' : intel?.proxyCheckedAt ? 'emerald' : 'slate'} />
                 <DetailCard label="Reverse DNS" value={intel?.reverseDns || '--'} icon={Fingerprint} mono><CopyButton value={intel?.reverseDns} /></DetailCard>
                 <DetailCard label="Criado em" value={user.createdAt ? new Date(user.createdAt).toLocaleString('pt-BR') : '--'} icon={Activity} />
                 <DetailCard label="Último login" value={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('pt-BR') : '--'} icon={Activity} />

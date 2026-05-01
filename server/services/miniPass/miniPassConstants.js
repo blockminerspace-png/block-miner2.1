@@ -7,6 +7,9 @@ export const CADENCE_WEEKLY = "WEEKLY";
 export const MISSION_PLAY_GAMES = "PLAY_GAMES";
 export const MISSION_MINE_BLK = "MINE_BLK";
 export const MISSION_LOGIN_DAY = "LOGIN_DAY";
+export const MISSION_WATCH_YOUTUBE = "WATCH_YOUTUBE";
+export const MISSION_AUTO_MINING_TURBO = "AUTO_MINING_TURBO";
+export const MISSION_INTERNAL_OFFERWALL = "INTERNAL_OFFERWALL";
 
 /** XP ledger source — helps audits and support tooling. */
 export const XP_SOURCE_MISSION = "MISSION";

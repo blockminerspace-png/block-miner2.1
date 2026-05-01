@@ -1,7 +1,3 @@
-import fs from "fs/promises";
-import os from "os";
-import path from "path";
-import { chromium } from "playwright";
 import prisma from "../../server/src/db/prisma.js";
 import {
   TELEGRAM_EVENT_TYPES,
@@ -36,11 +32,10 @@ function getWorkerConfig() {
     privateChatId: cleanString(process.env.TELEGRAM_PRIVATE_WITHDRAWAL_ALERT_CHAT_ID),
     publicChatId: cleanString(process.env.TELEGRAM_PUBLIC_PROOF_CHAT_ID),
     publicThreadId: normalizeThreadId(process.env.TELEGRAM_PUBLIC_PROOF_THREAD_ID),
-    screenshotEnabled: boolFromEnv("TELEGRAM_POLYGONSCAN_SCREENSHOT_ENABLED", true),
+    screenshotEnabled: boolFromEnv("TELEGRAM_POLYGONSCAN_SCREENSHOT_ENABLED", false),
     pollIntervalMs: Math.max(1000, Number(process.env.TELEGRAM_WORKER_POLL_INTERVAL_MS || 5000) || 5000),
     maxAttempts: Math.max(1, Number(process.env.TELEGRAM_WORKER_MAX_ATTEMPTS || 5) || 5),
     concurrency: Math.max(1, Math.min(10, Number(process.env.TELEGRAM_WORKER_CONCURRENCY || 1) || 1)),
-    screenshotTimeoutMs: Math.max(5000, Number(process.env.TELEGRAM_POLYGONSCAN_SCREENSHOT_TIMEOUT_MS || 45000) || 45000),
   };
 }
 
@@ -121,35 +116,6 @@ export async function sendTelegramMessage({ botToken, chatId, threadId, text, fe
   });
 }
 
-export async function sendTelegramPhoto({ botToken, chatId, threadId, caption, filePath, fetchImpl = telegramFetch }) {
-  const buffer = await fs.readFile(filePath);
-  const form = new FormData();
-  form.set("chat_id", String(chatId));
-  if (threadId) form.set("message_thread_id", String(threadId));
-  form.set("caption", caption);
-  form.set("photo", new Blob([buffer], { type: "image/png" }), path.basename(filePath));
-  return fetchImpl("sendPhoto", botToken, { method: "POST", body: form });
-}
-
-export async function capturePolygonscanScreenshot(txHash, { timeoutMs = 45000, chromiumImpl = chromium } = {}) {
-  if (!isValidPolygonTxHash(txHash)) throw new Error("txHash invalido.");
-  const url = buildPolygonscanTxUrl(txHash);
-  const tempPath = path.join(os.tmpdir(), `telegram-proof-${txHash.slice(2, 12)}-${Date.now()}.png`);
-  const browser = await chromiumImpl.launch({ headless: true });
-  try {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
-    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-    await page.screenshot({ path: tempPath, fullPage: true });
-    return tempPath;
-  } catch (error) {
-    await fs.unlink(tempPath).catch(() => {});
-    throw error;
-  } finally {
-    await browser.close().catch(() => {});
-  }
-}
-
 async function claimNextEvent() {
   const event = await prisma.telegramOutboxEvent.findFirst({
     where: {
@@ -210,38 +176,17 @@ export async function processTelegramEvent(event, config = getWorkerConfig()) {
     const txHash = cleanString(event.txHash || event.payload?.txHash);
     if (!isValidPolygonTxHash(txHash)) throw new Error("txHash invalido.");
     const text = buildPublicProofMessage(event);
-    let screenshotPath = null;
-    const captureFn = config.captureFn || capturePolygonscanScreenshot;
     const sendMessageFn = config.sendMessageFn || sendTelegramMessage;
-    const sendPhotoFn = config.sendPhotoFn || sendTelegramPhoto;
     if (config.screenshotEnabled) {
-      try {
-        screenshotPath = await captureFn(txHash, { timeoutMs: config.screenshotTimeoutMs });
-      } catch (error) {
-        console.warn("[telegram-proof-worker] screenshot failed; sending text fallback", { eventId: event.id, error: safeError(error) });
-      }
+      console.warn("[telegram-proof-worker] screenshot disabled; sending text proof", { eventId: event.id });
     }
-    try {
-      if (screenshotPath) {
-        await sendPhotoFn({
-          botToken: config.botToken,
-          chatId: config.publicChatId,
-          threadId: config.publicThreadId,
-          caption: text,
-          filePath: screenshotPath,
-        });
-        return { sent: true, screenshot: true };
-      }
-      await sendMessageFn({
-        botToken: config.botToken,
-        chatId: config.publicChatId,
-        threadId: config.publicThreadId,
-        text,
-      });
-      return { sent: true, screenshot: false };
-    } finally {
-      if (screenshotPath) await fs.unlink(screenshotPath).catch(() => {});
-    }
+    await sendMessageFn({
+      botToken: config.botToken,
+      chatId: config.publicChatId,
+      threadId: config.publicThreadId,
+      text,
+    });
+    return { sent: true, screenshot: false };
   }
 
   throw new Error(`Tipo de evento Telegram desconhecido: ${event.type}`);

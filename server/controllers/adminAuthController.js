@@ -33,6 +33,10 @@ function adminCookieShouldBeSecure(req) {
 
 function buildAdminCookie(token, { secure } = {}) {
   const parts = [`${ADMIN_SESSION_COOKIE}=${encodeURIComponent(token)}`, "Path=/", "HttpOnly", "SameSite=Strict"];
+  const cookieDomain = String(
+    process.env.ADMIN_SESSION_COOKIE_DOMAIN || process.env.COOKIE_DOMAIN || ""
+  ).trim();
+  if (cookieDomain) parts.push(`Domain=${cookieDomain}`);
   if (secure) parts.push("Secure");
   return parts.join("; ");
 }

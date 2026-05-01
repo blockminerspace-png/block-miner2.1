@@ -12,6 +12,9 @@ const scopeButtons = [
     ['all', 'scope_all'],
     ['wallets', 'scope_wallets'],
     ['ips', 'scope_ips'],
+    ['devices', 'scope_devices'],
+    ['ip_network', 'scope_ip_network'],
+    ['asn', 'scope_asn'],
     ['chain', 'scope_chain'],
     ['high_risk', 'scope_high_risk'],
     ['low_confidence', 'scope_low_confidence'],
@@ -68,6 +71,13 @@ function SignalValue({ sig }) {
 function IpIntel({ intel }) {
     const { t } = useTranslation();
     if (!intel) return <span className="text-slate-600">-</span>;
+    const proxyDetected = intel.proxyDetected === true;
+    const proxyChecked = Boolean(intel.proxyCheckedAt);
+    const proxyBadge = proxyDetected
+        ? (intel.proxyType || t('admin_fraud.proxy_detected'))
+        : proxyChecked
+            ? t('admin_fraud.proxy_clean')
+            : t('admin_fraud.proxy_not_checked');
     return (
         <div className="space-y-1 text-xs min-w-[260px]">
             <div className="flex flex-wrap items-center gap-1">
@@ -80,6 +90,23 @@ function IpIntel({ intel }) {
                 <span className="text-slate-500">PTR</span>
                 <span className="font-mono text-slate-300 break-all">{intel.reverseDns || '-'}</span>
                 <CopyButton value={intel.reverseDns} label={t('admin_fraud.copy_dns')} />
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+                <span className="text-slate-500">{t('admin_fraud.proxy_status')}</span>
+                <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase ${
+                    proxyDetected
+                        ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                        : proxyChecked
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                            : 'border-slate-700 bg-slate-950 text-slate-400'
+                }`}>
+                    {proxyBadge}
+                </span>
+                {Number.isInteger(intel.proxyRiskScore) ? (
+                    <span className="rounded border border-slate-700 bg-slate-950 px-2 py-0.5 text-[10px] font-black uppercase text-slate-300">
+                        {t('admin_fraud.proxy_risk', { score: intel.proxyRiskScore })}
+                    </span>
+                ) : null}
             </div>
             <div className="flex flex-wrap gap-2 text-[10px] uppercase font-black">
                 <span className="rounded border border-slate-700 bg-slate-950 px-2 py-0.5 text-slate-300">{intel.providerType || 'unknown'}</span>

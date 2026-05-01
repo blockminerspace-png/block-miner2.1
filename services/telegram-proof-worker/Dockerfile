@@ -1,10 +1,8 @@
-FROM mcr.microsoft.com/playwright:v1.55.0-noble
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-
 COPY package*.json ./
 COPY prisma.config.js ./
 COPY server/prisma ./server/prisma

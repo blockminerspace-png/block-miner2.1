@@ -4,7 +4,7 @@ import loggerLib from '../../utils/logger.js';
 import { syncUserBaseHashRate } from '../../models/minerProfileModel.js';
 import { verifyAccessToken } from '../../utils/authTokens.js';
 import { getTokenFromRequest } from '../../utils/token.js';
-import { getBrazilCheckinDateKey } from '../../utils/checkinDate.js';
+import { getBrazilDateKeyAliases } from '../../utils/checkinDate.js';
 import { notifyMiniPassGamePlayed } from '../../services/miniPass/miniPassMissionHookService.js';
 import { notifyDailyTaskGamePlayed } from '../../services/dailyTasks/dailyTaskHookService.js';
 import { getMemoryMismatchRevealMs } from '../../utils/memoryGameConstants.js';
@@ -29,7 +29,8 @@ const SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano', 'po
 const MATCH3_SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano'];
 const CART_LANES = 3;
 const CART_TICK_MS = 200;
-const CART_TARGET_SCORE = 1500;
+const CART_TARGET_SCORE = 750;
+const CART_TIME_LIMIT_SECONDS = 120;
 const CART_MAX_HEALTH = 3;
 const CART_COLLISION_PROGRESS = 0.9;
 const CART_DESPAWN_PROGRESS = 1.18;
@@ -38,8 +39,8 @@ const CART_BASE_SPEED = 0.48;
 const CART_MAX_SPEED = 0.9;
 const CART_BASE_SPAWN_MS = 900;
 const CART_MIN_SPAWN_MS = 360;
-const CART_SCORE_PER_TICK = 12;
-const CART_SCORE_DIFFICULTY_BONUS = 6;
+const CART_DISTANCE_PER_TICK = 10;
+const CART_COIN_POINTS = 50;
 const CART_ENEMY_VARIANTS = [
   { body: "#f97316", accent: "#fdba74", glow: "rgba(249,115,22,0.45)" },
   { body: "#ef4444", accent: "#fca5a5", glow: "rgba(239,68,68,0.45)" },
@@ -130,6 +131,7 @@ export function registerGamesSocketHandlers({ io, engine }) {
           initialState.health = CART_MAX_HEALTH;
           initialState.events = [];
           initialState.distance = 0;
+          initialState.btcCount = 0;
           initialState.elapsedMs = 0;
           initialState.roadSpeed = CART_BASE_SPEED;
           initialState.spawnCooldownMs = 450;
@@ -141,7 +143,10 @@ export function registerGamesSocketHandlers({ io, engine }) {
             health: initialState.health,
             targetScore: CART_TARGET_SCORE,
             score: 0,
+            distance: 0,
+            btcCount: 0,
             roadSpeed: initialState.roadSpeed,
+            timeLimitSeconds: CART_TIME_LIMIT_SECONDS,
             });
         }
 
@@ -357,7 +362,7 @@ function createCartEvent(distance, difficulty) {
 function tickCartRush(socket, state, engine) {
   if (!state || state.isFinished || state.slug !== "cart-rush") return;
   const tickSeconds = CART_TICK_MS / 1000;
-  state.distance += 1;
+  state.distance = (Number(state.distance) || 0) + CART_DISTANCE_PER_TICK;
   state.elapsedMs = (Number(state.elapsedMs) || 0) + CART_TICK_MS;
   const difficulty = cartDifficultyFactor(state);
   state.roadSpeed = CART_BASE_SPEED + (CART_MAX_SPEED - CART_BASE_SPEED) * difficulty;
@@ -374,8 +379,7 @@ function tickCartRush(socket, state, engine) {
     if (Number(event.progress || 0) >= CART_COLLISION_PROGRESS) {
       if (event.lane === state.lane) {
         if (event.kind === "coin") {
-          state.score += 150;
-          // Coins don't count as "hit" in the visual sense (red flash), but we can send a small notification if we wanted
+          state.btcCount = (Number(state.btcCount) || 0) + 1;
         } else {
           hit = event;
           state.health -= 1;
@@ -396,13 +400,14 @@ function tickCartRush(socket, state, engine) {
     if (state.spawnCooldownMs < CART_MIN_SPAWN_MS) state.spawnCooldownMs = CART_MIN_SPAWN_MS;
   }
 
-  state.score += CART_SCORE_PER_TICK + Math.round(CART_SCORE_DIFFICULTY_BONUS * difficulty);
+  state.score = Math.floor((Number(state.distance) || 0) / 10) + (Number(state.btcCount) || 0) * CART_COIN_POINTS;
 
   socket.emit("game:cart_update", {
     lane: state.lane,
     score: state.score,
     health: state.health,
     distance: state.distance,
+    btcCount: Number(state.btcCount) || 0,
     events: state.events,
     hit,
     targetScore: CART_TARGET_SCORE,
@@ -439,12 +444,16 @@ async function finishGame(socket, state, success, engine, failureCode = "session
     }
 
     // Verifica se o usuário fez check-in hoje — sem check-in bônus dura só 24h
-    const today = getBrazilCheckinDateKey();
-    const checkinToday = await prisma.dailyCheckin.findUnique({
-      where: { userId_checkinDate: { userId: Number(state.userId), checkinDate: today } },
-      select: { status: true },
+    const checkinToday = await prisma.dailyCheckin.findFirst({
+      where: {
+        userId: Number(state.userId),
+        status: 'confirmed',
+        checkinDate: { in: getBrazilDateKeyAliases() }
+      },
+      select: { id: true },
+      orderBy: [{ confirmedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }]
     });
-    const powerDays = (checkinToday?.status === 'confirmed') ? GAME_POWER_DAYS : 1;
+    const powerDays = checkinToday ? GAME_POWER_DAYS : 1;
     const rewardCode = powerDays >= GAME_POWER_DAYS ? "full_term" : "short_term";
     const rewardParams = { days: GAME_POWER_DAYS };
 
@@ -455,7 +464,7 @@ async function finishGame(socket, state, success, engine, failureCode = "session
         data: {
           userId: Number(state.userId),
           gameId: Number(state.gameId),
-          hashRate: 50.0,
+          hashRate: 25.0,
           playedAt: new Date(),
           expiresAt
         }
@@ -477,7 +486,7 @@ async function finishGame(socket, state, success, engine, failureCode = "session
           gameSlug: String(state.slug || ""),
           score: Number(state.score || 0),
           success: true,
-          rewardHashRate: 50,
+          rewardHashRate: 25,
           rewardDays: powerDays,
           userPowerGameId: powerRow.id,
         },

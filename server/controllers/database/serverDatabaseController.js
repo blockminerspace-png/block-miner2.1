@@ -1,4 +1,5 @@
 import * as serverDatabaseModel from "../../models/database/serverDatabaseModel.js";
+import { notifyMiniPassYoutubeWatch } from "../../services/miniPass/miniPassMissionHookService.js";
 
 function createServerDatabaseController({
   logger,
@@ -445,8 +446,19 @@ function createServerDatabaseController({
       }
 
       const expiresAt = now + youtubeWatchBoostDurationMs;
-      await serverDatabaseModel.grantYoutubeReward({ userId, rewardGh: youtubeRewardGh, now, expiresAt, sourceVideoId });
+      await serverDatabaseModel.grantYoutubeReward({
+        userId,
+        rewardGh: youtubeRewardGh,
+        now,
+        expiresAt,
+        sourceVideoId
+      });
       await publicStateService.syncUserBaseHashRate(userId);
+      const freshClaim = await serverDatabaseModel.getLatestYoutubeClaim(userId);
+      const youtubeWatchHistoryId = Number(freshClaim?.id || 0);
+      if (youtubeWatchHistoryId > 0) {
+        await notifyMiniPassYoutubeWatch(userId, youtubeWatchHistoryId);
+      }
 
       const activeRow = await serverDatabaseModel.getYoutubeStatusRows(userId, now);
       res.json({

@@ -1,11 +1,11 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
 
 // Import translations
 import translationEN from './locales/en.json';
 import translationPT from './locales/pt-BR.json';
 import translationES from './locales/es.json';
+import { resolveFallbackLanguages, resolveInitialLanguage } from './language.js';
 
 const resources = {
   en: {
@@ -30,30 +30,50 @@ const resources = {
   },
 };
 
+function readStoredLanguage() {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage?.getItem('i18nextLng') || '';
+  } catch {
+    return '';
+  }
+}
+
+function readStoredLanguageUserSet() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage?.getItem('i18nextLngUserSet') === '1';
+  } catch {
+    return false;
+  }
+}
+
+const initialLanguage = resolveInitialLanguage({
+  search: typeof window !== 'undefined' ? window.location.search : '',
+  storedLanguage: readStoredLanguage(),
+  storedLanguageUserSet: readStoredLanguageUserSet(),
+  cookieString: typeof document !== 'undefined' ? document.cookie : '',
+  htmlLang: typeof document !== 'undefined' ? document.documentElement?.lang : '',
+  navigatorLanguage: typeof navigator !== 'undefined' ? navigator.language : '',
+  navigatorLanguages: typeof navigator !== 'undefined' ? navigator.languages : [],
+});
+
 i18n
-  .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
+    lng: initialLanguage,
     // i18next v25+ logs a Locize promo to console unless this is false
     showSupportNotice: false,
     debug: Boolean(import.meta.env?.DEV),
-    // Chain: English → Brazilian Portuguese → Spanish (explicit choice beats detector)
-    fallbackLng: ['en', 'pt-BR', 'es'],
+    fallbackLng: (code) => resolveFallbackLanguages(code),
     supportedLngs: ['en', 'pt-BR', 'pt', 'pt-PT', 'es', 'es-ES'],
     interpolation: {
       escapeValue: false, // react already safes from xss
     },
-    detection: {
-      // querystring + localStorage first (explicit choice); then browser language (important on mobile first visit)
-      order: ['querystring', 'localStorage', 'navigator', 'cookie', 'htmlTag'],
-      caches: ['localStorage'],
-      lookupQuerystring: 'lng',
-    },
   });
 
 i18n.on('languageChanged', (lng) => {
-  if (typeof document === 'undefined') return;
   const map = {
     en: 'en',
     pt: 'pt-BR',
@@ -62,7 +82,16 @@ i18n.on('languageChanged', (lng) => {
     es: 'es',
     'es-ES': 'es-ES',
   };
-  document.documentElement.lang = map[lng] || lng || 'en';
+  const normalized = map[lng] || lng || 'en';
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage?.setItem('i18nextLng', normalized);
+    } catch {
+      /* private mode / storage disabled */
+    }
+  }
+  if (typeof document === 'undefined') return;
+  document.documentElement.lang = normalized;
 });
 
 export default i18n;

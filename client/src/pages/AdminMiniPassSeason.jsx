@@ -31,12 +31,35 @@ import {
 
 const REWARD_KINDS = ["NONE", "SHOP_MINER", "EVENT_MINER", "HASHRATE_TEMP", "BLK", "POL"];
 const CADENCES = ["EVENT", "DAILY", "WEEKLY"];
-const MISSION_TYPES = ["PLAY_GAMES", "MINE_BLK", "LOGIN_DAY"];
+const MISSION_TYPES = [
+  "PLAY_GAMES",
+  "MINE_BLK",
+  "LOGIN_DAY",
+  "WATCH_YOUTUBE",
+  "AUTO_MINING_TURBO",
+  "INTERNAL_OFFERWALL",
+];
 
 const INPUT_BASE =
   "w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/40";
 const INPUT_MT = `mt-2 ${INPUT_BASE}`;
 const TEXTAREA_MT = `mt-2 ${INPUT_BASE} resize-y min-h-[76px]`;
+
+function normalizeRewardCatalogItem(row) {
+  const rawId = row?.id;
+  const isEvent = typeof rawId === "string" && rawId.startsWith("event_");
+  const numericId = Number(isEvent ? String(rawId).slice(6) : rawId);
+  return {
+    key: String(rawId),
+    kind: isEvent ? "EVENT_MINER" : "SHOP_MINER",
+    numericId: Number.isFinite(numericId) ? numericId : 0,
+    name: String(row?.name || "").trim(),
+    hashRate: Number(row?.baseHashRate || 0),
+    slotSize: Number(row?.slotSize || 1),
+    imageUrl: row?.imageUrl || null,
+    isActive: Boolean(row?.isActive),
+  };
+}
 
 function SectionCard({ icon: Icon, title, description, children, variant = "default" }) {
   const border = variant === "accent" ? "border-amber-500/25" : "border-slate-800";
@@ -72,6 +95,91 @@ function FieldLabel({ htmlFor, label, hint }) {
         <span className={labelClass}>{label}</span>
       )}
       {hint ? <p className="text-[11px] leading-snug text-slate-600">{hint}</p> : null}
+    </div>
+  );
+}
+
+function isGameSlugMissionType(missionType) {
+  return missionType === "PLAY_GAMES";
+}
+
+function RewardMinerPicker({
+  id,
+  label,
+  hint,
+  query,
+  onQueryChange,
+  options,
+  selected,
+  onSelect,
+  loading,
+  t,
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <FieldLabel htmlFor={id} label={label} hint={hint} />
+        <input
+          id={id}
+          className={INPUT_MT}
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder={t("adminMiniPass.rewards.search_placeholder")}
+        />
+      </div>
+
+      {selected ? (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-xs text-emerald-100">
+          <div className="font-bold text-emerald-300">{selected.name}</div>
+          <div className="mt-1 text-emerald-100/80">
+            {t("adminMiniPass.rewards.selection_meta", {
+              id: selected.numericId,
+              hashRate: selected.hashRate,
+              slotSize: selected.slotSize,
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/60">
+        {loading ? (
+          <div className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t("adminMiniPass.rewards.searching")}
+          </div>
+        ) : options.length > 0 ? (
+          <div className="max-h-64 overflow-y-auto">
+            {options.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onSelect(item)}
+                className={`flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-slate-800/70 ${
+                  selected?.key === item.key ? "bg-amber-500/10" : ""
+                }`}
+              >
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-lg border border-slate-700 object-cover" />
+                ) : (
+                  <div className="h-10 w-10 rounded-lg border border-slate-700 bg-slate-900" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-white">{item.name}</div>
+                  <div className="mt-1 text-[11px] text-slate-400">
+                    {t("adminMiniPass.rewards.selection_meta", {
+                      id: item.numericId,
+                      hashRate: item.hashRate,
+                      slotSize: item.slotSize,
+                    })}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="px-3 py-3 text-xs text-slate-500">{t("adminMiniPass.rewards.search_empty")}</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -200,6 +308,11 @@ export default function AdminMiniPassSeason() {
 
   const [rewards, setRewards] = useState([]);
   const [missions, setMissions] = useState([]);
+  const [rewardCatalogQuery, setRewardCatalogQuery] = useState("");
+  const [rewardCatalogLoading, setRewardCatalogLoading] = useState(false);
+  const [rewardCatalogItems, setRewardCatalogItems] = useState([]);
+  const [selectedShopMiner, setSelectedShopMiner] = useState(null);
+  const [selectedEventMiner, setSelectedEventMiner] = useState(null);
 
   const [rewardDraft, setRewardDraft] = useState({
     level: 1,
@@ -233,6 +346,11 @@ export default function AdminMiniPassSeason() {
   const progressionRows = useMemo(() => buildProgressionTiers(form.maxLevel, form.xpPerLevel), [form.maxLevel, form.xpPerLevel]);
   const rewardCoverage = useMemo(() => countRewardLevels(rewards, form.maxLevel), [rewards, form.maxLevel]);
   const rewardDraftCheck = useMemo(() => validateRewardDraft(rewardDraft), [rewardDraft]);
+  const rewardCatalogKind = rewardDraft.rewardKind === "SHOP_MINER" || rewardDraft.rewardKind === "EVENT_MINER" ? rewardDraft.rewardKind : null;
+  const rewardCatalogOptions = useMemo(
+    () => rewardCatalogItems.filter((item) => item.kind === rewardCatalogKind),
+    [rewardCatalogItems, rewardCatalogKind]
+  );
 
   const load = useCallback(async () => {
     if (isNew || seasonId == null) {
@@ -286,6 +404,55 @@ export default function AdminMiniPassSeason() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!rewardCatalogKind) return undefined;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        setRewardCatalogLoading(true);
+        const res = await api.get("/admin/miners", {
+          params: {
+            limit: 20,
+            filter: "active",
+            withEvents: 1,
+            q: rewardCatalogQuery.trim(),
+          },
+        });
+        if (cancelled) return;
+        const rows = Array.isArray(res.data?.miners) ? res.data.miners.map(normalizeRewardCatalogItem) : [];
+        setRewardCatalogItems(rows);
+      } catch {
+        if (!cancelled) setRewardCatalogItems([]);
+      } finally {
+        if (!cancelled) setRewardCatalogLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [rewardCatalogKind, rewardCatalogQuery]);
+
+  useEffect(() => {
+    if (rewardDraft.rewardKind !== "SHOP_MINER") {
+      setSelectedShopMiner(null);
+    }
+    if (rewardDraft.rewardKind !== "EVENT_MINER") {
+      setSelectedEventMiner(null);
+    }
+  }, [rewardDraft.rewardKind]);
+
+  useEffect(() => {
+    if (rewardDraft.rewardKind === "SHOP_MINER" && selectedShopMiner && rewardCatalogQuery.trim() !== selectedShopMiner.name) {
+      setSelectedShopMiner(null);
+      setRewardDraft((prev) => ({ ...prev, minerId: "" }));
+    }
+    if (rewardDraft.rewardKind === "EVENT_MINER" && selectedEventMiner && rewardCatalogQuery.trim() !== selectedEventMiner.name) {
+      setSelectedEventMiner(null);
+      setRewardDraft((prev) => ({ ...prev, eventMinerId: "" }));
+    }
+  }, [rewardCatalogQuery, rewardDraft.rewardKind, selectedShopMiner, selectedEventMiner]);
 
   const saveSeason = async (e) => {
     e?.preventDefault?.();
@@ -774,7 +941,16 @@ export default function AdminMiniPassSeason() {
                         id="mp-rwd-kind"
                         className={INPUT_MT}
                         value={rewardDraft.rewardKind}
-                        onChange={(e) => setRewardDraft({ ...rewardDraft, rewardKind: e.target.value })}
+                        onChange={(e) => {
+                          const rewardKind = e.target.value;
+                          setRewardDraft((prev) => ({
+                            ...prev,
+                            rewardKind,
+                            minerId: rewardKind === "SHOP_MINER" ? prev.minerId : "",
+                            eventMinerId: rewardKind === "EVENT_MINER" ? prev.eventMinerId : "",
+                          }));
+                          setRewardCatalogQuery("");
+                        }}
                       >
                         {REWARD_KINDS.map((k) => (
                           <option key={k} value={k}>
@@ -798,32 +974,40 @@ export default function AdminMiniPassSeason() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           {rewardDraft.rewardKind === "SHOP_MINER" ? (
                             <div>
-                              <FieldLabel
-                                htmlFor="mp-rwd-shop-miner"
+                              <RewardMinerPicker
+                                id="mp-rwd-shop-miner"
                                 label={t("adminMiniPass.rewards.shop_miner_id")}
                                 hint={t("adminMiniPass.rewards.shop_miner_hint")}
-                              />
-                              <input
-                                id="mp-rwd-shop-miner"
-                                className={INPUT_MT}
-                                value={rewardDraft.minerId}
-                                onChange={(e) => setRewardDraft({ ...rewardDraft, minerId: e.target.value })}
-                                placeholder={t("adminMiniPass.placeholders.numeric_id")}
+                                query={rewardCatalogQuery}
+                                onQueryChange={setRewardCatalogQuery}
+                                options={rewardCatalogOptions}
+                                selected={selectedShopMiner}
+                                loading={rewardCatalogLoading}
+                                t={t}
+                                onSelect={(item) => {
+                                  setSelectedShopMiner(item);
+                                  setRewardCatalogQuery(item.name);
+                                  setRewardDraft((prev) => ({ ...prev, minerId: String(item.numericId) }));
+                                }}
                               />
                             </div>
                           ) : (
                             <div>
-                              <FieldLabel
-                                htmlFor="mp-rwd-event-miner"
+                              <RewardMinerPicker
+                                id="mp-rwd-event-miner"
                                 label={t("adminMiniPass.rewards.event_miner_id")}
                                 hint={t("adminMiniPass.rewards.event_miner_hint")}
-                              />
-                              <input
-                                id="mp-rwd-event-miner"
-                                className={INPUT_MT}
-                                value={rewardDraft.eventMinerId}
-                                onChange={(e) => setRewardDraft({ ...rewardDraft, eventMinerId: e.target.value })}
-                                placeholder={t("adminMiniPass.placeholders.numeric_id")}
+                                query={rewardCatalogQuery}
+                                onQueryChange={setRewardCatalogQuery}
+                                options={rewardCatalogOptions}
+                                selected={selectedEventMiner}
+                                loading={rewardCatalogLoading}
+                                t={t}
+                                onSelect={(item) => {
+                                  setSelectedEventMiner(item);
+                                  setRewardCatalogQuery(item.name);
+                                  setRewardDraft((prev) => ({ ...prev, eventMinerId: String(item.numericId) }));
+                                }}
                               />
                             </div>
                           )}
@@ -1009,7 +1193,14 @@ export default function AdminMiniPassSeason() {
                           id="mp-msn-type"
                           className={INPUT_MT}
                           value={missionDraft.missionType}
-                          onChange={(e) => setMissionDraft({ ...missionDraft, missionType: e.target.value })}
+                          onChange={(e) => {
+                            const missionType = e.target.value;
+                            setMissionDraft((prev) => ({
+                              ...prev,
+                              missionType,
+                              gameSlug: isGameSlugMissionType(missionType) ? prev.gameSlug : "",
+                            }));
+                          }}
                         >
                           {MISSION_TYPES.map((c) => (
                             <option key={c} value={c}>
@@ -1068,20 +1259,22 @@ export default function AdminMiniPassSeason() {
                           onChange={(e) => setMissionDraft({ ...missionDraft, sortOrder: e.target.value })}
                         />
                       </div>
-                      <div className="sm:col-span-2 lg:col-span-3">
-                        <FieldLabel
-                          htmlFor="mp-msn-game"
-                          label={t("adminMiniPass.missions.game_slug")}
-                          hint={t("adminMiniPass.missions.game_slug_hint")}
-                        />
-                        <input
-                          id="mp-msn-game"
-                          className={INPUT_MT}
-                          value={missionDraft.gameSlug}
-                          onChange={(e) => setMissionDraft({ ...missionDraft, gameSlug: e.target.value })}
-                          placeholder="memory-sync"
-                        />
-                      </div>
+                      {isGameSlugMissionType(missionDraft.missionType) ? (
+                        <div className="sm:col-span-2 lg:col-span-3">
+                          <FieldLabel
+                            htmlFor="mp-msn-game"
+                            label={t("adminMiniPass.missions.game_slug")}
+                            hint={t("adminMiniPass.missions.game_slug_hint")}
+                          />
+                          <input
+                            id="mp-msn-game"
+                            className={INPUT_MT}
+                            value={missionDraft.gameSlug}
+                            onChange={(e) => setMissionDraft({ ...missionDraft, gameSlug: e.target.value })}
+                            placeholder="memory-sync"
+                          />
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 

@@ -2,12 +2,16 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeDescriptionI18n,
+  nonNegativeDecimalString,
   normalizeTitleI18nForMiniPass,
   validateAndNormalizeLevelRewardInput,
   validateMissionInput
 } from "../server/services/miniPass/miniPassAdminValidation.js";
 import {
+  MISSION_AUTO_MINING_TURBO,
+  MISSION_INTERNAL_OFFERWALL,
   MISSION_PLAY_GAMES,
+  MISSION_WATCH_YOUTUBE,
   REWARD_BLK,
   REWARD_EVENT_MINER,
   REWARD_HASHRATE_TEMP,
@@ -66,8 +70,9 @@ describe("validateAndNormalizeLevelRewardInput", () => {
     );
     const b = validateAndNormalizeLevelRewardInput({ rewardKind: REWARD_BLK, blkAmount: "1.5" });
     assert.equal(b.ok, true);
-    const p = validateAndNormalizeLevelRewardInput({ rewardKind: REWARD_POL, polAmount: "0.01" });
+    const p = validateAndNormalizeLevelRewardInput({ rewardKind: REWARD_POL, polAmount: "0,01" });
     assert.equal(p.ok, true);
+    assert.equal(p.normalized.polAmount, "0.01");
   });
 });
 
@@ -86,12 +91,38 @@ describe("validateMissionInput", () => {
   it("normalizes game slug", () => {
     const r = validateMissionInput({
       missionType: MISSION_PLAY_GAMES,
-      targetValue: "3",
+      targetValue: "3,5",
       gameSlug: "Crypto-Match-3",
       xpReward: 5
     });
     assert.equal(r.ok, true);
+    assert.equal(r.targetDecimal, "3.5");
     assert.equal(r.gameSlug, "crypto-match-3");
+  });
+
+  it("accepts positive integer-style targets for youtube and internal offerwall missions", () => {
+    const yt = validateMissionInput({
+      missionType: MISSION_WATCH_YOUTUBE,
+      targetValue: "2",
+      xpReward: 10
+    });
+    assert.equal(yt.ok, true);
+
+    const offerwall = validateMissionInput({
+      missionType: MISSION_INTERNAL_OFFERWALL,
+      targetValue: "1",
+      xpReward: 20
+    });
+    assert.equal(offerwall.ok, true);
+  });
+
+  it("accepts turbo mission target", () => {
+    const turbo = validateMissionInput({
+      missionType: MISSION_AUTO_MINING_TURBO,
+      targetValue: "3",
+      xpReward: 30
+    });
+    assert.equal(turbo.ok, true);
   });
 
   it("rejects invalid slug characters", () => {
@@ -102,6 +133,14 @@ describe("validateMissionInput", () => {
       xpReward: 1
     });
     assert.equal(r.ok, false);
+  });
+});
+
+describe("nonNegativeDecimalString", () => {
+  it("normalizes comma decimals and accepts zero", () => {
+    assert.equal(nonNegativeDecimalString("12,5"), "12.5");
+    assert.equal(nonNegativeDecimalString("0"), "0");
+    assert.equal(nonNegativeDecimalString("-1"), null);
   });
 });
 

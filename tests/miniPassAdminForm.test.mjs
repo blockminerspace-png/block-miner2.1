@@ -41,9 +41,25 @@ test("validateSeasonForm catches bad slug", () => {
   assert.ok(keys.includes("invalid_slug"));
 });
 
+test("validateSeasonForm catches invalid POL price strings", () => {
+  const keys = validateSeasonForm({
+    slug: "spring-2026",
+    titleEn: "T",
+    startsAt: "2026-01-01T10:00",
+    endsAt: "2026-02-01T10:00",
+    maxLevel: 10,
+    xpPerLevel: 100,
+    buyLevelPricePol: "abc",
+    completePassPricePol: "1,5.2",
+  });
+  assert.ok(keys.includes("invalid_buy_level_price"));
+  assert.ok(keys.includes("invalid_complete_pass_price"));
+});
+
 test("summarizeRewardRow", () => {
   assert.equal(summarizeRewardRow({}), "—");
   assert.equal(summarizeRewardRow({ rewardKind: "NONE" }), "—");
+  assert.equal(summarizeRewardRow({ rewardKind: "SHOP_MINER", miner: { name: "Falcon X" }, minerId: 7 }), "Falcon X");
   assert.ok(summarizeRewardRow({ rewardKind: "HASHRATE_TEMP", hashRate: 25, hashRateDays: 7 }).includes("25"));
 });
 
@@ -63,6 +79,20 @@ test("validateMissionDraft ok", () => {
       titleEn: "Play",
       targetValue: "1",
       xpReward: "50",
+    }).ok,
+    true,
+  );
+});
+
+test("validateMissionDraft ok for turbo mission without game slug", () => {
+  assert.equal(
+    validateMissionDraft({
+      ...baseMission(),
+      missionType: "AUTO_MINING_TURBO",
+      titlePtBR: "Turbo",
+      targetValue: "2",
+      xpReward: "75",
+      gameSlug: "",
     }).ok,
     true,
   );

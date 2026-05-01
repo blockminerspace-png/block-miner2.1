@@ -1,82 +1,101 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './store/auth';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import Dashboard from './pages/Dashboard';
-import Shop from './pages/Shop';
-import Inventory from './pages/Inventory';
-import Vault from './pages/Vault';
-import Wallet from './pages/Wallet';
-import Faucet from './pages/Faucet';
-import Shortlinks from './pages/Shortlinks';
-import Checkin from './pages/Checkin';
-import PowerStatistics from './pages/PowerStatistics';
-import PopularOffers from './pages/PopularOffers';
-import YouTubeWatch from './pages/YouTubeWatch';
-import Ranking from './pages/Ranking';
-import PublicRoom from './pages/PublicRoom';
-import Settings from './pages/Settings';
-import AutoMining from './pages/AutoMining';
-import Games from './pages/Games';
-import Game2048Page from './pages/Game2048Page';
-import ShortlinkStep from './pages/ShortlinkStep';
-import Roadmap from './pages/Roadmap';
-import Manual from './pages/Manual';
-import CalculatorPage from './pages/Calculator';
 import ChatSidebar from './components/ChatSidebar';
 import AdBlockDetector from './components/AdBlockDetector';
 import AdBanner from './components/AdBanner';
 import SiteFooter from './components/SiteFooter';
-
-import AdminLogin from './pages/AdminLogin';
-import AdminLayout from './components/AdminLayout';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminMiners from './pages/AdminMiners';
-import AdminUsers from './pages/AdminUsers';
-import AdminFraudSignals from './pages/AdminFraudSignals';
-import AdminFinance from './pages/AdminFinance';
-import AdminBackups from './pages/AdminBackups';
-import AdminLogs from './pages/AdminLogs';
-import AdminMetrics from './pages/AdminMetrics';
-import AdminOfferEvents from './pages/AdminOfferEvents';
-import AdminOfferEventManage from './pages/AdminOfferEventManage';
-import AdminSupport from './pages/AdminSupport';
-import AdminDepositTickets from './pages/AdminDepositTickets';
-import AdminBanners from './pages/AdminBanners';
-import AdminCreators from './pages/AdminCreators';
-import AdminTransparency from './pages/AdminTransparency';
-import AdminAnalytics from './pages/AdminAnalytics';
-import AdminBroadcast from './pages/AdminBroadcast';
-import AdminCheckinMilestones from './pages/AdminCheckinMilestones';
-import AdminReadEarn from './pages/AdminReadEarn';
-import AdminUserSidebar from './pages/AdminUserSidebar';
-import AdminDailyTasks from './pages/AdminDailyTasks';
-import AdminInternalOfferwall from './pages/AdminInternalOfferwall';
-import AdminStreaming from './pages/AdminStreaming';
-import AdminMiniPass from './pages/AdminMiniPass';
-import AdminMiniPassSeason from './pages/AdminMiniPassSeason';
-import ReadEarn from './pages/ReadEarn';
-import InternalOfferwall from './pages/InternalOfferwall';
-import MiniPass from './pages/MiniPass';
-import DailyTasks from './pages/DailyTasks';
 import BroadcastPopup from './components/BroadcastPopup';
-import Transparency from './pages/Transparency';
 import TransparencyErrorBoundary from './components/TransparencyErrorBoundary';
-import Landing from './pages/Landing';
-import LiveServer from './pages/LiveServer';
-import DashboardCryptoStream from './pages/DashboardCryptoStream';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfUse from './pages/TermsOfUse';
-import Support from './pages/Support';
+
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Shop = lazy(() => import('./pages/Shop'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const Vault = lazy(() => import('./pages/Vault'));
+const Wallet = lazy(() => import('./pages/Wallet'));
+const Faucet = lazy(() => import('./pages/Faucet'));
+const Shortlinks = lazy(() => import('./pages/Shortlinks'));
+const Checkin = lazy(() => import('./pages/Checkin'));
+const PowerStatistics = lazy(() => import('./pages/PowerStatistics'));
+const PopularOffers = lazy(() => import('./pages/PopularOffers'));
+const YouTubeWatch = lazy(() => import('./pages/YouTubeWatch'));
+const Ranking = lazy(() => import('./pages/Ranking'));
+const PublicRoom = lazy(() => import('./pages/PublicRoom'));
+const Settings = lazy(() => import('./pages/Settings'));
+const AutoMining = lazy(() => import('./pages/AutoMining'));
+const Games = lazy(() => import('./pages/Games'));
+const Game2048Page = lazy(() => import('./pages/Game2048Page'));
+const ShortlinkStep = lazy(() => import('./pages/ShortlinkStep'));
+const Roadmap = lazy(() => import('./pages/Roadmap'));
+const Manual = lazy(() => import('./pages/Manual'));
+const CalculatorPage = lazy(() => import('./pages/Calculator'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const AdminLayout = lazy(() => import('./components/AdminLayout'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminMiners = lazy(() => import('./pages/AdminMiners'));
+const AdminUsers = lazy(() => import('./pages/AdminUsers'));
+const AdminFraudSignals = lazy(() => import('./pages/AdminFraudSignals'));
+const AdminFinance = lazy(() => import('./pages/AdminFinance'));
+const AdminBackups = lazy(() => import('./pages/AdminBackups'));
+const AdminLogs = lazy(() => import('./pages/AdminLogs'));
+const AdminMetrics = lazy(() => import('./pages/AdminMetrics'));
+const AdminOfferEvents = lazy(() => import('./pages/AdminOfferEvents'));
+const AdminOfferEventManage = lazy(() => import('./pages/AdminOfferEventManage'));
+const AdminSupport = lazy(() => import('./pages/AdminSupport'));
+const AdminDepositTickets = lazy(() => import('./pages/AdminDepositTickets'));
+const AdminBanners = lazy(() => import('./pages/AdminBanners'));
+const AdminCreators = lazy(() => import('./pages/AdminCreators'));
+const AdminTransparency = lazy(() => import('./pages/AdminTransparency'));
+const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
+const AdminBroadcast = lazy(() => import('./pages/AdminBroadcast'));
+const AdminCheckinMilestones = lazy(() => import('./pages/AdminCheckinMilestones'));
+const AdminReadEarn = lazy(() => import('./pages/AdminReadEarn'));
+const AdminUserSidebar = lazy(() => import('./pages/AdminUserSidebar'));
+const AdminDailyTasks = lazy(() => import('./pages/AdminDailyTasks'));
+const AdminInternalOfferwall = lazy(() => import('./pages/AdminInternalOfferwall'));
+const AdminStreaming = lazy(() => import('./pages/AdminStreaming'));
+const AdminMiniPass = lazy(() => import('./pages/AdminMiniPass'));
+const AdminMiniPassSeason = lazy(() => import('./pages/AdminMiniPassSeason'));
+const ReadEarn = lazy(() => import('./pages/ReadEarn'));
+const InternalOfferwall = lazy(() => import('./pages/InternalOfferwall'));
+const MiniPass = lazy(() => import('./pages/MiniPass'));
+const DailyTasks = lazy(() => import('./pages/DailyTasks'));
+const Transparency = lazy(() => import('./pages/Transparency'));
+const Landing = lazy(() => import('./pages/Landing'));
+const LiveServer = lazy(() => import('./pages/LiveServer'));
+const DashboardCryptoStream = lazy(() => import('./pages/DashboardCryptoStream'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfUse = lazy(() => import('./pages/TermsOfUse'));
+const Support = lazy(() => import('./pages/Support'));
+
+function RouteLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
+}
+
+/** Keeps chrome mounted while lazy route chunks load (avoids full-app Suspense remounts). */
+function ProtectedOutletFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center py-12" aria-busy="true" aria-live="polite">
+      <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+    </div>
+  );
+}
 
 const ProtectedLayout = () => {
-  const { isAuthenticated, isLoading, checkSession } = useAuthStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const checkSession = useAuthStore((s) => s.checkSession);
   const location = useLocation();
 
   useEffect(() => {
@@ -106,7 +125,9 @@ const ProtectedLayout = () => {
         <main className="flex-1 overflow-y-auto scrollbar-hide mt-14 md:mt-0">
           <div className="w-full max-w-7xl mx-auto px-3 py-4 pb-24 sm:px-4 md:p-8 md:pb-8">
             {showPageAds && <AdBanner size="728x90" />}
-            <Outlet />
+            <Suspense fallback={<ProtectedOutletFallback />}>
+              <Outlet />
+            </Suspense>
             {showPageAds && <AdBanner size="728x90" />}
           </div>
           <SiteFooter compact />
@@ -150,81 +171,83 @@ function App() {
         }}
       />
       <AdBlockDetector />
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms-of-use" element={<TermsOfUse />} />
-        <Route path="/liveserver" element={<LiveServer />} />
-        <Route path="/dashboardcrypto" element={<DashboardCryptoStream />} />
+      <Suspense fallback={<RouteLoader />}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-use" element={<TermsOfUse />} />
+          <Route path="/liveserver" element={<LiveServer />} />
+          <Route path="/dashboardcrypto" element={<DashboardCryptoStream />} />
 
-        <Route element={<ProtectedLayout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/power-stats" element={<PowerStatistics />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/offers" element={<PopularOffers />} />
-          <Route path="/inventory" element={<Inventory />} />
-          <Route path="/vault" element={<Vault />} />
-          <Route path="/wallet" element={<Wallet />} />
-          <Route path="/wallets" element={<Navigate to="/wallet" replace />} />
-          <Route path="/faucet" element={<Faucet />} />
-          <Route path="/shortlinks" element={<Shortlinks />} />
-          <Route path="/checkin" element={<Checkin />} />
-          <Route path="/read-earn" element={<ReadEarn />} />
-          <Route path="/internal-offerwall" element={<InternalOfferwall />} />
-          <Route path="/mini-pass" element={<MiniPass />} />
-          <Route path="/mini-pass/:seasonId" element={<MiniPass />} />
-          <Route path="/tasks" element={<DailyTasks />} />
-          <Route path="/daily-tasks" element={<Navigate to="/tasks" replace />} />
-          <Route path="/youtube" element={<YouTubeWatch />} />
-          <Route path="/auto-mining" element={<AutoMining />} />
-          <Route path="/ranking" element={<Ranking />} />
-          <Route path="/room/:username" element={<PublicRoom />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/support" element={<Support />} />
-          <Route path="/games" element={<Games />} />
-          <Route path="/games/2048" element={<Game2048Page />} />
-          <Route path="/minigame" element={<Navigate to="/games" replace />} />
-          <Route path="/roadmap" element={<Roadmap />} />
-          <Route path="/manual" element={<Manual />} />
-          <Route path="/calculator" element={<CalculatorPage />} />
-          <Route path="/transparency" element={<TransparencyErrorBoundary><Transparency /></TransparencyErrorBoundary>} />
-          <Route path="/shortlink/internal-shortlink/step/:step" element={<ShortlinkStep />} />
-        </Route>
+          <Route element={<ProtectedLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/power-stats" element={<PowerStatistics />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/offers" element={<PopularOffers />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/vault" element={<Vault />} />
+            <Route path="/wallet" element={<Wallet />} />
+            <Route path="/wallets" element={<Navigate to="/wallet" replace />} />
+            <Route path="/faucet" element={<Faucet />} />
+            <Route path="/shortlinks" element={<Shortlinks />} />
+            <Route path="/checkin" element={<Checkin />} />
+            <Route path="/read-earn" element={<ReadEarn />} />
+            <Route path="/internal-offerwall" element={<InternalOfferwall />} />
+            <Route path="/mini-pass" element={<MiniPass />} />
+            <Route path="/mini-pass/:seasonId" element={<MiniPass />} />
+            <Route path="/tasks" element={<DailyTasks />} />
+            <Route path="/daily-tasks" element={<Navigate to="/tasks" replace />} />
+            <Route path="/youtube" element={<YouTubeWatch />} />
+            <Route path="/auto-mining" element={<AutoMining />} />
+            <Route path="/ranking" element={<Ranking />} />
+            <Route path="/room/:username" element={<PublicRoom />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/support" element={<Support />} />
+            <Route path="/games" element={<Games />} />
+            <Route path="/games/2048" element={<Game2048Page />} />
+            <Route path="/minigame" element={<Navigate to="/games" replace />} />
+            <Route path="/roadmap" element={<Roadmap />} />
+            <Route path="/manual" element={<Manual />} />
+            <Route path="/calculator" element={<CalculatorPage />} />
+            <Route path="/transparency" element={<TransparencyErrorBoundary><Transparency /></TransparencyErrorBoundary>} />
+            <Route path="/shortlink/internal-shortlink/step/:step" element={<ShortlinkStep />} />
+          </Route>
 
-        {/* Admin Routes */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route element={<AdminLayout />}>
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/fraud-signals" element={<AdminFraudSignals />} />
-          <Route path="/admin/miners" element={<AdminMiners />} />
-          <Route path="/admin/finance" element={<AdminFinance />} />
-          <Route path="/admin/backups" element={<AdminBackups />} />
-          <Route path="/admin/logs" element={<AdminLogs />} />
-          <Route path="/admin/metrics" element={<AdminMetrics />} />
-          <Route path="/admin/offer-events" element={<AdminOfferEvents />} />
-          <Route path="/admin/offer-events/:id" element={<AdminOfferEventManage />} />
-          <Route path="/admin/support" element={<AdminSupport />} />
-          <Route path="/admin/deposit-tickets" element={<AdminDepositTickets />} />
-          <Route path="/admin/banners" element={<AdminBanners />} />
-          <Route path="/admin/creators" element={<AdminCreators />} />
-          <Route path="/admin/transparency" element={<AdminTransparency />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/admin/broadcast" element={<AdminBroadcast />} />
-          <Route path="/admin/checkin-milestones" element={<AdminCheckinMilestones />} />
-          <Route path="/admin/tasks" element={<AdminDailyTasks />} />
-          <Route path="/admin/daily-tasks" element={<Navigate to="/admin/tasks" replace />} />
-          <Route path="/admin/read-earn" element={<AdminReadEarn />} />
-          <Route path="/admin/internal-offerwall" element={<AdminInternalOfferwall />} />
-          <Route path="/admin/streaming" element={<AdminStreaming />} />
-          <Route path="/admin/user-sidebar" element={<AdminUserSidebar />} />
-          <Route path="/admin/mini-pass" element={<AdminMiniPass />} />
-          <Route path="/admin/mini-pass/:id" element={<AdminMiniPassSeason />} />
-        </Route>
-      </Routes>
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/fraud-signals" element={<AdminFraudSignals />} />
+            <Route path="/admin/miners" element={<AdminMiners />} />
+            <Route path="/admin/finance" element={<AdminFinance />} />
+            <Route path="/admin/backups" element={<AdminBackups />} />
+            <Route path="/admin/logs" element={<AdminLogs />} />
+            <Route path="/admin/metrics" element={<AdminMetrics />} />
+            <Route path="/admin/offer-events" element={<AdminOfferEvents />} />
+            <Route path="/admin/offer-events/:id" element={<AdminOfferEventManage />} />
+            <Route path="/admin/support" element={<AdminSupport />} />
+            <Route path="/admin/deposit-tickets" element={<AdminDepositTickets />} />
+            <Route path="/admin/banners" element={<AdminBanners />} />
+            <Route path="/admin/creators" element={<AdminCreators />} />
+            <Route path="/admin/transparency" element={<AdminTransparency />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/broadcast" element={<AdminBroadcast />} />
+            <Route path="/admin/checkin-milestones" element={<AdminCheckinMilestones />} />
+            <Route path="/admin/tasks" element={<AdminDailyTasks />} />
+            <Route path="/admin/daily-tasks" element={<Navigate to="/admin/tasks" replace />} />
+            <Route path="/admin/read-earn" element={<AdminReadEarn />} />
+            <Route path="/admin/internal-offerwall" element={<AdminInternalOfferwall />} />
+            <Route path="/admin/streaming" element={<AdminStreaming />} />
+            <Route path="/admin/user-sidebar" element={<AdminUserSidebar />} />
+            <Route path="/admin/mini-pass" element={<AdminMiniPass />} />
+            <Route path="/admin/mini-pass/:id" element={<AdminMiniPassSeason />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

@@ -13,11 +13,30 @@ function positiveInt(n) {
   return Number.isFinite(v) && v > 0 ? v : null;
 }
 
+function normalizeDecimalInput(raw) {
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  return trimmed.replace(",", ".");
+}
+
 function positiveDecimalString(s) {
-  if (s == null || s === "") return null;
+  const normalized = normalizeDecimalInput(s);
+  if (!normalized) return null;
   try {
-    const d = new Prisma.Decimal(String(s));
+    const d = new Prisma.Decimal(normalized);
     return d.gt(0) ? String(d) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function nonNegativeDecimalString(s) {
+  const normalized = normalizeDecimalInput(s);
+  if (!normalized) return null;
+  try {
+    const d = new Prisma.Decimal(normalized);
+    return d.gte(0) ? String(d) : null;
   } catch {
     return null;
   }
@@ -93,9 +112,13 @@ export function validateAndNormalizeLevelRewardInput({
  * Validates mission target and optional game slug filter.
  */
 export function validateMissionInput({ missionType, targetValue, gameSlug, xpReward }) {
+  const normalizedTarget = normalizeDecimalInput(targetValue);
+  if (!normalizedTarget) {
+    return { ok: false, message: "Invalid targetValue." };
+  }
   let t;
   try {
-    t = new Prisma.Decimal(String(targetValue ?? "0"));
+    t = new Prisma.Decimal(normalizedTarget);
   } catch {
     return { ok: false, message: "Invalid targetValue." };
   }

@@ -13,29 +13,19 @@ function resolveBannerAssetUrl(url) {
   return u;
 }
 
-function useCountdown(endsAt) {
-  const calc = useCallback(() => {
-    if (!endsAt) return null;
-    const diff = new Date(endsAt) - Date.now();
-    if (diff <= 0) return null;
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    return d > 0 ? `${d}d : ${h}h : ${m}m` : h > 0 ? `${h}h : ${m}m : ${s}s` : `${m}m : ${s}s`;
-  }, [endsAt]);
-
-  const [label, setLabel] = useState(calc);
-  useEffect(() => {
-    if (!endsAt) return;
-    const id = setInterval(() => setLabel(calc()), 1000);
-    return () => clearInterval(id);
-  }, [endsAt, calc]);
-  return label;
+function formatCountdownLabel(endsAt, nowMs) {
+  if (!endsAt) return null;
+  const diff = new Date(endsAt).getTime() - nowMs;
+  if (!(diff > 0)) return null;
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return d > 0 ? `${d}d : ${h}h : ${m}m` : h > 0 ? `${h}h : ${m}m : ${s}s` : `${m}m : ${s}s`;
 }
 
-function BannerCard({ banner }) {
-  const countdown = useCountdown(banner.endsAt);
+function BannerCard({ banner, nowMs }) {
+  const countdown = formatCountdownLabel(banner.endsAt, nowMs);
   const mediaUrl = resolveBannerAssetUrl(banner.imageUrl);
   const [mediaFailed, setMediaFailed] = useState(false);
   const shouldShowMedia = mediaUrl && !mediaFailed;
@@ -57,7 +47,7 @@ function BannerCard({ banner }) {
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             draggable={false}
             loading="lazy"
-            onError={(e) => {
+            onError={() => {
               setMediaFailed(true);
             }}
           />
@@ -106,18 +96,22 @@ export default function DashboardBanners() {
   const [banners, setBanners] = useState([]);
   const [idx, setIdx] = useState(0);
   const [perPage, setPerPage] = useState(3);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const trackRef = useRef(null);
   const autoRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/banners')
+    const controller = new AbortController();
+    fetch('/api/banners', { signal: controller.signal })
       .then(r => r.json())
-      .then(data => { if (data.ok) setBanners(data.banners); })
+      .then(data => { if (data.ok) setBanners(Array.isArray(data.banners) ? data.banners : []); })
       .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   // Responsive perPage
   useEffect(() => {
+    if (!trackRef.current?.parentElement || typeof ResizeObserver === 'undefined') return;
     const obs = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width;
       if (w < 640)       setPerPage(1);
@@ -125,11 +119,15 @@ export default function DashboardBanners() {
       else if (w < 1200) setPerPage(3);
       else               setPerPage(4);
     });
-    if (trackRef.current) obs.observe(trackRef.current.parentElement);
+    obs.observe(trackRef.current.parentElement);
     return () => obs.disconnect();
   }, [banners.length]);
 
   const maxIdx = Math.max(0, banners.length - perPage);
+
+  useEffect(() => {
+    setIdx((current) => Math.min(current, maxIdx));
+  }, [maxIdx]);
 
   const go = useCallback((dir) => {
     setIdx(i => {
@@ -146,6 +144,12 @@ export default function DashboardBanners() {
     autoRef.current = setInterval(() => go(1), 5000);
     return () => clearInterval(autoRef.current);
   }, [banners.length, perPage, go]);
+
+  useEffect(() => {
+    if (!banners.some((banner) => banner?.endsAt)) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [banners]);
 
   const resetAuto = () => {
     clearInterval(autoRef.current);
@@ -172,7 +176,7 @@ export default function DashboardBanners() {
               style={{ width: `${cardW}%` }}
             >
               <div className="w-full" style={{ aspectRatio: '16/9' }}>
-                <BannerCard banner={b} />
+                <BannerCard banner={b} nowMs={nowMs} />
               </div>
             </div>
           ))}

@@ -14,6 +14,7 @@ import prisma from "./src/db/prisma.js";
 import { refreshIframeHostAllowlistCache } from "./services/internalOfferwall/iframeHostAllowlistCache.js";
 import { MiningEngine } from "./src/miningEngine.js";
 import { setMiningEngine } from "./src/miningEngineInstance.js";
+import { setMiningEngine as setRuntimeMiningEngine } from "./src/runtime/miningRuntime.js";
 import loggerLib, { logUnhandledError } from "./utils/logger.js";
 // Middlewares
 import { createRateLimiter } from "./middleware/rateLimit.js";
@@ -139,9 +140,12 @@ function envFlag(name, defaultValue = false) {
   return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
 }
 
+const ADMIN_ONLY_MODE = envFlag("ADMIN_ONLY_MODE", false);
+
 // 1. Initialize Mining Engine
 const engine = new MiningEngine();
 setMiningEngine(engine);
+setRuntimeMiningEngine(engine);
 engine.setIo(io);
 
 // 1.1 Preload historical blocks into memory
@@ -205,7 +209,8 @@ async function syncEngineMiners(engine) {
             balance: profile.balance,
             lifetimeMined: profile.lifetime_mined,
             refCode: profile.refCode,
-            referralCount: profile.referralCount
+            referralCount: profile.referralCount,
+            mining_payout_mode: profile.mining_payout_mode
           }
         });
       }
@@ -313,6 +318,37 @@ app.use("/api", auditContextMiddleware);
 app.use("/api", globalLimiter);
 app.use("/api", createHttpRequestLogger());
 
+if (ADMIN_ONLY_MODE) {
+  logger.info("ADMIN_ONLY_MODE enabled: public APIs and public SPA routes are restricted.");
+  app.use((req, res, next) => {
+    const allowedPrefixes = [
+      "/api/admin",
+      "/health",
+      "/uploads",
+      "/assets",
+      "/crypto-broadcast",
+      "/socket.io",
+      "/favicon",
+      "/manifest",
+      "/robots.txt",
+      "/site.webmanifest"
+    ];
+    if (allowedPrefixes.some((prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
+      next();
+      return;
+    }
+    if (req.path.startsWith("/api/")) {
+      res.status(404).json({
+        ok: false,
+        code: "ADMIN_ONLY_MODE",
+        message: "This instance serves only the admin panel."
+      });
+      return;
+    }
+    next();
+  });
+}
+
 // 5. API Routes
 app.use("/api/auth", authRouter);
 app.use("/api/faucet", faucetRouter);
@@ -401,6 +437,8 @@ app.use(
         res.setHeader("Content-Type", "application/octet-stream");
         res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Content-Security-Policy", "default-src 'none'");
+      } else if (/\.(png|jpe?g|webp|gif|ico)$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
       }
     }
   })
@@ -452,6 +490,8 @@ app.use(
       const base = path.basename(filePath);
       if (/[-.][0-9A-Za-z_-]{7,}\.(m?js|css|wasm)$/i.test(base)) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/\.(png|jpe?g|webp|gif|ico|svg)$/i.test(base)) {
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
       } else if (/\.(m?js|css|wasm)$/i.test(base)) {
         res.setHeader("Cache-Control", "no-cache");
       }
@@ -463,6 +503,10 @@ app.use(
 app.get("/{*all}", async (req, res) => {
   if (req.path.startsWith("/api")) {
     res.status(404).type("text/plain").send("Not found");
+    return;
+  }
+  if (ADMIN_ONLY_MODE && !req.path.startsWith("/admin")) {
+    res.redirect(302, "/admin/login");
     return;
   }
   try {

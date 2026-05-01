@@ -23,7 +23,7 @@ test("Telegram sendMessage payload preserves string chat id and includes thread 
   assert.equal(captured.message_thread_id, 42);
 });
 
-test("public proof falls back to sendMessage when screenshot capture fails", async () => {
+test("public proof sends text message without browser screenshot capture", async () => {
   const sent = [];
   const result = await worker.processTelegramEvent(
     {
@@ -42,9 +42,7 @@ test("public proof falls back to sendMessage when screenshot capture fails", asy
       publicChatId: "-1003734849036",
       publicThreadId: 42,
       screenshotEnabled: true,
-      captureFn: async () => { throw new Error("browser timeout"); },
       sendMessageFn: async (payload) => sent.push({ kind: "message", payload }),
-      sendPhotoFn: async (payload) => sent.push({ kind: "photo", payload }),
     },
   );
   assert.deepEqual(result, { sent: true, screenshot: false });

@@ -381,6 +381,12 @@ export function useWallet() {
 
     const connect = useCallback(async (options = {}) => {
         const useBrowserExtension = options.useBrowserExtension === true;
+        const hasInjectedProvider = Boolean(getBrowserEthereumProvider());
+
+        if (useBrowserExtension && !hasInjectedProvider && walletConnectConfigured) {
+            await openConnectModal();
+            return;
+        }
 
         if (!walletConnectConfigured || useBrowserExtension) {
             await connectInjectedAndVerify();

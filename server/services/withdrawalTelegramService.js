@@ -108,7 +108,7 @@ function getEnvConfig() {
     botTokenMasked: maskSecret(token),
     privateAlertsEnabled: boolFromEnv("TELEGRAM_WITHDRAWAL_ALERTS_ENABLED", false),
     publicProofsEnabled: boolFromEnv("TELEGRAM_PUBLIC_PROOFS_ENABLED", false),
-    screenshotEnabled: boolFromEnv("TELEGRAM_POLYGONSCAN_SCREENSHOT_ENABLED", true),
+    screenshotEnabled: boolFromEnv("TELEGRAM_POLYGONSCAN_SCREENSHOT_ENABLED", false),
     privateChatId,
     publicChatId,
     publicThreadId,

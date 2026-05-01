@@ -28,9 +28,13 @@ export default function Faucet() {
     const [isClaiming, setIsClaiming] = useState(false);
     const [isPartnerUnlocked, setIsPartnerUnlocked] = useState(false);
     const [isAdClicked, setIsAdClicked] = useState(false);
-    
+    /** True after /partner/start returned waitMs — avoids one-frame iframe flash when countdown hits 0 */
+    const [partnerFlowActive, setPartnerFlowActive] = useState(false);
+
     const timerRef = useRef(null);
     const partnerTimerRef = useRef(null);
+    const partnerIframeRef = useRef(null);
+    const remainingMsRef = useRef(0);
 
     const fetchStatus = useCallback(async () => {
         try {
@@ -42,6 +46,7 @@ export default function Faucet() {
                     setIsPartnerUnlocked(false);
                     setCanClaim(false);
                     setIsAdClicked(false);
+                    setPartnerFlowActive(false);
                 }
             }
         } catch (err) {
@@ -56,6 +61,10 @@ export default function Faucet() {
     }, [fetchStatus]);
 
     useEffect(() => {
+        remainingMsRef.current = remainingMs;
+    }, [remainingMs]);
+
+    useEffect(() => {
         if (remainingMs > 0) {
             timerRef.current = setInterval(() => {
                 setRemainingMs(prev => Math.max(0, prev - 1000));
@@ -66,23 +75,23 @@ export default function Faucet() {
         return () => clearInterval(timerRef.current);
     }, [remainingMs]);
 
+    const partnerCountdownActive = partnerWaitMs > 0;
     useEffect(() => {
-        if (partnerWaitMs > 0) {
-            partnerTimerRef.current = setInterval(() => {
-                setPartnerWaitMs(prev => {
-                    if (prev <= 1000) {
-                        setIsPartnerUnlocked(true);
-                        setCanClaim(remainingMs <= 0);
-                        return 0;
-                    }
-                    return prev - 1000;
-                });
-            }, 1000);
-        } else {
-            clearInterval(partnerTimerRef.current);
-        }
+        if (!partnerCountdownActive) return undefined;
+        partnerTimerRef.current = setInterval(() => {
+            setPartnerWaitMs((prev) => {
+                if (prev <= 1000) return 0;
+                return prev - 1000;
+            });
+        }, 1000);
         return () => clearInterval(partnerTimerRef.current);
-    }, [partnerWaitMs, remainingMs]);
+    }, [partnerCountdownActive]);
+
+    useEffect(() => {
+        if (partnerWaitMs !== 0 || !partnerFlowActive) return;
+        setIsPartnerUnlocked(true);
+        setCanClaim(remainingMsRef.current <= 0);
+    }, [partnerWaitMs, partnerFlowActive]);
 
     const startPartnerTimer = async () => {
         try {
@@ -90,8 +99,18 @@ export default function Faucet() {
             const res = await api.post('/faucet/partner/start');
             if (res.data.ok) {
                 window.open(res.data.partnerUrl, '_blank', 'noopener,noreferrer');
-                setPartnerWaitMs(res.data.waitMs || 10000);
-                toast.info(t('faucet.partner_toast_started'));
+                try {
+                    const el = partnerIframeRef.current;
+                    if (el) el.src = 'about:blank';
+                } catch {
+                    /* ignore */
+                }
+                const waitMs = res.data.waitMs || 10000;
+                setTimeout(() => {
+                    setPartnerFlowActive(true);
+                    setPartnerWaitMs(waitMs);
+                    toast.info(t('faucet.partner_toast_started'));
+                }, 0);
             }
         } catch (err) {
             setIsAdClicked(false);
@@ -115,6 +134,7 @@ export default function Faucet() {
                 setIsPartnerUnlocked(false);
                 setCanClaim(false);
                 setIsAdClicked(false);
+                setPartnerFlowActive(false);
             }
         } catch (err) {
             toast.error(err.response?.data?.message || t('common.error'));
@@ -224,7 +244,7 @@ export default function Faucet() {
                                                 {t('faucet.wait_seconds', { seconds: Math.ceil(partnerWaitMs / 1000) })}
                                             </span>
                                         </div>
-                                    ) : isPartnerUnlocked ? (
+                                    ) : isPartnerUnlocked || (partnerFlowActive && partnerWaitMs === 0) ? (
                                         <div className="flex items-center justify-center gap-4 py-6 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
                                             <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                                             <span className="text-lg font-black text-emerald-500 uppercase italic tracking-tighter">{t('faucet.unlocked')}</span>
@@ -233,6 +253,7 @@ export default function Faucet() {
                                         <div className="space-y-3">
                                             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center max-w-[300px] mx-auto">
                                                 <iframe
+                                                    ref={partnerIframeRef}
                                                     src="https://zerads.com/ad/ad.php?width=300&ref=10776"
                                                     marginWidth={0}
                                                     marginHeight={0}
@@ -249,7 +270,8 @@ export default function Faucet() {
                                                     disabled={isAdClicked || remainingMs > 0 || isPartnerUnlocked}
                                                     className="absolute inset-0 z-10 cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50"
                                                     onClick={handleAdClick}
-                                                />
+                                                >
+                                                </button>
                                             </div>
                                             <div className="flex items-center justify-center gap-2 text-primary/60">
                                                 <MousePointer2 className="w-3 h-3" />

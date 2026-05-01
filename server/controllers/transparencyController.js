@@ -160,6 +160,17 @@ function prevalidateEntryPatch(body) {
   }
 }
 
+function isPrismaRuntimeError(error) {
+  const message = String(error?.message || "");
+  return Boolean(
+    error?.code ||
+      message.includes("Invalid `prisma.") ||
+      message.includes("SASL:") ||
+      message.includes("Can't reach database server") ||
+      message.includes("Authentication failed against database server")
+  );
+}
+
 async function getTrackedWallets(includeInactive = true) {
   return prisma.transparencyTrackedWallet.findMany({
     where: includeInactive ? undefined : { isActive: true },
@@ -209,9 +220,7 @@ export async function adminCreate(req, res) {
     const entry = await prisma.transparencyEntry.create({ data });
     res.json({ ok: true, entry });
   } catch (error) {
-    const isValidationError =
-      !error?.code &&
-      !String(error?.message || "").includes("Invalid `prisma.");
+    const isValidationError = !isPrismaRuntimeError(error);
     res
       .status(isValidationError ? 400 : 500)
       .json({ ok: false, message: error?.message || "Erro ao criar entrada." });
@@ -230,9 +239,7 @@ export async function adminUpdate(req, res) {
     const entry = await prisma.transparencyEntry.update({ where: { id }, data });
     res.json({ ok: true, entry });
   } catch (error) {
-    const isValidationError =
-      !error?.code &&
-      !String(error?.message || "").includes("Invalid `prisma.");
+    const isValidationError = !isPrismaRuntimeError(error);
     res
       .status(isValidationError ? 400 : 500)
       .json({ ok: false, message: error?.message || "Erro ao atualizar." });
@@ -331,9 +338,9 @@ export async function adminWalletGetActivity(req, res) {
     if (!row?.address) {
       return res.status(400).json({ ok: false, message: "Defina primeiro a carteira nas definições." });
     }
-    const page = Math.min(10, Math.max(1, parseInt(String(req.query?.page || "1"), 10) || 1));
-    const offset = Math.min(100, Math.max(10, parseInt(String(req.query?.offset || "50"), 10) || 50));
-    const data = await fetchWalletNativeActivity(row.address, { page, offset });
+    const pageSize = Math.min(100, Math.max(25, parseInt(String(req.query?.pageSize || "100"), 10) || 100));
+    const maxPages = Math.min(100, Math.max(1, parseInt(String(req.query?.maxPages || "100"), 10) || 100));
+    const data = await fetchWalletNativeActivity(row.address, { pageSize, maxPages });
     res.json({ ok: true, ...data });
   } catch (e) {
     if (e?.code === "INVALID_ADDRESS") {
@@ -354,7 +361,7 @@ export async function adminTrackedWalletActivity(_req, res) {
         wallets: [],
       });
     }
-    const data = await fetchTrackedWalletsSummary(wallets, { offset: 25 });
+    const data = await fetchTrackedWalletsSummary(wallets, { pageSize: 100, maxPages: 100, previewLimit: 10 });
     res.json({ ok: true, ...data });
   } catch (e) {
     res.status(502).json({ ok: false, message: e?.message || "Erro ao consultar carteiras rastreadas." });

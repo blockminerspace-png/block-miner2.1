@@ -7,6 +7,8 @@ import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 
 const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 const POLYGON_CHAIN_ID_STR = "137";
+const MAX_TX_PAGE_SIZE = 100;
+const MAX_TX_PAGES = 100;
 
 function getApiKey() {
   return String(process.env.POLYGONSCAN_API_KEY || "").trim();
@@ -39,7 +41,13 @@ async function etherscanV2Fetch(params) {
   return json;
 }
 
-async function fetchTxPage(action, address, page, offset) {
+function clampInt(value, { min = 1, max = Number.MAX_SAFE_INTEGER, fallback = min } = {}) {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+async function fetchTxPage(action, address, page, offset, sort = "desc") {
   const json = await etherscanV2Fetch({
     module: "account",
     action,
@@ -48,11 +56,44 @@ async function fetchTxPage(action, address, page, offset) {
     endblock: 99999999,
     page,
     offset,
-    sort: "desc",
+    sort,
   });
   const list = json?.result;
   if (!Array.isArray(list)) return [];
   return list;
+}
+
+async function fetchTxHistory(action, address, opts = {}) {
+  const pageSize = clampInt(opts.pageSize, {
+    min: 1,
+    max: MAX_TX_PAGE_SIZE,
+    fallback: MAX_TX_PAGE_SIZE,
+  });
+  const maxPages = clampInt(opts.maxPages, {
+    min: 1,
+    max: MAX_TX_PAGES,
+    fallback: MAX_TX_PAGES,
+  });
+  const sort = String(opts.sort || "asc").toLowerCase() === "desc" ? "desc" : "asc";
+  const rows = [];
+  let scannedPages = 0;
+  let mayBeTruncated = false;
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    scannedPages = page;
+    const batch = await fetchTxPage(action, address, page, pageSize, sort);
+    if (!batch.length) break;
+    rows.push(...batch);
+    if (batch.length < pageSize) {
+      return { rows, scannedPages, pageSize, maxPages, mayBeTruncated: false };
+    }
+  }
+
+  if (scannedPages === maxPages && rows.length === maxPages * pageSize) {
+    mayBeTruncated = true;
+  }
+
+  return { rows, scannedPages, pageSize, maxPages, mayBeTruncated };
 }
 
 function receiptOk(tx) {
@@ -131,13 +172,12 @@ function buildMovementSummary(address, normal) {
 
 /**
  * @param {string} rawAddress
- * @param {{ page?: number, offset?: number }} opts
+ * @param {{ pageSize?: number, maxPages?: number }} opts
  */
 export async function fetchWalletNativeActivity(rawAddress, opts = {}) {
-  const page = Math.min(10, Math.max(1, Number(opts.page) || 1));
-  const offset = Math.min(100, Math.max(10, Number(opts.offset) || 50));
   const address = normalizeAddress(rawAddress);
-  const normal = await fetchTxPage("txlist", address, page, offset);
+  const history = await fetchTxHistory("txlist", address, opts);
+  const normal = history.rows;
   const summary = buildMovementSummary(address, normal);
   let polUsdPrice = null;
   try {
@@ -148,28 +188,39 @@ export async function fetchWalletNativeActivity(rawAddress, opts = {}) {
 
   return {
     address,
-    page,
-    offset,
     apiKeyConfigured: Boolean(getApiKey()),
-    note: "POL native transfers from normal transactions (Polygon). Internal/token movements may appear only on Polygonscan.",
+    note: history.mayBeTruncated
+      ? "POL native transfers from normal transactions (Polygon). The API pagination scan may be capped at 10,000 source records for very busy wallets."
+      : "POL native transfers from normal transactions (Polygon).",
+    history: {
+      scannedPages: history.scannedPages,
+      pageSize: history.pageSize,
+      sourceRecordCount: normal.length,
+      mayBeTruncated: history.mayBeTruncated,
+    },
     summary: {
       totalInPol: summary.totalInPol,
       totalOutPol: summary.totalOutPol,
       totalInUsd: polUsdPrice != null ? Number((summary.totalInPol * polUsdPrice).toFixed(2)) : null,
       totalOutUsd: polUsdPrice != null ? Number((summary.totalOutPol * polUsdPrice).toFixed(2)) : null,
       movementCount: summary.movements.length,
+      historyMayBeTruncated: history.mayBeTruncated,
       polUsdPrice,
     },
-    movements: summary.movements.slice(0, offset),
+    movements: summary.movements,
   };
 }
 
 /**
  * @param {Array<{ id?: number, label?: string | null, address: string, chain?: string | null, assetSymbol?: string | null, explorerBaseUrl?: string | null, includeInTotals?: boolean }>} wallets
- * @param {{ offset?: number }} opts
+ * @param {{ pageSize?: number, maxPages?: number, previewLimit?: number }} opts
  */
 export async function fetchTrackedWalletsSummary(wallets, opts = {}) {
-  const offset = Math.min(100, Math.max(10, Number(opts.offset) || 25));
+  const previewLimit = clampInt(opts.previewLimit, {
+    min: 1,
+    max: MAX_TX_PAGE_SIZE,
+    fallback: 10,
+  });
   const activeWallets = Array.isArray(wallets) ? wallets : [];
   let polUsdPrice = null;
   try {
@@ -179,19 +230,22 @@ export async function fetchTrackedWalletsSummary(wallets, opts = {}) {
   }
 
   const perWallet = [];
-  let totalInPol = 0;
-  let totalOutPol = 0;
+  let totalInWei = 0n;
+  let totalOutWei = 0n;
   let totalMovementCount = 0;
+  let historyMayBeTruncated = false;
 
   for (const wallet of activeWallets) {
     const address = normalizeAddress(wallet.address);
-    const normal = await fetchTxPage("txlist", address, 1, offset);
+    const history = await fetchTxHistory("txlist", address, opts);
+    const normal = history.rows;
     const summary = buildMovementSummary(address, normal);
     const includeInTotals = wallet.includeInTotals !== false;
     if (includeInTotals) {
-      totalInPol += summary.totalInPol;
-      totalOutPol += summary.totalOutPol;
+      totalInWei += summary.totalInWei;
+      totalOutWei += summary.totalOutWei;
       totalMovementCount += summary.movements.length;
+      historyMayBeTruncated ||= history.mayBeTruncated;
     }
 
     perWallet.push({
@@ -208,14 +262,27 @@ export async function fetchTrackedWalletsSummary(wallets, opts = {}) {
         totalInUsd: polUsdPrice != null ? Number((summary.totalInPol * polUsdPrice).toFixed(2)) : null,
         totalOutUsd: polUsdPrice != null ? Number((summary.totalOutPol * polUsdPrice).toFixed(2)) : null,
         movementCount: summary.movements.length,
+        historyMayBeTruncated: history.mayBeTruncated,
       },
-      movements: summary.movements.slice(0, Math.min(10, offset)),
+      history: {
+        scannedPages: history.scannedPages,
+        pageSize: history.pageSize,
+        sourceRecordCount: normal.length,
+        mayBeTruncated: history.mayBeTruncated,
+      },
+      movements: summary.movements.slice(0, previewLimit),
     });
   }
+
+  const totalInPol = Number(ethers.formatEther(totalInWei));
+  const totalOutPol = Number(ethers.formatEther(totalOutWei));
 
   return {
     apiKeyConfigured: Boolean(getApiKey()),
     polUsdPrice,
+    note: historyMayBeTruncated
+      ? "Totals may be capped by the explorer API limit for wallets with more than 10,000 source records."
+      : "Totals cover the fetched normal-transaction history for each tracked wallet.",
     summary: {
       totalInPol: Number(totalInPol.toFixed(6)),
       totalOutPol: Number(totalOutPol.toFixed(6)),
@@ -223,6 +290,7 @@ export async function fetchTrackedWalletsSummary(wallets, opts = {}) {
       totalOutUsd: polUsdPrice != null ? Number((totalOutPol * polUsdPrice).toFixed(2)) : null,
       movementCount: totalMovementCount,
       walletCount: perWallet.length,
+      historyMayBeTruncated,
     },
     wallets: perWallet,
   };

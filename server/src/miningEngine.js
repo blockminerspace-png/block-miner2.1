@@ -23,6 +23,8 @@ export class MiningEngine {
     this.activeMiners = 0;
     this.currentNetworkHashRate = 0;
     this.blockHistory = [];
+    this.leaderboardCache = [];
+    this.leaderboardCacheDirty = true;
     this.logRewardCallback = null;
     this.persistBlockRewardsCallback = null;
   }
@@ -43,7 +45,11 @@ export class MiningEngine {
     this.profileLoader = loader;
   }
 
-  async reloadMinerProfile(userId) {
+  markLeaderboardDirty() {
+    this.leaderboardCacheDirty = true;
+  }
+
+  async reloadMinerProfile(userId, { forceBalanceSync = false } = {}) {
     if (this.profileLoader) {
       const profile = await this.profileLoader(userId);
       if (profile) {
@@ -55,12 +61,15 @@ export class MiningEngine {
           miner.referralCount = profile.referralCount;
           miner.miningPayoutMode =
             profile.mining_payout_mode === "blk" || profile.miningPayoutMode === "blk" ? "blk" : "pol";
-          // Sincroniza saldo: se DB tem mais (ex: deposito creditado), atualiza memoria
+          // Sincroniza saldo:
+          // - modo normal: só sobe para não perder rewards ainda não persistidos
+          // - modo forçado: espelha o banco após mutações explícitas de saldo
           const dbBalance = Number(profile.balance || 0);
-          if (dbBalance > miner.balance) {
+          if (forceBalanceSync || dbBalance > miner.balance) {
             miner.balance = dbBalance;
             miner.lastPersistedBalance = dbBalance;
           }
+          this.markLeaderboardDirty();
           // Emit updated miner state so referralCount updates in real-time for online referrers
           if (this.io) {
             const state = this.getPublicState(miner.id);
@@ -99,6 +108,7 @@ export class MiningEngine {
           existing.lastPersistedBalance = dbBalance;
         }
       }
+      this.markLeaderboardDirty();
       return existing;
     }
 
@@ -126,6 +136,7 @@ export class MiningEngine {
     this.miners.set(id, miner);
     this.minersByUserId.set(userId, miner);
     this.roundWork.set(id, 0);
+    this.markLeaderboardDirty();
     return miner;
   }
 
@@ -139,6 +150,7 @@ export class MiningEngine {
     const miner = this.miners.get(minerId);
     if (!miner) return null;
     miner.active = !!active;
+    this.markLeaderboardDirty();
     return miner;
   }
 
@@ -161,6 +173,7 @@ export class MiningEngine {
     miner.balance -= boostCost;
     miner.boostMultiplier = 1.25;
     miner.boostEndsAt = Date.now() + 30000;
+    this.markLeaderboardDirty();
 
     return { ok: true, message: "Boost ativado por 30s." };
   }
@@ -177,6 +190,7 @@ export class MiningEngine {
     miner.balance -= rigCost;
     miner.rigs += 1;
     miner.baseHashRate += 18;
+    this.markLeaderboardDirty();
 
     return { ok: true, message: `Rig #${miner.rigs} comprado com sucesso.` };
   }
@@ -285,6 +299,7 @@ export class MiningEngine {
     if (this.blockHistory.length > 12) this.blockHistory.length = 12;
 
     this.lastReward = blockReward;
+    this.markLeaderboardDirty();
     this.finalizeBlockDistribution(minedBlockNumber, blockReward);
   }
 
@@ -300,11 +315,13 @@ export class MiningEngine {
     const now = Date.now();
     let totalHashRate = 0;
     let activeMiners = 0;
+    let leaderboardChanged = false;
 
     for (const [minerId, miner] of this.miners.entries()) {
       if (miner.boostEndsAt > 0 && now >= miner.boostEndsAt) {
         miner.boostMultiplier = 1;
         miner.boostEndsAt = 0;
+        leaderboardChanged = true;
       }
       const hashRate = this.getMinerHashRate(miner);
       totalHashRate += hashRate;
@@ -314,6 +331,10 @@ export class MiningEngine {
       if (payoutMode === "pol") {
         this.roundWork.set(minerId, (this.roundWork.get(minerId) || 0) + hashRate);
       }
+    }
+
+    if (leaderboardChanged) {
+      this.markLeaderboardDirty();
     }
 
     this.currentNetworkHashRate = totalHashRate;
@@ -328,20 +349,24 @@ export class MiningEngine {
   }
 
   getLeaderboard(limit = 10) {
-    return [...this.miners.values()]
-      .map(m => ({
-        id: m.id,
-        username: m.username,
-        rigs: m.rigs,
-        active: m.active,
-        lifetimeMined: m.lifetimeMined,
-        currentHashRate: this.getMinerHashRate(m)
-      }))
-      .sort((a, b) => b.lifetimeMined - a.lifetimeMined)
-      .slice(0, limit);
+    if (this.leaderboardCacheDirty) {
+      this.leaderboardCache = [...this.miners.values()]
+        .map((m) => ({
+          id: m.id,
+          username: m.username,
+          rigs: m.rigs,
+          active: m.active,
+          lifetimeMined: m.lifetimeMined,
+          currentHashRate: this.getMinerHashRate(m)
+        }))
+        .sort((a, b) => b.lifetimeMined - a.lifetimeMined);
+      this.leaderboardCacheDirty = false;
+    }
+    return this.leaderboardCache.slice(0, limit);
   }
 
-  getPublicState(minerId) {
+  getPublicState(minerId, options = {}) {
+    const includeLeaderboard = Boolean(options.includeLeaderboard);
     const miner = minerId ? this.miners.get(minerId) : null;
     const userId = miner?.userId;
     const remainingMs = Math.max(0, this.nextBlockAt - Date.now());
@@ -371,7 +396,7 @@ export class MiningEngine {
       totalMinted: this.totalMinted,
       lastReward: this.lastReward,
       blockHistory: customizedHistory,
-      leaderboard: this.getLeaderboard(),
+      ...(includeLeaderboard ? { leaderboard: this.getLeaderboard() } : {}),
       miner: miner ? {
         id: miner.id,
         username: miner.username,

@@ -29,8 +29,11 @@ export default function Sidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuthStore();
-  const { notifications, markNotificationRead, toggleChat, hasMention } = useGameStore();
+  const logout = useAuthStore((state) => state.logout);
+  const notifications = useGameStore((state) => state.notifications);
+  const markNotificationRead = useGameStore((state) => state.markNotificationRead);
+  const toggleChat = useGameStore((state) => state.toggleChat);
+  const hasMention = useGameStore((state) => state.hasMention);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   /**

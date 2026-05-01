@@ -5,10 +5,44 @@ const logger = loggerLib.child("MiningCron");
 
 const DEFAULT_TICK_MS = 1000;
 const DEFAULT_PERSIST_MS = 15000;
+const DEFAULT_HASHRATE_SYNC_MS = 60_000;
+
+export async function refreshKnownMinerHashrates({ engine, syncUserBaseHashRate }) {
+  if (!engine || typeof syncUserBaseHashRate !== "function") {
+    return { refreshed: 0, changed: 0 };
+  }
+
+  const seen = new Set();
+  let refreshed = 0;
+  let changed = 0;
+
+  for (const miner of engine.miners.values()) {
+    const userId = Number(miner?.userId);
+    if (!userId || seen.has(userId)) continue;
+    seen.add(userId);
+
+    const nextHashrate = Number(await syncUserBaseHashRate(userId)) || 0;
+    const previousHashrate = Number(miner.baseHashRate || 0);
+    miner.baseHashRate = nextHashrate;
+    refreshed += 1;
+
+    if (Math.abs(previousHashrate - nextHashrate) > 1e-9) {
+      changed += 1;
+      logger.info("Mining hashrate refreshed", {
+        userId,
+        previousHashrate,
+        nextHashrate
+      });
+    }
+  }
+
+  return { refreshed, changed };
+}
 
 export function startMiningLoop({ engine, io, persistMinerProfile, buildPublicState }, options = {}) {
   const tickMs = Number(options.tickMs || DEFAULT_TICK_MS);
   const persistMs = Number(options.persistMs || DEFAULT_PERSIST_MS);
+  const hashrateSyncMs = Number(options.hashrateSyncMs || process.env.MINING_HASHRATE_SYNC_MS || DEFAULT_HASHRATE_SYNC_MS);
   const runCronAction = createCronActionRunner({ logger, cronName: "MiningCron" });
 
   const tick = async () => {
@@ -64,6 +98,40 @@ export function startMiningLoop({ engine, io, persistMinerProfile, buildPublicSt
     });
   }, tickMs);
 
+  const syncHashrates = async () => {
+    return runCronAction({
+      action: "mining_hashrate_sync",
+      logStart: false,
+      logSuccess: false,
+      skippedLogLevel: "debug",
+      validateFailureLogLevel: "debug",
+      validate: async () => {
+        if (!engine?.miners || typeof engine.miners.values !== "function") {
+          return { ok: false, reason: "invalid_engine" };
+        }
+        if (typeof options.syncUserBaseHashRate !== "function") {
+          return { ok: false, reason: "missing_hashrate_sync" };
+        }
+        return { ok: true };
+      },
+      execute: async () =>
+        refreshKnownMinerHashrates({
+          engine,
+          syncUserBaseHashRate: options.syncUserBaseHashRate
+        }),
+      confirm: async ({ executionResult }) => ({
+        ok: Boolean(executionResult),
+        details: executionResult
+      })
+    });
+  };
+
+  const hashrateSyncTimer = setInterval(() => {
+    syncHashrates().catch((error) => {
+      logger.error("Mining hashrate sync unexpected error", { error: error.message });
+    });
+  }, hashrateSyncMs);
+
   const persist = async () => {
     const miners = [...engine.miners.values()];
     const saves = miners.map((miner) => persistMinerProfile(miner));
@@ -72,5 +140,5 @@ export function startMiningLoop({ engine, io, persistMinerProfile, buildPublicSt
 
   const persistTimer = setInterval(persist, persistMs);
 
-  return { tickTimer, persistTimer };
+  return { tickTimer, persistTimer, hashrateSyncTimer };
 }

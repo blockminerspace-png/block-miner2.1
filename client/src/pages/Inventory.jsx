@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef, useId } from "react";
+import { memo, useEffect, useState, useCallback, useMemo, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -14,8 +14,10 @@ import { inventoryStackKey } from "../utils/inventoryStackKey.js";
 
 const RACK_TOOLTIP_SHOW_MS = 120;
 const RACK_TOOLTIP_HIDE_MS = 80;
-
 const SLOTS_PER_VISUAL_RACK = 8;
+const SIDEBAR_GROUP_PAGE_SIZE = 24;
+const MODAL_GROUP_PAGE_SIZE = 18;
+const SOCKET_REFRESH_DEBOUNCE_MS = 160;
 
 function groupIntoRacks(racks) {
   const groups = [];
@@ -32,6 +34,19 @@ function canMachineFitVisualSlot(slot, machine) {
   const position = Number(slot.position);
   if (!Number.isInteger(position)) return false;
   return position % 4 <= 4 - slotSize;
+}
+
+function groupInventoryStacks(rows) {
+  const groups = {};
+  for (const item of rows) {
+    const key = inventoryStackKey(item);
+    if (!groups[key]) groups[key] = { ...item, quantity: 1, items: [item] };
+    else {
+      groups[key].quantity += 1;
+      groups[key].items.push(item);
+    }
+  }
+  return Object.values(groups).sort((a, b) => Number(b.hashRate || 0) - Number(a.hashRate || 0));
 }
 
 /**
@@ -168,29 +183,24 @@ function RackDismantleModal({ open, onClose, onConfirm, displayRackNumber, loadi
   );
 }
 
-function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClose }) {
+const SlotModal = memo(function SlotModal({ slot, groupedInventory, onInstall, onRemove, onMoveToVault, onClose, actionBusy }) {
   const { t } = useTranslation();
   const [confirmingAction, setConfirmingAction] = useState(/** @type {'inventory' | 'vault' | null} */ (null));
   const [busy, setBusy] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(MODAL_GROUP_PAGE_SIZE);
   const machine = slot.miner || null;
 
   useEffect(() => {
     setConfirmingAction(null);
     setBusy(false);
-  }, [slot]);
+    setVisibleCount(MODAL_GROUP_PAGE_SIZE);
+  }, [slot, groupedInventory]);
 
-  const groupedInventory = useMemo(() => {
-    const groups = {};
-    for (const item of inventory) {
-      const key = inventoryStackKey(item);
-      if (!groups[key]) groups[key] = { ...item, quantity: 1, items: [item] };
-      else {
-        groups[key].quantity += 1;
-        groups[key].items.push(item);
-      }
-    }
-    return Object.values(groups).sort((a, b) => b.hashRate - a.hashRate);
-  }, [inventory]);
+  const visibleInventoryGroups = useMemo(
+    () => groupedInventory.slice(0, visibleCount),
+    [groupedInventory, visibleCount]
+  );
+  const hasMoreInventoryGroups = visibleCount < groupedInventory.length;
   const descriptor = machine ? getMachineDescriptor(machine) : null;
   return createPortal(
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
@@ -200,7 +210,15 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
             <h3 className="text-xl font-bold text-white">{machine ? t("inventory.modal.details_title") : t("inventory.modal.install_title")}</h3>
             <p className="text-xs font-bold text-gray-500 mt-1 uppercase tracking-widest">{t("inventory.modal.rack_slot", { rack: slot.visualRackNumber, slot: slot.slotInRack + 1 })}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label={t("common.close")} className="w-10 h-10 rounded-xl bg-gray-800/50 text-gray-400 flex items-center justify-center hover:text-white transition-colors">
+          <button
+            type="button"
+            onClick={() => {
+              if (!busy && !actionBusy) onClose();
+            }}
+            disabled={busy || actionBusy}
+            aria-label={t("common.close")}
+            className="w-10 h-10 rounded-xl bg-gray-800/50 text-gray-400 flex items-center justify-center hover:text-white transition-colors disabled:pointer-events-none disabled:opacity-50"
+          >
             <Plus className="w-6 h-6 rotate-45" />
           </button>
         </div>
@@ -231,7 +249,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       type="button"
-                      disabled={busy}
+                      disabled={busy || actionBusy}
                       onClick={async () => {
                         if (confirmingAction === "inventory") {
                           setBusy(true);
@@ -259,7 +277,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                     </button>
                     <button
                       type="button"
-                      disabled={busy || !Number.isFinite(Number(machine.id))}
+                      disabled={busy || actionBusy || !Number.isFinite(Number(machine.id))}
                       onClick={async () => {
                         if (confirmingAction === "vault") {
                           setBusy(true);
@@ -289,7 +307,7 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                   {confirmingAction != null && (
                     <button
                       type="button"
-                      disabled={busy}
+                      disabled={busy || actionBusy}
                       onClick={() => setConfirmingAction(null)}
                       className="min-h-11 w-full rounded-2xl border border-gray-800 bg-gray-900/90 py-3 text-sm font-semibold text-gray-400 transition-all hover:bg-gray-800 hover:text-gray-200 disabled:opacity-50"
                     >
@@ -305,20 +323,26 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                 <div className="p-8 text-center bg-gray-800/20 rounded-2xl border border-dashed border-gray-800"><p className="text-gray-500 text-sm">{t("inventory.modal.no_machines_avail")}</p></div>
               ) : (
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                  {groupedInventory.map((group) => {
+                  {visibleInventoryGroups.map((group) => {
                     const desc = getMachineDescriptor({ hashRate: group.hashRate, slotSize: group.slotSize, imageUrl: group.imageUrl });
                     return (
                       <button
                         key={inventoryStackKey(group)}
                         type="button"
-                        onClick={() => {
+                        disabled={busy || actionBusy}
+                        onClick={async () => {
                           if (!canMachineFitVisualSlot(slot.rack, group)) {
                             toast.error(t("inventory.double_slot_row_edge"));
                             return;
                           }
-                          onInstall(slot.rack.id, group.items[0].id);
+                          setBusy(true);
+                          try {
+                            await onInstall(slot.rack.id, group.items[0].id);
+                          } finally {
+                            setBusy(false);
+                          }
                         }}
-                        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-800/30 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/10"
+                        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-800/30 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/10 disabled:pointer-events-none disabled:opacity-50"
                       >
                         <div className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 bg-gray-900 rounded-lg p-2 shrink-0 relative">
@@ -334,6 +358,16 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
                       </button>
                     );
                   })}
+                  {hasMoreInventoryGroups && (
+                    <button
+                      type="button"
+                      disabled={busy || actionBusy}
+                      onClick={() => setVisibleCount((current) => current + MODAL_GROUP_PAGE_SIZE)}
+                      className="min-h-11 w-full rounded-2xl border border-gray-800/70 bg-gray-900/70 px-4 py-3 text-sm font-bold text-gray-300 transition-colors hover:border-gray-700 hover:bg-gray-800 disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      {t("common.load_more", { defaultValue: "Carregar mais" })}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -343,9 +377,9 @@ function SlotModal({ slot, inventory, onInstall, onRemove, onMoveToVault, onClos
     </div>,
     document.body
   );
-}
+});
 
-function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack, rackDismantleLoading }) {
+const RackCard = memo(function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack, rackDismantleLoading, rackActionBusy }) {
   const { t } = useTranslation();
   const [dragOverId, setDragOverId] = useState(null);
   const [confirmingDismantle, setConfirmingDismantle] = useState(false);
@@ -432,7 +466,7 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
           <button
             type="button"
             onClick={() => setConfirmingDismantle(true)}
-            disabled={rackDismantleLoading}
+            disabled={rackDismantleLoading || rackActionBusy}
             title={t("inventory.dismantle_rack_tooltip")}
             aria-label={t("inventory.dismantle_rack_aria")}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 transition-colors hover:bg-red-500/20 disabled:pointer-events-none disabled:opacity-40"
@@ -484,12 +518,13 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
               <button
                 key={rack ? rack.id : i}
                 type="button"
+                disabled={rackActionBusy || rackDismantleLoading}
                 aria-label={occupiedAria}
                 onClick={() => onSlotClick({ rack, miner: machine, visualRackNumber: rackNumber, slotInRack: i })}
                 style={isDoubleSlot ? { gridColumn: 'span 2' } : {}}
-                onDragOver={!isOccupied ? (e) => { e.preventDefault(); setDragOverId(slotKey); } : undefined}
-                onDragLeave={!isOccupied ? () => setDragOverId(null) : undefined}
-                onDrop={!isOccupied ? (e) => { e.preventDefault(); setDragOverId(null); const id = parseInt(e.dataTransfer.getData('inventoryId'), 10); if (id && rack?.id) onSlotDrop(rack.id, id); } : undefined}
+                onDragOver={!isOccupied && !rackActionBusy ? (e) => { e.preventDefault(); setDragOverId(slotKey); } : undefined}
+                onDragLeave={!isOccupied && !rackActionBusy ? () => setDragOverId(null) : undefined}
+                onDrop={!isOccupied && !rackActionBusy ? (e) => { e.preventDefault(); setDragOverId(null); const id = parseInt(e.dataTransfer.getData('inventoryId'), 10); if (id && rack?.id) onSlotDrop(rack.id, id); } : undefined}
                 onMouseEnter={
                   isOccupied && hoverFinePointer
                     ? (e) => {
@@ -591,7 +626,7 @@ function RackCard({ rackNumber, slots, onSlotClick, onSlotDrop, onDismantleRack,
       />
     </div>
   );
-}
+});
 
 export default function Inventory() {
   const { t } = useTranslation();
@@ -601,43 +636,86 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [buyingRoom, setBuyingRoom] = useState(false);
   const [rackDismantleLoading, setRackDismantleLoading] = useState(false);
+  const [rackActionBusy, setRackActionBusy] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [activeRoom, setActiveRoom] = useState(1);
+  const [visibleInventoryGroupsCount, setVisibleInventoryGroupsCount] = useState(SIDEBAR_GROUP_PAGE_SIZE);
   /** Grouped backpack stack open in the “send to warehouse” quantity modal. */
   const [backpackWarehouseModal, setBackpackWarehouseModal] = useState(null);
   const [backpackVaultBusy, setBackpackVaultBusy] = useState(false);
   const navigate = useNavigate();
-  const fetchMachines = useGameStore((s) => s.fetchMachines);
-  const fetchVault = useGameStore((s) => s.fetchVault);
+  const initSocket = useGameStore((s) => s.initSocket);
+  const socket = useGameStore((s) => s.socket);
+  const latestFetchIdRef = useRef(0);
+  const refreshTimerRef = useRef(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async ({ background = false } = {}) => {
+    const requestId = ++latestFetchIdRef.current;
     try {
-      const [roomsRes, invRes] = await Promise.all([api.get("/rooms"), api.get("/inventory")]);
+      if (!background) setLoading(true);
+      const [roomsRes, invRes] = await Promise.all([
+        api.get("/rooms", { timeout: 20000 }),
+        api.get("/inventory", { timeout: 20000 }),
+      ]);
+      if (requestId !== latestFetchIdRef.current) return;
       if (roomsRes.data.ok) {
         setRooms(roomsRes.data.rooms);
         setSummary({ totalRacks: roomsRes.data.totalRacks, occupiedRacks: roomsRes.data.occupiedRacks, freeRacks: roomsRes.data.freeRacks });
       }
       if (invRes.data.ok) setInventory(invRes.data.inventory || []);
     } catch {
-      toast.error(t("inventory.load_error"));
+      if (requestId === latestFetchIdRef.current) {
+        toast.error(t("inventory.load_error"));
+      }
     } finally {
-      setLoading(false);
+      if (requestId === latestFetchIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [t]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    initSocket();
+    void fetchData();
+    return () => {
+      if (refreshTimerRef.current != null) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+  }, [fetchData, initSocket]);
 
-  const handleBuyRoom = async (roomNumber) => {
+  const scheduleBackgroundRefresh = useCallback(() => {
+    if (refreshTimerRef.current != null) return;
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      void fetchData({ background: true });
+    }, SOCKET_REFRESH_DEBOUNCE_MS);
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on("inventory:update", scheduleBackgroundRefresh);
+    socket.on("machines:update", scheduleBackgroundRefresh);
+    socket.on("vault:update", scheduleBackgroundRefresh);
+    return () => {
+      socket.off("inventory:update", scheduleBackgroundRefresh);
+      socket.off("machines:update", scheduleBackgroundRefresh);
+      socket.off("vault:update", scheduleBackgroundRefresh);
+    };
+  }, [socket, scheduleBackgroundRefresh]);
+
+  const handleBuyRoom = useCallback(async (roomNumber) => {
     setBuyingRoom(true);
     try {
       const res = await api.post("/rooms/buy");
-      if (res.data.ok) { toast.success(t("inventory.room_unlocked", { room: roomNumber })); setActiveRoom(roomNumber); await fetchData(); }
+      if (res.data.ok) { toast.success(t("inventory.room_unlocked", { room: roomNumber })); setActiveRoom(roomNumber); await fetchData({ background: true }); }
       else toast.error(res.data.message || t("common.error"));
     } catch (err) { toast.error(err?.response?.data?.message || t("common.error")); }
     finally { setBuyingRoom(false); }
-  };
+  }, [fetchData, t]);
 
-  const handleInstall = async (rackId, inventoryId) => {
+  const handleInstall = useCallback(async (rackId, inventoryId) => {
     if (!Number.isInteger(rackId) || rackId <= 0 || !Number.isInteger(inventoryId) || inventoryId <= 0) { toast.error(t("common.error")); return; }
     const targetRack = rooms.flatMap((room) => room.racks || []).find((rack) => rack.id === rackId);
     const inventoryItem = inventory.find((item) => item.id === inventoryId);
@@ -645,23 +723,27 @@ export default function Inventory() {
       toast.error(t("inventory.double_slot_row_edge"));
       return;
     }
+    setRackActionBusy(true);
     try {
       const res = await api.post("/rooms/rack/install", { rackId, inventoryId });
-      if (res.data.ok) { toast.success(t("inventory.install_success")); setSelectedSlot(null); await fetchData(); }
+      if (res.data.ok) { toast.success(t("inventory.install_success")); setSelectedSlot(null); await fetchData({ background: true }); }
       else toast.error(res.data.message || t("common.error"));
     } catch (err) { toast.error(err?.response?.data?.message || t("common.error")); }
-  };
+    finally { setRackActionBusy(false); }
+  }, [fetchData, inventory, rooms, t]);
 
-  const handleRemove = async (rackId) => {
+  const handleRemove = useCallback(async (rackId) => {
     if (!Number.isInteger(rackId) || rackId <= 0) { toast.error(t("common.error")); return; }
+    setRackActionBusy(true);
     try {
       const res = await api.post("/rooms/rack/uninstall", { rackId });
-      if (res.data.ok) { toast.success(t("inventory.remove_success")); setSelectedSlot(null); await fetchData(); }
+      if (res.data.ok) { toast.success(t("inventory.remove_success")); setSelectedSlot(null); await fetchData({ background: true }); }
       else toast.error(res.data.message || t("common.error"));
     } catch (err) { toast.error(err?.response?.data?.message || t("common.error")); }
-  };
+    finally { setRackActionBusy(false); }
+  }, [fetchData, t]);
 
-  const handleMoveInventoryToVault = async (inventoryItemIds) => {
+  const handleMoveInventoryToVault = useCallback(async (inventoryItemIds) => {
     const ids = (Array.isArray(inventoryItemIds) ? inventoryItemIds : [inventoryItemIds])
       .map((x) => Number(x))
       .filter((n) => Number.isInteger(n) && n > 0);
@@ -683,9 +765,7 @@ export default function Inventory() {
             : t("vault.move_success"),
         );
         setBackpackWarehouseModal(null);
-        await fetchData();
-        await fetchMachines();
-        await fetchVault();
+        await fetchData({ background: true });
       } else {
         toast.error(res.data.message || t("vault.move_error"));
       }
@@ -703,22 +783,21 @@ export default function Inventory() {
     } finally {
       setBackpackVaultBusy(false);
     }
-  };
+  }, [fetchData, t]);
 
-  const handleMoveRackToVault = async (userMinerId) => {
+  const handleMoveRackToVault = useCallback(async (userMinerId) => {
     const id = Number(userMinerId);
     if (!Number.isInteger(id) || id <= 0) {
       toast.error(t("common.error"));
       return;
     }
+    setRackActionBusy(true);
     try {
       const res = await api.post("/vault/move-to-vault", { source: "rack", itemId: id });
       if (res.data.ok) {
         toast.success(t("vault.move_success"));
         setSelectedSlot(null);
-        await fetchData();
-        await fetchMachines();
-        await fetchVault();
+        await fetchData({ background: true });
       } else {
         toast.error(res.data.message || t("vault.move_error"));
       }
@@ -737,8 +816,10 @@ export default function Inventory() {
       } else {
         toast.error(err?.response?.data?.message || t("vault.move_error"));
       }
+    } finally {
+      setRackActionBusy(false);
     }
-  };
+  }, [fetchData, t]);
 
   /**
    * Uninstalls every occupied slot in one visual rack (same API as single-slot removal).
@@ -753,49 +834,59 @@ export default function Inventory() {
       if (occupied.length === 0) return;
 
       setRackDismantleLoading(true);
+      setRackActionBusy(true);
       try {
-        for (const slot of occupied) {
-          const res = await api.post("/rooms/rack/uninstall", { rackId: slot.id });
-          if (!res.data?.ok) {
-            toast.error(res.data?.message || t("common.error"));
-            await fetchData();
-            throw new Error("UNINSTALL_FAILED");
-          }
+        const res = await api.post("/rooms/rack/uninstall-batch", {
+          rackIds: occupied.map((slot) => slot.id),
+        });
+        if (!res.data?.ok) {
+          toast.error(res.data?.message || t("common.error"));
+          await fetchData({ background: true });
+          throw new Error("UNINSTALL_FAILED");
         }
         toast.success(t("inventory.dismantle_rack_success"));
-        await fetchData();
+        await fetchData({ background: true });
       } catch (err) {
         if (err?.message !== "UNINSTALL_FAILED") {
           toast.error(err?.response?.data?.message || t("common.error"));
-          await fetchData();
+          await fetchData({ background: true });
         }
         throw err;
       } finally {
         setRackDismantleLoading(false);
+        setRackActionBusy(false);
       }
     },
     [t, fetchData]
   );
 
-  const groupedInventory = useMemo(() => {
-    const groups = {};
-    for (const item of inventory) {
-      const key = inventoryStackKey(item);
-      if (!groups[key]) groups[key] = { ...item, quantity: 1, items: [item] };
-      else {
-        groups[key].quantity += 1;
-        groups[key].items.push(item);
-      }
-    }
-    return Object.values(groups).sort((a, b) => b.hashRate - a.hashRate);
-  }, [inventory]);
+  const groupedInventory = useMemo(() => groupInventoryStacks(inventory), [inventory]);
+  const visibleInventoryGroups = useMemo(
+    () => groupedInventory.slice(0, visibleInventoryGroupsCount),
+    [groupedInventory, visibleInventoryGroupsCount]
+  );
+  const hasMoreInventoryGroups = visibleInventoryGroupsCount < groupedInventory.length;
+
+  useEffect(() => {
+    setVisibleInventoryGroupsCount(SIDEBAR_GROUP_PAGE_SIZE);
+  }, [groupedInventory.length]);
 
   const activeMachinesHashRate = useMemo(() =>
     rooms.flatMap(r => r.racks || []).filter(rack => rack.miner).reduce((sum, rack) => sum + Number(rack.miner?.hashRate || 0), 0), [rooms]);
 
-  const currentRoom = rooms.find(r => r.roomNumber === activeRoom) || null;
-  const visualRacksOfCurrent = currentRoom?.unlocked ? groupIntoRacks(currentRoom.racks || []) : [];
+  const currentRoom = useMemo(
+    () => rooms.find((room) => room.roomNumber === activeRoom) || null,
+    [rooms, activeRoom]
+  );
+  const visualRacksOfCurrent = useMemo(
+    () => (currentRoom?.unlocked ? groupIntoRacks(currentRoom.racks || []) : []),
+    [currentRoom]
+  );
   const rackOffset = currentRoom ? (currentRoom.roomNumber - 1) * (visualRacksOfCurrent.length || 24) : 0;
+  const handleSelectSlot = useCallback((slot) => {
+    setBackpackWarehouseModal(null);
+    setSelectedSlot(slot);
+  }, []);
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-64">
@@ -878,13 +969,11 @@ export default function Inventory() {
                     key={vr.rackNumber}
                     rackNumber={rackOffset + vr.rackNumber}
                     slots={vr.slots}
-                    onSlotClick={(slot) => {
-                      setBackpackWarehouseModal(null);
-                      setSelectedSlot(slot);
-                    }}
+                    onSlotClick={handleSelectSlot}
                     onSlotDrop={handleInstall}
                     onDismantleRack={handleRemoveRackSlots}
                     rackDismantleLoading={rackDismantleLoading}
+                    rackActionBusy={rackActionBusy}
                   />
                 ))}
               </div>
@@ -936,13 +1025,13 @@ export default function Inventory() {
               </div>
             ) : (
               <div className="space-y-3 max-h-[60vh] overflow-y-auto scrollbar-hide pr-1">
-                {groupedInventory.map((group) => {
+                {visibleInventoryGroups.map((group) => {
                   const descriptor = getMachineDescriptor({ hashRate: group.hashRate, slotSize: group.slotSize, imageUrl: group.imageUrl });
                   const firstId = group.items[0]?.id;
                   return (
                     <div
                       key={inventoryStackKey(group)}
-                      draggable
+                      draggable={!rackActionBusy && !backpackVaultBusy}
                       title={t("inventory.modal.choose_machine")}
                       onDragStart={(e) => {
                         e.dataTransfer.setData("inventoryId", String(firstId));
@@ -995,6 +1084,19 @@ export default function Inventory() {
                     </div>
                   );
                 })}
+                {hasMoreInventoryGroups && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVisibleInventoryGroupsCount((current) =>
+                        Math.min(current + SIDEBAR_GROUP_PAGE_SIZE, groupedInventory.length)
+                      )
+                    }
+                    className="min-h-11 w-full rounded-2xl border border-gray-800/70 bg-gray-900/70 px-4 py-3 text-sm font-bold text-gray-300 transition-colors hover:border-gray-700 hover:bg-gray-800"
+                  >
+                    {t("common.load_more", { defaultValue: "Carregar mais" })}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1004,10 +1106,11 @@ export default function Inventory() {
       {selectedSlot && (
         <SlotModal
           slot={selectedSlot}
-          inventory={inventory}
+          groupedInventory={groupedInventory}
           onInstall={handleInstall}
           onRemove={handleRemove}
           onMoveToVault={handleMoveRackToVault}
+          actionBusy={rackActionBusy}
           onClose={() => {
             setSelectedSlot(null);
             setBackpackWarehouseModal(null);

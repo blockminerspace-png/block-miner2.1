@@ -7,6 +7,7 @@ import {
   buyRoom,
   installMiner,
   uninstallMiner,
+  uninstallMinerBatch,
   getSlotsSummary,
 } from "../controllers/roomsController.js";
 
@@ -29,5 +30,11 @@ roomsRouter.post(
   roomsWriteLimiter,
   requireCriticalIdempotency({ scope: "rooms_rack_uninstall" }),
   uninstallMiner,
+);
+roomsRouter.post(
+  "/rack/uninstall-batch",
+  roomsWriteLimiter,
+  requireCriticalIdempotency({ scope: "rooms_rack_uninstall_batch" }),
+  uninstallMinerBatch,
 );
 roomsRouter.get("/slots", getSlotsSummary);

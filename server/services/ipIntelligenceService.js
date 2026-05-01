@@ -1,10 +1,13 @@
 import dns from "dns/promises";
 import net from "net";
-import { normalizeIp } from "../utils/clientIp.js";
+import { deriveDefaultNetworkCidr, normalizeIp } from "../utils/clientIp.js";
 
 const SUCCESS_TTL_DAYS = Number(process.env.IP_INTEL_SUCCESS_TTL_DAYS || 14);
 const ERROR_TTL_HOURS = Number(process.env.IP_INTEL_ERROR_TTL_HOURS || 12);
 const DNS_TIMEOUT_MS = Number(process.env.IP_INTEL_DNS_TIMEOUT_MS || 1200);
+const PROXYCHECK_TTL_HOURS = Number(process.env.PROXYCHECK_TTL_HOURS || 24);
+const PROXYCHECK_TIMEOUT_MS = Number(process.env.PROXYCHECK_TIMEOUT_MS || 1500);
+const PROXYCHECK_DAILY_LIMIT = Number(process.env.PROXYCHECK_DAILY_LIMIT || 1000);
 
 const HOSTING_TERMS = [
   "amazon", "aws", "google cloud", "google llc", "microsoft", "azure", "digitalocean", "hetzner",
@@ -20,6 +23,10 @@ function addMs(date, ms) {
   return new Date(date.getTime() + ms);
 }
 
+function startOfUtcDay(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
 function timeoutPromise(promise, ms) {
   let timer;
   return Promise.race([
@@ -28,6 +35,37 @@ function timeoutPromise(promise, ms) {
       timer = setTimeout(() => reject(new Error("timeout")), ms);
     }),
   ]);
+}
+
+function sliceString(value, max = 255) {
+  const s = String(value || "").trim();
+  return s ? s.slice(0, max) : null;
+}
+
+function parseYesNo(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "yes" || normalized === "true") return true;
+  if (normalized === "no" || normalized === "false") return false;
+  return null;
+}
+
+function parseRiskScore(value) {
+  const n = Number(String(value ?? "").trim());
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function parseUnixSeconds(value) {
+  const n = Number(String(value ?? "").trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const date = new Date(n * 1000);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function proxycheckEnabled() {
+  const key = String(process.env.PROXYCHECK_API_KEY || "").trim();
+  const enabled = String(process.env.PROXYCHECK_ENABLED || "true").trim().toLowerCase();
+  return Boolean(key) && !["0", "false", "no", "off"].includes(enabled);
 }
 
 function classifyFromText(text) {
@@ -80,6 +118,69 @@ function parseIpinfo(data) {
   };
 }
 
+function cacheToResult(row) {
+  if (!row) return null;
+  return {
+    ip: row.ip,
+    ipVersion: row.ipVersion,
+    normalizedIp: row.ip,
+    reverseDns: row.reverseDns,
+    reverseDnsForwardConfirmed: row.reverseDnsForwardConfirmed,
+    asn: row.asn,
+    asnOrg: row.asnOrg,
+    networkCidr: row.networkCidr,
+    providerLabel: row.providerLabel,
+    providerType: row.providerType,
+    confidence: row.confidence,
+    source: row.source,
+    error: row.error,
+    proxyDetected: row.proxyDetected ?? null,
+    proxyType: row.proxyType ?? null,
+    proxyRiskScore: Number.isInteger(row.proxyRiskScore) ? row.proxyRiskScore : null,
+    proxyProvider: row.proxyProvider ?? null,
+    proxyLastSeenAt: row.proxyLastSeenAt ?? null,
+    proxyCheckedAt: row.proxyCheckedAt ?? null,
+    proxyExpiresAt: row.proxyExpiresAt ?? null,
+    proxySource: row.proxySource ?? null,
+    proxyError: row.proxyError ?? null,
+    checkedAt: row.checkedAt,
+    expiresAt: row.expiresAt,
+  };
+}
+
+function pickProxyFields(source = {}) {
+  return {
+    proxyDetected: typeof source.proxyDetected === "boolean" ? source.proxyDetected : null,
+    proxyType: source.proxyType ?? null,
+    proxyRiskScore: Number.isInteger(source.proxyRiskScore) ? source.proxyRiskScore : null,
+    proxyProvider: source.proxyProvider ?? null,
+    proxyLastSeenAt: source.proxyLastSeenAt ?? null,
+    proxyCheckedAt: source.proxyCheckedAt ?? null,
+    proxyExpiresAt: source.proxyExpiresAt ?? null,
+    proxySource: source.proxySource ?? null,
+    proxyError: source.proxyError ?? null,
+  };
+}
+
+async function withinProxycheckDailyBudget(prisma, row, now) {
+  if (!proxycheckEnabled()) return false;
+  if (!(PROXYCHECK_DAILY_LIMIT > 0)) return false;
+  if (!prisma?.ipIntelligenceCache?.count) return true;
+  const floor = startOfUtcDay(now);
+  if (row?.proxyCheckedAt && row.proxyCheckedAt >= floor) return true;
+  const usedToday = await prisma.ipIntelligenceCache.count({
+    where: { proxyCheckedAt: { gte: floor } },
+  }).catch(() => 0);
+  return usedToday < PROXYCHECK_DAILY_LIMIT;
+}
+
+function extractProxycheckRecord(payload, ip) {
+  if (!payload || typeof payload !== "object") return null;
+  if (payload[ip] && typeof payload[ip] === "object") return payload[ip];
+  const fallbackKey = Object.keys(payload).find((key) => key !== "status" && typeof payload[key] === "object");
+  return fallbackKey ? payload[fallbackKey] : null;
+}
+
 export async function lookupAsn(ip, { fetchImpl = globalThis.fetch } = {}) {
   const provider = String(process.env.IP_ASN_PROVIDER || "none").toLowerCase();
   if (provider !== "ipinfo") return { source: "local-heuristic" };
@@ -92,6 +193,37 @@ export async function lookupAsn(ip, { fetchImpl = globalThis.fetch } = {}) {
     return { ...parseIpinfo(await res.json()), source: "ipinfo" };
   } catch {
     return { source: "ipinfo", error: "provider_error" };
+  }
+}
+
+export async function lookupProxycheck(ip, { fetchImpl = globalThis.fetch } = {}) {
+  if (!proxycheckEnabled() || typeof fetchImpl !== "function") {
+    return { source: "proxycheck_v2", error: "provider_not_configured" };
+  }
+  try {
+    const key = encodeURIComponent(String(process.env.PROXYCHECK_API_KEY || "").trim());
+    const url = `https://proxycheck.io/v2/${encodeURIComponent(ip)}?key=${key}&vpn=1&asn=1&risk=1&seen=1`;
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(PROXYCHECK_TIMEOUT_MS) });
+    if (!res.ok) return { source: "proxycheck_v2", error: "provider_error" };
+    const payload = await res.json();
+    if (String(payload?.status || "").toLowerCase() !== "ok") {
+      return { source: "proxycheck_v2", error: "provider_error" };
+    }
+    const record = extractProxycheckRecord(payload, ip);
+    if (!record || typeof record !== "object") {
+      return { source: "proxycheck_v2", error: "provider_error" };
+    }
+    return {
+      source: "proxycheck_v2",
+      proxyDetected: parseYesNo(record.proxy),
+      proxyType: sliceString(record.type, 64),
+      proxyRiskScore: parseRiskScore(record.risk),
+      proxyProvider: sliceString(record.provider, 255),
+      proxyLastSeenAt: parseUnixSeconds(record["last seen unix"]),
+      error: null,
+    };
+  } catch {
+    return { source: "proxycheck_v2", error: "provider_error" };
   }
 }
 
@@ -131,7 +263,7 @@ export async function enrichIp(ipInput, deps = {}) {
     reverseDnsForwardConfirmed,
     asn: asnData.asn ?? null,
     asnOrg: asnData.asnOrg ?? null,
-    networkCidr: asnData.networkCidr ?? null,
+    networkCidr: asnData.networkCidr ?? deriveDefaultNetworkCidr(normalizedIp),
     providerLabel: classification.providerLabel,
     providerType: classification.providerType,
     confidence: classification.confidence,
@@ -141,53 +273,105 @@ export async function enrichIp(ipInput, deps = {}) {
   };
 }
 
-function cacheToResult(row) {
-  if (!row) return null;
-  return {
-    ip: row.ip,
-    ipVersion: row.ipVersion,
-    normalizedIp: row.ip,
-    reverseDns: row.reverseDns,
-    reverseDnsForwardConfirmed: row.reverseDnsForwardConfirmed,
-    asn: row.asn,
-    asnOrg: row.asnOrg,
-    networkCidr: row.networkCidr,
-    providerLabel: row.providerLabel,
-    providerType: row.providerType,
-    confidence: row.confidence,
-    source: row.source,
-    error: row.error,
-    checkedAt: row.checkedAt,
-    expiresAt: row.expiresAt,
-  };
-}
-
 export async function getCachedIpIntelligence(prisma, ipInput, { forceRefresh = false, deps = {} } = {}) {
   const ip = normalizeIp(ipInput);
   if (!ip) return cacheToResult(null);
   const now = new Date();
-  if (!forceRefresh && prisma?.ipIntelligenceCache) {
-    const row = await prisma.ipIntelligenceCache.findUnique({ where: { ip } });
-    if (row && row.expiresAt > now) return cacheToResult(row);
+  const row = prisma?.ipIntelligenceCache?.findUnique
+    ? await prisma.ipIntelligenceCache.findUnique({ where: { ip } }).catch(() => null)
+    : null;
+
+  const coreFresh = Boolean(row?.expiresAt && row.expiresAt > now);
+  const proxyFresh = Boolean(row?.proxyExpiresAt && row.proxyExpiresAt > now);
+  const needsCoreRefresh = forceRefresh || !row || !coreFresh;
+  const needsProxyRefresh = proxycheckEnabled() && (!row || !proxyFresh);
+
+  if (!needsCoreRefresh && !needsProxyRefresh) return cacheToResult(row);
+
+  const baseResult = cacheToResult(row) || {
+    ip,
+    ipVersion: net.isIP(ip),
+    normalizedIp: ip,
+    reverseDns: null,
+    reverseDnsForwardConfirmed: null,
+    asn: null,
+    asnOrg: null,
+    networkCidr: deriveDefaultNetworkCidr(ip),
+    providerLabel: null,
+    providerType: "unknown",
+    confidence: "low",
+    source: "cache",
+    error: null,
+    checkedAt: now,
+    expiresAt: now,
+    proxyDetected: null,
+    proxyType: null,
+    proxyRiskScore: null,
+    proxyProvider: null,
+    proxyLastSeenAt: null,
+    proxyCheckedAt: null,
+    proxyExpiresAt: null,
+    proxySource: null,
+    proxyError: null,
+  };
+
+  let coreResult = baseResult;
+  let coreCheckedAt = baseResult.checkedAt;
+  let coreExpiresAt = baseResult.expiresAt;
+
+  if (needsCoreRefresh) {
+    const enriched = await enrichIp(ip, deps);
+    const ttlMs = enriched.error ? ERROR_TTL_HOURS * 60 * 60 * 1000 : SUCCESS_TTL_DAYS * 24 * 60 * 60 * 1000;
+    coreResult = { ...baseResult, ...enriched, normalizedIp: ip };
+    coreCheckedAt = now;
+    coreExpiresAt = addMs(now, ttlMs);
   }
-  const result = await enrichIp(ip, deps);
-  const ttlMs = result.error ? ERROR_TTL_HOURS * 60 * 60 * 1000 : SUCCESS_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+  let proxyResult = pickProxyFields(baseResult);
+  if (needsProxyRefresh && await withinProxycheckDailyBudget(prisma, row, now)) {
+    const lookedUp = await lookupProxycheck(ip, deps);
+    proxyResult = {
+      ...proxyResult,
+      proxyCheckedAt: now,
+      proxyExpiresAt: addMs(now, PROXYCHECK_TTL_HOURS * 60 * 60 * 1000),
+      proxySource: sliceString(lookedUp.source, 64) || "proxycheck_v2",
+      proxyError: sliceString(lookedUp.error, 64),
+    };
+    if (!lookedUp.error) {
+      proxyResult.proxyDetected = typeof lookedUp.proxyDetected === "boolean" ? lookedUp.proxyDetected : null;
+      proxyResult.proxyType = sliceString(lookedUp.proxyType, 64);
+      proxyResult.proxyRiskScore = Number.isInteger(lookedUp.proxyRiskScore) ? lookedUp.proxyRiskScore : null;
+      proxyResult.proxyProvider = sliceString(lookedUp.proxyProvider, 255);
+      proxyResult.proxyLastSeenAt = lookedUp.proxyLastSeenAt ?? null;
+    }
+  }
+
   const data = {
     ip,
-    ipVersion: result.ipVersion || 0,
-    reverseDns: result.reverseDns,
-    reverseDnsForwardConfirmed: result.reverseDnsForwardConfirmed,
-    asn: result.asn,
-    asnOrg: result.asnOrg,
-    networkCidr: result.networkCidr,
-    providerLabel: result.providerLabel,
-    providerType: result.providerType || "unknown",
-    confidence: result.confidence || "low",
-    source: result.source || "unknown",
-    error: result.error,
-    checkedAt: now,
-    expiresAt: addMs(now, ttlMs),
+    ipVersion: coreResult.ipVersion || net.isIP(ip) || 0,
+    reverseDns: coreResult.reverseDns ?? null,
+    reverseDnsForwardConfirmed: coreResult.reverseDnsForwardConfirmed ?? null,
+    asn: Number.isInteger(coreResult.asn) ? coreResult.asn : null,
+    asnOrg: sliceString(coreResult.asnOrg, 255),
+    networkCidr: sliceString(coreResult.networkCidr, 64) || deriveDefaultNetworkCidr(ip),
+    providerLabel: sliceString(coreResult.providerLabel, 255),
+    providerType: sliceString(coreResult.providerType, 64) || "unknown",
+    confidence: sliceString(coreResult.confidence, 32) || "low",
+    source: sliceString(coreResult.source, 64) || "unknown",
+    error: sliceString(coreResult.error, 64),
+    proxyDetected: typeof proxyResult.proxyDetected === "boolean" ? proxyResult.proxyDetected : null,
+    proxyType: sliceString(proxyResult.proxyType, 64),
+    proxyRiskScore: Number.isInteger(proxyResult.proxyRiskScore) ? proxyResult.proxyRiskScore : null,
+    proxyProvider: sliceString(proxyResult.proxyProvider, 255),
+    proxyLastSeenAt: proxyResult.proxyLastSeenAt instanceof Date ? proxyResult.proxyLastSeenAt : null,
+    proxyCheckedAt: proxyResult.proxyCheckedAt instanceof Date ? proxyResult.proxyCheckedAt : null,
+    proxyExpiresAt: proxyResult.proxyExpiresAt instanceof Date ? proxyResult.proxyExpiresAt : null,
+    proxySource: sliceString(proxyResult.proxySource, 64),
+    proxyError: sliceString(proxyResult.proxyError, 64),
+    checkedAt: coreCheckedAt instanceof Date ? coreCheckedAt : now,
+    expiresAt: coreExpiresAt instanceof Date ? coreExpiresAt : now,
   };
+
   if (prisma?.ipIntelligenceCache) {
     await prisma.ipIntelligenceCache.upsert({
       where: { ip },
@@ -195,5 +379,6 @@ export async function getCachedIpIntelligence(prisma, ipInput, { forceRefresh = 
       update: data,
     });
   }
-  return { ...result, expiresAt: data.expiresAt };
+
+  return cacheToResult(data);
 }

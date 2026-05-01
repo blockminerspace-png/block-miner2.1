@@ -381,6 +381,11 @@ async function cachedIpIntelMap(prisma, ips) {
     providerLabel: row.providerLabel,
     providerType: row.providerType,
     confidence: row.confidence,
+    proxyDetected: row.proxyDetected ?? null,
+    proxyType: row.proxyType ?? null,
+    proxyRiskScore: Number.isInteger(row.proxyRiskScore) ? row.proxyRiskScore : null,
+    proxyProvider: row.proxyProvider ?? null,
+    proxyCheckedAt: row.proxyCheckedAt ?? null,
     checkedAt: row.checkedAt,
   }]));
 }

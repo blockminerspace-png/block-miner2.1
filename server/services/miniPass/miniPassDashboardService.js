@@ -2,7 +2,7 @@ import prisma from "../../src/db/prisma.js";
 import { computePassLevel, xpCapForSeason, xpRemainingToCap } from "./miniPassLevelMath.js";
 import { pickMiniPassI18n } from "./miniPassI18n.js";
 import { resolveMissionPeriodKey } from "./miniPassPeriod.js";
-import { isMiniPassSeasonLive } from "./miniPassSeasonLive.js";
+import { getMiniPassSeasonState } from "./miniPassSeasonLive.js";
 
 function mapRewardRow(r, langHeader) {
   return {
@@ -43,25 +43,33 @@ export async function listLiveMiniPassSeasons(langHeader) {
     where: {
       deletedAt: null,
       isActive: true,
-      startsAt: { lte: now },
       endsAt: { gte: now }
     },
-    orderBy: { id: "desc" }
+    orderBy: [{ startsAt: "asc" }, { id: "desc" }]
   });
 
-  return rows.map((s) => ({
-    id: s.id,
-    slug: s.slug,
-    title: pickMiniPassI18n(s.titleI18n, langHeader),
-    subtitle: pickMiniPassI18n(s.subtitleI18n, langHeader),
-    startsAt: s.startsAt.toISOString(),
-    endsAt: s.endsAt.toISOString(),
-    bannerImageUrl: s.bannerImageUrl,
-    maxLevel: s.maxLevel,
-    xpPerLevel: s.xpPerLevel,
-    buyLevelPricePol: String(s.buyLevelPricePol),
-    completePassPricePol: String(s.completePassPricePol)
-  }));
+  return rows
+    .map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      title: pickMiniPassI18n(s.titleI18n, langHeader),
+      subtitle: pickMiniPassI18n(s.subtitleI18n, langHeader),
+      startsAt: s.startsAt.toISOString(),
+      endsAt: s.endsAt.toISOString(),
+      bannerImageUrl: s.bannerImageUrl,
+      maxLevel: s.maxLevel,
+      xpPerLevel: s.xpPerLevel,
+      buyLevelPricePol: String(s.buyLevelPricePol),
+      completePassPricePol: String(s.completePassPricePol),
+      state: getMiniPassSeasonState(s, now)
+    }))
+    .filter((s) => s.state === "upcoming" || s.state === "live")
+    .sort((a, b) => {
+      const weight = (state) => (state === "live" ? 0 : state === "upcoming" ? 1 : 2);
+      const delta = weight(a.state) - weight(b.state);
+      if (delta !== 0) return delta;
+      return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+    });
 }
 
 export async function getMiniPassSeasonDashboard(userId, seasonId, langHeader) {
@@ -75,7 +83,11 @@ export async function getMiniPassSeasonDashboard(userId, seasonId, langHeader) {
   });
 
   if (!season) return { ok: false, code: "not_found", status: 404 };
-  if (!isMiniPassSeasonLive(season, now)) {
+  const seasonState = getMiniPassSeasonState(season, now);
+  if (seasonState === "hidden") {
+    return { ok: false, code: "not_found", status: 404 };
+  }
+  if (seasonState === "ended") {
     return { ok: false, code: "season_not_live", status: 400 };
   }
 
@@ -85,11 +97,13 @@ export async function getMiniPassSeasonDashboard(userId, seasonId, langHeader) {
   });
   if (!user || user.isBanned) return { ok: false, code: "forbidden", status: 403 };
 
-  await prisma.userMiniPassEnrollment.upsert({
-    where: { userId_seasonId: { userId, seasonId } },
-    create: { userId, seasonId, totalXp: 0 },
-    update: {}
-  });
+  if (seasonState === "live") {
+    await prisma.userMiniPassEnrollment.upsert({
+      where: { userId_seasonId: { userId, seasonId } },
+      create: { userId, seasonId, totalXp: 0 },
+      update: {}
+    });
+  }
 
   const [enr, claims] = await Promise.all([
     prisma.userMiniPassEnrollment.findUnique({
@@ -141,6 +155,7 @@ export async function getMiniPassSeasonDashboard(userId, seasonId, langHeader) {
     season: {
       id: season.id,
       slug: season.slug,
+      state: seasonState,
       title: pickMiniPassI18n(season.titleI18n, langHeader),
       subtitle: pickMiniPassI18n(season.subtitleI18n, langHeader),
       startsAt: season.startsAt.toISOString(),

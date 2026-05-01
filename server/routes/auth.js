@@ -8,7 +8,6 @@ import { getTokenFromRequest, getRefreshTokenFromRequest, ACCESS_COOKIE_NAME, RE
 import { signAccessToken, createRefreshToken, parseRefreshToken, verifyAccessToken } from "../utils/authTokens.js";
 import { createRefreshTokenRecord, getRefreshTokenById, revokeRefreshToken } from "../models/refreshTokenModel.js";
 import { createAuditLogBestEffort } from "../models/auditLogModel.js";
-import { updateUserLoginMeta } from "../models/userModel.js";
 import { createDistributedRateLimiter } from "../middleware/distributedRateLimit.js";
 import { validateBody } from "../middleware/validate.js";
 import { registerBodySchema } from "../validation/registerBodySchema.js";
@@ -27,6 +26,13 @@ import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErr
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
 import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../services/emailTwoFactorService.js";
+import {
+  buildDeviceFingerprint,
+  evaluateRegistrationAttempt,
+  getAuthIpContext,
+  recordUserIpLog,
+} from "../services/authNetworkSignalService.js";
+import { getCachedIpIntelligence } from "../services/ipIntelligenceService.js";
 import loggerLib, { logUserActivity } from "../utils/logger.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
 import { isAdminKeyedPasswordResetApiEnabled } from "../utils/adminPasswordResetPolicy.js";
@@ -230,6 +236,8 @@ authRouter.post(
     const normalizedUsername = normalizeIdentifier(username);
     const normalizedEmail = normalizeEmail(email);
     const clientIp = getRequestIp(req);
+    const deviceFingerprint = buildDeviceFingerprint(req);
+    const ipContext = await getAuthIpContext(prisma, clientIp);
 
     if (!acceptTerms) {
       return res.status(400).json({
@@ -239,14 +247,30 @@ authRouter.post(
       });
     }
 
-    // 1. IP-based Anti-Abuse: Limit accounts per IP (max 2 for families/roommates)
-    const accountsWithSameIp = await prisma.user.count({
-      where: { ip: clientIp }
+    const registrationAttempt = await evaluateRegistrationAttempt(prisma, {
+      ip: clientIp,
+      networkCidr: ipContext.networkCidr,
+      providerType: ipContext.providerType,
+      deviceFingerprint,
     });
-
-    if (accountsWithSameIp >= 2) {
-      logger.warn(`Registration blocked: IP ${clientIp} already has ${accountsWithSameIp} accounts.`);
-      return res.status(403).json({ ok: false, code: "REGISTRATION_LIMIT_REACHED", message: "Registration limit reached for this connection." });
+    if (!registrationAttempt.allowed) {
+      logSecurityEvent("AUTH_REGISTER_COOLDOWN", {
+        ip: clientIp,
+        networkCidr: ipContext.networkCidr,
+        providerType: ipContext.providerType,
+        deviceFingerprint,
+        score: registrationAttempt.score,
+        reasons: registrationAttempt.reasons,
+        recentExactIp: registrationAttempt.recentExactIp,
+        recentFingerprint: registrationAttempt.recentFingerprint,
+        recentNetwork: registrationAttempt.recentNetwork,
+      }, req);
+      return res.status(429).json({
+        ok: false,
+        code: "REGISTRATION_COOLDOWN",
+        message: "Too many recent registrations from this network or device. Try again later.",
+        cooldownMinutes: registrationAttempt.cooldownMinutes,
+      });
     }
 
     const existing = await prisma.user.findFirst({
@@ -268,13 +292,22 @@ authRouter.post(
       const referrer = await resolveReferrerFromRefInput(refCodeInput);
       if (referrer) {
         // 2. Anti-Self-Referral: Prevent referring if IP matches or last known IP matches
-        if (referrer.ip === clientIp) {
+        if (referrer.ip === clientIp || referrer.registrationIp === clientIp) {
           logger.warn(`Self-referral attempt blocked: User ${normalizedUsername} tried to use refCode from same IP ${clientIp}`);
         } else {
           referrerId = referrer.id;
         }
       }
     }
+
+    const freshIpIntel = await getCachedIpIntelligence(prisma, clientIp).catch(() => null);
+    const authIpContext = freshIpIntel
+      ? {
+          networkCidr: freshIpIntel.networkCidr,
+          asn: freshIpIntel.asn,
+          providerType: freshIpIntel.providerType,
+        }
+      : ipContext;
 
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -284,7 +317,9 @@ authRouter.post(
           email: normalizedEmail,
           passwordHash,
           refCode: refCode,
-          ip: clientIp, // Store IP immediately on registration
+          ip: clientIp,
+          registrationIp: clientIp,
+          userAgent: req.headers["user-agent"] || null,
           polBalance: 0,
           usdcBalance: 0
         }
@@ -342,6 +377,17 @@ authRouter.post(
         })
       });
 
+      await recordUserIpLog(tx, {
+        userId: user.id,
+        ip: clientIp,
+        networkCidr: authIpContext.networkCidr,
+        asn: authIpContext.asn,
+        providerType: authIpContext.providerType,
+        deviceFingerprint,
+        userAgent: req.headers["user-agent"] || null,
+        eventType: "register",
+      });
+
       return user;
     });
 
@@ -393,6 +439,8 @@ authRouter.post(
   try {
     const { identifier, password, twoFactorToken, twoFactorChallengeToken } = req.body;
     const clientIp = getRequestIp(req);
+    const deviceFingerprint = buildDeviceFingerprint(req);
+    const ipContext = await getAuthIpContext(prisma, clientIp);
 
     const ipLock = await getAuthLockStatus({ ip: clientIp, userId: null });
     if (ipLock.locked) {
@@ -568,6 +616,15 @@ authRouter.post(
       }
     }
 
+    const freshIpIntel = await getCachedIpIntelligence(prisma, clientIp).catch(() => null);
+    const authIpContext = freshIpIntel
+      ? {
+          networkCidr: freshIpIntel.networkCidr,
+          asn: freshIpIntel.asn,
+          providerType: freshIpIntel.providerType,
+        }
+      : ipContext;
+
     // Update login meta and store audit event in the outbox
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
@@ -590,6 +647,16 @@ authRouter.post(
             payload: {}
           }
         })
+      });
+      await recordUserIpLog(tx, {
+        userId: user.id,
+        ip: clientIp,
+        networkCidr: authIpContext.networkCidr,
+        asn: authIpContext.asn,
+        providerType: authIpContext.providerType,
+        deviceFingerprint,
+        userAgent: req.headers["user-agent"] || null,
+        eventType: "login",
       });
     });
 

@@ -99,6 +99,12 @@ export function validateSeasonForm(form) {
   const xpPerLevel = parseInt(String(form.xpPerLevel), 10);
   if (!Number.isFinite(maxLevel) || maxLevel < 1 || maxLevel > 500) keys.push("invalid_max_level");
   if (!Number.isFinite(xpPerLevel) || xpPerLevel < 1 || xpPerLevel > 1_000_000) keys.push("invalid_xp_per_level");
+  if (form.buyLevelPricePol != null && !/^\d+(?:[.,]\d+)?$/.test(String(form.buyLevelPricePol).trim())) {
+    keys.push("invalid_buy_level_price");
+  }
+  if (form.completePassPricePol != null && !/^\d+(?:[.,]\d+)?$/.test(String(form.completePassPricePol).trim())) {
+    keys.push("invalid_complete_pass_price");
+  }
 
   return keys;
 }
@@ -107,8 +113,8 @@ export function summarizeRewardRow(r) {
   if (!r || r.rewardKind == null || String(r.rewardKind).trim() === "") return "—";
   const kind = String(r.rewardKind || "NONE").toUpperCase();
   if (kind === "NONE") return "—";
-  if (kind === "SHOP_MINER") return `Miner #${r.minerId ?? "?"}`;
-  if (kind === "EVENT_MINER") return `Event #${r.eventMinerId ?? "?"}`;
+  if (kind === "SHOP_MINER") return r.miner?.name || r.titleI18n?.ptBR || r.titleI18n?.en || `Miner #${r.minerId ?? "?"}`;
+  if (kind === "EVENT_MINER") return r.eventMiner?.name || r.titleI18n?.ptBR || r.titleI18n?.en || `Event #${r.eventMinerId ?? "?"}`;
   if (kind === "HASHRATE_TEMP") return `${r.hashRate ?? "?"} H/s × ${r.hashRateDays ?? "?"}d`;
   if (kind === "BLK") return `BLK ${r.blkAmount ?? "?"}`;
   if (kind === "POL") return `POL ${r.polAmount ?? "?"}`;
