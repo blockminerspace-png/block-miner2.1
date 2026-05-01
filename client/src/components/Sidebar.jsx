@@ -24,6 +24,7 @@ import {
   normalizeMiniPassOutOfRewardsGroup,
 } from '../utils/sidebarNavMap';
 import { pathMatchesNavChild } from '../utils/sidebarPathMatch.js';
+import { prefetchRoute } from '../utils/routePrefetch.js';
 
 export default function Sidebar() {
   const { t } = useTranslation();
@@ -96,6 +97,7 @@ export default function Sidebar() {
   ];
 
   const handleNav = (path) => {
+    void prefetchRoute(path);
     navigate(path);
     setMobileOpen(false);
   };
@@ -169,6 +171,8 @@ export default function Sidebar() {
                               <button
                                 key={child.path}
                                 type="button"
+                                onMouseEnter={() => void prefetchRoute(child.path)}
+                                onFocus={() => void prefetchRoute(child.path)}
                                 onClick={() => handleNav(child.path)}
                                 className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 group ${
                                   isChildActive
@@ -209,6 +213,8 @@ export default function Sidebar() {
                   <button
                     key={item.key}
                     type="button"
+                    onMouseEnter={() => void prefetchRoute(item.path)}
+                    onFocus={() => void prefetchRoute(item.path)}
                     onClick={() => handleNav(item.path)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 group ${
                       isActive
@@ -385,7 +391,9 @@ export default function Sidebar() {
             <button
               key={item.path}
               type="button"
-              onClick={() => navigate(item.path)}
+              onMouseEnter={() => void prefetchRoute(item.path)}
+              onFocus={() => void prefetchRoute(item.path)}
+              onClick={() => handleNav(item.path)}
               className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 rounded-xl transition-all duration-300 ${
                 isActive ? 'text-primary' : 'text-gray-500 hover:text-white'
               }`}

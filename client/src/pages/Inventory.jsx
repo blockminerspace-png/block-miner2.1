@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Lock, Plus, Zap, Trash2, Box, AlertCircle, X, Warehouse } from "lucide-react";
 import { api } from "../store/auth";
 import { useGameStore } from "../store/game";
+import i18n from "../i18n/config.js";
 import { formatHashrate, DEFAULT_MINER_IMAGE_URL, getMachineDescriptor } from "../utils/machine";
 import { dedupeOccupiedSlotsForDismantle } from "../utils/inventoryRackUtils.js";
 import RackMachineTooltipPortal from "../components/inventory/RackMachineTooltipPortal.jsx";
@@ -665,14 +666,14 @@ export default function Inventory() {
       if (invRes.data.ok) setInventory(invRes.data.inventory || []);
     } catch {
       if (requestId === latestFetchIdRef.current) {
-        toast.error(t("inventory.load_error"));
+        toast.error(i18n.t("inventory.load_error"));
       }
     } finally {
       if (requestId === latestFetchIdRef.current) {
         setLoading(false);
       }
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     initSocket();

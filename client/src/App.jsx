@@ -11,6 +11,7 @@ import AdBanner from './components/AdBanner';
 import SiteFooter from './components/SiteFooter';
 import BroadcastPopup from './components/BroadcastPopup';
 import TransparencyErrorBoundary from './components/TransparencyErrorBoundary';
+import { prefetchProtectedBootstrap } from './utils/routePrefetch.js';
 
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -101,6 +102,17 @@ const ProtectedLayout = () => {
   useEffect(() => {
     void checkSession({ silent: true });
   }, [checkSession]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const run = () => prefetchProtectedBootstrap();
+    if (typeof requestIdleCallback !== 'undefined') {
+      const id = requestIdleCallback(run, { timeout: 3500 });
+      return () => cancelIdleCallback(id);
+    }
+    const tid = window.setTimeout(run, 1600);
+    return () => clearTimeout(tid);
+  }, [isAuthenticated]);
 
   if (isLoading) {
     return (
