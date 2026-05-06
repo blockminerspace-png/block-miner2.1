@@ -11,8 +11,29 @@ class ErrorBoundary extends React.Component {
     }
 
     componentDidCatch(error, errorInfo) {
-        console.error("Critical Render Error caught by Boundary:", error, errorInfo);
-        this.setState({ errorDetail: error?.message || String(error), errorStack: errorInfo?.componentStack });
+        const msg = String(error?.message || error || '');
+        const isStaleChunk =
+            /Failed to fetch dynamically imported module|ChunkLoadError|Loading chunk [\d]+ failed|Importing a module script failed/i.test(
+                msg,
+            );
+        if (isStaleChunk) {
+            try {
+                const k = 'bm_chunk_reload_v1';
+                if (!sessionStorage.getItem(k)) {
+                    sessionStorage.setItem(k, '1');
+                    window.location.reload();
+                    return;
+                }
+            } catch {
+                /* private mode */
+            }
+        }
+        console.error('Critical Render Error caught by Boundary:', error, errorInfo);
+        this.setState({
+            errorDetail: msg,
+            errorStack: errorInfo?.componentStack,
+            staleChunkAfterReload: isStaleChunk,
+        });
     }
 
     render() {
@@ -40,11 +61,21 @@ class ErrorBoundary extends React.Component {
                     <h1 style={{ fontSize: '24px', fontWeight: '900', textTransform: 'uppercase', fontStyle: 'italic', marginBottom: '10px' }}>
                         Erro de Interface
                     </h1>
-                    <p style={{ color: '#94a3b8', maxWidth: '400px', marginBottom: '30px', lineHeight: '1.5' }}>
-                        Ocorreu um erro crítico na renderização. Isso acontece quando alguns dados da conta estão inconsistentes.
+                    <p style={{ color: '#94a3b8', maxWidth: '420px', marginBottom: '30px', lineHeight: '1.5' }}>
+                        {this.state.staleChunkAfterReload
+                            ? 'O navegador ficou com uma versão antiga dos ficheiros (cache) enquanto o site já foi atualizado. Faz um recarregamento forçado (Ctrl+Shift+R) ou limpa o cache deste site.'
+                            : 'Ocorreu um erro crítico na renderização. Isso acontece quando alguns dados da conta estão inconsistentes.'}
                     </p>
-                    <button 
-                        onClick={() => window.location.reload()}
+                    <button
+                        onClick={() => {
+                            try {
+                                sessionStorage.removeItem('bm_chunk_reload_v1');
+                                sessionStorage.removeItem('bm_asset_reload_v1');
+                            } catch {
+                                /* ignore */
+                            }
+                            window.location.reload();
+                        }}
                         style={{
                             padding: '12px 24px',
                             backgroundColor: '#3B82F6',

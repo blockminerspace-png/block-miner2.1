@@ -240,10 +240,20 @@ export async function adminApproveTicket(req, res) {
       });
     }
 
+    /** Verificador marcou `failed` (ex.: montante mínimo, timeout, wallet); não há INSERT novo — índice único em `tx_hash`. Reativar a mesma linha. */
+    const reviveFailedDeposit =
+      existingDepositByHash &&
+      existingDepositByHash.userId === ticket.userId &&
+      existingDepositByHash.status === "failed"
+        ? { id: existingDepositByHash.id, priorRaw: existingDepositByHash.rawTx }
+        : null;
+
     if (
       existingDepositByHash &&
       existingDepositByHash.userId === ticket.userId &&
-      existingDepositByHash.status !== "completed"
+      existingDepositByHash.status !== "completed" &&
+      existingDepositByHash.status !== "pending" &&
+      existingDepositByHash.status !== "failed"
     ) {
       return res.status(409).json({
         ok: false,
@@ -258,8 +268,41 @@ export async function adminApproveTicket(req, res) {
     );
     const priorCredited = resolveTicketOnly ? Number(existingDepositByHash.amount) : null;
 
+    let priorFailureKey = null;
+    if (reviveFailedDeposit?.priorRaw) {
+      try {
+        const parsed = JSON.parse(String(reviveFailedDeposit.priorRaw));
+        if (parsed && typeof parsed === "object" && parsed.error != null) {
+          priorFailureKey = String(parsed.error);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
-      if (!resolveTicketOnly) {
+      if (reviveFailedDeposit) {
+        await tx.user.update({
+          where: { id: ticket.userId },
+          data: { polBalance: { increment: creditAmount } },
+        });
+
+        await tx.transaction.update({
+          where: { id: reviveFailedDeposit.id },
+          data: {
+            status: "completed",
+            amount: String(creditAmount),
+            fromAddress: ticket.walletAddress ? String(ticket.walletAddress).trim().toLowerCase() : null,
+            completedAt: new Date(),
+            rawTx: JSON.stringify({
+              adminManualCreditRevived: true,
+              creditAmount,
+              ticketId: ticket.id,
+              priorFailure: priorFailureKey,
+            }),
+          },
+        });
+      } else if (!resolveTicketOnly) {
         await tx.user.update({
           where: { id: ticket.userId },
           data: { polBalance: { increment: creditAmount } },
@@ -282,7 +325,11 @@ export async function adminApproveTicket(req, res) {
         where: { id: ticket.id },
         data: {
           status: "credited",
-          adminAction: resolveTicketOnly ? "ticket_closed_duplicate_tx" : "credit_applied",
+          adminAction: resolveTicketOnly
+            ? "ticket_closed_duplicate_tx"
+            : reviveFailedDeposit
+              ? "credit_revived_from_failed"
+              : "credit_applied",
           adminNote: note || null,
           creditedAmount: String(priorCredited != null ? priorCredited : creditAmount),
           resolvedAt: new Date(),
@@ -296,7 +343,9 @@ export async function adminApproveTicket(req, res) {
           title: "Depósito Creditado",
           message: resolveTicketOnly
             ? `Seu ticket de depósito foi encerrado: o hash já tinha sido creditado automaticamente (${Number(notifyAmount).toFixed(4)} POL).`
-            : `Seu ticket de depósito foi analisado e ${creditAmount.toFixed(4)} POL foram creditados na sua carteira.`,
+            : reviveFailedDeposit
+              ? `Seu ticket de depósito foi analisado e ${creditAmount.toFixed(4)} POL foram creditados (verificação automática anterior não tinha concluído).`
+              : `Seu ticket de depósito foi analisado e ${creditAmount.toFixed(4)} POL foram creditados na sua carteira.`,
           type: "success",
         },
       });
@@ -311,8 +360,11 @@ export async function adminApproveTicket(req, res) {
       ok: true,
       message: resolveTicketOnly
         ? "Ticket fechado: o depósito deste hash já estava registado (evita duplicar crédito)."
-        : "Depósito creditado com sucesso.",
+        : reviveFailedDeposit
+          ? "Depósito creditado com sucesso (registo que estava falhado na verificação automática foi concluído)."
+          : "Depósito creditado com sucesso.",
       alreadyCredited: resolveTicketOnly,
+      revivedFromFailed: Boolean(reviveFailedDeposit),
     });
   } catch (error) {
     logger.error("adminApproveTicket error", { message: String(error?.message || error), code: error?.code });

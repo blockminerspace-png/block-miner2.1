@@ -69,7 +69,9 @@ export default function AdminDepositTickets() {
                 toast.success(
                     res.data.alreadyCredited
                         ? 'Ticket fechado: este hash já tinha sido creditado automaticamente (sem duplicar saldo).'
-                        : 'Depósito creditado com sucesso!',
+                        : res.data.revivedFromFailed
+                          ? 'Depósito creditado: o registo na blockchain estava em estado falhado e foi concluído manualmente.'
+                          : 'Depósito creditado com sucesso!',
                 );
                 setSelected(null);
                 fetchTickets();

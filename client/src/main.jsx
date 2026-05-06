@@ -29,6 +29,25 @@ window.addEventListener(
   true
 )
 
+/** React.lazy / Vite dynamic import(): failed fetch (404 hash mismatch) does not fire script `error`. */
+window.addEventListener('unhandledrejection', (event) => {
+  const r = event?.reason
+  const msg = typeof r === 'string' ? r : r?.message || String(r || '')
+  if (!/Failed to fetch dynamically imported module|ChunkLoadError|Loading chunk [\d]+ failed/i.test(msg)) {
+    return
+  }
+  try {
+    const k = 'bm_chunk_reload_v1'
+    if (!sessionStorage.getItem(k)) {
+      sessionStorage.setItem(k, '1')
+      event.preventDefault()
+      window.location.reload()
+    }
+  } catch {
+    /* private mode */
+  }
+})
+
 const el = document.getElementById('root')
 if (!el) {
   document.body.innerHTML = '<p style="font-family:sans-serif;padding:2rem;color:#fff;background:#020617">Missing #root</p>'
