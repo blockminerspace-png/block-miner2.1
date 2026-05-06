@@ -17,7 +17,7 @@ import {
   REGISTER_PASSWORD_MAX_LEN,
   REGISTER_REF_CODE_MAX_LEN,
 } from '../constants/registerFieldLimits';
-import { isRegisterAllowedEmailDomain } from '../../../server/validation/registerAllowedEmailDomains.js';
+import { isRegisterAllowedEmailDomain } from '../utils/registerAllowedEmailDomains';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
 /** Loose RFC-like check; server Zod still authorizes. */
