@@ -77,7 +77,10 @@ export default function AdminDepositTickets() {
                 toast.error(res.data.message);
             }
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Erro ao aprovar.');
+            const raw = err.response?.data?.message;
+            const msg = typeof raw === 'string' ? raw : '';
+            const ugly = /Invalid `prisma\.|PrismaClient|P2002|Unique constraint|invocation/i.test(msg);
+            toast.error(ugly ? 'Não foi possível creditar o ticket. Atualiza a página ou tenta de novo.' : (msg || 'Erro ao aprovar.'));
         }
         setSubmitting(false);
     };
@@ -95,7 +98,10 @@ export default function AdminDepositTickets() {
                 toast.error(res.data.message);
             }
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Erro ao rejeitar.');
+            const raw = err.response?.data?.message;
+            const msg = typeof raw === 'string' ? raw : '';
+            const ugly = /Invalid `prisma\.|PrismaClient|P2002|Unique constraint|invocation/i.test(msg);
+            toast.error(ugly ? 'Não foi possível rejeitar o ticket. Atualiza a página ou tenta de novo.' : (msg || 'Erro ao rejeitar.'));
         }
         setSubmitting(false);
     };

@@ -425,8 +425,23 @@ authRouter.post(
     logUserActivity("AUTH_REGISTER_SUCCESS", req, { userId: result.id });
     res.status(201).json({ ok: true, user: { id: result.id, name: result.name, username: normalizedUsername, email: normalizedEmail } });
   } catch (error) {
-    logger.error("Register error", { error: error.message });
-    res.status(500).json({ ok: false, code: "REGISTRATION_FAILED", message: "Registration failed." });
+    const errMsg = String(error?.message || error || "");
+    const prismaCode = error?.code;
+    logger.error("Register error", { message: errMsg, prismaCode, meta: error?.meta });
+
+    if (prismaCode === "P2002") {
+      return res.status(409).json({
+        ok: false,
+        code: "USER_ALREADY_EXISTS",
+        message: "User already exists.",
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      code: "REGISTRATION_FAILED",
+      message: "auth.register.errors.registration_failed",
+    });
   }
 });
 

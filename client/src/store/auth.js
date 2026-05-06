@@ -168,14 +168,21 @@ export const useAuthStore = create((set) => ({
             return { success: true };
         } catch (error) {
             const firstError = error.response?.data?.errors?.[0];
-            const code = error.response?.data?.code;
+            let code = error.response?.data?.code;
+            const rawMsg = firstError?.message || error.response?.data?.message || '';
+            const msgStr = typeof rawMsg === 'string' ? rawMsg : '';
+            /** Never surface Prisma/engine stack text in the UI store. */
+            const looksTechnical =
+                /Invalid `prisma\.|PrismaClient|prisma\.|PANIC|Expected .* got .*invocation/i.test(msgStr);
+            const safeMessage = looksTechnical ? 'auth.register.errors.registration_failed' : msgStr || 'auth.register.errors.registration_failed';
+            if (looksTechnical && !code) code = 'REGISTRATION_FAILED';
             set({
-                error: firstError?.message || error.response?.data?.message || 'Registration failed.',
+                error: safeMessage,
                 isLoading: false
             });
             return {
                 success: false,
-                message: firstError?.message || error.response?.data?.message,
+                message: safeMessage,
                 code,
                 fieldPath: firstError?.path,
                 fieldMessage: firstError?.message

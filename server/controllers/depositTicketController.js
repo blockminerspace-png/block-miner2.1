@@ -4,6 +4,68 @@ import { applyUserBalanceDelta, getMiningEngine } from "../src/runtime/miningRun
 
 const logger = loggerLib.child("DepositTicketController");
 
+/**
+ * Maps Prisma failures to safe JSON for the admin panel (never exposes raw engine text).
+ * @param {import("express").Response} res
+ * @param {unknown} error
+ * @param {"approve"|"reject"|"get"} op
+ */
+function respondDepositTicketDbError(res, error, op) {
+  const code = error && typeof error === "object" && "code" in error ? String(/** @type {{ code?: string }} */ (error).code) : "";
+  const meta = error && typeof error === "object" && "meta" in error ? /** @type {{ meta?: unknown }} */ (error).meta : undefined;
+  const metaStr = String(JSON.stringify(meta != null ? meta : {})).toLowerCase();
+
+  if (code === "P2002") {
+    const looksTxHashUnique =
+      metaStr.includes("tx_hash") ||
+      metaStr.includes("transactions_deposit") ||
+      metaStr.includes("deposit_txhash");
+    if (op === "approve") {
+      return res.status(409).json({
+        ok: false,
+        code: looksTxHashUnique || metaStr === "{}" || metaStr === "" ? "DEPOSIT_TX_HASH_DUPLICATE" : "DUPLICATE_RECORD",
+        message:
+          looksTxHashUnique || metaStr === "{}" || metaStr === ""
+            ? "Este hash já está registado como depósito (verificação automática ou outro pedido). Atualize a lista, confira o saldo do jogador e feche o ticket se já estiver resolvido."
+            : "Não foi possível guardar: registo duplicado. Atualize a página e tente de novo.",
+      });
+    }
+    return res.status(409).json({
+      ok: false,
+      code: "DUPLICATE_RECORD",
+      message: "Não foi possível concluir a operação (conflito de dados). Atualize e tente de novo.",
+    });
+  }
+
+  if (code === "P2025") {
+    return res.status(409).json({
+      ok: false,
+      code: "RECORD_NOT_FOUND",
+      message: "Os dados mudaram noutro pedido. Atualize o ticket e tente de novo.",
+    });
+  }
+
+  if (op === "approve") {
+    return res.status(500).json({
+      ok: false,
+      code: "DEPOSIT_TICKET_APPROVE_FAILED",
+      message: "Não foi possível creditar o ticket. Tenta outra vez; se repetir, anota o ID do ticket e contacta suporte.",
+    });
+  }
+  if (op === "reject") {
+    return res.status(500).json({
+      ok: false,
+      code: "DEPOSIT_TICKET_REJECT_FAILED",
+      message: "Não foi possível rejeitar o ticket. Atualiza a página e tenta de novo.",
+    });
+  }
+  return res.status(500).json({
+    ok: false,
+    code: "DEPOSIT_TICKET_LOAD_FAILED",
+    message: "Não foi possível carregar o ticket.",
+  });
+}
+
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY || "";
 const DEPOSIT_WALLET = (process.env.DEPOSIT_WALLET_ADDRESS || process.env.CHECKIN_RECEIVER || "").toLowerCase();
 const MAX_TICKETS_OPEN = 3;
@@ -126,8 +188,8 @@ export async function adminGetTicket(req, res) {
 
     return res.json({ ok: true, ticket: { ...ticket, onchainData } });
   } catch (error) {
-    logger.error("adminGetTicket error", { error: error.message });
-    return res.status(500).json({ ok: false, message: "Erro ao buscar ticket." });
+    logger.error("adminGetTicket error", { message: String(error?.message || error), code: error?.code });
+    return respondDepositTicketDbError(res, error, "get");
   }
 }
 
@@ -253,8 +315,8 @@ export async function adminApproveTicket(req, res) {
       alreadyCredited: resolveTicketOnly,
     });
   } catch (error) {
-    logger.error("adminApproveTicket error", { error: error.message });
-    return res.status(500).json({ ok: false, message: "Erro ao aprovar ticket." });
+    logger.error("adminApproveTicket error", { message: String(error?.message || error), code: error?.code });
+    return respondDepositTicketDbError(res, error, "approve");
   }
 }
 
@@ -296,8 +358,8 @@ export async function adminRejectTicket(req, res) {
 
     return res.json({ ok: true, message: "Ticket rejeitado." });
   } catch (error) {
-    logger.error("adminRejectTicket error", { error: error.message });
-    return res.status(500).json({ ok: false, message: "Erro ao rejeitar ticket." });
+    logger.error("adminRejectTicket error", { message: String(error?.message || error), code: error?.code });
+    return respondDepositTicketDbError(res, error, "reject");
   }
 }
 
