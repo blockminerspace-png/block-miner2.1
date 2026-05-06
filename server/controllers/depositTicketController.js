@@ -149,55 +149,109 @@ export async function adminApproveTicket(req, res) {
     }
 
     const creditAmount = Number(amount);
+    const hashKey = ticket.txHash ? String(ticket.txHash).trim() : "";
+
+    /** Same on-chain hash cannot back two deposit rows (DB partial unique). Auto-verifier often creates the row first. */
+    const existingDepositByHash =
+      hashKey.length > 0
+        ? await prisma.transaction.findFirst({
+            where: { txHash: hashKey, type: "deposit" },
+          })
+        : null;
+
+    if (existingDepositByHash && existingDepositByHash.userId !== ticket.userId) {
+      return res.status(409).json({
+        ok: false,
+        message: "Este hash já está associado a outro depósito no sistema. Não é possível creditar por este ticket.",
+      });
+    }
+
+    if (
+      existingDepositByHash &&
+      existingDepositByHash.userId === ticket.userId &&
+      existingDepositByHash.status === "pending"
+    ) {
+      return res.status(409).json({
+        ok: false,
+        message:
+          "Este hash já está na verificação automática (pendente). Aguarde alguns minutos ou tente de novo após concluir.",
+      });
+    }
+
+    if (
+      existingDepositByHash &&
+      existingDepositByHash.userId === ticket.userId &&
+      existingDepositByHash.status !== "completed"
+    ) {
+      return res.status(409).json({
+        ok: false,
+        message: `Este hash já existe no histórico com estado "${existingDepositByHash.status}". Não é possível duplicar o registo; contacte suporte técnico se precisar de correção manual.`,
+      });
+    }
+
+    const resolveTicketOnly = Boolean(
+      existingDepositByHash &&
+        existingDepositByHash.userId === ticket.userId &&
+        existingDepositByHash.status === "completed",
+    );
+    const priorCredited = resolveTicketOnly ? Number(existingDepositByHash.amount) : null;
 
     await prisma.$transaction(async (tx) => {
-      // Creditar saldo do usuário
-      await tx.user.update({
-        where: { id: ticket.userId },
-        data: { polBalance: { increment: creditAmount } }
-      });
+      if (!resolveTicketOnly) {
+        await tx.user.update({
+          where: { id: ticket.userId },
+          data: { polBalance: { increment: creditAmount } },
+        });
 
-      // Registrar transação de depósito
-      await tx.transaction.create({
-        data: {
-          userId: ticket.userId,
-          type: "deposit",
-          amount: String(creditAmount),
-          txHash: ticket.txHash || null,
-          fromAddress: ticket.walletAddress,
-          status: "completed",
-          completedAt: new Date()
-        }
-      });
+        await tx.transaction.create({
+          data: {
+            userId: ticket.userId,
+            type: "deposit",
+            amount: String(creditAmount),
+            txHash: ticket.txHash || null,
+            fromAddress: ticket.walletAddress,
+            status: "completed",
+            completedAt: new Date(),
+          },
+        });
+      }
 
-      // Atualizar ticket
       await tx.depositTicket.update({
         where: { id: ticket.id },
         data: {
           status: "credited",
-          adminAction: "credit_applied",
+          adminAction: resolveTicketOnly ? "ticket_closed_duplicate_tx" : "credit_applied",
           adminNote: note || null,
-          creditedAmount: String(creditAmount),
-          resolvedAt: new Date()
-        }
+          creditedAmount: String(priorCredited != null ? priorCredited : creditAmount),
+          resolvedAt: new Date(),
+        },
       });
 
-      // Notificar usuário
+      const notifyAmount = priorCredited != null ? priorCredited : creditAmount;
       await tx.notification.create({
         data: {
           userId: ticket.userId,
           title: "Depósito Creditado",
-          message: `Seu ticket de depósito foi analisado e ${creditAmount.toFixed(4)} POL foram creditados na sua carteira.`,
-          type: "success"
-        }
+          message: resolveTicketOnly
+            ? `Seu ticket de depósito foi encerrado: o hash já tinha sido creditado automaticamente (${Number(notifyAmount).toFixed(4)} POL).`
+            : `Seu ticket de depósito foi analisado e ${creditAmount.toFixed(4)} POL foram creditados na sua carteira.`,
+          type: "success",
+        },
       });
     });
 
-    // Sincronizar saldo em memória do engine e atualizar dashboard em tempo real
-    applyUserBalanceDelta(ticket.userId, creditAmount);
+    if (!resolveTicketOnly) {
+      applyUserBalanceDelta(ticket.userId, creditAmount);
+    }
     getMiningEngine()?.reloadMinerProfile(ticket.userId).catch(() => {});
 
-    return res.json({ ok: true, message: "Depósito creditado com sucesso." });
+    return res.json({
+      ok: true,
+      message: resolveTicketOnly
+        ? "Ticket fechado: o depósito deste hash já estava registado (evita duplicar crédito)."
+        : "Depósito creditado com sucesso.",
+      alreadyCredited: resolveTicketOnly,
+    });
   } catch (error) {
     logger.error("adminApproveTicket error", { error: error.message });
     return res.status(500).json({ ok: false, message: "Erro ao aprovar ticket." });

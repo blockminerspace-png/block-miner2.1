@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { listAdminFraudSignals } from "../server/services/adminFraudSignalsService.js";
+import {
+  listAdminFraudSignals,
+  resetAdminFraudCollectionData,
+  ADMIN_FRAUD_COLLECTION_RESET_CONFIRM,
+} from "../server/services/adminFraudSignalsService.js";
 
 function fakePrisma({ queryResults = [], cachedIntel = [] } = {}) {
   const queue = [...queryResults];
@@ -162,5 +166,36 @@ describe("admin fraud signals derived network grouping", () => {
     assert.ok(["medium", "high", "critical"].includes(result.signals[0].riskLevel));
     assert.equal(typeof result.signals[0].decision, "object");
     assert.ok(Array.isArray(result.signals[0].identityVectors));
+  });
+});
+
+describe("resetAdminFraudCollectionData", () => {
+  it("deletes ip_logs and ip_intelligence_cache inside a transaction", async () => {
+    const order = [];
+    const prisma = {
+      $transaction: async (fn) =>
+        fn({
+          userIpLog: {
+            deleteMany: async () => {
+              order.push("logs");
+              return { count: 7 };
+            },
+          },
+          ipIntelligenceCache: {
+            deleteMany: async () => {
+              order.push("cache");
+              return { count: 2 };
+            },
+          },
+        }),
+    };
+    const r = await resetAdminFraudCollectionData(prisma);
+    assert.deepEqual(order, ["logs", "cache"]);
+    assert.equal(r.ipLogsDeleted, 7);
+    assert.equal(r.ipIntelDeleted, 2);
+  });
+
+  it("exposes a stable confirmation token for the admin API", () => {
+    assert.equal(ADMIN_FRAUD_COLLECTION_RESET_CONFIRM, "RESET_FRAUD_COLLECTION");
   });
 });

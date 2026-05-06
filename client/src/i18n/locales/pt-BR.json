@@ -641,7 +641,8 @@
         "username_too_short": "O nome de usu?rio deve ter pelo menos 3 caracteres.",
         "username_too_long": "O nome de usu?rio deve ter no m?ximo 24 caracteres.",
         "username_invalid": "O nome de usu?rio s? pode conter letras, n?meros, pontos, underlines e h?fens.",
-        "email_invalid": "Informe um endere?o de e-mail v?lido."
+        "email_invalid": "Informe um endere?o de e-mail v?lido.",
+        "email_provider_not_allowed": "Use um e-mail de um provedor permitido: Gmail, Outlook, Hotmail, Yahoo, iCloud, Proton Mail ou Tuta."
       },
       "privacyDisclosure": "O cadastro exige aceita??o dos Termos de Uso. As informa??es de privacidade ficam dispon?veis publicamente a qualquer momento.",
       "termsConsent": {
@@ -811,6 +812,16 @@
     "refresh_ip": "Atualizar IP",
     "refresh_ip_ok": "Inteligência do IP atualizada.",
     "refresh_ip_error": "Não foi possível atualizar a inteligência do IP.",
+    "reset_open": "Repor dados recolhidos",
+    "reset_title": "Repor recolha antifraude",
+    "reset_body": "Apaga todas as linhas do histórico de IPs/dispositivos (ip_logs) e a cache de inteligência de IP. Os campos do perfil (IP de registo, último IP, carteira) e dados on-chain não são alterados. Os sinais voltam a aparecer à medida que os utilizadores entram de novo.",
+    "reset_type_label": "Escreve a frase para confirmar",
+    "reset_cancel": "Cancelar",
+    "reset_close": "Fechar",
+    "reset_confirm_btn": "Apagar recolha",
+    "reset_phrase_mismatch": "Escreve a frase de confirmação exatamente.",
+    "reset_ok": "Recolha reposta: {{logs}} linhas de ip_logs, {{cache}} linhas de cache removidas.",
+    "reset_error": "Não foi possível repor os dados recolhidos.",
     "loading": "A carregar sinais…",
     "error_load": "Não foi possível carregar os sinais.",
     "filter_scope": "Âmbito",

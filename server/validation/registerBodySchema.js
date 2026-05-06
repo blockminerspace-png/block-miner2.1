@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRegisterAllowedEmailDomain } from "./registerAllowedEmailDomains.js";
 
 export const REGISTER_USERNAME_MIN = 3;
 export const REGISTER_USERNAME_MAX = 24;
@@ -23,7 +24,10 @@ export const registerBodySchema = z.object({
     .trim()
     .min(1, "auth.register.errors.email_invalid")
     .max(REGISTER_EMAIL_MAX_LEN, "auth.register.errors.email_too_long")
-    .email("auth.register.errors.email_invalid"),
+    .email("auth.register.errors.email_invalid")
+    .refine((addr) => isRegisterAllowedEmailDomain(addr), {
+      message: "auth.register.errors.email_provider_not_allowed",
+    }),
   password: z
     .string()
     .min(REGISTER_PASSWORD_MIN_LEN, "auth.register.errors.password_min")

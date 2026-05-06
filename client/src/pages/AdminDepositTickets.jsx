@@ -66,7 +66,11 @@ export default function AdminDepositTickets() {
                 note: actionNote
             });
             if (res.data.ok) {
-                toast.success('Depósito creditado com sucesso!');
+                toast.success(
+                    res.data.alreadyCredited
+                        ? 'Ticket fechado: este hash já tinha sido creditado automaticamente (sem duplicar saldo).'
+                        : 'Depósito creditado com sucesso!',
+                );
                 setSelected(null);
                 fetchTickets();
             } else {

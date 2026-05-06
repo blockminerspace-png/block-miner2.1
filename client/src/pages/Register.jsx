@@ -17,8 +17,11 @@ import {
   REGISTER_PASSWORD_MAX_LEN,
   REGISTER_REF_CODE_MAX_LEN,
 } from '../constants/registerFieldLimits';
+import { isRegisterAllowedEmailDomain } from '../../../server/validation/registerAllowedEmailDomains.js';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+/** Loose RFC-like check; server Zod still authorizes. */
+const REGISTER_EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REF_CODE_PATTERN = /^[a-zA-Z0-9]*$/;
 
 const FIELD_MAX_LEN = {
@@ -119,6 +122,14 @@ export default function Register() {
     const em = formData.email.trim();
     if (!em || em.length > REGISTER_EMAIL_MAX_LEN) {
       toast.error(t(em ? 'auth.register.errors.email_too_long' : 'auth.register.errors.email_invalid'));
+      return;
+    }
+    if (!REGISTER_EMAIL_SHAPE.test(em)) {
+      toast.error(t('auth.register.errors.email_invalid'));
+      return;
+    }
+    if (!isRegisterAllowedEmailDomain(em)) {
+      toast.error(t('auth.register.errors.email_provider_not_allowed'));
       return;
     }
 

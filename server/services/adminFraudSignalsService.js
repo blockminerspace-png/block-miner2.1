@@ -63,6 +63,22 @@ function similarPrefix(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5);
 }
 
+/** Ledger rows for these 0x addresses are expected to repeat across users (treasury / contract / sweep). */
+function excludedPlatformLedgerAddresses() {
+  const keys = [
+    "DEPOSIT_WALLET_ADDRESS",
+    "SMART_CONTRACT_ADDRESS",
+    "CHECKIN_RECEIVER",
+    "POLYGON_HD_SWEEP_TO_ADDRESS",
+  ];
+  const out = new Set();
+  for (const k of keys) {
+    const v = String(process.env[k] || "").trim().toLowerCase();
+    if (/^0x[0-9a-f]{40}$/.test(v)) out.add(v);
+  }
+  return [...out];
+}
+
 function buildGroup({ signalType, kind, key, users, ipIntelligence = null }) {
   const deduped = [...new Map(users.map((u) => [u.id, u])).values()];
   const walletCounts = new Map();
@@ -80,6 +96,7 @@ function buildGroup({ signalType, kind, key, users, ipIntelligence = null }) {
   const shortCreationWindow = created.length >= 2 && created[created.length - 1] - created[0] <= 24 * 60 * 60 * 1000;
   const risk = calculateMultiAccountRisk({
     signalType,
+    fraudKind: kind,
     userCount: deduped.length,
     users: deduped,
     ipIntelligence,
@@ -204,6 +221,14 @@ async function queryAllIpUsers(prisma, { column, limit = DERIVED_IP_SCAN_LIMIT }
 async function queryTransactionAddressUsers(prisma, { column, qLike, limit = 700 }) {
   const fieldSql = Prisma.raw(column);
   const txFieldSql = Prisma.raw(`t.${column}`);
+  const excluded = excludedPlatformLedgerAddresses();
+  const excludeSql =
+    excluded.length > 0
+      ? Prisma.sql`AND LOWER(BTRIM(${fieldSql})) NOT IN (${Prisma.join(excluded.map((a) => Prisma.sql`${a}`))})`
+      : Prisma.empty;
+  /** `address` is mostly withdrawal destination — aggregating all tx types would false-flag deposits/treasury noise. */
+  const typeFilter = column === "address" ? Prisma.sql`AND type = 'withdrawal'` : Prisma.empty;
+  const typeFilterT = column === "address" ? Prisma.sql`AND t.type = 'withdrawal'` : Prisma.empty;
   return prisma.$queryRaw`
     WITH d AS (
       SELECT LOWER(BTRIM(${fieldSql})) AS k, COUNT(DISTINCT user_id)::int AS c
@@ -211,6 +236,8 @@ async function queryTransactionAddressUsers(prisma, { column, qLike, limit = 700
       WHERE ${fieldSql} IS NOT NULL AND BTRIM(${fieldSql}) <> ''
         AND LENGTH(BTRIM(${fieldSql})) = 42
         AND BTRIM(${fieldSql}) ~ '^0[xX][0-9a-fA-F]{40}$'
+        ${typeFilter}
+        ${excludeSql}
       GROUP BY 1
       HAVING COUNT(DISTINCT user_id) > 1
     )
@@ -219,7 +246,7 @@ async function queryTransactionAddressUsers(prisma, { column, qLike, limit = 700
     FROM transactions t
     INNER JOIN d ON LOWER(BTRIM(${txFieldSql})) = d.k
     INNER JOIN users u ON u.id = t.user_id
-    WHERE 1=1 ${signalSearchSql(Prisma.raw(`LOWER(BTRIM(t.${column}))`), qLike)}
+    WHERE 1=1 ${typeFilterT} ${signalSearchSql(Prisma.raw(`LOWER(BTRIM(t.${column}))`), qLike)}
     ORDER BY d.c DESC, key, u.id
     LIMIT ${limit}
   `;
@@ -454,4 +481,25 @@ export async function listAdminFraudSignals(prisma, opts = {}) {
     signals,
     generatedAt: new Date().toISOString(),
   };
+}
+
+/** Must match admin POST body `confirm` and the UI phrase. */
+export const ADMIN_FRAUD_COLLECTION_RESET_CONFIRM = "RESET_FRAUD_COLLECTION";
+
+/**
+ * Clears persisted anti-fraud **collection** only (not user profile fields).
+ * - `ip_logs`: login/register IP + device fingerprint history used for clusters.
+ * - `ip_intelligence_cache`: cached ASN/PTR/proxy lookups (rebuilt on demand).
+ * Does not alter `users.registration_ip`, `users.last_ip`, or transactions.
+ * @param {import("@prisma/client").PrismaClient} prisma
+ */
+export async function resetAdminFraudCollectionData(prisma) {
+  return prisma.$transaction(async (tx) => {
+    const logRes = await tx.userIpLog.deleteMany({});
+    const intelRes = await tx.ipIntelligenceCache.deleteMany({});
+    return {
+      ipLogsDeleted: logRes.count,
+      ipIntelDeleted: intelRes.count,
+    };
+  });
 }

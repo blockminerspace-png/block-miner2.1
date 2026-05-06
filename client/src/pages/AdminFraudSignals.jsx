@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Fingerprint, RefreshCw, Search, ExternalLink, Copy, ShieldAlert } from 'lucide-react';
+import { Fingerprint, RefreshCw, Search, ExternalLink, Copy, ShieldAlert, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
 
@@ -21,6 +21,8 @@ const scopeButtons = [
     ['false_positive', 'scope_false_positive'],
     ['shared_residential', 'scope_shared_residential'],
 ];
+
+const RESET_FRAUD_COLLECTION_PHRASE = 'RESET_FRAUD_COLLECTION';
 
 const riskClass = {
     low: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
@@ -126,6 +128,9 @@ export default function AdminFraudSignals() {
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [payload, setPayload] = useState(null);
+    const [resetOpen, setResetOpen] = useState(false);
+    const [resetPhrase, setResetPhrase] = useState('');
+    const [resetting, setResetting] = useState(false);
 
     const load = useCallback(async () => {
         try {
@@ -163,8 +168,101 @@ export default function AdminFraudSignals() {
         }
     };
 
+    const runResetCollection = async () => {
+        if (resetPhrase.trim() !== RESET_FRAUD_COLLECTION_PHRASE) {
+            toast.error(t('admin_fraud.reset_phrase_mismatch'));
+            return;
+        }
+        setResetting(true);
+        try {
+            const res = await api.post('/admin/fraud-signals/reset-collection', {
+                confirm: RESET_FRAUD_COLLECTION_PHRASE,
+            });
+            if (res.data?.ok) {
+                toast.success(
+                    t('admin_fraud.reset_ok', {
+                        logs: res.data.ipLogsDeleted ?? 0,
+                        cache: res.data.ipIntelDeleted ?? 0,
+                    }),
+                );
+                setResetOpen(false);
+                setResetPhrase('');
+                void load();
+            } else {
+                toast.error(res.data?.message || t('admin_fraud.reset_error'));
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('admin_fraud.reset_error'));
+        } finally {
+            setResetting(false);
+        }
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500 p-4 md:p-0">
+            {resetOpen && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="fraud-reset-title"
+                >
+                    <div className="w-full max-w-lg rounded-2xl border border-red-500/30 bg-slate-950 p-6 shadow-2xl space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 id="fraud-reset-title" className="text-lg font-black text-red-300 uppercase tracking-tight">
+                                    {t('admin_fraud.reset_title')}
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-2 leading-relaxed">{t('admin_fraud.reset_body')}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setResetOpen(false);
+                                    setResetPhrase('');
+                                }}
+                                className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800"
+                                aria-label={t('admin_fraud.reset_close')}
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <label className="block space-y-2">
+                            <span className="text-[10px] font-black uppercase text-slate-500">{t('admin_fraud.reset_type_label')}</span>
+                            <input
+                                type="text"
+                                value={resetPhrase}
+                                onChange={(e) => setResetPhrase(e.target.value)}
+                                autoComplete="off"
+                                placeholder={RESET_FRAUD_COLLECTION_PHRASE}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder:text-slate-600"
+                            />
+                        </label>
+                        <div className="flex flex-wrap gap-2 justify-end pt-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setResetOpen(false);
+                                    setResetPhrase('');
+                                }}
+                                className="px-4 py-2 rounded-xl text-xs font-black uppercase text-slate-400 border border-slate-700 hover:bg-slate-900"
+                            >
+                                {t('admin_fraud.reset_cancel')}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={resetting || resetPhrase.trim() !== RESET_FRAUD_COLLECTION_PHRASE}
+                                onClick={() => void runResetCollection()}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase bg-red-600 hover:bg-red-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                {resetting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                {t('admin_fraud.reset_confirm_btn')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-black text-white flex items-center gap-3">
@@ -173,14 +271,27 @@ export default function AdminFraudSignals() {
                     </h2>
                     <p className="text-slate-500 text-sm font-medium mt-1 max-w-3xl">{t('admin_fraud.subtitle')}</p>
                 </div>
-                <button
-                    type="button"
-                    onClick={load}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700/50 w-fit"
-                >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    {t('admin_fraud.refresh')}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setResetPhrase('');
+                            setResetOpen(true);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-950/40 hover:bg-red-900/50 text-red-200 rounded-xl text-xs font-bold border border-red-800/40 w-fit"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        {t('admin_fraud.reset_open')}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={load}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700/50 w-fit"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        {t('admin_fraud.refresh')}
+                    </button>
+                </div>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 space-y-4">

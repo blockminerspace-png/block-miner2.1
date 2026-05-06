@@ -145,4 +145,21 @@ describe("multi-account risk scoring", () => {
     assert.equal(risk.recommendedAction, "ignore");
     assert.ok(risk.falsePositiveWarnings.length >= 1);
   });
+
+  it("does not treat shared withdrawal destination (ledger to-address) as duplicate profile wallet", () => {
+    const risk = calculateMultiAccountRisk({
+      signalType: "onchain_wallet",
+      fraudKind: "shared_ledger_to_address",
+      userCount: 11,
+      sameWalletCount: 0,
+      sameDeviceCount: 1,
+      shortCreationWindow: true,
+      ipIntelligence: { providerType: "unknown" },
+    });
+    assert.equal(risk.correlation.wallet, false);
+    assert.equal(risk.correlation.fingerprint, false);
+    assert.ok(risk.falsePositiveWarnings.some((w) => w.includes("exchange")));
+    assert.ok(risk.score < 40);
+    assert.notEqual(risk.decision.recommendedAction, "ban_candidate");
+  });
 });

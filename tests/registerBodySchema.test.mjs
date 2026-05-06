@@ -9,7 +9,7 @@ import {
 
 const base = {
   username: "valid_user",
-  email: "a@b.co",
+  email: "player@gmail.com",
   password: "12345678",
   acceptTerms: true,
 };
@@ -52,5 +52,29 @@ describe("registerBodySchema", () => {
     const r = registerBodySchema.safeParse({ ...base, refCode: "abc<script>" });
     assert.equal(r.success, false);
     assert.ok(r.error.issues.some((i) => i.message === "auth.register.errors.ref_code_invalid"));
+  });
+
+  it("rejects email from a non-allowlisted domain", () => {
+    const r = registerBodySchema.safeParse({ ...base, email: "user@example.com" });
+    assert.equal(r.success, false);
+    assert.ok(
+      r.error.issues.some((i) => i.message === "auth.register.errors.email_provider_not_allowed"),
+    );
+  });
+
+  it("accepts allowlisted domains (sample)", () => {
+    for (const email of [
+      "a@outlook.com",
+      "b@hotmail.com",
+      "c@yahoo.com",
+      "d@icloud.com",
+      "e@proton.me",
+      "f@protonmail.com",
+      "g@tuta.com",
+      "h@tutanota.com",
+    ]) {
+      const r = registerBodySchema.safeParse({ ...base, email });
+      assert.equal(r.success, true, email);
+    }
   });
 });

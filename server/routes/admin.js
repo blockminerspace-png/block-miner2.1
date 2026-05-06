@@ -32,9 +32,13 @@ import {
     resolveBackupBundleDownloadPath,
 } from "../services/databaseBackupService.js";
 import { listUnifiedAdminAuditLogs } from "../services/adminAuditListService.js";
-import { listAdminFraudSignals } from "../services/adminFraudSignalsService.js";
+import {
+  listAdminFraudSignals,
+  resetAdminFraudCollectionData,
+  ADMIN_FRAUD_COLLECTION_RESET_CONFIRM,
+} from "../services/adminFraudSignalsService.js";
 import { getCachedIpIntelligence } from "../services/ipIntelligenceService.js";
-import { normalizeIp } from "../utils/clientIp.js";
+import { normalizeIp, getClientIp } from "../utils/clientIp.js";
 import {
     archiveAdminMiner,
     createAdminMiner,
@@ -898,6 +902,40 @@ adminRouter.post("/fraud-signals/refresh-ip", fraudRefreshLimiter, async (req, r
     } catch (error) {
         console.error("[admin fraud-signals refresh-ip]", error?.message || error);
         res.status(500).json({ ok: false, message: "Unable to refresh IP intelligence." });
+    }
+});
+
+const fraudResetLimiter = createRateLimiter({
+    windowMs: 60 * 60 * 1000,
+    max: 3,
+    message: "Too many fraud data reset requests. Try again later.",
+});
+
+adminRouter.post("/fraud-signals/reset-collection", fraudResetLimiter, async (req, res) => {
+    try {
+        const confirm = String(req.body?.confirm ?? "").trim();
+        if (confirm !== ADMIN_FRAUD_COLLECTION_RESET_CONFIRM) {
+            return res.status(400).json({ ok: false, message: "Confirmation phrase mismatch." });
+        }
+        const { ipLogsDeleted, ipIntelDeleted } = await resetAdminFraudCollectionData(prisma);
+        void createAuditLogBestEffort({
+            action: "ADMIN_FRAUD_RESET_COLLECTION",
+            label: "Admin reset anti-fraud collection data",
+            source: "admin",
+            severity: "warning",
+            ip: getClientIp(req) || null,
+            userAgent: String(req.headers["user-agent"] || "").slice(0, 512) || null,
+            details: { ipLogsDeleted, ipIntelDeleted },
+        });
+        res.json({
+            ok: true,
+            message: "Fraud collection data cleared.",
+            ipLogsDeleted,
+            ipIntelDeleted,
+        });
+    } catch (error) {
+        console.error("[admin fraud-signals reset-collection]", error?.message || error);
+        res.status(500).json({ ok: false, message: "Unable to reset fraud collection data." });
     }
 });
 

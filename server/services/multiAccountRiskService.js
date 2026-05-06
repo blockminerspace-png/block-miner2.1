@@ -360,16 +360,55 @@ export function calculateMultiAccountRisk(group) {
   const ptrAsnCorrelation = classifyPtrAsnCorrelation(group.ipIntelligence);
   let score = 0;
 
-  const walletCorrelation = group.signalType === "profile_wallet" || group.signalType === "onchain_wallet" || Number(group.sameWalletCount) > 0;
-  const fingerprintCorrelation = group.signalType === "device_fingerprint" || Number(group.sameDeviceCount) > 0;
+  const fraudKind = String(group.fraudKind || "");
+  const sharedLedgerWithdrawTo =
+    group.signalType === "onchain_wallet" && fraudKind === "shared_ledger_to_address";
+  const sharedLedgerFrom = group.signalType === "onchain_wallet" && fraudKind === "shared_ledger_from_address";
+  const ledgerCounterpartyCluster = sharedLedgerWithdrawTo || sharedLedgerFrom;
+
+  /** Same 0x in `transactions.address` is usually many withdrawals to one exchange/custodian — not "same profile wallet". */
+  const walletCorrelation =
+    group.signalType === "profile_wallet" ||
+    (!ledgerCounterpartyCluster && group.signalType === "onchain_wallet") ||
+    Number(group.sameWalletCount || 0) > 0;
+
+  const rawDeviceCol = Number(group.sameDeviceCount || 0);
+  const ignoreGenericUaOnly =
+    ledgerCounterpartyCluster &&
+    userCount >= 5 &&
+    rawDeviceCol > 0 &&
+    Number(group.sameWalletCount || 0) === 0;
+  const effectiveDeviceCol = ignoreGenericUaOnly ? 0 : rawDeviceCol;
+
+  const fingerprintCorrelation =
+    group.signalType === "device_fingerprint" || effectiveDeviceCol > 0;
   const asnProviderCorrelation = group.signalType === "asn" || SUSPICIOUS_PROVIDER_TYPES.has(providerType) || ptrAsnCorrelation.type === "datacenter_like";
   const mandatoryCorrelation = walletCorrelation && fingerprintCorrelation && asnProviderCorrelation;
 
+  if (sharedLedgerWithdrawTo && userCount >= 2) {
+    pushUnique(
+      falsePositiveWarnings,
+      "Varias contas a levantar para o mesmo endereco 0x e comum (exchange, custodian, mesma carteira de destino). Nao equivale a wallet de perfil duplicada na tabela users."
+    );
+  }
+  if (sharedLedgerFrom && userCount >= 2) {
+    pushUnique(
+      falsePositiveWarnings,
+      "O mesmo endereco 'from' em depositos pode ser gateway custodial ou browser partilhado; confirme com wallet de perfil e fingerprint especifico antes de sancionar."
+    );
+  }
+
   if (walletCorrelation) {
-    score += group.signalType === "onchain_wallet" ? 32 : 28;
-    pushUnique(reasons, group.signalType === "onchain_wallet"
-      ? "Mesma carteira on-chain aparece em multiplas contas."
-      : "Mesmo wallet ID aparece em multiplas contas.");
+    if (group.signalType === "profile_wallet") {
+      score += 28;
+      pushUnique(reasons, "Mesmo wallet ID aparece em multiplas contas.");
+    } else if (!ledgerCounterpartyCluster && group.signalType === "onchain_wallet") {
+      score += 32;
+      pushUnique(reasons, "Mesma carteira on-chain aparece em multiplas contas.");
+    } else if (Number(group.sameWalletCount || 0) > 0) {
+      score += 26;
+      pushUnique(reasons, "Carteira de perfil repetida entre contas neste agrupamento.");
+    }
   }
 
   if (fingerprintCorrelation) {
@@ -449,7 +488,10 @@ export function calculateMultiAccountRisk(group) {
     pushUnique(falsePositiveWarnings, "Sem correlacao obrigatoria entre wallet, fingerprint e ASN/provedor, a acao deve permanecer conservadora.");
   }
 
-  const identityVectors = buildIdentityVectors(group, ptrAsnCorrelation);
+  const identityVectors = buildIdentityVectors(
+    { ...group, sameDeviceCount: effectiveDeviceCol },
+    ptrAsnCorrelation
+  );
   score = clampScore(score);
   const level = levelFor(score);
   const decision = buildDecision({ score, identityVectors, mandatoryCorrelation, falsePositiveAlert });
