@@ -125,3 +125,52 @@ export async function sendLoginTwoFactorCodeEmail({ to, name, code, ttlMinutes }
 
   logger.info("Login 2FA email sent", { to });
 }
+
+const APP_URL = (process.env.APP_URL || "https://blockminer.space").replace(/\/+$/, "");
+
+/**
+ * Post-registration welcome (async via BullMQ worker when Redis is enabled).
+ */
+export async function sendWelcomeEmail({ to, name }) {
+  const tx = getTransporter();
+  if (!tx) {
+    throw new Error("SMTP not configured");
+  }
+
+  const safeName = name || "Miner";
+  const dashboardUrl = `${APP_URL}/`;
+
+  const html = `
+  <div style="font-family:Arial,Helvetica,sans-serif;background:#020617;color:#e2e8f0;padding:24px;">
+    <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:24px;">
+      <h2 style="margin:0 0 8px 0;color:#60a5fa;">BlockMiner</h2>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Hello, ${safeName}.</p>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Your account is ready. Start mining and build your farm.</p>
+      <p style="margin:0 0 20px 0;">
+        <a href="${dashboardUrl}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Open dashboard</a>
+      </p>
+      <p style="margin:0;color:#64748b;font-size:12px;">If you did not create this account, you can ignore this message.</p>
+    </div>
+  </div>`;
+
+  const text = [
+    "BlockMiner",
+    "",
+    `Hello, ${safeName}.`,
+    "Your account is ready. Start mining and build your farm.",
+    "",
+    `Dashboard: ${dashboardUrl}`,
+    "",
+    "If you did not create this account, ignore this email.",
+  ].join("\n");
+
+  await tx.sendMail({
+    from: SMTP_FROM,
+    to,
+    subject: "Welcome to BlockMiner",
+    text,
+    html,
+  });
+
+  logger.info("Welcome email sent", { to });
+}

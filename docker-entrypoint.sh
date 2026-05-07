@@ -44,5 +44,23 @@ else
   echo "DB bootstrap skipped (DB_BOOTSTRAP_ON_STARTUP is false)."
 fi
 
+# Optional: run Polygon HD microservice in the same container (3-service stack: nginx + app + db).
+if is_true "${START_PHD_IN_APP_CONTAINER:-false}"; then
+  phd_port="$(printf '%s' "${PHD_PORT:-3847}")"
+  echo "Starting embedded PHD on port ${phd_port}..."
+  node server/phdServer.js &
+  for i in $(seq 1 50); do
+    if nc -z 127.0.0.1 "${phd_port}" 2>/dev/null; then
+      echo "PHD is accepting connections."
+      break
+    fi
+    sleep 0.1
+  done
+  if ! nc -z 127.0.0.1 "${phd_port}" 2>/dev/null; then
+    echo "Warning: embedded PHD did not open port ${phd_port}; main app will still start."
+  fi
+  export PHD_SERVICE_URL="${PHD_SERVICE_URL:-http://127.0.0.1:${phd_port}}"
+fi
+
 echo "Starting application..."
 exec "$@"

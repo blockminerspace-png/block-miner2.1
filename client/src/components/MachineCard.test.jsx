@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import MachineCard from "./MachineCard.jsx";
+import MachineCard from "./MachineCard";
 import { MachinePlacementStatus } from "../constants/machinePlacement";
 
 vi.mock("react-i18next", () => ({

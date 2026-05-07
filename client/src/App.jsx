@@ -3,6 +3,11 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'rea
 import { Toaster } from 'sonner';
 import { useAuthStore } from './store/auth';
 
+/** Eager: first paint must not wait on a second chunk fetch (lazy was a full-screen spinner on `/`). */
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Register from './pages/Register';
+
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ChatSidebar from './components/ChatSidebar';
@@ -13,8 +18,6 @@ import BroadcastPopup from './components/BroadcastPopup';
 import TransparencyErrorBoundary from './components/TransparencyErrorBoundary';
 import { prefetchProtectedBootstrap } from './utils/routePrefetch.js';
 
-const Login = lazy(() => import('./pages/Login'));
-const Register = lazy(() => import('./pages/Register'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Shop = lazy(() => import('./pages/Shop'));
@@ -69,7 +72,6 @@ const InternalOfferwall = lazy(() => import('./pages/InternalOfferwall'));
 const MiniPass = lazy(() => import('./pages/MiniPass'));
 const DailyTasks = lazy(() => import('./pages/DailyTasks'));
 const Transparency = lazy(() => import('./pages/Transparency'));
-const Landing = lazy(() => import('./pages/Landing'));
 const LiveServer = lazy(() => import('./pages/LiveServer'));
 const DashboardCryptoStream = lazy(() => import('./pages/DashboardCryptoStream'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));

@@ -24,10 +24,10 @@ function runOnce(key, factory) {
 }
 
 const exactLoaders = {
-  '/dashboard': () => import('../pages/Dashboard.jsx'),
-  '/inventory': () => import('../pages/Inventory.jsx'),
+  '/dashboard': () => import('../pages/Dashboard'),
+  '/inventory': () => import('../pages/Inventory'),
   '/shop': () => import('../pages/Shop.jsx'),
-  '/vault': () => import('../pages/Vault.jsx'),
+  '/vault': () => import('../pages/Vault'),
   '/wallet': () => import('../pages/Wallet.jsx'),
   '/faucet': () => import('../pages/Faucet.jsx'),
   '/shortlinks': () => import('../pages/Shortlinks.jsx'),
@@ -45,7 +45,7 @@ const exactLoaders = {
   '/manual': () => import('../pages/Manual.jsx'),
   '/calculator': () => import('../pages/Calculator.jsx'),
   '/transparency': () => import('../pages/Transparency.jsx'),
-  '/power-stats': () => import('../pages/PowerStatistics.jsx'),
+  '/power-stats': () => import('../pages/PowerStatistics'),
   '/offers': () => import('../pages/PopularOffers.jsx'),
 };
 
@@ -80,13 +80,16 @@ export function prefetchRoute(pathname) {
   return undefined;
 }
 
-/** Warm common post-login chunks during idle time (best-effort). */
+/** Warm common post-login chunks during idle time (best-effort). Staggered so one slow chunk (e.g. Shop + catalog) does not starve navigation clicks. */
 export function prefetchProtectedBootstrap() {
   const tasks = [
-    () => import('../pages/Dashboard.jsx'),
-    () => import('../pages/Inventory.jsx'),
+    () => import('../pages/Dashboard'),
+    () => import('../pages/Inventory'),
     () => import('../pages/Shop.jsx'),
     () => import('../pages/Wallet.jsx'),
   ];
-  for (const t of tasks) void t().catch(() => {});
+  const gapMs = 700;
+  tasks.forEach((task, i) => {
+    window.setTimeout(() => void task().catch(() => {}), i * gapMs);
+  });
 }

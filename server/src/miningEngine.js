@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import loggerLib from "../utils/logger.js";
+import { sanitizePublicStateForSocket } from "../utils/socketStateSanitize.js";
 
 const logger = loggerLib.child("MiningEngine");
 
@@ -73,7 +74,8 @@ export class MiningEngine {
           // Emit updated miner state so referralCount updates in real-time for online referrers
           if (this.io) {
             const state = this.getPublicState(miner.id);
-            if (state) this.io.to(`user:${userId}`).emit("state:update", state);
+            const safe = sanitizePublicStateForSocket(state);
+            if (safe) this.io.to(`user:${userId}`).emit("state:update", safe);
           }
         }
       }

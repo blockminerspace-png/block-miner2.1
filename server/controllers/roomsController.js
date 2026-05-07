@@ -17,6 +17,7 @@ import {
   resolveCriticalMutation,
 } from "../utils/criticalMutationIdempotency.js";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
+import { prismaSafeErrorMeta } from "../utils/prismaSafeError.js";
 
 const logger = loggerLib.child("Rooms");
 
@@ -84,8 +85,6 @@ export async function listRooms(req, res) {
   try {
     const userId = req.user.id;
     const prices = getRoomPrices();
-
-    logger.info("listRooms", { userId });
 
     const rooms = await prisma.userRoom.findMany({
       where: { userId },
@@ -174,7 +173,7 @@ export async function listRooms(req, res) {
       freeRacks: totalRacks - occupiedRacks,
     });
   } catch (err) {
-    logger.error("listRooms error", { err: err.message });
+    logger.error("listRooms error", prismaSafeErrorMeta(err));
     return res.status(500).json({ ok: false, message: "Erro ao listar salas." });
   }
 }
@@ -266,7 +265,7 @@ export async function buyRoom(req, res) {
       message: `Sala ${nextRoom} desbloqueada com sucesso!`,
     });
   } catch (err) {
-    logger.error("buyRoom error", { err: err.message });
+    logger.error("buyRoom error", prismaSafeErrorMeta(err));
     return res.status(500).json({ ok: false, message: "Erro ao comprar sala." });
   }
 }
@@ -409,11 +408,14 @@ export async function installMiner(req, res) {
       if (/** @type {any} */ (err)?.code === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      logger.error("installMiner error", { err: err.message });
+      if (/** @type {any} */ (err)?.code === "P2034") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      logger.error("installMiner error", prismaSafeErrorMeta(err));
       return res.status(500).json({ ok: false, message: "Erro ao instalar máquina." });
     }
   } catch (err) {
-    logger.error("installMiner error", { err: err.message });
+    logger.error("installMiner error", prismaSafeErrorMeta(err));
     return res.status(500).json({ ok: false, message: "Erro ao instalar máquina." });
   }
 }
@@ -475,11 +477,14 @@ export async function uninstallMiner(req, res) {
       if (/** @type {any} */ (err)?.code === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      logger.error("uninstallMiner error", { err: err.message });
+      if (/** @type {any} */ (err)?.code === "P2034") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
+      logger.error("uninstallMiner error", prismaSafeErrorMeta(err));
       return res.status(500).json({ ok: false, message: "Erro ao remover máquina." });
     }
   } catch (err) {
-    logger.error("uninstallMiner error", { err: err.message });
+    logger.error("uninstallMiner error", prismaSafeErrorMeta(err));
     return res.status(500).json({ ok: false, message: "Erro ao remover máquina." });
   }
 }
@@ -553,17 +558,20 @@ export async function uninstallMinerBatch(req, res) {
       if (/** @type {any} */ (err)?.code === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
+      if (/** @type {any} */ (err)?.code === "P2034") {
+        return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
+      }
       if (err?.message === "RACK_NOT_FOUND" || /** @type {any} */ (err)?.http === 404) {
         return res.status(404).json({ ok: false, message: "Rack não encontrado." });
       }
       if (err?.message === "RACK_EMPTY" || /** @type {any} */ (err)?.code === "RACK_EMPTY") {
         return res.status(400).json({ ok: false, code: "RACK_EMPTY", message: "Um dos racks não tem máquina instalada." });
       }
-      logger.error("uninstallMinerBatch error", { err: err.message, userId, rackCount: rackIds.length });
+      logger.error("uninstallMinerBatch error", { ...prismaSafeErrorMeta(err), userId, rackCount: rackIds.length });
       return res.status(500).json({ ok: false, message: "Erro ao remover máquinas." });
     }
   } catch (err) {
-    logger.error("uninstallMinerBatch error", { err: err.message });
+    logger.error("uninstallMinerBatch error", prismaSafeErrorMeta(err));
     return res.status(500).json({ ok: false, message: "Erro ao remover máquinas." });
   }
 }
@@ -586,6 +594,7 @@ export async function getSlotsSummary(req, res) {
       inventoryCount,
     });
   } catch (err) {
+    logger.error("getSlotsSummary error", prismaSafeErrorMeta(err));
     return res.status(500).json({ ok: false, message: "Erro ao buscar slots." });
   }
 }

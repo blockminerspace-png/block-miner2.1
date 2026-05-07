@@ -19,6 +19,17 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   app:
     build: .
     ports:
@@ -26,12 +37,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env.production.vm-backup
     environment:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+      API_RATE_LIMIT_USE_MEMORY: "true"
+      PG_POOL_MAX: "25"
       CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
       APP_URL: "http://localhost:3000"
       COOKIE_SECURE: "false"
@@ -41,11 +56,32 @@ services:
       ROOM_PRICES: "0,100,500,750"
       ROOM_MAX: "4"
       RACKS_PER_ROOM: "192"
+      REDIS_URL: "redis://redis:6379"
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
       - ./uploads:/app/uploads
     restart: unless-stopped
+
+  worker:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production.vm-backup
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+      REDIS_URL: "redis://redis:6379"
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    command: ["node", "server/jobs/runBlockminerWorker.js"]
 
 volumes:
   postgres_data_local:

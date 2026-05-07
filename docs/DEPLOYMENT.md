@@ -61,9 +61,9 @@ openssl rand -hex 32
 
 - `deploy.secrets.local` — `SSH_HOST`, `SSH_USER`, `SSH_PASSWORD`, `REMOTE_PATH`, optional `DEPLOY_GIT_BRANCH`, `APP_HOST_PORT`, `STREAM_ENCRYPTION_KEY`, `DEPLOY_PRISMA_MIGRATE_DEPLOY=1`, etc.
 - `.deploy-pw.txt` — single-line root password for `deploy.py` (gitignored).
-- `.env.production.vm-backup` — base env merged with `VITE_*` overrides before upload.
+- Optional local copies of production env (gitignored): never commit real secrets.
 
-See `deploy-credentials.local.example.md` for GitHub Actions test VM variables.
+For GitHub Actions / test VM variables, see `.github/workflows/deploy-test-vm.yml` and `.env.example`.
 
 ## Cloudflare Turnstile (pink “testing only” banner)
 

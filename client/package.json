@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "pretest:coverage": "node -e \"require('node:fs').mkdirSync('coverage/.tmp',{recursive:true})\"",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:auth": "vitest run --coverage src/pages/Login.test.tsx src/pages/Register.test.tsx src/store/auth.test.js --coverage.include=src/pages/Login.tsx --coverage.include=src/pages/Register.tsx --coverage.include=src/store/auth.js --coverage.include=src/utils/registerInputGuards.ts --coverage.include=src/utils/registerAllowedEmailDomains.js"
   },
   "dependencies": {
     "@reown/appkit": "^1.8.19",
@@ -51,6 +53,8 @@
     "jsdom": "^29.0.1",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
+    "typescript": "~5.7.3",
+    "typescript-eslint": "^8.59.2",
     "vite": "^7.3.2",
     "vitest": "^4.1.2"
   },

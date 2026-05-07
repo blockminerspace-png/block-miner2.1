@@ -612,6 +612,17 @@
         "invalid_credentials": "Senha incorreta.",
         "invalid_2fa": "Código 2FA inválido.",
         "login_failed": "Login falhou."
+      },
+      "validation": {
+        "identifier_empty": "Informe email ou nome de usuário.",
+        "identifier_too_long": "Esse login é longo demais.",
+        "identifier_invalid_chars": "Remova caracteres de controle inválidos do login.",
+        "password_empty": "Informe sua senha.",
+        "password_too_long": "Senha longa demais (máx. {{max}} caracteres).",
+        "two_factor_incomplete": "Digite o código de 6 dígitos completo.",
+        "two_factor_invalid": "O código 2FA deve conter só números.",
+        "hint_identifier_max": "Até {{max}} caracteres.",
+        "hint_password_max": "Até {{max}} caracteres (limite bcrypt)."
       }
     },
     "register": {
@@ -814,13 +825,13 @@
     "refresh_ip_error": "Não foi possível atualizar a inteligência do IP.",
     "reset_open": "Repor dados recolhidos",
     "reset_title": "Repor recolha antifraude",
-    "reset_body": "Apaga todas as linhas do histórico de IPs/dispositivos (ip_logs) e a cache de inteligência de IP. Os campos do perfil (IP de registo, último IP, carteira) e dados on-chain não são alterados. Os sinais voltam a aparecer à medida que os utilizadores entram de novo.",
+    "reset_body": "Apaga o histórico de IPs/dispositivos (ip_logs, incluindo fingerprints), a cache de inteligência de IP (proxy/VPN/ASN/DNS) e, no perfil, apenas IP de registo, último IP e user-agent do browser. Carteiras, saldos, levantamentos, depósitos e transações não são alterados. Os sinais voltam à medida que os utilizadores entram de novo.",
     "reset_type_label": "Escreve a frase para confirmar",
     "reset_cancel": "Cancelar",
     "reset_close": "Fechar",
     "reset_confirm_btn": "Apagar recolha",
     "reset_phrase_mismatch": "Escreve a frase de confirmação exatamente.",
-    "reset_ok": "Recolha reposta: {{logs}} linhas de ip_logs, {{cache}} linhas de cache removidas.",
+    "reset_ok": "Recolha reposta: {{logs}} linhas ip_logs, {{cache}} linhas de cache, {{users}} perfis limpos (IP registo/último/UA).",
     "reset_error": "Não foi possível repor os dados recolhidos.",
     "loading": "A carregar sinais…",
     "error_load": "Não foi possível carregar os sinais.",

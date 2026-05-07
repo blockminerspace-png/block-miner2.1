@@ -5,7 +5,22 @@ import { polygon } from '@reown/appkit/networks';
 import { QueryClient } from '@tanstack/react-query';
 import { getWalletConnectMetadataUrl, getWalletConnectProjectId } from '../utils/walletConnect.js';
 
-export const queryClient = new QueryClient();
+/**
+ * Wagmi / AppKit use TanStack Query internally (e.g. balance reads). Defaults that refetch
+ * aggressively can saturate the browser connection limit to the same origin and leave
+ * XHRs like `/inventory` + `/rooms` stuck in "pending" behind dozens of wallet RPC calls.
+ */
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 45_000,
+      gcTime: 15 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: 1,
+    },
+  },
+});
 
 const projectId = getWalletConnectProjectId() || '00000000000000000000000000000000';
 

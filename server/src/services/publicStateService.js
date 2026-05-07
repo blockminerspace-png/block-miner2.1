@@ -1,3 +1,9 @@
+const loggerLib = require("../../utils/logger.js");
+const { prismaSafeErrorMeta } = require("../../utils/prismaSafeError.js");
+const { sanitizePublicStateForSocket } = require("../../utils/socketStateSanitize.js");
+
+const logger = loggerLib.child("PublicState");
+
 function createPublicStateService({ engine, get, run, all }) {
   async function getActiveMiningRoomHashRateTotal() {
     const row = await get("SELECT COALESCE(SUM(hash_rate), 0) as total FROM user_miners WHERE is_active = 1");
@@ -119,27 +125,32 @@ function createPublicStateService({ engine, get, run, all }) {
 
   async function buildPublicState(minerId) {
     const state = engine.getPublicState(minerId);
-    const baseNetworkRow = await get("SELECT COALESCE(SUM(base_hash_rate), 0) as total FROM users_temp_power");
-    const networkHashRate = Number(baseNetworkRow?.total || 0);
+    try {
+      const baseNetworkRow = await get("SELECT COALESCE(SUM(base_hash_rate), 0) as total FROM users_temp_power");
+      const networkHashRate = Number(baseNetworkRow?.total || 0);
 
-    state.networkHashRate = networkHashRate;
+      state.networkHashRate = networkHashRate;
 
-    if (state.miner) {
-      const miner = engine.miners.get(state.miner.id);
-      const userId = miner?.userId;
-      const userBaseRow = await get("SELECT COALESCE(base_hash_rate, 0) as total FROM users_temp_power WHERE user_id = ?", [
-        userId
-      ]);
-      const userGameHash = await getUserGameHashRate(userId);
-      const baseHash = Number(userBaseRow?.total || 0);
-      const boostMultiplier = Number(state.miner.boostMultiplier || 1);
+      if (state.miner) {
+        const miner = engine.miners.get(state.miner.id);
+        const userId = miner?.userId;
+        const userBaseRow = await get("SELECT COALESCE(base_hash_rate, 0) as total FROM users_temp_power WHERE user_id = ?", [
+          userId
+        ]);
+        const userGameHash = await getUserGameHashRate(userId);
+        const baseHash = Number(userBaseRow?.total || 0);
+        const boostMultiplier = Number(state.miner.boostMultiplier || 1);
 
-      state.miner.baseHashRate = baseHash;
-      state.miner.estimatedHashRate = baseHash * boostMultiplier;
-      state.miner.activeTemporaryHashRate = userGameHash;
+        state.miner.baseHashRate = baseHash;
+        state.miner.estimatedHashRate = baseHash * boostMultiplier;
+        state.miner.activeTemporaryHashRate = userGameHash;
+      }
+    } catch (error) {
+      logger.error("buildPublicState DB augmentation failed", prismaSafeErrorMeta(error));
     }
 
-    return state;
+    const safe = sanitizePublicStateForSocket(state);
+    return safe ?? state;
   }
 
   async function getNetworkPowerRanking(limit = 20) {

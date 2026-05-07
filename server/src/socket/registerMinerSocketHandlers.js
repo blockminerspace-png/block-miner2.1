@@ -1,4 +1,14 @@
 import { getTokenFromRequest } from "../../utils/token.js";
+import { prismaSafeErrorMeta } from "../../utils/prismaSafeError.js";
+import { sanitizePublicStateForSocket } from "../../utils/socketStateSanitize.js";
+import loggerLib from "../../utils/logger.js";
+
+const logger = loggerLib.child("MinerSocket");
+
+function safeSocketPublicState(engine, minerId) {
+  const raw = engine.getPublicState(minerId);
+  return sanitizePublicStateForSocket(raw) ?? raw;
+}
 
 export function registerMinerSocketHandlers({
   io,
@@ -61,11 +71,24 @@ export function registerMinerSocketHandlers({
 
         if (buildPublicState) {
           const state = await buildPublicState(miner.id);
-          callback?.({ ok: true, minerId: miner.id, state });
+          const safeState = sanitizePublicStateForSocket(state);
+          if (!safeState) {
+            callback?.({ ok: false, message: "Estado inválido. Atualize a página." });
+            return;
+          }
+          callback?.({ ok: true, minerId: miner.id, state: safeState });
         } else {
-          callback?.({ ok: true, minerId: miner.id, state: engine.getPublicState(miner.id) });
+          const raw = engine.getPublicState(miner.id);
+          const safeState = sanitizePublicStateForSocket(raw);
+          if (!safeState) {
+            callback?.({ ok: false, message: "Estado inválido. Atualize a página." });
+            return;
+          }
+          callback?.({ ok: true, minerId: miner.id, state: safeState });
         }
       } catch (error) {
+        const meta = prismaSafeErrorMeta(error);
+        logger.error("miner:join failed", meta);
         callback?.({ ok: false, message: "Não foi possível carregar sua sala de mineração." });
       }
     });
@@ -79,9 +102,13 @@ export function registerMinerSocketHandlers({
 
       const miner = engine.setActive(minerId, active);
       if (persistMinerProfile && miner) {
-        await persistMinerProfile(miner);
+        try {
+          await persistMinerProfile(miner);
+        } catch (error) {
+          logger.error("miner:toggle persist failed", prismaSafeErrorMeta(error));
+        }
       }
-      callback?.({ ok: true, state: engine.getPublicState(minerId) });
+      callback?.({ ok: true, state: safeSocketPublicState(engine, minerId) });
     });
 
     socket.on("miner:boost", (_payload, callback) => {
@@ -92,7 +119,7 @@ export function registerMinerSocketHandlers({
       }
 
       const result = engine.applyBoost(minerId);
-      callback?.({ ...result, state: engine.getPublicState(minerId) });
+      callback?.({ ...result, state: safeSocketPublicState(engine, minerId) });
     });
 
     socket.on("miner:upgrade-rig", async (_payload, callback) => {
@@ -106,10 +133,14 @@ export function registerMinerSocketHandlers({
       if (result?.ok) {
         const miner = engine.miners.get(minerId);
         if (persistMinerProfile && miner) {
-          await persistMinerProfile(miner);
+          try {
+            await persistMinerProfile(miner);
+          } catch (error) {
+            logger.error("miner:upgrade-rig persist failed", prismaSafeErrorMeta(error));
+          }
         }
       }
-      callback?.({ ...result, state: engine.getPublicState(minerId) });
+      callback?.({ ...result, state: safeSocketPublicState(engine, minerId) });
     });
 
     socket.on("miner:wallet-link", async ({ walletAddress } = {}, callback) => {
@@ -121,9 +152,17 @@ export function registerMinerSocketHandlers({
 
       const miner = engine.setWallet(minerId, walletAddress);
       if (persistMinerProfile && miner) {
-        await persistMinerProfile(miner);
+        try {
+          await persistMinerProfile(miner);
+        } catch (error) {
+          logger.error("miner:wallet-link persist failed", prismaSafeErrorMeta(error));
+        }
       }
-      callback?.({ ok: true, message: "Carteira conectada para depósito e saque.", state: engine.getPublicState(minerId) });
+      callback?.({
+        ok: true,
+        message: "Carteira conectada para depósito e saque.",
+        state: safeSocketPublicState(engine, minerId)
+      });
     });
 
     socket.on("disconnect", async () => {
@@ -131,7 +170,11 @@ export function registerMinerSocketHandlers({
       if (minerId) {
         const miner = engine.miners.get(minerId);
         if (persistMinerProfile && miner) {
-          await persistMinerProfile(miner);
+          try {
+            await persistMinerProfile(miner);
+          } catch (error) {
+            logger.error("miner:disconnect persist failed", prismaSafeErrorMeta(error));
+          }
         }
         engine.setConnected(minerId, false);
       }

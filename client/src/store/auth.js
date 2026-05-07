@@ -11,6 +11,8 @@ export const api = axios.create({
     withCredentials: true, // Need this to send cookies
     xsrfCookieName: 'blockminer_csrf',
     xsrfHeaderName: 'x-csrf-token',
+    /** Avoid hung UI when the server or proxy is slow / wedged (checkSession also sets its own). */
+    timeout: Number.parseInt(String(import.meta.env.VITE_API_TIMEOUT_MS || '25000'), 10) || 25000,
 });
 
 // Interceptor to attach Anti-Bot payload to every API request

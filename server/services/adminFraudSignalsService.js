@@ -487,19 +487,35 @@ export async function listAdminFraudSignals(prisma, opts = {}) {
 export const ADMIN_FRAUD_COLLECTION_RESET_CONFIRM = "RESET_FRAUD_COLLECTION";
 
 /**
- * Clears persisted anti-fraud **collection** only (not user profile fields).
+ * Clears anti-fraud **collection** data only. Fingerprints live in `ip_logs`.
  * - `ip_logs`: login/register IP + device fingerprint history used for clusters.
- * - `ip_intelligence_cache`: cached ASN/PTR/proxy lookups (rebuilt on demand).
- * Does not alter `users.registration_ip`, `users.last_ip`, or transactions.
+ * - `ip_intelligence_cache`: cached ASN/PTR/proxy/VPN-style lookups (rebuilt on demand).
+ * - `users`: clears `registration_ip`, `last_ip`, and `user_agent` only (rows that had any set).
+ * Does not alter wallet addresses, balances, payouts, deposits, or any transaction tables.
  * @param {import("@prisma/client").PrismaClient} prisma
  */
 export async function resetAdminFraudCollectionData(prisma) {
   return prisma.$transaction(async (tx) => {
     const logRes = await tx.userIpLog.deleteMany({});
     const intelRes = await tx.ipIntelligenceCache.deleteMany({});
+    const profileRes = await tx.user.updateMany({
+      where: {
+        OR: [
+          { registrationIp: { not: null } },
+          { ip: { not: null } },
+          { userAgent: { not: null } },
+        ],
+      },
+      data: {
+        registrationIp: null,
+        ip: null,
+        userAgent: null,
+      },
+    });
     return {
       ipLogsDeleted: logRes.count,
       ipIntelDeleted: intelRes.count,
+      usersProfileAntiFraudCleared: profileRes.count,
     };
   });
 }

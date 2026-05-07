@@ -21,6 +21,7 @@ import {
   finalizeCriticalMutationSuccess,
   resolveCriticalMutation,
 } from "../utils/criticalMutationIdempotency.js";
+import { prismaSafeErrorMeta } from "../utils/prismaSafeError.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 
@@ -28,7 +29,8 @@ export async function getInventory(req, res) {
   try {
     const inventory = await inventoryModel.listInventory(req.user.id);
     res.json({ ok: true, inventory });
-  } catch {
+  } catch (err) {
+    console.error("getInventory failed", prismaSafeErrorMeta(err));
     res.status(500).json({ ok: false, message: "Unable to load inventory." });
   }
 }
@@ -197,11 +199,11 @@ export async function installInventoryItem(req, res) {
       if (error?.code === "P2034" || error?.code === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      console.error("Install Error:", error);
+      console.error("Install Error:", prismaSafeErrorMeta(error));
       return res.status(500).json({ ok: false, message: "Internal server error during installation." });
     }
   } catch (error) {
-    console.error("Install Error:", error);
+    console.error("Install Error:", prismaSafeErrorMeta(error));
     res.status(500).json({ ok: false, message: "Internal server error during installation." });
   }
 }
@@ -247,12 +249,17 @@ export async function removeInventoryItem(req, res) {
       if (error?.message === "NOT_FOUND") {
         return res.status(404).json({ ok: false, message: "Item not found." });
       }
-      if (error?.code === "P2034" || error?.code === "DISTRIBUTED_LOCK_BUSY") {
+      if (
+        error?.code === "P2034" ||
+        error?.code === "DISTRIBUTED_LOCK_BUSY"
+      ) {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
+      console.error("removeInventoryItem failed", prismaSafeErrorMeta(error));
       return res.status(500).json({ ok: false, message: "Error removing item." });
     }
   } catch (error) {
+    console.error("removeInventoryItem failed", prismaSafeErrorMeta(error));
     res.status(500).json({ ok: false, message: "Error removing item." });
   }
 }

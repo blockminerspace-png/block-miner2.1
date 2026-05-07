@@ -26,6 +26,7 @@ import {
   finalizeCriticalMutationSuccess,
   resolveCriticalMutation,
 } from "../utils/criticalMutationIdempotency.js";
+import { prismaSafeErrorMeta } from "../utils/prismaSafeError.js";
 
 const logger = loggerLib.child("VaultController");
 
@@ -36,7 +37,6 @@ const logger = loggerLib.child("VaultController");
  */
 function respondMoveToVaultError(req, res, error) {
   const prismaCode = /** @type {any} */ (error)?.code;
-  const meta = /** @type {any} */ (error)?.meta;
   if (/** @type {any} */ (error)?.code === "DISTRIBUTED_LOCK_BUSY") {
     return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
   }
@@ -60,9 +60,8 @@ function respondMoveToVaultError(req, res, error) {
     return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
   }
   logger.error("Move to Vault Error", {
+    ...prismaSafeErrorMeta(error),
     prismaCode,
-    message: /** @type {any} */ (error)?.message,
-    meta,
     userId: req.user?.id,
     source: req.body?.source,
   });
@@ -119,8 +118,7 @@ function respondRetrieveFromVaultError(req, res, error) {
     return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
   }
   logger.error("Retrieve from Vault Error", {
-    message: /** @type {any} */ (error)?.message,
-    prismaCode: /** @type {any} */ (error)?.code,
+    ...prismaSafeErrorMeta(error),
     userId: req.user?.id,
     vaultId: req.body?.vaultId,
     destination: req.body?.destination,
@@ -390,7 +388,7 @@ export async function getVault(req, res) {
     }
     res.json({ ok: true, vault });
   } catch (error) {
-    console.error("Vault Error:", error);
+    logger.error("getVault failed", prismaSafeErrorMeta(error));
     res.status(500).json({ ok: false, message: "Unable to load vault." });
   }
 }

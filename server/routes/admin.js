@@ -917,7 +917,8 @@ adminRouter.post("/fraud-signals/reset-collection", fraudResetLimiter, async (re
         if (confirm !== ADMIN_FRAUD_COLLECTION_RESET_CONFIRM) {
             return res.status(400).json({ ok: false, message: "Confirmation phrase mismatch." });
         }
-        const { ipLogsDeleted, ipIntelDeleted } = await resetAdminFraudCollectionData(prisma);
+        const { ipLogsDeleted, ipIntelDeleted, usersProfileAntiFraudCleared } =
+            await resetAdminFraudCollectionData(prisma);
         void createAuditLogBestEffort({
             action: "ADMIN_FRAUD_RESET_COLLECTION",
             label: "Admin reset anti-fraud collection data",
@@ -925,13 +926,14 @@ adminRouter.post("/fraud-signals/reset-collection", fraudResetLimiter, async (re
             severity: "warning",
             ip: getClientIp(req) || null,
             userAgent: String(req.headers["user-agent"] || "").slice(0, 512) || null,
-            details: { ipLogsDeleted, ipIntelDeleted },
+            details: { ipLogsDeleted, ipIntelDeleted, usersProfileAntiFraudCleared },
         });
         res.json({
             ok: true,
             message: "Fraud collection data cleared.",
             ipLogsDeleted,
             ipIntelDeleted,
+            usersProfileAntiFraudCleared,
         });
     } catch (error) {
         console.error("[admin fraud-signals reset-collection]", error?.message || error);

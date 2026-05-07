@@ -69,6 +69,8 @@ skills-lock.json
 # pip --target install used by scripts/notebooklm-run.sh (do not commit ~21MB tree)
 vendor-notebooklm/
 .claude/
+.cursor/
+.opencode/
 .openclaude-profile.json
 
 # Certs / backups (never commit real TLS keys; pasta existe via .gitkeep)

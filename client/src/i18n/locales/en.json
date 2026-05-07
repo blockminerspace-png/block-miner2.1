@@ -612,6 +612,17 @@
         "invalid_credentials": "Incorrect password.",
         "invalid_2fa": "Invalid 2FA code.",
         "login_failed": "Login failed."
+      },
+      "validation": {
+        "identifier_empty": "Enter your email or username.",
+        "identifier_too_long": "That login is too long.",
+        "identifier_invalid_chars": "Remove unusual control characters from your login.",
+        "password_empty": "Enter your password.",
+        "password_too_long": "Password is too long (max {{max}} characters).",
+        "two_factor_incomplete": "Enter the full 6-digit code.",
+        "two_factor_invalid": "2FA code must be digits only.",
+        "hint_identifier_max": "Up to {{max}} characters.",
+        "hint_password_max": "Up to {{max}} characters (bcrypt limit)."
       }
     },
     "register": {
@@ -813,13 +824,13 @@
     "refresh_ip_error": "Could not refresh IP intelligence.",
     "reset_open": "Reset collected data",
     "reset_title": "Reset anti-fraud collection",
-    "reset_body": "This deletes all rows in the login/IP history table (ip_logs) and the IP intelligence cache. User profile fields (registration IP, last IP, wallet) and blockchain data are not changed. New signals rebuild as users log in again.",
+    "reset_body": "This deletes all rows in the login/IP/device history table (ip_logs, including fingerprints), clears the IP intelligence cache (proxy/VPN/ASN/DNS lookups), and clears only registration IP, last IP, and browser user-agent on user profiles. Wallet addresses, balances, payouts, deposits, and transactions are not changed. Signals rebuild as users log in again.",
     "reset_type_label": "Type the phrase to confirm",
     "reset_cancel": "Cancel",
     "reset_close": "Close",
     "reset_confirm_btn": "Erase collection",
     "reset_phrase_mismatch": "Type the exact confirmation phrase.",
-    "reset_ok": "Collection reset: {{logs}} IP log rows, {{cache}} cache rows removed.",
+    "reset_ok": "Collection reset: {{logs}} IP log rows, {{cache}} cache rows removed, {{users}} profiles cleared of registration/last IP/UA.",
     "reset_error": "Could not reset collection data.",
     "loading": "Loading signals…",
     "error_load": "Could not load fraud signals.",

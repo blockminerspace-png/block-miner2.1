@@ -170,7 +170,7 @@ describe("admin fraud signals derived network grouping", () => {
 });
 
 describe("resetAdminFraudCollectionData", () => {
-  it("deletes ip_logs and ip_intelligence_cache inside a transaction", async () => {
+  it("deletes ip_logs and ip_intelligence_cache and clears profile IP/UA inside a transaction", async () => {
     const order = [];
     const prisma = {
       $transaction: async (fn) =>
@@ -187,12 +187,23 @@ describe("resetAdminFraudCollectionData", () => {
               return { count: 2 };
             },
           },
+          user: {
+            updateMany: async ({ where, data }) => {
+              order.push("profile");
+              assert.ok(where?.OR);
+              assert.equal(data.registrationIp, null);
+              assert.equal(data.ip, null);
+              assert.equal(data.userAgent, null);
+              return { count: 5 };
+            },
+          },
         }),
     };
     const r = await resetAdminFraudCollectionData(prisma);
-    assert.deepEqual(order, ["logs", "cache"]);
+    assert.deepEqual(order, ["logs", "cache", "profile"]);
     assert.equal(r.ipLogsDeleted, 7);
     assert.equal(r.ipIntelDeleted, 2);
+    assert.equal(r.usersProfileAntiFraudCleared, 5);
   });
 
   it("exposes a stable confirmation token for the admin API", () => {

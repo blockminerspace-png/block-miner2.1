@@ -1,3 +1,5 @@
+# Stack: nginx + app + db (three containers). Polygon HD: set START_PHD_IN_APP_CONTAINER=true
+# in .env.production so entrypoint runs server/phdServer.js inside the app container.
 name: block-miner
 
 services:
@@ -12,18 +14,22 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockminer -d blockminer_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  phd:
-    build: .
-    command: ["node", "server/phdServer.js"]
-    depends_on:
-      - db
-    env_file:
-      - .env.production
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PUBLISH_PORT:-6379}:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   app:
     build:
@@ -31,47 +37,51 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
-      - db
-      - phd
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env.production
     environment:
       NODE_ENV: production
       PORT: 3000
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+      # Avoid Postgres transaction + advisory lock on every rate-limited API call (single app process).
+      API_RATE_LIMIT_USE_MEMORY: "${API_RATE_LIMIT_USE_MEMORY:-true}"
+      PG_POOL_MAX: "${PG_POOL_MAX:-25}"
+      START_PHD_IN_APP_CONTAINER: "${START_PHD_IN_APP_CONTAINER:-false}"
+      PHD_PORT: "${PHD_PORT:-3847}"
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
       - ./uploads:/app/uploads
     restart: unless-stopped
 
-  support-admin:
+  worker:
     build:
       context: .
-    container_name: blockminer-support-admin
-    ports:
-      - "127.0.0.1:1001:3000"
     depends_on:
-      - db
-      - phd
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env.production
     environment:
       NODE_ENV: production
-      APP_MODE: support-admin
-      ADMIN_ONLY_MODE: "true"
-      PORT: 3000
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
       - ./uploads:/app/uploads
     restart: unless-stopped
+    command: ["node", "server/jobs/runBlockminerWorker.js"]
 
   nginx:
     image: nginx:alpine
-    profiles:
-      - proxy
     ports:
       - "80:80"
       - "443:443"
@@ -82,7 +92,6 @@ services:
       - ./logs/nginx:/var/log/nginx
     depends_on:
       - app
-      - support-admin
     restart: unless-stopped
 
 volumes:

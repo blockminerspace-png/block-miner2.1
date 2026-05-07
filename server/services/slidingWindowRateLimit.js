@@ -6,7 +6,7 @@
 import crypto from "crypto";
 import prisma from "../src/db/prisma.js";
 import { advisoryXactTryLockOrThrow } from "../utils/pgAdvisoryLocks.js";
-import { useMemorySecurityStores } from "../utils/securityStoreMode.js";
+import { useMemoryRateLimitStore } from "../utils/securityStoreMode.js";
 
 /** @type {Map<string, number[]>} */
 const memHits = new Map();
@@ -31,7 +31,7 @@ export async function slidingWindowAllow(opts) {
   const prefix = String(opts.redisPrefix || "rl:v1");
   const dedupeKey = String(opts.dedupeKey || "anon");
 
-  if (useMemorySecurityStores()) {
+  if (useMemoryRateLimitStore()) {
     const k = `${prefix}:${dedupeKey}`;
     let arr = memHits.get(k) || [];
     arr = pruneMemoryTimestamps(arr, windowMs, now);

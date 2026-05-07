@@ -25,6 +25,7 @@ import { slidingWindowAllow } from "../services/slidingWindowRateLimit.js";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
+import { enqueueWelcomeEmail, isBullMqPublishingEnabled } from "../jobs/blockminerQueue.js";
 import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../services/emailTwoFactorService.js";
 import {
   buildDeviceFingerprint,
@@ -115,12 +116,28 @@ function clearAuthCookies() {
   return [buildCookie(ACCESS_COOKIE_NAME, "", 0), buildCookie(REFRESH_COOKIE_NAME, "", 0)];
 }
 
+/** Aligned with client `authInputGuards` + bcrypt 72-byte cap. */
+const LOGIN_BODY_IDENTIFIER_MAX = 254;
+const LOGIN_BODY_PASSWORD_MAX = 72;
+
 const loginSchema = z.object({
-  identifier: z.string().trim().min(1, "Email ou username é obrigatório"),
-  password: z.string().min(1, "Senha é obrigatória"),
-  twoFactorToken: z.string().trim().optional(),
-  twoFactorChallengeToken: z.string().trim().optional(),
-  cfTurnstileToken: z.string().trim().optional(),
+  identifier: z
+    .string()
+    .max(LOGIN_BODY_IDENTIFIER_MAX, "Login muito longo.")
+    .transform((s) =>
+      String(s ?? "")
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+        .trim(),
+    )
+    .pipe(z.string().min(1, "Email ou username é obrigatório")),
+  password: z
+    .string()
+    .max(LOGIN_BODY_PASSWORD_MAX, "Senha muito longa.")
+    .transform((s) => String(s ?? "").replace(/\u0000/g, ""))
+    .pipe(z.string().min(1, "Senha é obrigatória")),
+  twoFactorToken: z.string().trim().max(32).optional(),
+  twoFactorChallengeToken: z.string().trim().max(512).optional(),
+  cfTurnstileToken: z.string().trim().max(4096).optional(),
 });
 
 const authLimiter = createDistributedRateLimiter({
@@ -423,6 +440,13 @@ authRouter.post(
       buildCsrfCookie(regCsrf),
     ]);
     logUserActivity("AUTH_REGISTER_SUCCESS", req, { userId: result.id });
+    if (isSmtpConfigured() && isBullMqPublishingEnabled()) {
+      void enqueueWelcomeEmail({
+        userId: result.id,
+        email: normalizedEmail,
+        displayName: result.name || normalizedUsername,
+      });
+    }
     res.status(201).json({ ok: true, user: { id: result.id, name: result.name, username: normalizedUsername, email: normalizedEmail } });
   } catch (error) {
     const errMsg = String(error?.message || error || "");
@@ -707,13 +731,14 @@ authRouter.post(
 authRouter.get("/session", async (req, res) => {
   try {
     const token = getTokenFromRequest(req);
-    if (!token) return res.status(401).json({ ok: false });
+    // 200 + null user: visitante ou cookie inválido — evita 401 no browser para fluxo normal da SPA.
+    if (!token) return res.status(200).json({ ok: false, user: null });
 
     const payload = verifyAccessToken(token);
-    if (!payload?.sub) return res.status(401).json({ ok: false });
+    if (!payload?.sub) return res.status(200).json({ ok: false, user: null });
 
     const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
-    if (!user || user.isBanned) return res.status(401).json({ ok: false });
+    if (!user || user.isBanned) return res.status(200).json({ ok: false, user: null });
 
     const hasReferral = !!(await prisma.referral.findUnique({ where: { referredId: user.id } }));
 

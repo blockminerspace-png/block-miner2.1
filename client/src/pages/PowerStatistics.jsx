@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Activity,
@@ -18,7 +18,23 @@ import {
 } from 'lucide-react';
 import { useUserPowerStats } from '../hooks/useUserPowerStats';
 import { formatHashrate } from '../utils/machine';
-import PowerChartsPanel from '../components/powerStats/PowerChartsPanel';
+
+/** Recharts is heavy (~hundreds of KB); load it in a separate chunk so `/power-stats` shell paints quickly. */
+const PowerChartsPanel = lazy(() => import('../components/powerStats/PowerChartsPanel'));
+
+function PowerChartsFallback() {
+  return (
+    <div
+      className="grid grid-cols-1 xl:grid-cols-2 gap-6"
+      role="status"
+      aria-busy="true"
+      aria-label="Charts loading"
+    >
+      <div className="h-[280px] rounded-2xl border border-slate-800 bg-slate-900/40 animate-pulse" />
+      <div className="h-[280px] rounded-2xl border border-slate-800 bg-slate-900/40 animate-pulse" />
+    </div>
+  );
+}
 
 const TABS = ['overview', 'machines', 'temporary', 'network', 'history'];
 
@@ -213,7 +229,9 @@ export default function PowerStatistics() {
                 )}
               </div>
 
-              <PowerChartsPanel overview={overview} history={data.history} />
+              <Suspense fallback={<PowerChartsFallback />}>
+                <PowerChartsPanel overview={overview} history={data.history} />
+              </Suspense>
 
               <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-2">
                 <h2 className="text-sm font-black text-white uppercase tracking-widest">{t('powerStats.projections_title')}</h2>
@@ -458,7 +476,9 @@ export default function PowerStatistics() {
                 </div>
                 <p className="text-[10px] text-slate-600 mt-4">{t('powerStats.analytics.disclaimer')}</p>
               </div>
-              <PowerChartsPanel overview={overview} history={data.history} />
+              <Suspense fallback={<PowerChartsFallback />}>
+                <PowerChartsPanel overview={overview} history={data.history} />
+              </Suspense>
             </div>
           )}
         </>

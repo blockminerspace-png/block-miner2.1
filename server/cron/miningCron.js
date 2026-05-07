@@ -1,4 +1,5 @@
 import loggerLib from "../utils/logger.js";
+import { sanitizePublicStateForSocket } from "../utils/socketStateSanitize.js";
 import { createCronActionRunner } from "./cronActionRunner.js";
 
 const logger = loggerLib.child("MiningCron");
@@ -71,8 +72,9 @@ export function startMiningLoop({ engine, io, persistMinerProfile, buildPublicSt
             activeUserRooms.push(roomName);
             
             const userState = hasPublicStateBuilder ? await buildPublicState(miner.id) : engine.getPublicState(miner.id);
-            if (userState) {
-              io.to(roomName).emit("state:update", userState);
+            const safeUserState = sanitizePublicStateForSocket(userState);
+            if (safeUserState) {
+              io.to(roomName).emit("state:update", safeUserState);
             }
           }
         }
@@ -80,7 +82,10 @@ export function startMiningLoop({ engine, io, persistMinerProfile, buildPublicSt
         // 2. Envia o estado global APENAS para quem não está em uma sala de usuário (visitantes)
         // O uso de .except() impede que a atualização global (com zeros) chegue aos mineradores
         const globalState = hasPublicStateBuilder ? await buildPublicState() : engine.getPublicState();
-        io.except(activeUserRooms).emit("state:update", globalState);
+        const safeGlobal = sanitizePublicStateForSocket(globalState);
+        if (safeGlobal) {
+          io.except(activeUserRooms).emit("state:update", safeGlobal);
+        }
 
         return { emitted: true };
       },

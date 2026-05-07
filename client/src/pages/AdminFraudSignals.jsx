@@ -183,6 +183,7 @@ export default function AdminFraudSignals() {
                     t('admin_fraud.reset_ok', {
                         logs: res.data.ipLogsDeleted ?? 0,
                         cache: res.data.ipIntelDeleted ?? 0,
+                        users: res.data.usersProfileAntiFraudCleared ?? 0,
                     }),
                 );
                 setResetOpen(false);

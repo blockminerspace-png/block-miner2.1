@@ -63,6 +63,7 @@ import * as healthController from "./controllers/healthController.js";
 import { handleBtcpayWebhook } from "./controllers/btcpayWebhookController.js";
 import * as bannerController from "./controllers/bannerController.js";
 import * as transparencyController from "./controllers/transparencyController.js";
+import * as publicStatsController from "./controllers/publicStatsController.js";
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
 import {
@@ -193,27 +194,36 @@ async function syncEngineMiners(engine) {
     const users = await prisma.user.findMany({
       where: { isBanned: false }
     });
-    
-    logger.info(`Syncing ${users.length} users into mining engine...`);
-    
-    for (const user of users) {
-      const profile = await getOrCreateMinerProfile(user);
-      if (profile.base_hash_rate > 0) {
-        engine.createOrGetMiner({
-          userId: user.id,
-          username: profile.username || user.name,
-          walletAddress: profile.wallet_address,
-          profile: {
-            rigs: profile.rigs,
-            base_hash_rate: profile.base_hash_rate,
-            balance: profile.balance,
-            lifetimeMined: profile.lifetime_mined,
-            refCode: profile.refCode,
-            referralCount: profile.referralCount,
-            mining_payout_mode: profile.mining_payout_mode
+
+    const concurrency = Math.min(
+      32,
+      Math.max(1, Math.floor(Number(process.env.MINING_ENGINE_BOOT_CONCURRENCY || 12)))
+    );
+    logger.info(`Syncing ${users.length} users into mining engine (concurrency=${concurrency})...`);
+
+    for (let i = 0; i < users.length; i += concurrency) {
+      const batch = users.slice(i, i + concurrency);
+      await Promise.all(
+        batch.map(async (user) => {
+          const profile = await getOrCreateMinerProfile(user);
+          if (profile.base_hash_rate > 0) {
+            engine.createOrGetMiner({
+              userId: user.id,
+              username: profile.username || user.name,
+              walletAddress: profile.wallet_address,
+              profile: {
+                rigs: profile.rigs,
+                base_hash_rate: profile.base_hash_rate,
+                balance: profile.balance,
+                lifetimeMined: profile.lifetime_mined,
+                refCode: profile.refCode,
+                referralCount: profile.referralCount,
+                mining_payout_mode: profile.mining_payout_mode
+              }
+            });
           }
-        });
-      }
+        })
+      );
     }
     logger.info("Engine sync complete.");
   } catch (error) {
@@ -303,7 +313,7 @@ app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 app.use(createCsrfMiddleware());
 
-// Global Rate Limiter (Redis-backed when REDIS_URL is configured)
+// Global rate limiter: sliding window via Postgres unless API_RATE_LIMIT_USE_MEMORY=1 (in-memory; see securityStoreMode).
 const globalLimiter = createDistributedRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 5000,
@@ -396,27 +406,7 @@ const publicLiveStatsLimiter = createRateLimiter({
 app.get("/api/live-server-stats", publicLiveStatsLimiter, publicLiveStatsController.getLiveStats);
 
 // Public stats (no auth — used by Landing page)
-app.get("/api/public-stats", async (req, res) => {
-  try {
-    const [userCount, withdrawnAgg, activeMiners] = await Promise.all([
-      prisma.user.count(),
-      prisma.transaction.aggregate({
-        where: { type: "withdrawal", status: "completed" },
-        _sum: { amount: true },
-      }),
-      prisma.userMiner.count({ where: { isActive: true } }),
-    ]);
-    res.json({
-      ok: true,
-      users: userCount,
-      totalWithdrawn: Number(withdrawnAgg._sum.amount || 0),
-      activeMiners,
-      launchDate: "2026-03-05T00:00:00.000Z",
-    });
-  } catch {
-    res.status(500).json({ ok: false });
-  }
-});
+app.get("/api/public-stats", publicStatsController.getPublicStats);
 
 // Health check
 app.get("/health", healthController.health);
@@ -483,9 +473,12 @@ app.use(
 
 // Hashed Vite assets can be cached forever; unhashed JS/CSS must revalidate so users never
 // stick on an old bundle after deploy (stale check-in UI, etc.).
+// acceptRanges: false — some mobile clients + HTTP/2 + nginx proxy stall on 206 Range chains
+// for module scripts (DevTools: CSS 206, entry JS stuck "pending"). Full-file 200 is safer here.
 app.use(
   express.static(publicPath, {
     index: false,
+    acceptRanges: false,
     setHeaders(res, filePath) {
       const base = path.basename(filePath);
       if (/[-.][0-9A-Za-z_-]{7,}\.(m?js|css|wasm)$/i.test(base)) {

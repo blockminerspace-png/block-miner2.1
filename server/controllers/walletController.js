@@ -4,6 +4,7 @@ import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import { runDepositVerifier, DEPOSIT_VERIFY_MAX_ATTEMPTS } from "../services/depositVerifier.js";
 import { wakeUpScanner } from "../cron/depositsCron.js";
+import { enqueueDepositPolygonScan } from "../jobs/blockminerQueue.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 import { getMinDepositPol, getRequiredBlockConfirmations } from "../services/polygonDepositConfig.js";
@@ -424,7 +425,10 @@ export async function submitDeposit(req, res) {
 
     // Dispara verificação assíncrona imediatamente (não bloqueia resposta)
     runDepositVerifier().catch(() => {});
-    wakeUpScanner();
+    const scanQueued = await enqueueDepositPolygonScan();
+    if (!scanQueued) {
+      wakeUpScanner();
+    }
 
     logger.info("Deposit submitted for async verification", { userId, txHash: normalizedHash });
     return res.json({

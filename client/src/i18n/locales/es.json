@@ -248,6 +248,17 @@
         "invalid_credentials": "Contraseña incorrecta.",
         "invalid_2fa": "Código 2FA inválido.",
         "login_failed": "El inicio de sesión falló."
+      },
+      "validation": {
+        "identifier_empty": "Introduce tu correo o usuario.",
+        "identifier_too_long": "Ese inicio de sesión es demasiado largo.",
+        "identifier_invalid_chars": "Quita caracteres de control inválidos del login.",
+        "password_empty": "Introduce tu contraseña.",
+        "password_too_long": "Contraseña demasiado larga (máx. {{max}} caracteres).",
+        "two_factor_incomplete": "Introduce el código completo de 6 dígitos.",
+        "two_factor_invalid": "El código 2FA debe ser solo numérico.",
+        "hint_identifier_max": "Hasta {{max}} caracteres.",
+        "hint_password_max": "Hasta {{max}} caracteres (límite bcrypt)."
       }
     },
     "register": {
@@ -449,13 +460,13 @@
     "refresh_ip_error": "No se pudo actualizar la inteligencia de IP.",
     "reset_open": "Restablecer datos recopilados",
     "reset_title": "Restablecer recopilación antifraude",
-    "reset_body": "Elimina todas las filas del historial de IP/dispositivos (ip_logs) y la caché de inteligencia de IP. No cambia los campos del perfil (IP de registro, última IP, cartera) ni datos on-chain. Las señales se reconstruyen cuando los usuarios vuelvan a iniciar sesión.",
+    "reset_body": "Elimina el historial de IP/dispositivos (ip_logs, incluidas huellas), la caché de inteligencia de IP (proxy/VPN/ASN/DNS) y, en el perfil, solo IP de registro, última IP y user-agent del navegador. No cambia billeteras, saldos, retiros, depósitos ni transacciones. Las señales se reconstruyen al iniciar sesión.",
     "reset_type_label": "Escribe la frase para confirmar",
     "reset_cancel": "Cancelar",
     "reset_close": "Cerrar",
     "reset_confirm_btn": "Borrar recopilación",
     "reset_phrase_mismatch": "Escribe la frase de confirmación exacta.",
-    "reset_ok": "Recopilación restablecida: {{logs}} filas ip_logs, {{cache}} filas de caché eliminadas.",
+    "reset_ok": "Recopilación restablecida: {{logs}} filas ip_logs, {{cache}} caché, {{users}} perfiles limpios (IP registro/última/UA).",
     "reset_error": "No se pudo restablecer la recopilación.",
     "loading": "Cargando señales…",
     "error_load": "No se pudieron cargar las señales.",
