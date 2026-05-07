@@ -5,6 +5,8 @@ __pycache__/
 # Dependencies
 node_modules/
 client/node_modules/
+# Vite build output (regenerate with `npm run build` in client/ or Docker frontend stage)
+client/dist/
 server/node_modules/
 contracts/node_modules/
 contracts/cache/
