@@ -54,13 +54,13 @@ export function startMiningLoop({ engine, io, persistMinerProfile, buildPublicSt
       skippedLogLevel: "debug",
       validateFailureLogLevel: "debug",
       validate: async () => {
-        if (!engine || typeof engine.tick !== "function") return { ok: false, reason: "invalid_engine" };
+        if (!engine || typeof engine.tickAsync !== "function") return { ok: false, reason: "invalid_engine" };
         if (!io || typeof io.emit !== "function") return { ok: false, reason: "invalid_socket_io" };
         return { ok: true };
       },
       sanitize: async () => ({ hasPublicStateBuilder: typeof buildPublicState === "function" }),
       execute: async ({ hasPublicStateBuilder }) => {
-        engine.tick();
+        await engine.tickAsync();
         
         const activeUserRooms = [];
         

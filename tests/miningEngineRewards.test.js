@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MiningEngine } from "../server/src/miningEngine.js";
 
-test("MiningEngine.distributeRewards distributes proportionally", () => {
+test("MiningEngine.distributeRewards distributes proportionally", async () => {
   const engine = new MiningEngine();
   const minerA = engine.createOrGetMiner({ userId: 101, username: "alpha", profile: { rigs: 1, baseHashRate: 10 } });
   const minerB = engine.createOrGetMiner({ userId: 202, username: "beta", profile: { rigs: 1, baseHashRate: 20 } });
@@ -11,7 +11,7 @@ test("MiningEngine.distributeRewards distributes proportionally", () => {
   engine.roundWork.set(minerB.id, 300);
   engine.activeMiners = 2;
 
-  engine.distributeRewards();
+  await engine.distributeRewardsAsync();
 
   // rewardBase is 0.30 POL; shares follow roundWork (100 : 300)
   assert.ok(Math.abs(minerA.balance - 0.075) < 1e-12);
@@ -20,14 +20,14 @@ test("MiningEngine.distributeRewards distributes proportionally", () => {
   assert.equal(engine.lastReward, 0.3);
 });
 
-test("MiningEngine.distributeRewards handles zero-work round", () => {
+test("MiningEngine.distributeRewards handles zero-work round", async () => {
   const engine = new MiningEngine();
   const miner = engine.createOrGetMiner({ userId: 303, username: "idle", profile: { rigs: 1, baseHashRate: 0 } });
 
   engine.roundWork.set(miner.id, 0);
   engine.activeMiners = 0;
 
-  engine.distributeRewards();
+  await engine.distributeRewardsAsync();
 
   assert.equal(miner.balance, 0);
   assert.equal(engine.lastReward, 0);
@@ -48,9 +48,7 @@ test("MiningEngine.distributeRewards rollback restores lastPersistedBalance when
   engine.activeMiners = 1;
   engine.setPersistBlockRewardsCallback(() => Promise.reject(new Error("simulated DB failure")));
 
-  engine.distributeRewards();
-
-  await new Promise((r) => setImmediate(r));
+  await engine.distributeRewardsAsync();
 
   assert.equal(miner.balance, 5, "balance must revert so persistMinerProfile does not apply a bogus negative delta");
   assert.equal(miner.lastPersistedBalance, 5, "lastPersistedBalance must revert with balance or POL would be decremented wrongly");

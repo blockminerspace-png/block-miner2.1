@@ -28,6 +28,8 @@ export class MiningEngine {
     this.leaderboardCacheDirty = true;
     this.logRewardCallback = null;
     this.persistBlockRewardsCallback = null;
+    /** While true, tick does not add hashrate into roundWork (avoids mixing windows during async DB settle). */
+    this._settlementFreezingRoundWork = false;
   }
 
   setRewardLogger(callback) {
@@ -202,107 +204,126 @@ export class MiningEngine {
     return miner.baseHashRate * miner.boostMultiplier;
   }
 
-  distributeRewards() {
-    const minedBlockNumber = this.blockNumber;
-    const totalWork = [...this.roundWork.values()].reduce((sum, value) => sum + value, 0);
+  /**
+   * Settles the current POL block: persists rewards before advancing blockNumber / clearing roundWork.
+   * Freezes roundWork accumulation while awaiting Postgres so work is not lost on persist failure.
+   */
+  async distributeRewardsAsync() {
+    this._settlementFreezingRoundWork = true;
+    try {
+      const minedBlockNumber = this.blockNumber;
+      const roundSnapshot = new Map(this.roundWork);
+      const totalWork = [...roundSnapshot.values()].reduce((sum, value) => sum + value, 0);
 
-    if (totalWork <= 0) {
-      this.roundWork.forEach((_, minerId) => this.roundWork.set(minerId, 0));
-      this.lastReward = 0;
-      this.blockHistory.unshift({
-        blockNumber: minedBlockNumber,
-        reward: 0,
-        minerCount: this.activeMiners,
-        timestamp: Date.now(),
-        userRewards: {}
-      });
-      if (this.blockHistory.length > 12) this.blockHistory.length = 12;
-      this.finalizeBlockDistribution(minedBlockNumber, 0);
-      return;
-    }
-
-    const blockReward = this.rewardBase;
-    const minerRewards = [];
-    const userRewardsMap = {};
-    const balanceSnapshot = new Map();
-
-    for (const [minerId, work] of this.roundWork.entries()) {
-      const miner = this.miners.get(minerId);
-      if (!miner || work <= 0) {
-        this.roundWork.set(minerId, 0);
-        continue;
+      if (totalWork <= 0) {
+        this.roundWork.forEach((_, minerId) => this.roundWork.set(minerId, 0));
+        this.lastReward = 0;
+        this.blockHistory.unshift({
+          blockNumber: minedBlockNumber,
+          reward: 0,
+          minerCount: this.activeMiners,
+          timestamp: Date.now(),
+          userRewards: {}
+        });
+        if (this.blockHistory.length > 12) this.blockHistory.length = 12;
+        this.finalizeBlockDistribution(minedBlockNumber, 0);
+        return;
       }
 
-      balanceSnapshot.set(minerId, {
-        balance: miner.balance,
-        lifetimeMined: miner.lifetimeMined,
-        lastPersistedBalance: miner.lastPersistedBalance
-      });
+      const blockReward = this.rewardBase;
+      const minerRewards = [];
+      const userRewardsMap = {};
+      const balanceSnapshot = new Map();
 
-      const share = work / totalWork;
-      const reward = blockReward * share;
-      miner.balance += reward;
-      miner.lastPersistedBalance = (miner.lastPersistedBalance ?? miner.balance - reward) + reward;
-      miner.lifetimeMined += reward;
-      this.totalMinted += reward;
-      this.roundWork.set(minerId, 0);
+      for (const [minerId, work] of roundSnapshot.entries()) {
+        const miner = this.miners.get(minerId);
+        if (!miner || work <= 0) {
+          this.roundWork.set(minerId, 0);
+          continue;
+        }
 
-      userRewardsMap[miner.userId] = reward;
+        balanceSnapshot.set(minerId, {
+          balance: miner.balance,
+          lifetimeMined: miner.lifetimeMined,
+          lastPersistedBalance: miner.lastPersistedBalance
+        });
 
-      minerRewards.push({
-        minerId: miner.id,
-        userId: miner.userId,
-        username: miner.username,
-        walletAddress: miner.walletAddress,
-        rigs: miner.rigs,
-        baseHashRate: miner.baseHashRate,
-        workAccumulated: work,
-        sharePercentage: share * 100,
-        rewardAmount: reward,
-        balanceAfter: miner.balance,
-        lifetimeMined: miner.lifetimeMined
-      });
-    }
+        const share = work / totalWork;
+        const reward = blockReward * share;
+        miner.balance += reward;
+        miner.lastPersistedBalance = (miner.lastPersistedBalance ?? miner.balance - reward) + reward;
+        miner.lifetimeMined += reward;
+        this.totalMinted += reward;
 
-    if (this.persistBlockRewardsCallback && minerRewards.length > 0) {
+        userRewardsMap[miner.userId] = reward;
+
+        minerRewards.push({
+          minerId: miner.id,
+          userId: miner.userId,
+          username: miner.username,
+          walletAddress: miner.walletAddress,
+          rigs: miner.rigs,
+          baseHashRate: miner.baseHashRate,
+          workAccumulated: work,
+          sharePercentage: share * 100,
+          rewardAmount: reward,
+          balanceAfter: miner.balance,
+          lifetimeMined: miner.lifetimeMined
+        });
+      }
+
       const now = Date.now();
-      Promise.resolve(
-        this.persistBlockRewardsCallback({
-          blockNumber: minedBlockNumber,
-          blockReward,
-          totalWork,
-          minerRewards,
-          now
-        })
-      ).catch((error) => {
-        logger.error("Block reward persistence failed — rolling back", { error: error.message });
-        for (const [minerId, snapshot] of balanceSnapshot.entries()) {
-          const miner = this.miners.get(minerId);
-          if (miner) {
-            const rewardEntry = minerRewards.find(r => r.minerId === minerId);
-            if (rewardEntry) {
-              miner.balance = snapshot.balance;
-              miner.lifetimeMined = snapshot.lifetimeMined;
-              miner.lastPersistedBalance = snapshot.lastPersistedBalance;
-              this.totalMinted -= rewardEntry.rewardAmount;
+      if (minerRewards.length > 0 && this.persistBlockRewardsCallback) {
+        try {
+          await this.persistBlockRewardsCallback({
+            blockNumber: minedBlockNumber,
+            blockReward,
+            totalWork,
+            minerRewards,
+            now
+          });
+        } catch (error) {
+          logger.error("Block reward persistence failed — rolling back", { error: error.message });
+          for (const [minerId, snapshot] of balanceSnapshot.entries()) {
+            const miner = this.miners.get(minerId);
+            if (miner) {
+              const rewardEntry = minerRewards.find((r) => r.minerId === minerId);
+              if (rewardEntry) {
+                miner.balance = snapshot.balance;
+                miner.lifetimeMined = snapshot.lifetimeMined;
+                miner.lastPersistedBalance = snapshot.lastPersistedBalance;
+                this.totalMinted -= rewardEntry.rewardAmount;
+              }
             }
           }
+          for (const [minerId, work] of roundSnapshot.entries()) {
+            this.roundWork.set(minerId, work);
+          }
+          return;
         }
+      }
+
+      for (const [minerId, work] of roundSnapshot.entries()) {
+        if (work > 0 && this.miners.get(minerId)) {
+          this.roundWork.set(minerId, 0);
+        }
+      }
+
+      this.blockHistory.unshift({
+        blockNumber: minedBlockNumber,
+        reward: blockReward,
+        minerCount: this.activeMiners,
+        timestamp: Date.now(),
+        userRewards: userRewardsMap
       });
+      if (this.blockHistory.length > 12) this.blockHistory.length = 12;
+
+      this.lastReward = blockReward;
+      this.markLeaderboardDirty();
+      this.finalizeBlockDistribution(minedBlockNumber, blockReward);
+    } finally {
+      this._settlementFreezingRoundWork = false;
     }
-
-    this.blockHistory.unshift({
-      blockNumber: minedBlockNumber,
-      reward: blockReward,
-      minerCount: this.activeMiners,
-      timestamp: Date.now(),
-      userRewards: userRewardsMap
-    });
-    if (this.blockHistory.length > 12) this.blockHistory.length = 12;
-
-    this.lastReward = blockReward;
-    this.markLeaderboardDirty();
-    this.finalizeBlockDistribution(minedBlockNumber, blockReward);
   }
 
   finalizeBlockDistribution(num, reward) {
@@ -313,7 +334,7 @@ export class MiningEngine {
     this.nextBlockAt = this.blockStartedAt + this.blockDurationMs;
   }
 
-  tick() {
+  async tickAsync() {
     const now = Date.now();
     let totalHashRate = 0;
     let activeMiners = 0;
@@ -330,7 +351,9 @@ export class MiningEngine {
       if (hashRate > 0) activeMiners += 1;
       // Recompensa por bloco é só POL hoje; modo BLK no perfil ainda não desvia mint por bloco.
       // Todos acumulam work no pool POL para o bloco não ficar "morto" quando alguém escolheu BLK na UI.
-      this.roundWork.set(minerId, (this.roundWork.get(minerId) || 0) + hashRate);
+      if (!this._settlementFreezingRoundWork) {
+        this.roundWork.set(minerId, (this.roundWork.get(minerId) || 0) + hashRate);
+      }
     }
 
     if (leaderboardChanged) {
@@ -341,7 +364,7 @@ export class MiningEngine {
     this.activeMiners = activeMiners;
 
     if (now >= this.nextBlockAt) {
-      this.distributeRewards();
+      await this.distributeRewardsAsync();
     }
 
     const elapsed = Math.max(0, now - this.blockStartedAt);
