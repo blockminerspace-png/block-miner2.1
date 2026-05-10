@@ -4,14 +4,46 @@ import { sanitizePublicStateForSocket } from "../utils/socketStateSanitize.js";
 
 const logger = loggerLib.child("MiningEngine");
 
+const DEFAULT_BLOCK_REWARD_POL = 0.3;
+const DEFAULT_BLOCK_DURATION_MS = 10 * 60 * 1000;
+
+/** POL minted per POL-pool block (shared by miners). Env overrides hardcoded default. */
+function readMiningBlockRewardPol() {
+  const keys = ["MINING_POL_BLOCK_REWARD", "BLOCK_REWARD_POL", "BLOCKMINER_POL_BLOCK_REWARD"];
+  for (const k of keys) {
+    const raw = process.env[k];
+    if (raw == null || String(raw).trim() === "") continue;
+    const n = Number(String(raw).trim());
+    if (Number.isFinite(n) && n > 0 && n <= 1_000_000) return n;
+  }
+  return DEFAULT_BLOCK_REWARD_POL;
+}
+
+/** Interval between block settlements. Prefer minutes env; optional MS for fine control. */
+function readMiningBlockDurationMs() {
+  const msRaw = process.env.MINING_BLOCK_INTERVAL_MS;
+  if (msRaw != null && String(msRaw).trim() !== "") {
+    const ms = Number(String(msRaw).trim());
+    if (Number.isFinite(ms) && ms >= 60_000 && ms <= 86400000) return Math.round(ms);
+  }
+  const minKeys = ["MINING_BLOCK_INTERVAL_MINUTES", "BLOCK_INTERVAL_MINUTES", "BLOCKMINER_BLOCK_INTERVAL_MINUTES"];
+  for (const k of minKeys) {
+    const raw = process.env[k];
+    if (raw == null || String(raw).trim() === "") continue;
+    const m = Number(String(raw).trim());
+    if (Number.isFinite(m) && m >= 1 && m <= 1440) return Math.round(m * 60 * 1000);
+  }
+  return DEFAULT_BLOCK_DURATION_MS;
+}
+
 export class MiningEngine {
   constructor() {
     this.tokenSymbol = "POL";
     this.blockNumber = 1;
-    this.rewardBase = 0.30;
+    this.rewardBase = readMiningBlockRewardPol();
     this.blockTarget = 100;
     this.blockProgress = 0;
-    this.blockDurationMs = 10 * 60 * 1000;
+    this.blockDurationMs = readMiningBlockDurationMs();
     this.blockStartedAt = Date.now();
     this.nextBlockAt = this.blockStartedAt + this.blockDurationMs;
     this.tokenPrice = 0.35;
@@ -30,6 +62,13 @@ export class MiningEngine {
     this.persistBlockRewardsCallback = null;
     /** While true, tick does not add hashrate into roundWork (avoids mixing windows during async DB settle). */
     this._settlementFreezingRoundWork = false;
+
+    if (process.env.NODE_ENV === "production") {
+      logger.info("Mining POL block economy", {
+        rewardBasePol: this.rewardBase,
+        blockIntervalMinutes: this.blockDurationMs / 60000
+      });
+    }
   }
 
   setRewardLogger(callback) {

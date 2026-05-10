@@ -3,7 +3,7 @@
  *
  * Pure-function mining reward estimator (POL pool blocks).
  *
- * Defaults mirror `server/src/miningEngine.js` (`rewardBase`, `blockDurationMs`).
+ * Defaults mirror `server/src/miningEngine.js` (same as env defaults; server may override via MINING_POL_BLOCK_REWARD / MINING_BLOCK_INTERVAL_MINUTES).
  * Callers can override per-block POL and interval from live `state:update` / socket stats.
  */
 
