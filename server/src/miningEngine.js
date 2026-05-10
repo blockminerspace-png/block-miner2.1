@@ -328,11 +328,9 @@ export class MiningEngine {
       const hashRate = this.getMinerHashRate(miner);
       totalHashRate += hashRate;
       if (hashRate > 0) activeMiners += 1;
-      const payoutMode = miner.miningPayoutMode === "blk" ? "blk" : "pol";
-      // 100% POL: acumula work do bloco. 100% BLK: só entra no pool por tempo (sem POL do bloco).
-      if (payoutMode === "pol") {
-        this.roundWork.set(minerId, (this.roundWork.get(minerId) || 0) + hashRate);
-      }
+      // Recompensa por bloco é só POL hoje; modo BLK no perfil ainda não desvia mint por bloco.
+      // Todos acumulam work no pool POL para o bloco não ficar "morto" quando alguém escolheu BLK na UI.
+      this.roundWork.set(minerId, (this.roundWork.get(minerId) || 0) + hashRate);
     }
 
     if (leaderboardChanged) {
