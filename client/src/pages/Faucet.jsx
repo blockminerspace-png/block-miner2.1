@@ -252,23 +252,31 @@ export default function Faucet() {
                                     ) : (
                                         <div className="space-y-3">
                                             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center max-w-[300px] mx-auto">
-                                                <iframe
-                                                    ref={partnerIframeRef}
-                                                    src="https://zerads.com/ad/ad.php?width=300&ref=10776"
-                                                    marginWidth={0}
-                                                    marginHeight={0}
-                                                    width={300}
-                                                    height={250}
-                                                    scrolling="no"
-                                                    frameBorder={0}
-                                                    style={{ display: "block", maxWidth: "100%", border: 0 }}
-                                                    title={t("autoMiningGpuPage.turbo_zerads_iframe_title")}
-                                                />
+                                                <div className="mx-auto h-auto w-[300px] max-w-full">
+                                                    <iframe
+                                                        ref={partnerIframeRef}
+                                                        data-aa="2436936"
+                                                        src="https://ad.a-ads.com/2436936/?size=300x250"
+                                                        width={300}
+                                                        height={250}
+                                                        title={t("faucet.partner_iframe_title")}
+                                                        style={{
+                                                            border: 0,
+                                                            padding: 0,
+                                                            width: 300,
+                                                            height: 250,
+                                                            overflow: "hidden",
+                                                            display: "block",
+                                                            margin: "0 auto",
+                                                            maxWidth: "100%",
+                                                        }}
+                                                    />
+                                                </div>
                                                 <button
                                                     type="button"
                                                     aria-label={t("faucet.visit_partner")}
                                                     disabled={isAdClicked || remainingMs > 0 || isPartnerUnlocked}
-                                                    className="absolute inset-0 z-10 cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50"
+                                                    className="absolute inset-0 z-[100000] cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50"
                                                     onClick={handleAdClick}
                                                 >
                                                 </button>

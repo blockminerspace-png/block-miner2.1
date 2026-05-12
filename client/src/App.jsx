@@ -77,6 +77,7 @@ const DashboardCryptoStream = lazy(() => import('./pages/DashboardCryptoStream')
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfUse = lazy(() => import('./pages/TermsOfUse'));
 const Support = lazy(() => import('./pages/Support'));
+const Web3Providers = lazy(() => import('./components/Web3Providers.jsx'));
 
 function RouteLoader() {
   return (
@@ -152,6 +153,17 @@ const ProtectedLayout = () => {
   );
 };
 
+/** Wagmi/AppKit chunk loads only when entering the authenticated shell (not on `/`). */
+function ProtectedLayoutWithWeb3() {
+  return (
+    <Suspense fallback={<RouteLoader />}>
+      <Web3Providers>
+        <ProtectedLayout />
+      </Web3Providers>
+    </Suspense>
+  );
+}
+
 function App() {
   const { checkSession } = useAuthStore();
 
@@ -196,7 +208,7 @@ function App() {
           <Route path="/liveserver" element={<LiveServer />} />
           <Route path="/dashboardcrypto" element={<DashboardCryptoStream />} />
 
-          <Route element={<ProtectedLayout />}>
+          <Route element={<ProtectedLayoutWithWeb3 />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/power-stats" element={<PowerStatistics />} />
             <Route path="/shop" element={<Shop />} />

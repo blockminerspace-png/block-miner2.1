@@ -55,6 +55,9 @@ RUN npx prisma generate --schema=server/prisma/schema.prisma
 # Copy the rest of the application
 COPY . .
 
+# Controllers authored in TypeScript (check-in, shortlinks, YouTube, auto mining); emit JS for Node.
+RUN npx --yes esbuild@0.25.4 server/controllers/checkinController.ts server/controllers/shortlinkController.ts server/controllers/youtubeController.ts server/controllers/autoMiningGpuController.ts server/controllers/autoMiningV2Controller.ts --outdir=server/controllers --format=esm --platform=node
+
 # Copy compiled React SPA into the backend container
 COPY --from=frontend-builder /app/dist ./client/dist
 

@@ -5,6 +5,13 @@ import { api } from '../store/auth';
 const DISMISS_KEY = 'bm_adblock_notice_dismiss_until';
 const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Consecutive positive samples required (reduces flicker / slow layout false positives). */
+const REQUIRED_PASSES = 3;
+/** Wait for tab to be visible before probing (background tabs can report odd layout). */
+function isTabVisible() {
+  return typeof document === 'undefined' || document.visibilityState === 'visible';
+}
+
 function isDismissedInStorage() {
   try {
     const until = parseInt(localStorage.getItem(DISMISS_KEY) || '0', 10);
@@ -22,12 +29,36 @@ function runDoubleRaf() {
   });
 }
 
+function elementLooksPresent(el) {
+  const cs = window.getComputedStyle(el);
+  const visible =
+    el.offsetHeight > 0 &&
+    el.offsetWidth > 0 &&
+    cs.display !== 'none' &&
+    cs.visibility !== 'hidden' &&
+    cs.opacity !== '0';
+  return visible;
+}
+
+function elementLooksBlocked(el) {
+  const cs = window.getComputedStyle(el);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return true;
+  return (
+    el.offsetHeight === 0 &&
+    el.clientHeight === 0 &&
+    el.offsetWidth === 0 &&
+    el.clientWidth === 0
+  );
+}
+
 /**
- * Compara um honeypot com classes de anúncio a um controlo com classe aleatória.
- * Só marca adblock se o controlo estiver visível e o honeypot claramente colapsado/oculto —
- * evita falso positivo quando o browser ainda não fez layout ou com elementos 1x1.
+ * Compares an ad-looking honeypot to a neutral probe with the same off-screen geometry.
+ * Brave Shields / filter lists often hide `.ads-google`-style classes only; a neutral sibling
+ * staying visible while the bait is collapsed is a stronger signal than the bait alone.
  */
 async function detectAdBlockOnce() {
+  if (!isTabVisible()) return false;
+
   const baseStyle =
     'position:absolute;left:-9999px;top:-9999px;width:48px;height:48px;overflow:visible;pointer-events:none;';
 
@@ -36,40 +67,47 @@ async function detectAdBlockOnce() {
   control.style.cssText = baseStyle;
   control.textContent = '\u00a0';
 
+  const neutral = document.createElement('div');
+  neutral.className = `bm-probe-neutral-${Math.random().toString(36).slice(2, 12)}`;
+  neutral.style.cssText = baseStyle;
+  neutral.textContent = '\u00a0';
+
   const honeypot = document.createElement('div');
   honeypot.className = 'ad-banner adsbox ads-google ad-placement public_ads';
   honeypot.style.cssText = baseStyle;
   honeypot.innerHTML = '&nbsp;';
 
   document.body.appendChild(control);
+  document.body.appendChild(neutral);
   document.body.appendChild(honeypot);
 
   await runDoubleRaf();
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 380));
 
-  const csCtrl = window.getComputedStyle(control);
-  const csHp = window.getComputedStyle(honeypot);
-
-  const controlOk =
-    control.offsetHeight > 0 &&
-    control.offsetWidth > 0 &&
-    csCtrl.display !== 'none' &&
-    csCtrl.visibility !== 'hidden';
-
-  const honeypotLooksBlocked =
-    csHp.display === 'none' ||
-    (honeypot.offsetHeight === 0 &&
-      honeypot.clientHeight === 0 &&
-      honeypot.offsetWidth === 0 &&
-      honeypot.clientWidth === 0);
+  const controlOk = elementLooksPresent(control);
+  const neutralOk = elementLooksPresent(neutral);
+  const honeypotLooksBlocked = elementLooksBlocked(honeypot);
 
   document.body.removeChild(control);
+  document.body.removeChild(neutral);
   document.body.removeChild(honeypot);
 
-  if (!controlOk) {
+  if (!controlOk || !neutralOk) {
     return false;
   }
   return honeypotLooksBlocked;
+}
+
+async function detectAdBlockConservative() {
+  for (let i = 0; i < REQUIRED_PASSES; i += 1) {
+    if (!isTabVisible()) return false;
+    const pass = await detectAdBlockOnce();
+    if (!pass) return false;
+    if (i < REQUIRED_PASSES - 1) {
+      await new Promise((r) => setTimeout(r, 700));
+    }
+  }
+  return true;
 }
 
 const AdBlockDetector = () => {
@@ -82,16 +120,10 @@ const AdBlockDetector = () => {
     }
 
     const timer = setTimeout(async () => {
-      const first = await detectAdBlockOnce();
-      if (!first) return;
-
-      await new Promise((r) => setTimeout(r, 800));
-      const second = await detectAdBlockOnce();
-      if (!second) return;
-
+      const blocked = await detectAdBlockConservative();
+      if (!blocked) return;
       setIsDetected(true);
-      api.post('/auth/mark-adblock').catch(() => {});
-    }, 2800);
+    }, 5200);
 
     return () => clearTimeout(timer);
   }, []);
@@ -103,6 +135,11 @@ const AdBlockDetector = () => {
       /* ignore */
     }
     setIsDismissed(true);
+  };
+
+  const onReloadAfterDisabled = () => {
+    api.post('/auth/mark-adblock').catch(() => {});
+    window.location.reload();
   };
 
   if (!isDetected || isDismissed) return null;
@@ -131,7 +168,7 @@ const AdBlockDetector = () => {
           <div className="grid grid-cols-1 gap-4 w-full">
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={onReloadAfterDisabled}
               className="flex items-center justify-center gap-3 w-full py-5 bg-primary text-white font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all uppercase italic tracking-widest shadow-glow"
             >
               Já desativei, recarregar <ExternalLink className="w-5 h-5" />

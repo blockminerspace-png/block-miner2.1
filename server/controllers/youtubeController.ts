@@ -1,20 +1,28 @@
+import type { Request, Response } from "express";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { notifyDailyTaskYoutubeWatch } from "../services/dailyTasks/dailyTaskHookService.js";
+
 const logger = loggerLib.child("YouTubeController");
-const REWARD_PER_CLAIM = 3;
+
+const REWARD_PER_CLAIM = 3.0;
 const DURATION_HOURS = Number(process.env.YOUTUBE_REWARD_DURATION_HOURS || 24);
-const DAILY_LIMIT_HASH = 1440;
-async function getStatus(req, res) {
+const DAILY_LIMIT_HASH = 1440.0;
+
+type AuthedRequest = Request & { user: { id: number } };
+
+export async function getStatus(req: Request, res: Response) {
   try {
-    const userId = req.user.id;
-    const now = /* @__PURE__ */ new Date();
+    const userId = (req as AuthedRequest).user.id;
+    const now = new Date();
     const activePowers = await prisma.youtubeWatchPower.findMany({
       where: { userId, expiresAt: { gt: now } }
     });
+
     const activeHashRate = activePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
+
     res.json({
       ok: true,
       activeHashRate,
@@ -26,11 +34,13 @@ async function getStatus(req, res) {
     res.status(500).json({ ok: false, message: "Error fetching status." });
   }
 }
-async function getStats(req, res) {
+
+export async function getStats(req: Request, res: Response) {
   try {
-    const userId = req.user.id;
-    const now = /* @__PURE__ */ new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1e3);
+    const userId = (req as AuthedRequest).user.id;
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
     const [claims24h, claimsAll, historyRecent] = await Promise.all([
       prisma.youtubeWatchHistory.findMany({
         where: { userId, createdAt: { gt: yesterday } }
@@ -46,7 +56,9 @@ async function getStats(req, res) {
         take: 5
       })
     ]);
+
     const hash24h = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+
     res.json({
       ok: true,
       claims24h: claims24h.length,
@@ -56,34 +68,42 @@ async function getStats(req, res) {
       recent: historyRecent,
       dailyLimit: DAILY_LIMIT_HASH
     });
-  } catch (error) {
+  } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.error("YT stats error", { error: msg });
     res.status(500).json({ ok: false, message: "Error fetching stats." });
   }
 }
-async function claimReward(req, res) {
+
+export async function claimReward(req: Request, res: Response) {
   try {
-    const userId = req.user.id;
-    const { videoId } = req.body;
+    const userId = (req as AuthedRequest).user.id;
+    const { videoId } = req.body as { videoId?: string };
     if (!videoId) return res.status(400).json({ ok: false, message: "Missing videoId" });
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { ytSecondsBalance: true }
     });
+
     if (!user || user.ytSecondsBalance < 60) {
-      return res.status(400).json({ ok: false, message: "Tempo de visualiza\xE7\xE3o insuficiente verificado pelo servidor." });
+      return res.status(400).json({ ok: false, message: "Tempo de visualização insuficiente verificado pelo servidor." });
     }
-    const now = /* @__PURE__ */ new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1e3);
+
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
     const claims24h = await prisma.youtubeWatchHistory.findMany({
       where: { userId, createdAt: { gt: yesterday } }
     });
     const currentDailyHash = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+
     if (currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {
       return res.status(400).json({ ok: false, message: "Daily reward limit reached. Try again later!" });
     }
-    const expiresAt = new Date(Date.now() + DURATION_HOURS * 60 * 60 * 1e3);
+
+    const expiresAt = new Date(Date.now() + DURATION_HOURS * 60 * 60 * 1000);
+
     const historyRow = await prisma.$transaction(async (tx) => {
       await tx.youtubeWatchPower.create({
         data: { userId, sourceVideoId: videoId, hashRate: REWARD_PER_CLAIM, claimedAt: now, expiresAt }
@@ -104,8 +124,9 @@ async function claimReward(req, res) {
       });
       return hist;
     });
-    notifyDailyTaskYoutubeWatch(userId, historyRow.id).catch(() => {
-    });
+
+    notifyDailyTaskYoutubeWatch(userId, historyRow.id).catch(() => {});
+
     try {
       const newTotal = await syncUserBaseHashRate(userId);
       const engine = getMiningEngine();
@@ -114,23 +135,19 @@ async function claimReward(req, res) {
         if (miner) miner.baseHashRate = newTotal;
         if (engine.io) engine.io.to(`user:${userId}`).emit("machines:update");
       }
-    } catch (syncErr) {
+    } catch (syncErr: unknown) {
       const m = syncErr instanceof Error ? syncErr.message : String(syncErr);
       logger.warn("YT claim: engine sync failed (non-fatal)", { error: m });
     }
+
     res.json({
       ok: true,
       message: `+${REWARD_PER_CLAIM} H/s ativado por ${Number(process.env.YT_POWER_DAYS || 7)} dias!`,
       rewardGh: REWARD_PER_CLAIM
     });
-  } catch (error) {
+  } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.error("YT claim error", { error: msg });
     res.status(500).json({ ok: false, message: "Error claiming reward." });
   }
 }
-export {
-  claimReward,
-  getStats,
-  getStatus
-};

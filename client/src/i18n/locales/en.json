@@ -1850,6 +1850,7 @@
     "partner_msg": "Click the banner below to visit our sponsor and unlock your reward.",
     "unlocked": "Unlocked!",
     "visit_partner": "Click Banner",
+    "partner_iframe_title": "Sponsor advertisement",
     "partner_click_hint": "Tap the sponsor area to continue",
     "partner_new_tab_hint": "The sponsor opens in a new tab",
     "partner_toast_started": "Sponsor opened in a new tab. Keep it open for a few seconds.",
@@ -1992,7 +1993,8 @@
       "CHECKIN_SERVER_ERROR": "Check-in failed due to a server error. Try again later.",
       "INVALID_CADENCE": "Only daily check-in is available. Use cadence \"daily\" with your transaction hash.",
       "INSUFFICIENT_BALANCE": "Not enough in-game POL for balance check-in (0.03 POL required).",
-      "CHECKIN_BUSY": "Another check-in request is in progress. Wait a moment and try again."
+      "CHECKIN_BUSY": "Another check-in request is in progress. Wait a moment and try again.",
+      "CHECKIN_CONFLICT": "Check-in was already recorded. Refresh the page and try again if needed."
     },
     "success": {
       "wallet_checkin": "Check-in confirmed via wallet! +{{streak}} day streak",
@@ -2265,7 +2267,8 @@
       "cooldown": "Wait {{seconds}}s before starting this game again.",
       "unknown_game": "This game is not available.",
       "game_paused": "This game is temporarily paused.",
-      "start_failed": "Could not start the game. Please try again."
+      "start_failed": "Could not start the game. Please try again.",
+      "session_active": "A game session is already running. Finish or exit before starting again."
     },
     "game_finish": {
       "anti_cheat_timing": "Suspicious action detected: play time was unrealistically short.",

@@ -74,6 +74,11 @@ export default function Login() {
     return undefined;
   }, []);
 
+  /** Warm wallet chunk before redirect to /dashboard (avoids long full-screen spinner after login). */
+  useEffect(() => {
+    void import("../components/Web3Providers.jsx");
+  }, []);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError('');

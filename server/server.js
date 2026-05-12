@@ -6,6 +6,7 @@ import http from "http";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import helmet from "helmet";
 import { Server } from "socket.io";
@@ -289,6 +290,11 @@ app.use(
   }),
 );
 app.use(cors(buildExpressCorsOptions()));
+
+/** Gzip JSON + static build assets at origin (nginx may also gzip; avoids 1MB JS with no Content-Encoding). */
+if (process.env.NODE_ENV === "production") {
+  app.use(compression({ threshold: 1024 }));
+}
 
 /**
  * BTCPay webhook must read the raw body for HMAC verification (before express.json consumes it).

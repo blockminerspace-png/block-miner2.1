@@ -6,7 +6,9 @@ export function useLandingScrollDepth() {
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
     const seen = new Set();
-    const onScroll = () => {
+    let ticking = false;
+    const measure = () => {
+      ticking = false;
       const docEl = document.documentElement;
       const h = docEl.scrollHeight - docEl.clientHeight;
       if (h <= 0) return;
@@ -18,8 +20,13 @@ export function useLandingScrollDepth() {
         }
       });
     };
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(measure);
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
+    measure();
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 }

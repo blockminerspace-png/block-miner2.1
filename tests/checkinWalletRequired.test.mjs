@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const checkinControllerPath = join(__dirname, "../server/controllers/checkinController.js");
+const checkinTs = join(__dirname, "../server/controllers/checkinController.ts");
+const checkinJs = join(__dirname, "../server/controllers/checkinController.js");
+const checkinControllerPath = existsSync(checkinTs) ? checkinTs : checkinJs;
 
 test("wallet check-in rejects users without a linked wallet (server gate)", () => {
   const src = readFileSync(checkinControllerPath, "utf8");

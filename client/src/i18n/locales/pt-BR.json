@@ -1853,6 +1853,7 @@
     "partner_msg": "Clique no banner abaixo para abrir o site do patrocinador e liberar o seu prêmio.",
     "unlocked": "Liberado!",
     "visit_partner": "Clicar no Banner",
+    "partner_iframe_title": "Anúncio do patrocinador",
     "partner_click_hint": "Toque na área do patrocinador para continuar",
     "partner_new_tab_hint": "O patrocinador abre numa nova aba",
     "partner_toast_started": "Patrocinador aberto numa nova aba. Mantenha-a aberta por alguns segundos.",
@@ -1997,7 +1998,8 @@
       "CHECKIN_SERVER_ERROR": "O check-in falhou por erro no servidor. Tente mais tarde.",
       "INVALID_CADENCE": "Só existe check-in diário. Usa cadência \"daily\" com o hash da transação.",
       "INSUFFICIENT_BALANCE": "POL interno insuficiente para check-in por saldo (são necessários 0,03 POL).",
-      "CHECKIN_BUSY": "Outro pedido de check-in está em curso. Espera um momento e tenta de novo."
+      "CHECKIN_BUSY": "Outro pedido de check-in está em curso. Espera um momento e tenta de novo.",
+      "CHECKIN_CONFLICT": "O check-in já foi registrado. Atualiza a página e tenta de novo se precisar."
     },
     "success": {
       "wallet_checkin": "Check-in confirmado via carteira! Sequência de +{{streak}} dias",
@@ -2270,7 +2272,8 @@
       "cooldown": "Aguarde {{seconds}}s para iniciar este jogo novamente.",
       "unknown_game": "Jogo indisponível.",
       "game_paused": "Jogo pausado temporariamente.",
-      "start_failed": "Erro ao iniciar o jogo. Tente novamente."
+      "start_failed": "Erro ao iniciar o jogo. Tente novamente.",
+      "session_active": "Já existe uma partida em andamento. Encerre ou saia antes de iniciar outra."
     },
     "game_finish": {
       "anti_cheat_timing": "Ação suspeita detectada: tempo de jogo irreal.",

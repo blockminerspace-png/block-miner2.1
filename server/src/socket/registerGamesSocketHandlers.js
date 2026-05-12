@@ -41,6 +41,24 @@ const CART_BASE_SPAWN_MS = 900;
 const CART_MIN_SPAWN_MS = 360;
 const CART_DISTANCE_PER_TICK = 10;
 const CART_COIN_POINTS = 50;
+const GAME_SLUG_MAX_LEN = 64;
+
+/** @param {unknown} raw */
+function parseGameSlug(raw) {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  if (!s || s.length > GAME_SLUG_MAX_LEN) return null;
+  return Object.prototype.hasOwnProperty.call(GAME_NAMES, s) ? s : null;
+}
+
+/** @param {unknown} p */
+function readMatch3GridCoord(p) {
+  if (!p || typeof p !== "object" || Array.isArray(p)) return null;
+  const x = Number(/** @type {{ x?: unknown }} */ (p).x);
+  const y = Number(/** @type {{ y?: unknown }} */ (p).y);
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x > 7 || y < 0 || y > 7) return null;
+  return { x, y };
+}
 const CART_ENEMY_VARIANTS = [
   { body: "#f97316", accent: "#fdba74", glow: "rgba(249,115,22,0.45)" },
   { body: "#ef4444", accent: "#fca5a5", glow: "rgba(239,68,68,0.45)" },
@@ -73,8 +91,17 @@ export function registerGamesSocketHandlers({ io, engine }) {
     
     socket.on("game:start", async (gameSlug) => {
       try {
+        const slug = parseGameSlug(gameSlug);
+        if (!slug) return socket.emit("game:error", { code: "unknown_game" });
+
         const prev = GAME_SESSIONS.get(socket.id);
-        clearMemoryMismatchTimer(prev);
+        if (prev && !prev.isFinished) {
+          return socket.emit("game:error", { code: "session_active" });
+        }
+        if (prev) {
+          clearMemoryMismatchTimer(prev);
+          GAME_SESSIONS.delete(socket.id);
+        }
 
         const requestLike = { headers: socket.request?.headers || {} };
         const authToken = getTokenFromRequest(requestLike);
@@ -84,7 +111,7 @@ export function registerGamesSocketHandlers({ io, engine }) {
         if (!userId) return socket.emit("game:error", { code: "invalid_session" });
 
         // Cooldown check individual por jogo
-        const cooldownKey = `${userId}-${gameSlug}`;
+        const cooldownKey = `${userId}-${slug}`;
         const lastFinish = LAST_GAME_FINISH.get(cooldownKey);
         if (lastFinish) {
           const elapsed = Date.now() - lastFinish;
@@ -94,18 +121,18 @@ export function registerGamesSocketHandlers({ io, engine }) {
           }
         }
 
-        const gameName = GAME_NAMES[gameSlug];
+        const gameName = GAME_NAMES[slug];
         if (!gameName) return socket.emit("game:error", { code: "unknown_game" });
         const game = await prisma.game.upsert({
-          where: { slug: gameSlug },
-          create: { name: gameName, slug: gameSlug, isActive: true },
+          where: { slug },
+          create: { name: gameName, slug, isActive: true },
           update: {},
         });
         if (!game.isActive) return socket.emit("game:error", { code: "game_paused" });
 
         let initialState = {
           gameId: Number(game.id),
-          slug: gameSlug,
+          slug,
           userId: Number(userId),
           score: 0,
           isFinished: false,
@@ -113,7 +140,7 @@ export function registerGamesSocketHandlers({ io, engine }) {
           lastUpdate: Date.now()
         };
 
-        if (gameSlug === 'crypto-memory') {
+        if (slug === 'crypto-memory') {
           initialState.board = secureShuffle([...SYMBOLS, ...SYMBOLS]).map((symbol, id) => ({
             id,
             symbol,
@@ -121,12 +148,12 @@ export function registerGamesSocketHandlers({ io, engine }) {
             isMatched: false,
           }));
           initialState.flipped = [];
-          socket.emit("game:started", { game: gameSlug, board: initialState.board.map(c => ({ id: c.id, isFlipped: false, isMatched: false })), score: 0 });
+          socket.emit("game:started", { game: slug, board: initialState.board.map(c => ({ id: c.id, isFlipped: false, isMatched: false })), score: 0 });
         } 
-        else if (gameSlug === 'crypto-match-3') {
+        else if (slug === 'crypto-match-3') {
           initialState.board = generateStableBoard();
-          socket.emit("game:started", { game: gameSlug, board: initialState.board, score: 0 });
-        } else if (gameSlug === 'cart-rush') {
+          socket.emit("game:started", { game: slug, board: initialState.board, score: 0 });
+        } else if (slug === 'cart-rush') {
           initialState.lane = 1;
           initialState.health = CART_MAX_HEALTH;
           initialState.events = [];
@@ -137,7 +164,7 @@ export function registerGamesSocketHandlers({ io, engine }) {
           initialState.spawnCooldownMs = 450;
           initialState.cartTickTimer = setInterval(() => tickCartRush(socket, initialState, engine), CART_TICK_MS);
           socket.emit("game:started", {
-            game: gameSlug,
+            game: slug,
             lane: initialState.lane,
             lanes: CART_LANES,
             health: initialState.health,
@@ -158,12 +185,15 @@ export function registerGamesSocketHandlers({ io, engine }) {
     });
 
     socket.on("game:action", (action) => {
+      if (!action || typeof action !== "object" || Array.isArray(action)) return;
       const state = GAME_SESSIONS.get(socket.id);
       if (!state || state.isFinished) return;
 
       if (state.slug === 'crypto-memory' && action.type === 'flip') {
         if (state.flipped.length >= 2) return;
-        const card = state.board.find(c => c.id === action.cardId);
+        const cardId = Number(action.cardId);
+        if (!Number.isInteger(cardId) || cardId < 0 || cardId >= state.board.length) return;
+        const card = state.board.find(c => c.id === cardId);
         if (!card || card.isFlipped || card.isMatched) return;
 
         card.isFlipped = true;
@@ -202,7 +232,10 @@ export function registerGamesSocketHandlers({ io, engine }) {
         }
       }
       else if (state.slug === 'crypto-match-3' && action.type === 'swap') {
-        handleMatch3Swap(socket, state, action.from, action.to, engine);
+        const from = readMatch3GridCoord(action.from);
+        const to = readMatch3GridCoord(action.to);
+        if (!from || !to) return;
+        handleMatch3Swap(socket, state, from, to, engine);
       }
       else if (state.slug === 'cart-rush' && action.type === 'lane') {
         const lane = Number(action.lane);

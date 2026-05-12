@@ -53,12 +53,23 @@ const appKit = createAppKit({
 
 // AppKit only auto-prefetches the explorer in headless mode without injected wallets; with MetaMask
 // etc. the "All wallets" grid could stay on skeletons until this runs.
-void appKit.readyPromise?.then(() =>
-  ApiController.prefetch({
-    fetchNetworkImages: true,
-    fetchConnectorImages: true,
-    fetchWalletRanks: true,
-    fetchFeaturedWallets: true,
-    fetchRecommendedWallets: true,
-  })
-);
+// Defer so the wallet chunk never competes with landing LCP / first API calls.
+function scheduleAppKitWalletPrefetch() {
+  const run = () => {
+    void appKit.readyPromise?.then(() =>
+      ApiController.prefetch({
+        fetchNetworkImages: true,
+        fetchConnectorImages: true,
+        fetchWalletRanks: true,
+        fetchFeaturedWallets: true,
+        fetchRecommendedWallets: true,
+      }),
+    );
+  };
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(run, { timeout: 5000 });
+  } else {
+    window.setTimeout(run, 1500);
+  }
+}
+scheduleAppKitWalletPrefetch();

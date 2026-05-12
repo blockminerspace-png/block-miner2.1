@@ -28,7 +28,7 @@ const coverageGateIncludes = [
   'src/utils/sidebarPathMatch.js',
   'src/utils/walletSessionPreference.js',
   'src/utils/adminInternalOfferwallValidate.js',
-  'src/utils/sidebarNavMap.js',
+  'src/utils/sidebarNavMap.ts',
 ]
 
 export default defineConfig({

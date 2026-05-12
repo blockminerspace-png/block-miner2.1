@@ -21,6 +21,10 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(pt.minerGames.socket_errors.invalid_session).toBeTruthy();
     expect(es.minerGames.socket_errors.invalid_session).toBeTruthy();
 
+    expect(en.minerGames.socket_errors.session_active).toBeTruthy();
+    expect(pt.minerGames.socket_errors.session_active).toBeTruthy();
+    expect(es.minerGames.socket_errors.session_active).toBeTruthy();
+
     expect(en.minerGames.game_reward.full_term).toContain("{{days}}");
     expect(pt.minerGames.game_reward.full_term).toContain("{{days}}");
     expect(es.minerGames.game_reward.full_term).toContain("{{days}}");

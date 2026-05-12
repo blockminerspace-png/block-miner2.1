@@ -258,7 +258,7 @@ export default function Landing() {
   const skin = light
     ? {
         page: 'relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900',
-        header: 'border-slate-200 bg-white/95 text-slate-900',
+        header: 'border-slate-200 bg-white text-slate-900',
         navLink: 'text-slate-600 hover:text-slate-900',
         badge: 'border-slate-200 bg-white text-slate-600 shadow-sm',
         dot: 'bg-emerald-500',
@@ -280,7 +280,7 @@ export default function Landing() {
       }
     : {
         page: 'relative min-h-screen overflow-x-hidden bg-[#020511] text-slate-100',
-        header: 'border-white/10 bg-[#02070f]/95 text-slate-100',
+        header: 'border-white/10 bg-[#02070f] text-slate-100',
         navLink: 'text-slate-300 hover:text-white',
         badge: 'border-white/10 bg-slate-900/70 text-slate-300',
         dot: 'bg-emerald-400',
@@ -348,7 +348,7 @@ export default function Landing() {
       </div>
 
       <header
-        className={`relative z-10 border-b backdrop-blur-xl sticky top-0 ${skin.header} ${skin.borderSubtle}`}
+        className={`relative z-10 border-b sticky top-0 ${skin.header} ${skin.borderSubtle}`}
       >
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
           <Link to="/" className="flex items-center gap-3" aria-label={t('landing.nav.brand_aria')}>
@@ -482,7 +482,7 @@ export default function Landing() {
             {featureCards.map((card) => (
               <div
                 key={card.titleKey}
-                className={`${skin.card} p-8 transition-transform duration-200 hover:-translate-y-1 hover:shadow-xl`}
+                className={`${skin.card} p-8 transition-shadow duration-200 motion-reduce:transition-none [@media(hover:hover)]:hover:shadow-xl`}
               >
                 <div
                   className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/30 to-violet-600/30 ${skin.iconBubble}`}

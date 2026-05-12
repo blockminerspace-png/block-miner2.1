@@ -81,6 +81,10 @@ export default function Register() {
     return undefined;
   }, []);
 
+  useEffect(() => {
+    void import("../components/Web3Providers.jsx");
+  }, []);
+
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id, value, type, checked } = e.target;
     let next: string | boolean = type === 'checkbox' ? checked : value;

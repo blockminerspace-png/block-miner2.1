@@ -7,8 +7,11 @@ import React, {
   useLayoutEffect,
   memo,
 } from 'react';
-import { io } from 'socket.io-client';
+import type { MutableRefObject } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import type { LucideIcon } from 'lucide-react';
 import { useAuthStore, api } from '../store/auth';
 import { formatHashrate } from '../utils/machine';
 import { Link } from 'react-router-dom';
@@ -26,7 +29,122 @@ import {
   translateGameFinishedFailure,
   translateGameReward,
 } from '../games/minerGamesSocketMessages.js';
+import { createMinerGamesSocketGuard } from '../games/minerGamesSocketGuards';
 import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from '../games/cryptoGameIcons.js';
+
+type CryptoIconKey = keyof typeof CRYPTO_ICONS;
+
+/** `cryptoGameIcons.js` builds this object dynamically; treat as image map for indexing. */
+const ICON_IMAGES_MAP = ICON_IMAGES as Record<CryptoIconKey, HTMLImageElement>;
+
+/** UI route keys — map to server slugs on `game:start`. */
+type ActiveGame = 'memory' | 'match-3' | 'cart' | null;
+
+type MemoryBoardCard = {
+  id: number;
+  symbol?: string | null;
+  isFlipped?: boolean;
+  isMatched?: boolean;
+};
+
+type Match3Piece = {
+  symbol: string;
+  x: number;
+  y: number;
+  visualX: number;
+  visualY: number;
+  scale?: number;
+};
+
+type Match3Cell = { cx: number; cy: number };
+
+/** Forward swap uses fx,fy,tx,ty; invalid_swap replay uses rx,ry,rfx,rfy only. */
+type SwapAnim = {
+  startTime: number;
+  duration: number;
+  fx?: number;
+  fy?: number;
+  tx?: number;
+  ty?: number;
+  rx?: number;
+  ry?: number;
+  rfx?: number;
+  rfy?: number;
+} | null;
+
+type CartEventVariant = { body?: string; accent?: string; glow?: string };
+
+type CartServerEvent = {
+  id?: string;
+  lane?: number;
+  progress?: number;
+  speed?: number;
+  kind?: string;
+  variant?: CartEventVariant;
+};
+
+type CartStateRef = {
+  lane: number;
+  renderLane: number;
+  steer: number;
+  lanes: number;
+  health: number;
+  score: number;
+  events: CartServerEvent[];
+  targetScore: number;
+  distance: number;
+  btcCount: number;
+  hit: CartServerEvent | null;
+  roadSpeed: number;
+  roadOffset: number;
+  lastServerUpdateAt: number;
+  lastFrameAt: number;
+  difficulty: number;
+  localEvents?: CartServerEvent[];
+  lastProcessedUpdate?: number;
+};
+
+type Particle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  color: string;
+  size: number;
+};
+
+type CardFlipAnim = { startTime: number; duration: number; opening: boolean };
+
+type GameStartedMemory = {
+  game: 'crypto-memory';
+  board: Array<{ id: number; isFlipped?: boolean; isMatched?: boolean; symbol?: string }>;
+  score?: number;
+};
+
+type GameStartedMatch3 = {
+  game: 'crypto-match-3';
+  board: string[][];
+  score?: number;
+};
+
+type GameStartedCart = {
+  game: 'cart-rush';
+  lane?: number;
+  lanes?: number;
+  health?: number;
+  score?: number;
+  targetScore?: number;
+  distance?: number;
+  btcCount?: number;
+  roadSpeed?: number;
+  timeLimitSeconds?: number;
+};
+
+type GameStartedPayload = GameStartedMemory | GameStartedMatch3 | GameStartedCart;
+
+type MemoryGridLayout = ReturnType<typeof getMemoryGridLayout>;
+type Match3GridLayout = ReturnType<typeof getMatch3GridLayout>;
 
 const SOCKET_URL = '/';
 const LOGICAL = MINER_GAMES_LOGICAL_SIZE;
@@ -41,27 +159,27 @@ const MEMORY_CARD_OPEN_ANIM_MS = 300;
 const MEMORY_CARD_CLOSE_ANIM_MS = 500;
 
 /** Defer React state updates out of the canvas rAF callback stack. */
-function scheduleUiUpdate(fn) {
+function scheduleUiUpdate(fn: () => void) {
   if (typeof queueMicrotask === 'function') queueMicrotask(fn);
-  else Promise.resolve().then(fn);
+  else void Promise.resolve().then(fn);
 }
 
-function clearTimeoutList(listRef) {
+function clearTimeoutList(listRef: MutableRefObject<ReturnType<typeof setTimeout>[]>) {
   listRef.current.forEach((id) => clearTimeout(id));
   listRef.current = [];
 }
 
-function clampCartLane(value, lanes) {
+function clampCartLane(value: number, lanes: number) {
   return Math.max(0, Math.min(lanes - 1, value));
 }
 
-function getCanvasLogicalSize(activeGame) {
+function getCanvasLogicalSize(activeGame: ActiveGame) {
   return activeGame === 'cart'
     ? { width: CART_LOGICAL_WIDTH, height: CART_LOGICAL_HEIGHT }
     : { width: LOGICAL, height: LOGICAL };
 }
 
-function getCanvasViewportStyle(activeGame) {
+function getCanvasViewportStyle(activeGame: ActiveGame): React.CSSProperties {
   if (activeGame === 'cart') {
     return {
       width: 'min(96vw, 1600px)',
@@ -79,7 +197,11 @@ function getCanvasViewportStyle(activeGame) {
   };
 }
 
-function getCartTrackLayout(lanes, logicalWidth = CART_LOGICAL_WIDTH, logicalHeight = CART_LOGICAL_HEIGHT) {
+function getCartTrackLayout(
+  lanes: number,
+  logicalWidth = CART_LOGICAL_WIDTH,
+  logicalHeight = CART_LOGICAL_HEIGHT,
+) {
   const roadX = 0;
   const roadY = 50;
   const roadW = logicalWidth;
@@ -88,21 +210,36 @@ function getCartTrackLayout(lanes, logicalWidth = CART_LOGICAL_WIDTH, logicalHei
   return { roadX, roadY, roadW, roadH, laneH };
 }
 
-function getCartLaneFromPointer(y, lanes, logicalWidth = CART_LOGICAL_WIDTH, logicalHeight = CART_LOGICAL_HEIGHT) {
+function getCartLaneFromPointer(
+  y: number,
+  lanes: number,
+  logicalWidth = CART_LOGICAL_WIDTH,
+  logicalHeight = CART_LOGICAL_HEIGHT,
+) {
   const { roadY, roadH, laneH } = getCartTrackLayout(lanes, logicalWidth, logicalHeight);
   const boundedY = Math.max(roadY, Math.min(roadY + roadH - 1, y));
   return clampCartLane(Math.floor((boundedY - roadY) / laneH), lanes);
 }
 
+function pointerClientXY(
+  e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
+): { clientX: number; clientY: number } {
+  if ('touches' in e && e.touches.length > 0) {
+    return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+  }
+  const m = e as React.MouseEvent<HTMLCanvasElement>;
+  return { clientX: m.clientX, clientY: m.clientY };
+}
+
 export default function Games() {
   const { t } = useTranslation();
   const { token } = useAuthStore();
-  const [socket, setSocket] = useState(null);
-  const [activeGame, setActiveGame] = useState(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [activeGame, setActiveGame] = useState<ActiveGame>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [hudScore, setHudScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
-  const [rewardMessage, setRewardMessage] = useState(null);
+  const [rewardMessage, setRewardMessage] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [memoryCooldown, setMemoryCooldown] = useState(0);
@@ -113,21 +250,23 @@ export default function Games() {
   /** Server sets allowNewStart=false when a round is ACTIVE (continue), not only on cooldown. */
   const [chain2048HasActiveSession, setChain2048HasActiveSession] = useState(false);
   const [gameTimerKey, setGameTimerKey] = useState(0);
-  const activeGameRef = useRef(null);
+  const activeGameRef = useRef<ActiveGame>(null);
 
-  const memoryLayout = useMemo(() => getMemoryGridLayout(LOGICAL), []);
-  const match3Layout = useMemo(() => getMatch3GridLayout(LOGICAL), []);
+  const memoryLayout = useMemo<MemoryGridLayout>(() => getMemoryGridLayout(LOGICAL), []);
+  const match3Layout = useMemo<Match3GridLayout>(() => getMatch3GridLayout(LOGICAL), []);
 
-  const canvasRef = useRef(null);
-  const gameLoopRef = useRef(null);
-  const particles = useRef([]);
-  const visualBoard = useRef([]);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const gameLoopRef = useRef<number | null>(null);
+  const particles = useRef<Particle[]>([]);
+  const visualBoard = useRef<Match3Piece[][]>([]);
   const pointer = useRef({ x: 250, y: 250, isDown: false });
-  const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
-  const selectedCell = useRef(null);
-  const swapAnim = useRef(null);
-  const memoryBoardRef = useRef(null);
-  const cartStateRef = useRef({
+  const isTouchDevice = useRef(
+    typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0),
+  );
+  const selectedCell = useRef<Match3Cell | null>(null);
+  const swapAnim = useRef<SwapAnim>(null);
+  const memoryBoardRef = useRef<MemoryBoardCard[] | null>(null);
+  const cartStateRef = useRef<CartStateRef>({
     lane: 1,
     renderLane: 1,
     steer: 0,
@@ -146,16 +285,21 @@ export default function Games() {
     difficulty: 0,
   });
   const cartTouchRef = useRef({ active: false, y: 0 });
-  const cardFlipAnims = useRef(new Map());
-  const pendingTimeoutsRef = useRef([]);
+  /** Canvas HUD must not close over `timeLeft` state — that changes every 1s and would recreate drawCart + restart rAF. */
+  const cartHudTimeRef = useRef(0);
+  const cardFlipAnims = useRef(new Map<number, CardFlipAnim>());
+  const pendingTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const socketEmitGuardRef = useRef(createMinerGamesSocketGuard());
 
   const [totalGamePower, setTotalGamePower] = useState(0);
   const [powerLoading, setPowerLoading] = useState(true);
-  const [powerError, setPowerError] = useState(null);
+  const [powerError, setPowerError] = useState<string | null>(null);
   const [powerFlash, setPowerFlash] = useState(false);
-  const prevGamePowerRef = useRef(null);
+  const prevGamePowerRef = useRef<number | null>(null);
 
-  const fetchActiveGamePowers = useCallback(async (options = {}) => {
+  cartHudTimeRef.current = timeLeft;
+
+  const fetchActiveGamePowers = useCallback(async (options: { silent?: boolean } = {}) => {
     const silent = Boolean(options.silent);
     try {
       if (!silent) setPowerLoading(true);
@@ -231,7 +375,7 @@ export default function Games() {
     prevGamePowerRef.current = totalGamePower;
   }, [totalGamePower]);
 
-  const createExplosion = useCallback((x, y) => {
+  const createExplosion = useCallback((x: number, y: number) => {
     if (particles.current.length > 30) return;
     for (let i = 0; i < 8; i += 1) {
       particles.current.push({
@@ -247,9 +391,11 @@ export default function Games() {
   }, []);
 
   useEffect(() => {
+    const guard = socketEmitGuardRef.current;
     const newSocket = io(SOCKET_URL, { auth: { token }, withCredentials: true });
 
-    newSocket.on('game:error', (msg) => {
+    newSocket.on('game:error', (msg: unknown) => {
+      guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
       toast.error(translateGameSocketError(t, msg));
       setIsProcessing(false);
@@ -258,7 +404,9 @@ export default function Games() {
       memoryBoardRef.current = null;
     });
 
-    newSocket.on('game:started', (data) => {
+    newSocket.on('game:started', (raw: unknown) => {
+      const data = raw as GameStartedPayload;
+      guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
       setIsGameOver(false);
       setRewardMessage(null);
@@ -317,7 +465,7 @@ export default function Games() {
       );
     });
 
-    newSocket.on('game:card_flipped', (data) => {
+    newSocket.on('game:card_flipped', (data: { id: number; symbol: string }) => {
       cardFlipAnims.current.set(data.id, {
         startTime: performance.now(),
         duration: MEMORY_CARD_OPEN_ANIM_MS,
@@ -332,7 +480,7 @@ export default function Games() {
       }
     });
 
-    newSocket.on('game:match', (data) => {
+    newSocket.on('game:match', (data: { ids: number[]; score: number }) => {
       const board = memoryBoardRef.current;
       if (board) {
         data.ids.forEach((id) => {
@@ -344,7 +492,7 @@ export default function Games() {
       createExplosion(250, 250);
     });
 
-    newSocket.on('game:mismatch', (data) => {
+    newSocket.on('game:mismatch', (data: { ids: number[] }) => {
       setIsProcessing(true);
       const now = performance.now();
       data.ids.forEach((id) => {
@@ -369,7 +517,7 @@ export default function Games() {
       pendingTimeoutsRef.current.push(t1, t2);
     });
 
-    newSocket.on('game:board_update', (data) => {
+    newSocket.on('game:board_update', (data: { board?: string[][]; score: number }) => {
       if (!data.board) return;
       swapAnim.current = null;
       selectedCell.current = null;
@@ -404,7 +552,7 @@ export default function Games() {
       selectedCell.current = null;
     });
 
-    newSocket.on('game:cart_lane', (data) => {
+    newSocket.on('game:cart_lane', (data: { lane?: number }) => {
       const nextLane = Number(data.lane) || 0;
       cartStateRef.current = {
         ...cartStateRef.current,
@@ -413,7 +561,7 @@ export default function Games() {
       };
     });
 
-    newSocket.on('game:cart_update', (data) => {
+    newSocket.on('game:cart_update', (data: Record<string, unknown>) => {
       const nextLane = Number(data.lane) || 0;
       const serverNow = performance.now();
       cartStateRef.current = {
@@ -426,18 +574,23 @@ export default function Games() {
         distance: Number(data.distance) || 0,
         btcCount: Number(data.btcCount) || 0,
         events: Array.isArray(data.events)
-          ? data.events.map((event) => ({
+          ? (data.events as CartServerEvent[]).map((event) => ({
               ...event,
               progress: Number(event.progress) || 0,
-              speed: Number(event.speed) || Number(data.roadSpeed) || cartStateRef.current.roadSpeed || 0.48,
+              speed:
+                Number(event.speed) ||
+                Number(data.roadSpeed) ||
+                cartStateRef.current.roadSpeed ||
+                0.48,
             }))
           : [],
-        hit: data.hit || null,
+        hit: (data.hit as CartServerEvent | null | undefined) ?? null,
         roadSpeed: Number(data.roadSpeed) || cartStateRef.current.roadSpeed || 0.48,
         difficulty: Number(data.difficulty) || 0,
         lastServerUpdateAt: serverNow,
       };
-      if (data.hit?.kind === 'enemy-car') {
+      const hitPayload = data.hit as CartServerEvent | null | undefined;
+      if (hitPayload?.kind === 'enemy-car') {
         const lanes = Math.max(3, Number(cartStateRef.current.lanes) || 3);
         const { roadX, roadY, roadW, roadH, laneH } = getCartTrackLayout(lanes, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
         createExplosion(
@@ -447,11 +600,21 @@ export default function Games() {
       }
     });
 
-    newSocket.on('game:score_update', (data) => {
+    newSocket.on('game:score_update', (data: { score: number }) => {
       setHudScore(data.score);
     });
 
-    newSocket.on('game:finished', (data) => {
+    newSocket.on(
+      'game:finished',
+      (data: {
+        cooldownSeconds?: number;
+        success?: boolean;
+        messageCode?: string;
+        message?: string;
+        rewardCode?: string;
+        rewardParams?: Record<string, unknown>;
+        reward?: string;
+      }) => {
       clearTimeoutList(pendingTimeoutsRef);
       setIsGameOver(true);
       const cd = data.cooldownSeconds || 180;
@@ -470,6 +633,7 @@ export default function Games() {
 
     setSocket(newSocket);
     return () => {
+      guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
       newSocket.disconnect();
     };
@@ -520,7 +684,10 @@ export default function Games() {
       const c = canvasRef.current;
       if (!c) return;
       const { width: logicalWidth, height: logicalHeight } = getCanvasLogicalSize(activeGame);
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const raw = window.devicePixelRatio || 1;
+      /** Cart-rush: lower DPR cap on canvas = far less fill-rate work on phones (still sharp enough at 750×500 logical). */
+      const dpr =
+        activeGame === 'cart' ? Math.min(1.5, raw) : Math.min(2, raw);
       c.width = Math.round(logicalWidth * dpr);
       c.height = Math.round(logicalHeight * dpr);
       const ctx = c.getContext('2d');
@@ -534,7 +701,7 @@ export default function Games() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !activeGame || !sessionReady || isGameOver) return;
-    const noDefault = (e) => e.preventDefault();
+    const noDefault = (e: Event) => e.preventDefault();
     canvas.addEventListener('touchstart', noDefault, { passive: false });
     canvas.addEventListener('touchmove', noDefault, { passive: false });
     return () => {
@@ -544,7 +711,7 @@ export default function Games() {
   }, [activeGame, isGameOver, sessionReady]);
 
   const drawMemory = useCallback(
-    (ctx) => {
+    (ctx: CanvasRenderingContext2D) => {
       const board = memoryBoardRef.current;
       if (!board?.length) return;
       const cols = 4;
@@ -600,7 +767,10 @@ export default function Games() {
         }
 
         if (showFront || card.isMatched) {
-          const img = ICON_IMAGES[card.symbol];
+          const img =
+            card.symbol && card.symbol in ICON_IMAGES_MAP
+              ? ICON_IMAGES_MAP[card.symbol as CryptoIconKey]
+              : undefined;
           if (img?.complete && img.naturalWidth > 0) {
             const is = size * 0.68;
             ctx.drawImage(img, -is / 2, -is / 2, is, is);
@@ -627,10 +797,10 @@ export default function Games() {
   );
 
   const drawMatch3 = useCallback(
-    (ctx) => {
+    (ctx: CanvasRenderingContext2D) => {
       if (!visualBoard.current.length) return;
       const { cellSize: s, sx, sy, stride } = match3Layout;
-      const eio = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+      const eio = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
 
       const sa = swapAnim.current;
       let saOffset = 0;
@@ -655,22 +825,29 @@ export default function Games() {
           let drawY = sy + piece.visualY * stride;
 
           if (sa) {
-            if (sa.fx === x && sa.fy === y) {
-              drawX += (sa.tx - sa.fx) * saOffset * stride;
-              drawY += (sa.ty - sa.fy) * saOffset * stride;
-            } else if (sa.tx === x && sa.ty === y) {
-              drawX += (sa.fx - sa.tx) * saOffset * stride;
-              drawY += (sa.fy - sa.ty) * saOffset * stride;
-            } else if (sa.rx !== undefined && sa.rx === x && sa.ry === y) {
-              drawX += (sa.rfx - sa.rx) * saOffset * stride;
-              drawY += (sa.rfy - sa.ry) * saOffset * stride;
-            } else if (sa.rfx !== undefined && sa.rfx === x && sa.rfy === y) {
-              drawX += (sa.rx - sa.rfx) * saOffset * stride;
-              drawY += (sa.ry - sa.rfy) * saOffset * stride;
+            const { fx, fy, tx, ty, rx, ry, rfx, rfy } = sa;
+            if (fx !== undefined && fy !== undefined && tx !== undefined && ty !== undefined) {
+              if (fx === x && fy === y) {
+                drawX += (tx - fx) * saOffset * stride;
+                drawY += (ty - fy) * saOffset * stride;
+              } else if (tx === x && ty === y) {
+                drawX += (fx - tx) * saOffset * stride;
+                drawY += (fy - ty) * saOffset * stride;
+              }
+            }
+            if (rx !== undefined && ry !== undefined && rfx !== undefined && rfy !== undefined) {
+              if (rx === x && ry === y) {
+                drawX += (rfx - rx) * saOffset * stride;
+                drawY += (rfy - ry) * saOffset * stride;
+              } else if (rfx === x && rfy === y) {
+                drawX += (rx - rfx) * saOffset * stride;
+                drawY += (ry - rfy) * saOffset * stride;
+              }
             }
           }
 
-          const col = COIN_COLORS[piece.symbol];
+          const col =
+            piece.symbol in COIN_COLORS ? COIN_COLORS[piece.symbol as CryptoIconKey] : undefined;
           const cx2 = drawX + s / 2;
           const cy2 = drawY + s / 2;
           ctx.save();
@@ -707,7 +884,10 @@ export default function Games() {
           ctx.roundRect(drawX, drawY, s, s, 12);
           ctx.stroke();
 
-          const img = ICON_IMAGES[piece.symbol];
+          const img =
+            piece.symbol in ICON_IMAGES_MAP
+              ? ICON_IMAGES_MAP[piece.symbol as CryptoIconKey]
+              : undefined;
           if (img?.complete && img.naturalWidth > 0) {
             const sc = piece.scale ?? 1.0;
             ctx.translate(cx2, cy2);
@@ -727,7 +907,7 @@ export default function Games() {
     [match3Layout],
   );
 
-  const drawCart = useCallback((ctx, deltaSeconds) => {
+  const drawCart = useCallback((ctx: CanvasRenderingContext2D, deltaSeconds: number) => {
     const state = cartStateRef.current;
     const lanes = Math.max(3, Number(state.lanes) || 3);
     const { roadX, roadY, roadW, roadH, laneH } = getCartTrackLayout(lanes, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
@@ -764,7 +944,7 @@ export default function Games() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    const drawPlayerCar = (x, y, tilt, alpha = 1) => {
+    const drawPlayerCar = (x: number, y: number, tilt: number, alpha = 1) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(tilt);
@@ -824,7 +1004,7 @@ export default function Games() {
       ctx.restore();
     };
 
-    const drawEnemyCar = (x, y, color) => {
+    const drawEnemyCar = (x: number, y: number, color: string) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -838,7 +1018,7 @@ export default function Games() {
       ctx.restore();
     };
 
-    const drawBTC = (x, y, rot) => {
+    const drawBTC = (x: number, y: number, rot: number) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(Math.cos(rot), 1);
@@ -861,8 +1041,8 @@ export default function Games() {
     
     if (state.lastProcessedUpdate !== state.lastServerUpdateAt) {
       state.lastProcessedUpdate = state.lastServerUpdateAt;
-      const localMap = new Map(state.localEvents.map(e => [e.id, e]));
-      const newLocalEvents = [];
+      const localMap = new Map(state.localEvents.map((e) => [e.id, e]));
+      const newLocalEvents: CartServerEvent[] = [];
       
       for (const s_evt of state.events || []) {
         if (!s_evt.id) {
@@ -871,7 +1051,7 @@ export default function Games() {
         }
         let l_evt = localMap.get(s_evt.id);
         if (l_evt) {
-          const diff = s_evt.progress - l_evt.progress;
+          const diff = Number(s_evt.progress) - Number(l_evt.progress);
           if (Math.abs(diff) > 0.15) {
              l_evt.progress = s_evt.progress;
           }
@@ -885,15 +1065,15 @@ export default function Games() {
       state.localEvents = newLocalEvents;
     }
     
-    state.localEvents.forEach(e => {
-      e.progress += deltaSeconds * (e.speed || serverRoadSpeed);
+    state.localEvents.forEach((e) => {
+      e.progress = (Number(e.progress) || 0) + deltaSeconds * (Number(e.speed) || serverRoadSpeed);
     });
 
     const btcRotation = now / 200;
 
     for (const event of state.localEvents) {
       const lane = clampCartLane(Number(event.lane) || 0, lanes);
-      const progress = Math.max(0, Math.min(1.25, event.progress));
+      const progress = Math.max(0, Math.min(1.25, Number(event.progress) || 0));
       const y = roadY + laneH * lane + laneH / 2;
       const x = roadX + roadW - progress * (roadW + 180) + 60;
 
@@ -919,7 +1099,8 @@ export default function Games() {
 
     if (hit) {
       ctx.save();
-      ctx.translate((Math.random() - 0.5) * 18, (Math.random() - 0.5) * 18);
+      const shake = Math.sin(now * 0.04) * 9;
+      ctx.translate(shake, -shake * 0.6);
     }
 
     drawPlayerCar(carX, carY, tilt, hit ? (now % 200 < 100 ? 0.5 : 1) : 1);
@@ -935,7 +1116,15 @@ export default function Games() {
     ctx.restore();
 
     ctx.save();
-    const drawHudBox = (x, y, w, h, label, value, valueColor = '#ffffff') => {
+    const drawHudBox = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      label: string,
+      value: string,
+      valueColor = '#ffffff',
+    ) => {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
       ctx.beginPath();
       ctx.roundRect(x, y, w, h, 6);
@@ -951,7 +1140,7 @@ export default function Games() {
       ctx.fillText(value, x + 14, y + h - 14);
     };
 
-    drawHudBox(20, 20, 122, 56, 'TEMPO', `${timeLeft}s`, '#4cc9f0');
+    drawHudBox(20, 20, 122, 56, 'TEMPO', `${cartHudTimeRef.current}s`, '#4cc9f0');
     drawHudBox(156, 20, 122, 56, 'PONTOS', `${Number(state.score) || 0}`, '#f72585');
     drawHudBox(CART_LOGICAL_WIDTH - 280, 20, 122, 56, 'VIDAS', '❤️'.repeat(Math.max(0, Number(state.health) || 0)) || '0', '#e63946');
     drawHudBox(CART_LOGICAL_WIDTH - 142, 20, 122, 56, 'DISTÂNCIA', `${Math.floor(Number(state.distance) || 0)}m`, '#ffffff');
@@ -977,12 +1166,12 @@ export default function Games() {
     ctx.fillStyle = '#aaaaaa';
     ctx.fillText(`1 BTC = 50 pontos  •  10 metros = 1 ponto  •  Meta ${state.targetScore}`, CART_LOGICAL_WIDTH / 2, 76);
     ctx.restore();
-  }, [hudScore, timeLeft]);
+  }, []);
 
   useEffect(() => {
     if (!activeGame || !sessionReady || isGameOver) return;
     const logicalSize = getCanvasLogicalSize(activeGame);
-    const render = (frameTime) => {
+    const render = (frameTime: number) => {
       const canvas = canvasRef.current;
       if (!canvas) {
         gameLoopRef.current = requestAnimationFrame(render);
@@ -1003,20 +1192,38 @@ export default function Games() {
 
       ctx.clearRect(0, 0, logicalSize.width, logicalSize.height);
 
-      const bgGrad = ctx.createRadialGradient(
-        logicalSize.width / 2,
-        logicalSize.height / 2,
-        60,
-        logicalSize.width / 2,
-        logicalSize.height / 2,
-        Math.max(logicalSize.width, logicalSize.height) * 0.72,
-      );
-      bgGrad.addColorStop(0, '#0d1526');
-      bgGrad.addColorStop(1, '#020617');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, logicalSize.width, logicalSize.height);
+      if (activeGame === 'cart') {
+        drawCart(ctx, deltaSeconds);
+        if (particles.current.length > 0) {
+          particles.current = particles.current.filter((p) => p.life > 0);
+          particles.current.forEach((p) => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vx *= 0.92;
+            p.vy *= 0.92;
+            p.life -= 0.06;
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.globalAlpha = 1.0;
+        }
+      } else {
+        const bgGrad = ctx.createRadialGradient(
+          logicalSize.width / 2,
+          logicalSize.height / 2,
+          60,
+          logicalSize.width / 2,
+          logicalSize.height / 2,
+          Math.max(logicalSize.width, logicalSize.height) * 0.72,
+        );
+        bgGrad.addColorStop(0, '#0d1526');
+        bgGrad.addColorStop(1, '#020617');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, logicalSize.width, logicalSize.height);
 
-      if (activeGame !== 'cart') {
         ctx.strokeStyle = 'rgba(30,58,138,0.18)';
         ctx.lineWidth = 1;
         for (let i = 0; i <= Math.max(logicalSize.width, logicalSize.height); i += 50) {
@@ -1029,26 +1236,25 @@ export default function Games() {
           ctx.lineTo(logicalSize.width, i);
           ctx.stroke();
         }
+
+        if (activeGame === 'memory') drawMemory(ctx);
+        if (activeGame === 'match-3') drawMatch3(ctx);
+
+        particles.current = particles.current.filter((p) => p.life > 0);
+        particles.current.forEach((p) => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.92;
+          p.vy *= 0.92;
+          p.life -= 0.06;
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1.0;
       }
-
-      if (activeGame === 'memory') drawMemory(ctx);
-      if (activeGame === 'match-3') drawMatch3(ctx);
-      if (activeGame === 'cart') drawCart(ctx, deltaSeconds);
-
-      particles.current = particles.current.filter((p) => p.life > 0);
-      particles.current.forEach((p) => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vx *= 0.92;
-        p.vy *= 0.92;
-        p.life -= 0.06;
-        ctx.globalAlpha = p.life;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.globalAlpha = 1.0;
 
       if (!isTouchDevice.current && activeGame !== 'cart') {
         const mx = pointer.current.x;
@@ -1078,31 +1284,35 @@ export default function Games() {
       gameLoopRef.current = requestAnimationFrame(render);
     };
     gameLoopRef.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(gameLoopRef.current);
+    return () => {
+      if (gameLoopRef.current != null) cancelAnimationFrame(gameLoopRef.current);
+    };
   }, [activeGame, sessionReady, isGameOver, drawMemory, drawMatch3, drawCart]);
 
-  const syncMouse = useCallback((e) => {
+  const syncMouse = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return { x: pointer.current.x, y: pointer.current.y };
     const rect = canvas.getBoundingClientRect();
     const logicalSize = getCanvasLogicalSize(activeGame);
-    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
-    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
-    if (clientX === undefined || clientY === undefined) return { x: pointer.current.x, y: pointer.current.y };
+    const { clientX, clientY } = pointerClientXY(e);
     const x = ((clientX - rect.left) / rect.width) * logicalSize.width;
     const y = ((clientY - rect.top) / rect.height) * logicalSize.height;
     pointer.current.x = x;
     pointer.current.y = y;
     return { x, y };
-  }, [activeGame]);
+  },
+  [activeGame],
+);
 
   const moveCartToPointerLane = useCallback(
-    (y) => {
+    (y: number) => {
       if (!socket) return;
       const current = cartStateRef.current;
       const lanes = Math.max(3, Number(current.lanes) || 3);
       const nextLane = getCartLaneFromPointer(y, lanes, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
       if (nextLane === current.lane) return;
+      if (!socketEmitGuardRef.current.tryEmitLane()) return;
       cartStateRef.current = {
         ...current,
         lane: nextLane,
@@ -1114,12 +1324,13 @@ export default function Games() {
   );
 
   const moveCartByStep = useCallback(
-    (step) => {
+    (step: number) => {
       if (!socket) return;
       const current = cartStateRef.current;
       const lanes = Math.max(3, Number(current.lanes) || 3);
       const nextLane = clampCartLane(current.lane + step, lanes);
       if (nextLane === current.lane) return;
+      if (!socketEmitGuardRef.current.tryEmitLane()) return;
       cartStateRef.current = {
         ...current,
         lane: nextLane,
@@ -1131,7 +1342,7 @@ export default function Games() {
   );
 
   const handleMouseDown = useCallback(
-    (e) => {
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
       if (e.type === 'mousedown' && isTouchDevice.current) return;
       if (isGameOver || isProcessing) return;
       pointer.current.isDown = true;
@@ -1176,7 +1387,7 @@ export default function Games() {
           }
         }
       } else if (activeGame === 'cart') {
-        if (e.touches?.length) {
+        if ('touches' in e && e.touches.length > 0) {
           cartTouchRef.current = { active: true, y };
           return;
         }
@@ -1187,10 +1398,10 @@ export default function Games() {
   );
 
   const handleMouseMove = useCallback(
-    (e) => {
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
       const { y } = syncMouse(e);
       if (activeGame === 'cart' && pointer.current.isDown && !isGameOver && !isProcessing) {
-        if (e.touches?.length && cartTouchRef.current.active) {
+        if ('touches' in e && e.touches.length > 0 && cartTouchRef.current.active) {
           const delta = y - cartTouchRef.current.y;
           if (Math.abs(delta) >= CART_TOUCH_SWIPE_THRESHOLD) {
             moveCartByStep(delta > 0 ? 1 : -1);
@@ -1205,7 +1416,7 @@ export default function Games() {
   );
 
   const handleMouseUp = useCallback(
-    (e) => {
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
       pointer.current.isDown = false;
       cartTouchRef.current.active = false;
       syncMouse(e);
@@ -1222,7 +1433,7 @@ export default function Games() {
   }, [socket]);
 
   const startMemory = useCallback(() => {
-    if (!socket) return;
+    if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
     setActiveGame('memory');
     activeGameRef.current = 'memory';
@@ -1232,7 +1443,7 @@ export default function Games() {
   }, [socket]);
 
   const startMatch3 = useCallback(() => {
-    if (!socket) return;
+    if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
     setActiveGame('match-3');
     activeGameRef.current = 'match-3';
@@ -1242,7 +1453,7 @@ export default function Games() {
   }, [socket]);
 
   const startCart = useCallback(() => {
-    if (!socket) return;
+    if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
     setActiveGame('cart');
     activeGameRef.current = 'cart';
@@ -1271,7 +1482,7 @@ export default function Games() {
 
   useEffect(() => {
     if (activeGame !== 'cart' || isGameOver || !socket) return undefined;
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       const key = String(e.key || '').toLowerCase();
       const moveUp = e.key === 'ArrowUp' || key === 'w' || e.key === 'ArrowLeft' || key === 'a';
       const moveDown = e.key === 'ArrowDown' || key === 's' || e.key === 'ArrowRight' || key === 'd';
@@ -1323,8 +1534,10 @@ export default function Games() {
               className="relative overflow-hidden rounded-2xl border-2 border-slate-700 bg-black shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               style={getCanvasViewportStyle(activeGame)}
             >
-              {/* Scanline Effect */}
-              <div className="pointer-events-none absolute inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,3px_100%] opacity-20" />
+              {/* Scanline overlay: skip for cart-rush (full-speed canvas + layered gradients = heavy compositing on mobile). */}
+              {activeGame !== 'cart' ? (
+                <div className="pointer-events-none absolute inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,3px_100%] opacity-20" />
+              ) : null}
               
               <canvas
                 ref={canvasRef}
@@ -1432,11 +1645,12 @@ export default function Games() {
                     type="button"
                     onClick={() => {
                       const slug = activeGame === 'memory' ? 'crypto-memory' : activeGame === 'cart' ? 'cart-rush' : 'crypto-match-3';
+                      if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
                       clearTimeoutList(pendingTimeoutsRef);
                       setIsGameOver(false);
                       setSessionReady(false);
                       memoryBoardRef.current = null;
-                      socket?.emit('game:start', slug);
+                      socket.emit('game:start', slug);
                     }}
                     disabled={(activeGame === 'memory' ? memoryCooldown : activeGame === 'cart' ? cartCooldown : match3Cooldown) > 0}
                     className={`w-full max-w-sm rounded-2xl bg-primary px-5 py-4 text-sm font-black uppercase italic tracking-wide text-white shadow-glow transition-all hover:scale-105 sm:px-12 sm:py-6 sm:text-lg lg:px-20 lg:py-7 lg:text-xl ${
@@ -1480,7 +1694,23 @@ export default function Games() {
   );
 }
 
-function TemporaryPowerSummary({ t, totalGamePower, loading, errorKey, flash, onRetry }) {
+type TemporaryPowerSummaryProps = {
+  t: TFunction;
+  totalGamePower: number;
+  loading: boolean;
+  errorKey: string | null;
+  flash: boolean;
+  onRetry: () => void;
+};
+
+function TemporaryPowerSummary({
+  t,
+  totalGamePower,
+  loading,
+  errorKey,
+  flash,
+  onRetry,
+}: TemporaryPowerSummaryProps) {
   const tooltip = t('minerGames.temporary_power_tooltip');
   return (
     <div
@@ -1529,6 +1759,17 @@ function TemporaryPowerSummary({ t, totalGamePower, loading, errorKey, flash, on
   );
 }
 
+type GameCardLinkProps = {
+  to: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  color: string;
+  ctaLabel: string;
+  disabled?: boolean;
+  cooldownMinutes?: number;
+};
+
 const GameCardLink = memo(function GameCardLink({
   to,
   title,
@@ -1538,7 +1779,7 @@ const GameCardLink = memo(function GameCardLink({
   ctaLabel,
   disabled = false,
   cooldownMinutes = 0,
-}) {
+}: GameCardLinkProps) {
   const { t } = useTranslation();
   const base =
     'group relative block overflow-hidden rounded-3xl border p-6 text-left shadow-2xl transition-all duration-500 sm:rounded-[3rem] sm:p-8 lg:rounded-[4rem] lg:p-12';
@@ -1590,6 +1831,17 @@ const GameCardLink = memo(function GameCardLink({
   );
 });
 
+type GameCardProps = {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  color: string;
+  onClick: () => void;
+  disabled: boolean;
+  ctaStart: string;
+  cooldownLabel: string;
+};
+
 const GameCard = memo(function GameCard({
   title,
   description,
@@ -1599,7 +1851,7 @@ const GameCard = memo(function GameCard({
   disabled,
   ctaStart,
   cooldownLabel,
-}) {
+}: GameCardProps) {
   return (
     <button
       type="button"
