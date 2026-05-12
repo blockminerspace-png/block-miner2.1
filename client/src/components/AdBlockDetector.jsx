@@ -5,8 +5,9 @@ import { api } from '../store/auth';
 const DISMISS_KEY = 'bm_adblock_notice_dismiss_until';
 const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Consecutive positive samples required (reduces flicker / slow layout false positives). */
-const REQUIRED_PASSES = 3;
+/** Independent probes; majority must agree (reduces flaky layout / one-off false positives). */
+const PROBE_TRIALS = 5;
+const PROBE_MAJORITY = 4;
 /** Wait for tab to be visible before probing (background tabs can report odd layout). */
 function isTabVisible() {
   return typeof document === 'undefined' || document.visibilityState === 'visible';
@@ -29,20 +30,29 @@ function runDoubleRaf() {
   });
 }
 
+function readBoxSize(el) {
+  const r = el.getBoundingClientRect();
+  const w = Math.max(r.width, el.offsetWidth, el.clientWidth);
+  const h = Math.max(r.height, el.offsetHeight, el.clientHeight);
+  return { w, h };
+}
+
 function elementLooksPresent(el) {
   const cs = window.getComputedStyle(el);
-  const visible =
-    el.offsetHeight > 0 &&
-    el.offsetWidth > 0 &&
-    cs.display !== 'none' &&
-    cs.visibility !== 'hidden' &&
-    cs.opacity !== '0';
-  return visible;
+  if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+  if (cs.contentVisibility === 'hidden') return false;
+  const { w, h } = readBoxSize(el);
+  // Off-screen probes: some engines report offset* 0 until paint; trust layout box if any metric says visible.
+  return w >= 1 && h >= 1;
 }
 
 function elementLooksBlocked(el) {
   const cs = window.getComputedStyle(el);
   if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return true;
+  if (cs.contentVisibility === 'hidden') return true;
+  const { w, h } = readBoxSize(el);
+  // Real adblock usually removes the box entirely; do not treat offset quirks as "blocked" if layout still has area.
+  if (w >= 1 && h >= 1) return false;
   return (
     el.offsetHeight === 0 &&
     el.clientHeight === 0 &&
@@ -82,7 +92,7 @@ async function detectAdBlockOnce() {
   document.body.appendChild(honeypot);
 
   await runDoubleRaf();
-  await new Promise((r) => setTimeout(r, 380));
+  await new Promise((r) => setTimeout(r, 520));
 
   const controlOk = elementLooksPresent(control);
   const neutralOk = elementLooksPresent(neutral);
@@ -99,15 +109,15 @@ async function detectAdBlockOnce() {
 }
 
 async function detectAdBlockConservative() {
-  for (let i = 0; i < REQUIRED_PASSES; i += 1) {
+  let hits = 0;
+  for (let i = 0; i < PROBE_TRIALS; i += 1) {
     if (!isTabVisible()) return false;
-    const pass = await detectAdBlockOnce();
-    if (!pass) return false;
-    if (i < REQUIRED_PASSES - 1) {
-      await new Promise((r) => setTimeout(r, 700));
+    if (await detectAdBlockOnce()) hits += 1;
+    if (i < PROBE_TRIALS - 1) {
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
-  return true;
+  return hits >= PROBE_MAJORITY;
 }
 
 const AdBlockDetector = () => {
@@ -119,7 +129,20 @@ const AdBlockDetector = () => {
       return undefined;
     }
 
+    const disabled =
+      String(import.meta.env.VITE_DISABLE_ADBLOCK_DETECTION || '').trim() === '1' ||
+      String(import.meta.env.VITE_DISABLE_ADBLOCK_DETECTION || '').toLowerCase() === 'true';
+    if (disabled) {
+      return undefined;
+    }
+
     const timer = setTimeout(async () => {
+      if (document.readyState !== 'complete') {
+        await new Promise((r) => {
+          if (document.readyState === 'complete') r();
+          else window.addEventListener('load', () => r(), { once: true });
+        });
+      }
       const blocked = await detectAdBlockConservative();
       if (!blocked) return;
       setIsDetected(true);

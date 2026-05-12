@@ -7,6 +7,8 @@ export type DashboardBlockRow = {
   userReward?: number | string | null;
   totalReward?: number | string | null;
   timestamp: string | number | Date;
+  /** Server could not commit this round to Postgres; userReward stays 0. */
+  persistFailed?: boolean;
 };
 
 export type DashboardMinerStats = {

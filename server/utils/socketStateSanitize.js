@@ -27,19 +27,20 @@ function sanitizeRefCode(raw) {
 
 function sanitizeBlockHistory(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr.slice(0, MAX_BLOCK_HISTORY).map((b) => {
-    if (!b || typeof b !== "object") {
-      return { blockNumber: 0, totalReward: 0, userReward: 0, minerCount: 0, timestamp: Date.now() };
-    }
-    const ts = b.timestamp != null ? (typeof b.timestamp === "number" ? b.timestamp : Date.parse(String(b.timestamp))) : Date.now();
-    return {
-      blockNumber: Math.trunc(NUM_SAFE(b.blockNumber, 0)),
-      totalReward: NUM_SAFE(b.totalReward ?? b.reward, 0),
-      userReward: NUM_SAFE(b.userReward, 0),
-      minerCount: Math.trunc(NUM_SAFE(b.minerCount, 0)),
-      timestamp: Number.isFinite(ts) ? ts : Date.now()
-    };
-  });
+    return arr.slice(0, MAX_BLOCK_HISTORY).map((b) => {
+      if (!b || typeof b !== "object") {
+        return { blockNumber: 0, totalReward: 0, userReward: 0, minerCount: 0, timestamp: Date.now() };
+      }
+      const ts = b.timestamp != null ? (typeof b.timestamp === "number" ? b.timestamp : Date.parse(String(b.timestamp))) : Date.now();
+      return {
+        blockNumber: Math.trunc(NUM_SAFE(b.blockNumber, 0)),
+        totalReward: NUM_SAFE(b.totalReward ?? b.reward, 0),
+        userReward: NUM_SAFE(b.userReward, 0),
+        minerCount: Math.trunc(NUM_SAFE(b.minerCount, 0)),
+        timestamp: Number.isFinite(ts) ? ts : Date.now(),
+        persistFailed: Boolean(b.persistFailed)
+      };
+    });
 }
 
 function sanitizeMiner(m) {

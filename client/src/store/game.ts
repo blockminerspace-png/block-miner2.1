@@ -25,9 +25,32 @@ function mergeMiningStats(
   payload: MiningSocketStats,
 ): MiningSocketStats {
   const currentHistory = prev?.blockHistory ?? [];
-  const incomingHistory = payload.blockHistory ?? [];
+  const rawIncoming = payload.blockHistory;
+  const incomingHistory = Array.isArray(rawIncoming) ? rawIncoming : null;
 
-  const incomingAllZero = incomingHistory.every((b) => (Number(b.userReward) || 0) === 0);
+  if (incomingHistory === null) {
+    return {
+      ...payload,
+      miner: payload.miner ?? prev?.miner ?? undefined,
+      blockHistory: currentHistory
+    };
+  }
+
+  if (incomingHistory.length === 0 && currentHistory.length > 0) {
+    return {
+      ...payload,
+      miner: payload.miner ?? prev?.miner ?? undefined,
+      blockHistory: currentHistory
+    };
+  }
+
+  const incomingAllZero = incomingHistory.every((b) => {
+    if (!isRecord(b)) return true;
+    const ur = Number(b.userReward) || 0;
+    const tr = Number(b.totalReward) || 0;
+    const failed = Boolean(b.persistFailed);
+    return ur === 0 && tr === 0 && !failed;
+  });
   const currentHasReward = currentHistory.some((b) => (Number(b.userReward) || 0) > 0);
   const shouldKeepCurrentHistory = incomingAllZero && currentHasReward;
 

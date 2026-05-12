@@ -255,6 +255,13 @@ export class MiningEngine {
       const totalWork = [...roundSnapshot.values()].reduce((sum, value) => sum + value, 0);
 
       if (totalWork <= 0) {
+        if (this.activeMiners > 0 || this.currentNetworkHashRate > 0) {
+          logger.warn("POL block closed with zero accumulated work while miners report hashrate", {
+            blockNumber: minedBlockNumber,
+            activeMiners: this.activeMiners,
+            networkHashRate: this.currentNetworkHashRate
+          });
+        }
         this.roundWork.forEach((_, minerId) => this.roundWork.set(minerId, 0));
         this.lastReward = 0;
         this.blockHistory.unshift({
@@ -313,16 +320,45 @@ export class MiningEngine {
 
       const now = Date.now();
       if (minerRewards.length > 0 && this.persistBlockRewardsCallback) {
-        try {
-          await this.persistBlockRewardsCallback({
-            blockNumber: minedBlockNumber,
-            blockReward,
-            totalWork,
-            minerRewards,
-            now
+        const persistMaxAttempts = Math.min(
+          12,
+          Math.max(1, Math.floor(Number(process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS || 5)))
+        );
+        const retryBaseMs = Math.min(
+          8000,
+          Math.max(80, Math.floor(Number(process.env.MINING_BLOCK_PERSIST_RETRY_BASE_MS || 220)))
+        );
+        let persistError = null;
+        for (let attempt = 1; attempt <= persistMaxAttempts; attempt += 1) {
+          try {
+            await this.persistBlockRewardsCallback({
+              blockNumber: minedBlockNumber,
+              blockReward,
+              totalWork,
+              minerRewards,
+              now
+            });
+            persistError = null;
+            break;
+          } catch (error) {
+            persistError = error;
+            logger.warn("Block reward persistence attempt failed", {
+              attempt,
+              maxAttempts: persistMaxAttempts,
+              blockNumber: minedBlockNumber,
+              error: error.message
+            });
+            if (attempt < persistMaxAttempts) {
+              const delay = Math.min(15_000, Math.round(retryBaseMs * attempt ** 1.35));
+              await new Promise((r) => setTimeout(r, delay));
+            }
+          }
+        }
+        if (persistError) {
+          logger.error("Block reward persistence failed — rolling back in-memory rewards", {
+            error: persistError.message,
+            blockNumber: minedBlockNumber
           });
-        } catch (error) {
-          logger.error("Block reward persistence failed — rolling back", { error: error.message });
           for (const [minerId, snapshot] of balanceSnapshot.entries()) {
             const miner = this.miners.get(minerId);
             if (miner) {
@@ -335,9 +371,27 @@ export class MiningEngine {
               }
             }
           }
+          // Do not restore roundWork: that would retry the same block forever while nextBlockAt stays in the past,
+          // freezing the countdown at 0 for every client. Drop this round's work from the chain and advance the
+          // schedule so mining keeps ticking; rewards for this block were not committed to Postgres.
           for (const [minerId, work] of roundSnapshot.entries()) {
-            this.roundWork.set(minerId, work);
+            if (work > 0 && this.miners.get(minerId)) {
+              this.roundWork.set(minerId, 0);
+            }
           }
+          // Keep nominal pool size for UI (total do bloco); no user got on-chain POL for this round.
+          this.blockHistory.unshift({
+            blockNumber: minedBlockNumber,
+            reward: blockReward,
+            minerCount: this.activeMiners,
+            timestamp: Date.now(),
+            userRewards: {},
+            persistFailed: true
+          });
+          if (this.blockHistory.length > 12) this.blockHistory.length = 12;
+          this.lastReward = 0;
+          this.markLeaderboardDirty();
+          this.finalizeBlockDistribution(minedBlockNumber, 0);
           return;
         }
       }
@@ -402,11 +456,11 @@ export class MiningEngine {
     this.currentNetworkHashRate = totalHashRate;
     this.activeMiners = activeMiners;
 
-    if (now >= this.nextBlockAt) {
+    if (Date.now() >= this.nextBlockAt) {
       await this.distributeRewardsAsync();
     }
 
-    const elapsed = Math.max(0, now - this.blockStartedAt);
+    const elapsed = Math.max(0, Date.now() - this.blockStartedAt);
     this.blockProgress = Math.min(this.blockTarget, (elapsed / this.blockDurationMs) * this.blockTarget);
   }
 
@@ -439,7 +493,8 @@ export class MiningEngine {
       totalReward: b.reward,
       userReward: userId ? (b.userRewards?.[userId] || 0) : 0,
       minerCount: b.minerCount,
-      timestamp: b.timestamp
+      timestamp: b.timestamp,
+      persistFailed: Boolean(b.persistFailed)
     }));
 
     return {

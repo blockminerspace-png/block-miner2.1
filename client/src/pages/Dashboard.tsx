@@ -308,7 +308,17 @@ export default function Dashboard(): ReactElement {
                         </div>
                       </td>
                       <td className="px-8 py-5 text-gray-300 font-bold">
-                        {safeDashboardNumber(block.totalReward, 4)} {stats?.tokenSymbol}
+                        <span className="inline-flex items-center gap-2">
+                          {safeDashboardNumber(block.totalReward, 4)} {stats?.tokenSymbol}
+                          {block.persistFailed ? (
+                            <span
+                              className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90"
+                              title="A gravação deste bloco na base falhou; ninguém recebeu POL neste ciclo."
+                            >
+                              DB
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="px-8 py-5 text-right text-gray-500 font-mono text-xs">{parseBlockTime(block)}</td>
                     </tr>

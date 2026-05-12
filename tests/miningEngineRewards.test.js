@@ -35,6 +35,9 @@ test("MiningEngine.distributeRewards handles zero-work round", async () => {
 });
 
 test("MiningEngine.distributeRewards rollback restores lastPersistedBalance when persist fails", async () => {
+  const prevMax = process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS;
+  process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS = "1";
+  try {
   const engine = new MiningEngine();
   const miner = engine.createOrGetMiner({
     userId: 404,
@@ -52,6 +55,45 @@ test("MiningEngine.distributeRewards rollback restores lastPersistedBalance when
 
   assert.equal(miner.balance, 5, "balance must revert so persistMinerProfile does not apply a bogus negative delta");
   assert.equal(miner.lastPersistedBalance, 5, "lastPersistedBalance must revert with balance or POL would be decremented wrongly");
+  assert.equal(engine.blockNumber, 2, "block schedule must advance so mining ticks do not freeze at countdown 0");
+  assert.ok(engine.nextBlockAt > Date.now(), "nextBlockAt must move into the future after a failed persist");
+  } finally {
+    if (prevMax !== undefined) process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS = prevMax;
+    else delete process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS;
+  }
+});
+
+test("MiningEngine retries persist on transient failure", async () => {
+  const prevMax = process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS;
+  const prevBase = process.env.MINING_BLOCK_PERSIST_RETRY_BASE_MS;
+  process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS = "4";
+  process.env.MINING_BLOCK_PERSIST_RETRY_BASE_MS = "1";
+  try {
+    const engine = new MiningEngine();
+    const miner = engine.createOrGetMiner({
+      userId: 606,
+      username: "retry_ok",
+      profile: { rigs: 1, base_hash_rate: 10, balance: 1 }
+    });
+    miner.balance = 1;
+    miner.lastPersistedBalance = 1;
+    engine.roundWork.set(miner.id, 100);
+    engine.activeMiners = 1;
+    let calls = 0;
+    engine.setPersistBlockRewardsCallback(async () => {
+      calls += 1;
+      if (calls < 2) throw new Error("transient");
+    });
+    await engine.distributeRewardsAsync();
+    assert.equal(calls, 2);
+    assert.ok(miner.balance > 1);
+    assert.equal(engine.blockNumber, 2);
+  } finally {
+    if (prevMax !== undefined) process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS = prevMax;
+    else delete process.env.MINING_BLOCK_PERSIST_MAX_ATTEMPTS;
+    if (prevBase !== undefined) process.env.MINING_BLOCK_PERSIST_RETRY_BASE_MS = prevBase;
+    else delete process.env.MINING_BLOCK_PERSIST_RETRY_BASE_MS;
+  }
 });
 
 test("MiningEngine.getPublicState omits leaderboard by default and only includes it on demand", () => {

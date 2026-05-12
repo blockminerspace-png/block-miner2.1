@@ -78,7 +78,8 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
   const engine = getMiningEngine();
   const pendingReferralDeltas = []; // coleta comissões para sincronizar no engine após o commit
   
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(
+    async (tx) => {
     const timestamp = new Date(now);
 
     for (const r of minerRewards) {
@@ -163,7 +164,12 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
       }
     });
 
-  });
+  },
+  {
+    maxWait: 15_000,
+    timeout: 120_000
+  }
+  );
 
   // Após commit: sincroniza comissões de referral no engine para o dashboard atualizar em tempo real
   for (const { userId, delta } of pendingReferralDeltas) {

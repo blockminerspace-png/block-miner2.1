@@ -34,6 +34,8 @@ services:
   app:
     build:
       context: .
+      args:
+        VITE_DISABLE_ADBLOCK_DETECTION: ${VITE_DISABLE_ADBLOCK_DETECTION:-}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -62,6 +64,8 @@ services:
   worker:
     build:
       context: .
+      args:
+        VITE_DISABLE_ADBLOCK_DETECTION: ${VITE_DISABLE_ADBLOCK_DETECTION:-}
     depends_on:
       db:
         condition: service_healthy
