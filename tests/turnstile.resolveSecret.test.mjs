@@ -25,14 +25,14 @@ describe("resolveTurnstileSecret", () => {
 
   it("uses only TURNSTILE_SECRET_KEY when purpose is omitted", async () => {
     process.env.TURNSTILE_SECRET_KEY = "shared";
-    const { resolveTurnstileSecret } = await import("../server/middleware/turnstile.js");
+    const { resolveTurnstileSecret } = await import("#server/middleware/turnstile.js");
     assert.equal(resolveTurnstileSecret(undefined), "shared");
   });
 
   it("login prefers TURNSTILE_SECRET_KEY_LOGIN then falls back", async () => {
     process.env.TURNSTILE_SECRET_KEY = "fallback";
     process.env.TURNSTILE_SECRET_KEY_LOGIN = "login-secret";
-    const { resolveTurnstileSecret } = await import("../server/middleware/turnstile.js");
+    const { resolveTurnstileSecret } = await import("#server/middleware/turnstile.js");
     assert.equal(resolveTurnstileSecret("login"), "login-secret");
     delete process.env.TURNSTILE_SECRET_KEY_LOGIN;
     assert.equal(resolveTurnstileSecret("login"), "fallback");
@@ -40,7 +40,7 @@ describe("resolveTurnstileSecret", () => {
 
   it("register prefers TURNSTILE_SECRET_KEY_REGISTER then falls back", async () => {
     process.env.TURNSTILE_SECRET_KEY_REGISTER = "reg-only";
-    const { resolveTurnstileSecret } = await import("../server/middleware/turnstile.js");
+    const { resolveTurnstileSecret } = await import("#server/middleware/turnstile.js");
     assert.equal(resolveTurnstileSecret("register"), "reg-only");
   });
 
@@ -48,7 +48,7 @@ describe("resolveTurnstileSecret", () => {
     process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS = "1";
     process.env.TURNSTILE_SECRET_KEY = "real-should-be-ignored";
     process.env.TURNSTILE_SECRET_KEY_LOGIN = "login-ignored";
-    const { resolveTurnstileSecret } = await import("../server/middleware/turnstile.js");
+    const { resolveTurnstileSecret } = await import("#server/middleware/turnstile.js");
     assert.equal(resolveTurnstileSecret("login"), "1x0000000000000000000000000000000AA");
     assert.equal(resolveTurnstileSecret("register"), "1x0000000000000000000000000000000AA");
     assert.equal(resolveTurnstileSecret(undefined), "1x0000000000000000000000000000000AA");
@@ -72,14 +72,14 @@ describe("getTurnstileBootFatalError", () => {
   it("empty when not production", async () => {
     process.env.NODE_ENV = "test";
     process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS = "1";
-    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    const { getTurnstileBootFatalError } = await import("#server/middleware/turnstile.js");
     assert.equal(getTurnstileBootFatalError(), "");
   });
 
   it("empty in production when dummy flag is off", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS;
-    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    const { getTurnstileBootFatalError } = await import("#server/middleware/turnstile.js");
     assert.equal(getTurnstileBootFatalError(), "");
   });
 
@@ -87,7 +87,7 @@ describe("getTurnstileBootFatalError", () => {
     process.env.NODE_ENV = "production";
     process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS = "1";
     delete process.env.ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION;
-    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    const { getTurnstileBootFatalError } = await import("#server/middleware/turnstile.js");
     assert.ok(getTurnstileBootFatalError().includes("Refusing to start"));
   });
 
@@ -95,7 +95,7 @@ describe("getTurnstileBootFatalError", () => {
     process.env.NODE_ENV = "production";
     process.env.TURNSTILE_USE_CLOUDFLARE_DUMMY_KEYS = "1";
     process.env.ALLOW_TURNSTILE_DUMMY_IN_PRODUCTION = "1";
-    const { getTurnstileBootFatalError } = await import("../server/middleware/turnstile.js");
+    const { getTurnstileBootFatalError } = await import("#server/middleware/turnstile.js");
     assert.equal(getTurnstileBootFatalError(), "");
   });
 });

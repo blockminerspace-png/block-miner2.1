@@ -4,7 +4,7 @@ import {
   readEarnAdminCreateSchema,
   readEarnAdminUpdateSchema,
   readEarnRedeemBodySchema
-} from "../server/utils/readEarnSchemas.js";
+} from "#server/utils/readEarnSchemas.js";
 
 test("readEarnAdminCreateSchema accepts valid machine campaign", () => {
   const parsed = readEarnAdminCreateSchema.parse({

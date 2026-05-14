@@ -6,7 +6,7 @@ import path from "path";
 
 test("buildUserAuditSnapshot loads UserMiner via miner relation, not invalid minerName field", () => {
   const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const file = path.join(root, "server/services/internalOfferwall/buildUserAuditSnapshot.js");
+  const file = path.join(root, "dist/server/services/internalOfferwall/buildUserAuditSnapshot.js");
   const src = readFileSync(file, "utf8");
   const minersStart = src.indexOf("miners:");
   assert.ok(minersStart >= 0);

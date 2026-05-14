@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pickMiniPassI18n } from "../server/services/miniPass/miniPassI18n.js";
+import { pickMiniPassI18n } from "#server/services/miniPass/miniPassI18n.js";
 
 describe("pickMiniPassI18n", () => {
   const blob = { en: "Hello", ptBR: "Oi", es: "Hola" };

@@ -1,11 +1,11 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeShopIdempotencyKey, __resetShopIdempotencyStoreForTests } from "../server/services/shopIdempotencyStore.js";
+import { normalizeShopIdempotencyKey, __resetShopIdempotencyStoreForTests } from "#server/services/shopIdempotencyStore.js";
 import {
   beginIdempotencyLease,
   commitIdempotencyResult,
   __resetIdempotencyMemoryForTests,
-} from "../server/services/idempotencyService.js";
+} from "#server/services/idempotencyService.js";
 
 describe("shop idempotency (shared service)", () => {
   beforeEach(() => {

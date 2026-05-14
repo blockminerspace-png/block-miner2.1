@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildUserApiActivityAction,
   shouldAuditUserRequest,
-} from "../server/middleware/userActivityAudit.js";
+} from "#server/middleware/userActivityAudit.js";
 
 describe("userActivityAudit middleware helpers", () => {
   it("builds stable action names from API method and path", () => {

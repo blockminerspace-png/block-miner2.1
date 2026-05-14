@@ -5,6 +5,7 @@ import loggerLib from "../utils/logger.js";
 import { createAuditLog } from "../models/auditLogModel.js";
 import { INTERNAL_SHORTLINK_TYPE } from "../models/shortlinkRewardModel.js";
 import { createInventoryWithOwnedMachineTx } from "../services/userOwnedMachineService.js";
+import type { Prisma } from "@prisma/client";
 
 const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
@@ -48,6 +49,9 @@ export async function getShortlinkStatus(req: Request, res: Response) {
       });
     }
     status = await resetDailyIfNeeded(status);
+    if (!status) {
+      return res.status(500).json({ ok: false, message: "Server error" });
+    }
     res.json({
       ok: true,
       status: {
@@ -72,7 +76,11 @@ export async function startShortlink(req: Request, res: Response) {
     let status = await prisma.shortlinkCompletion.findUnique({ where: { userId } });
     status = await resetDailyIfNeeded(status);
 
-    if (status && status.dailyRuns >= MAX_DAILY_RUNS) {
+    if (!status) {
+      return res.status(500).json({ ok: false, message: "Server error" });
+    }
+
+    if (status.dailyRuns >= MAX_DAILY_RUNS) {
       return res.status(403).json({ ok: false, message: "Limite diário alcançado. Volte amanhã." });
     }
 
@@ -121,7 +129,14 @@ export async function completeShortlinkStep(req: Request, res: Response) {
       await createAuditLog({
         userId,
         action: "shortlink_cheat_attempt",
-        details: { step: normalizedStep, incidents, timeElapsed }
+        ip: req.ip || null,
+        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+        details: { step: normalizedStep, incidents, timeElapsed },
+        label: null,
+        description: null,
+        relatedEntityType: null,
+        relatedEntityId: null,
+        actorAdminId: null,
       });
       return res.status(403).json({ ok: false, message: "Detection: " + incidents.join(", "), kick: true });
     }
@@ -131,7 +146,7 @@ export async function completeShortlinkStep(req: Request, res: Response) {
     const nextStep = isLastStep ? 0 : normalizedStep + 1;
     const nextSessionToken = isLastStep ? null : generateStepToken(userId, nextStep);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.shortlinkCompletion.update({
         where: { userId },
         data: {

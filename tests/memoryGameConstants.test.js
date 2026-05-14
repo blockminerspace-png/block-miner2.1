@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getMemoryMismatchRevealMs } from "../server/utils/memoryGameConstants.js";
+import { getMemoryMismatchRevealMs } from "#server/utils/memoryGameConstants.js";
 
 describe("getMemoryMismatchRevealMs", () => {
   it("defaults to 800 when env unset", () => {

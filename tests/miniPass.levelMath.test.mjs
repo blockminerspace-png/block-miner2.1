@@ -4,7 +4,7 @@ import {
   computePassLevel,
   xpCapForSeason,
   xpRemainingToCap
-} from "../server/services/miniPass/miniPassLevelMath.js";
+} from "#server/services/miniPass/miniPassLevelMath.js";
 
 describe("miniPassLevelMath", () => {
   it("computes level from XP with floor division", () => {

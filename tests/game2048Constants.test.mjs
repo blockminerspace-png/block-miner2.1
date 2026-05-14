@@ -6,7 +6,7 @@ import {
   game2048RewardHashRate,
   game2048PowerHoursWhenNoDailyLogin,
   rewardDurationFromCheckinToday
-} from "../server/utils/game2048Constants.js";
+} from "#server/utils/game2048Constants.js";
 
 describe("game2048Constants", () => {
   afterEach(() => {

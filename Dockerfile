@@ -29,7 +29,8 @@ COPY client/package*.json ./
 RUN npm install --no-audit --no-fund
 COPY client/ ./
 # Vite resolves `@game2048/engine` to this copy (client-only context in this stage).
-COPY server/services/game2048Engine.js ./engine/game2048Engine.js
+# Engine is TypeScript in-repo; use the server build output (run `npm run build:server` before `docker compose build`).
+COPY dist/server/services/game2048Engine.js ./engine/game2048Engine.js
 RUN npm run build
 
 # Stage 2: Serve Backend
@@ -57,8 +58,10 @@ RUN npx prisma generate --schema=server/prisma/schema.prisma
 # Copy the rest of the application
 COPY . .
 
-# Controllers authored in TypeScript (check-in, shortlinks, YouTube, auto mining); emit JS for Node.
-RUN npx --yes esbuild@0.25.4 server/controllers/checkinController.ts server/controllers/shortlinkController.ts server/controllers/youtubeController.ts server/controllers/autoMiningGpuController.ts server/controllers/autoMiningV2Controller.ts --outdir=server/controllers --format=esm --platform=node
+# TypeScript HTTP composition layer (`backend/src`) — uses root `package.json` `"imports"` (`#server/*` → `dist/server/*`).
+RUN npm install --no-save typescript@5.8.3 @types/node@22.15.3 @types/express@5.0.1 @types/cors@2.8.17 @types/compression@1.7.5 @types/pg@8.20.0 @types/jsonwebtoken@9.0.10 @types/multer@1.4.12 && \
+    npx tsc -p tsconfig.server.json && \
+    npx tsc -p backend/tsconfig.json
 
 # Copy compiled React SPA into the backend container
 COPY --from=frontend-builder /app/dist ./client/dist
@@ -76,4 +79,4 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && \
     chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "server/server.js"]
+CMD ["node", "dist/server/server.js"]

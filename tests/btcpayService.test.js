@@ -12,7 +12,7 @@ import {
   parseInvoiceIdFromTxHash,
   resolveBtcpayCheckoutPaymentMethodsFromRaw,
   verifyBtcpayWebhookSignature
-} from "../server/services/btcpayService.js";
+} from "#server/services/btcpayService.js";
 
 const BTCPAY_ENV_KEYS = ["BTCPAY_URL", "BTCPAY_API_KEY", "BTCPAY_STORE_ID", "BTCPAY_WEBHOOK_SECRET"];
 

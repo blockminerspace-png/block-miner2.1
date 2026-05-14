@@ -5,7 +5,7 @@ import {
   getMiniPassSeasonState,
   isMiniPassSeasonLive,
   isMiniPassSeasonVisible
-} from "../server/services/miniPass/miniPassSeasonLive.js";
+} from "#server/services/miniPass/miniPassSeasonLive.js";
 
 function makeSeason(overrides = {}) {
   return {

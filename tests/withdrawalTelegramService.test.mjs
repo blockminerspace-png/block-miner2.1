@@ -9,7 +9,7 @@ process.env.TELEGRAM_PUBLIC_PROOF_THREAD_ID = "42";
 process.env.TELEGRAM_WITHDRAWAL_ALERTS_ENABLED = "true";
 process.env.TELEGRAM_PUBLIC_PROOFS_ENABLED = "true";
 
-const service = await import("../server/services/withdrawalTelegramService.js");
+const service = await import("#server/services/withdrawalTelegramService.js");
 
 test("preserves Telegram channel chat id as string", () => {
   assert.equal(service.normalizeChatId("-1003734849036"), "-1003734849036");

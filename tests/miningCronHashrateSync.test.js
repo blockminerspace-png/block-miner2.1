@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { refreshKnownMinerHashrates } from "../server/cron/miningCron.js";
+import { refreshKnownMinerHashrates } from "#server/cron/miningCron.js";
 
 test("refreshKnownMinerHashrates updates stale in-memory POL hashrate", async () => {
   const miner = { userId: 1, baseHashRate: 60 };

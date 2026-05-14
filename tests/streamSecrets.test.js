@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "crypto";
-import { decryptStreamSecret, encryptStreamSecret, isStreamEncryptionConfigured } from "../server/services/streaming/streamSecrets.js";
+import { decryptStreamSecret, encryptStreamSecret, isStreamEncryptionConfigured } from "#server/services/streaming/streamSecrets.js";
 
 describe("streamSecrets", () => {
   const prev = process.env.STREAM_ENCRYPTION_KEY;

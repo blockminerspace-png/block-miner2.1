@@ -1,6 +1,6 @@
-import prisma from "../server/src/db/prisma.js";
-import { getCachedIpIntelligence } from "../server/services/ipIntelligenceService.js";
-import { normalizeIp } from "../server/utils/clientIp.js";
+import prisma from "#server/src/db/prisma.js";
+import { getCachedIpIntelligence } from "#server/services/ipIntelligenceService.js";
+import { normalizeIp } from "#server/utils/clientIp.js";
 
 const limit = Math.max(1, Math.min(100, Number(process.argv[2] || process.env.FRAUD_ENRICH_LIMIT || 25)));
 

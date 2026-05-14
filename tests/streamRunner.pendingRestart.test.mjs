@@ -4,7 +4,7 @@ import {
   clearPendingStreamRestart,
   hasPendingStreamRestart,
   scheduleDesiredStreamRestart
-} from "../server/services/streaming/streamRunner.js";
+} from "#server/services/streaming/streamRunner.js";
 
 describe("streamRunner pending restart coordination", () => {
   it("exposes pending state and clears scheduled backoff", () => {

@@ -5,7 +5,7 @@ import {
   isPolygonHdDepositEnabled,
   isPolygonHdFeatureFlagged,
   listPolygonHdMissingEnvKeys
-} from "../server/services/polygonHdConfig.js";
+} from "#server/services/polygonHdConfig.js";
 
 const ENV_KEYS = [
   "POLYGON_HD_DEPOSIT_ENABLED",

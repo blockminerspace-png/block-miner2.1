@@ -9,7 +9,7 @@ import {
   toggleAdminMinerStore,
   updateAdminMiner,
   validateMinerImageUrl,
-} from "../server/services/adminMinersService.js";
+} from "#server/services/adminMinersService.js";
 
 function prismaMock() {
   const miners = new Map();

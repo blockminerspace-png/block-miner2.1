@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const faucetControllerPath = join(__dirname, "../server/controllers/faucetController.js");
+const faucetControllerPath = join(__dirname, "../dist/server/controllers/faucetController.js");
 
 test("faucet claim does not set 24h inventory TTL", () => {
   const src = readFileSync(faucetControllerPath, "utf8");

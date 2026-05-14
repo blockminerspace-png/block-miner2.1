@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isValidMachineLocationTransition } from "../server/utils/machineInstanceState.js";
+import { isValidMachineLocationTransition } from "#server/utils/machineInstanceState.js";
 
 describe("machineInstanceState", () => {
   it("allows identity transitions", () => {

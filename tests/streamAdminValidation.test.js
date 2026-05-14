@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseCreateStreamDestination,
   parsePatchStreamDestination
-} from "../server/services/streaming/streamAdminValidation.js";
+} from "#server/services/streaming/streamAdminValidation.js";
 
 describe("streamAdminValidation", () => {
   it("accepts valid create payload", () => {

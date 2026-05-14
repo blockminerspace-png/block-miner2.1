@@ -4,6 +4,7 @@ import loggerLib from "../utils/logger.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { createInventoryWithOwnedMachineTx } from "../services/userOwnedMachineService.js";
+import type { Prisma } from "@prisma/client";
 
 const logger = loggerLib.child("AutoMiningGpuController");
 
@@ -103,7 +104,7 @@ export async function claimGPUHandler(req: Request, res: Response) {
       include: { reward: true }
     });
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const u = await tx.autoMiningGpu.update({
         where: { id: gpu.id },
         data: {

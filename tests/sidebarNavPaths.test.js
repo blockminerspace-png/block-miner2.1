@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import {
   collectVisiblePathsFromCategories,
   normalizeSidebarPath
-} from "../server/services/sidebarNavService.js";
-import { filterDailyTaskDefsForSidebar } from "../server/services/dailyTasks/dailyTaskDashboardService.js";
-import { TASK_LOGIN_DAY } from "../server/services/dailyTasks/dailyTaskConstants.js";
+} from "#server/services/sidebarNavService.js";
+import { filterDailyTaskDefsForSidebar } from "#server/services/dailyTasks/dailyTaskDashboardService.js";
+import { TASK_LOGIN_DAY } from "#server/services/dailyTasks/dailyTaskConstants.js";
 
 test("normalizeSidebarPath trims trailing slash and query", () => {
   assert.equal(normalizeSidebarPath("/checkin/"), "/checkin");

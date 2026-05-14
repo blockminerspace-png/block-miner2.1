@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isReadEarnCampaignLive } from "../server/services/readEarnService.js";
+import { isReadEarnCampaignLive } from "#server/services/readEarnService.js";
 
 test("isReadEarnCampaignLive requires active flag and date window", () => {
   const now = new Date("2026-06-15T12:00:00Z");

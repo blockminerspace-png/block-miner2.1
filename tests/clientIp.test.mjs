@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { deriveDefaultNetworkCidr, getClientIp, isIpInCidr, normalizeIp } from "../server/utils/clientIp.js";
+import { deriveDefaultNetworkCidr, getClientIp, isIpInCidr, normalizeIp } from "#server/utils/clientIp.js";
 
 const oldEnv = { ...process.env };
 

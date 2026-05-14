@@ -10,7 +10,7 @@ afterEach(() => {
 
 describe("logger utilities", () => {
   it("buildRequestLogContext extracts user, ip, endpoint, requestId", async () => {
-    const { buildRequestLogContext } = await import("../server/utils/logger.js");
+    const { buildRequestLogContext } = await import("#server/utils/logger.js");
     const req = {
       user: { id: 42 },
       originalUrl: "/api/vault",
@@ -29,7 +29,7 @@ describe("logger utilities", () => {
 
   it("buildRequestLogContext ignores x-forwarded-for when proxy trust is disabled", async () => {
     process.env.TRUST_PROXY = "false";
-    const { buildRequestLogContext } = await import("../server/utils/logger.js");
+    const { buildRequestLogContext } = await import("#server/utils/logger.js");
     const req = {
       headers: { "x-forwarded-for": "198.51.100.2, 10.0.0.1" },
       originalUrl: "/x",
@@ -40,7 +40,7 @@ describe("logger utilities", () => {
   });
 
   it("buildRequestLogContext merges extra fields", async () => {
-    const { buildRequestLogContext } = await import("../server/utils/logger.js");
+    const { buildRequestLogContext } = await import("#server/utils/logger.js");
     const ctx = buildRequestLogContext(null, { action: "ping" });
     assert.equal(ctx.action, "ping");
     assert.ok(ctx.timestamp);

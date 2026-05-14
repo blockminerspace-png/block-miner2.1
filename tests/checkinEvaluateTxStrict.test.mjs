@@ -31,7 +31,7 @@ describe("evaluateCheckinTx missingTxBehavior", () => {
       return { ok: true, json: async () => ({ jsonrpc: "2.0", id: 1, result: null }) };
     };
 
-    const { evaluateCheckinTx } = await import("../server/services/checkinChain.js");
+    const { evaluateCheckinTx } = await import("#server/services/checkinChain.js");
     const txHash = "0x" + "ab".repeat(32);
     const ev = await evaluateCheckinTx({
       txHash,
@@ -58,7 +58,7 @@ describe("evaluateCheckinTx missingTxBehavior", () => {
       return { ok: true, json: async () => ({ jsonrpc: "2.0", id: 1, result: null }) };
     };
 
-    const { evaluateCheckinTx } = await import("../server/services/checkinChain.js");
+    const { evaluateCheckinTx } = await import("#server/services/checkinChain.js");
     const txHash = "0x" + "cd".repeat(32);
     const ev = await evaluateCheckinTx({
       txHash,

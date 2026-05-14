@@ -1,0 +1,616 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import axios from 'axios';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Loader2,
+  ListChecks,
+  Plus,
+  Trash2,
+  CalendarCheck,
+  Gamepad2,
+  Layers,
+  Pickaxe,
+  Target,
+  Youtube
+} from 'lucide-react';
+import { api } from '../../store/auth';
+import {
+  type AdminDailyTaskDefinitionRow,
+  type CreateFormState,
+  type DefinitionsListResponse,
+  type MutationResponse,
+  type QuickTemplateId,
+  RESET_CADENCES,
+  REWARD_KINDS,
+  TASK_TYPES,
+  applyQuickTemplate,
+  buildCreateBody,
+  coerceTargetWhenSwitchingTaskType,
+  defaultCreateForm,
+  isCountTaskType
+} from './adminDailyTasks/adminDailyTasksModel';
+
+function axiosErrorMessage(err: unknown): string | undefined {
+  if (!axios.isAxiosError(err) || err.response?.data == null) return undefined;
+  const d = err.response.data;
+  if (typeof d === 'object' && d !== null && 'message' in d) {
+    const m = (d as { message?: unknown }).message;
+    return m != null ? String(m) : undefined;
+  }
+  return undefined;
+}
+
+const QUICK_TEMPLATES: { id: QuickTemplateId; icon: LucideIcon; labelKey: string; subKey: string }[] = [
+  { id: 'checkins', icon: CalendarCheck, labelKey: 'admin_daily_tasks.tpl_checkins', subKey: 'admin_daily_tasks.tpl_checkins_sub' },
+  { id: 'games_any', icon: Gamepad2, labelKey: 'admin_daily_tasks.tpl_games', subKey: 'admin_daily_tasks.tpl_games_sub' },
+  { id: 'games_one', icon: Target, labelKey: 'admin_daily_tasks.tpl_games_one', subKey: 'admin_daily_tasks.tpl_games_one_sub' },
+  { id: 'offerwall', icon: Layers, labelKey: 'admin_daily_tasks.tpl_offerwall', subKey: 'admin_daily_tasks.tpl_offerwall_sub' },
+  { id: 'mine_blk', icon: Pickaxe, labelKey: 'admin_daily_tasks.tpl_mine_blk', subKey: 'admin_daily_tasks.tpl_mine_blk_sub' },
+  { id: 'youtube', icon: Youtube, labelKey: 'admin_daily_tasks.tpl_youtube', subKey: 'admin_daily_tasks.tpl_youtube_sub' }
+];
+
+export default function AdminDailyTasks() {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<AdminDailyTaskDefinitionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [orderDraft, setOrderDraft] = useState<Record<number, string>>({});
+  const [patching, setPatching] = useState<Record<number, boolean>>({});
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateFormState>(() => defaultCreateForm());
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const res = await api.get<DefinitionsListResponse>('/admin/daily-tasks/definitions');
+      if (res.data?.ok) {
+        const list = res.data.definitions ?? [];
+        setRows(list);
+        setLoadFailed(false);
+        const next: Record<number, string> = {};
+        for (const r of list) {
+          next[r.id] = String(r.sortOrder ?? 0);
+        }
+        setOrderDraft(next);
+      } else {
+        setRows([]);
+        setLoadFailed(true);
+        toast.error(t('admin_daily_tasks.load_error'));
+      }
+    } catch (e: unknown) {
+      setRows([]);
+      setLoadFailed(true);
+      if (axios.isAxiosError(e)) {
+        const status = e.response?.status;
+        if (status === 401) toast.error(t('admin_daily_tasks.error_unauthorized'));
+        else if (status != null && status >= 500) toast.error(t('admin_daily_tasks.error_server'));
+        else if (!e.response) toast.error(t('admin_daily_tasks.error_network'));
+        else toast.error(t('admin_daily_tasks.load_error'));
+      } else {
+        toast.error(t('admin_daily_tasks.load_error'));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const targetFieldLabelKey = useMemo(
+    () =>
+      isCountTaskType(createForm.taskType)
+        ? 'admin_daily_tasks.create_target_count'
+        : 'admin_daily_tasks.create_target_mine',
+    [createForm.taskType]
+  );
+
+  const setRowPatching = (id: number, v: boolean) => {
+    setPatching((p) => ({ ...p, [id]: v }));
+  };
+
+  const patchDefinition = async (id: number, body: Record<string, unknown>) => {
+    setRowPatching(id, true);
+    try {
+      const res = await api.patch<MutationResponse>(`/admin/daily-tasks/definitions/${id}`, body);
+      if (res.data?.ok) {
+        toast.success(t('admin_daily_tasks.saved'));
+        await load();
+      } else {
+        toast.error(res.data?.message || t('admin_daily_tasks.save_error'));
+      }
+    } catch (err: unknown) {
+      toast.error(axiosErrorMessage(err) || t('admin_daily_tasks.save_error'));
+    } finally {
+      setRowPatching(id, false);
+    }
+  };
+
+  const onToggleActive = (id: number, isActive: boolean) => {
+    void patchDefinition(id, { isActive });
+  };
+
+  const onCadenceChange = (id: number, nextCadence: string, previousCadence: string | null | undefined) => {
+    const next = String(nextCadence || 'DAILY').toUpperCase();
+    const prev = String(previousCadence || 'DAILY').toUpperCase();
+    if (next === prev) return;
+    void patchDefinition(id, { resetCadence: next });
+  };
+
+  const onSaveOrder = (id: number) => {
+    const raw = orderDraft[id];
+    const n = parseInt(String(raw), 10);
+    if (!Number.isInteger(n) || n < 0) {
+      toast.error(t('admin_daily_tasks.save_error'));
+      return;
+    }
+    void patchDefinition(id, { sortOrder: n });
+  };
+
+  const onCreate = async () => {
+    const rawTv = parseFloat(String(createForm.targetValue).replace(',', '.'));
+    if (isCountTaskType(createForm.taskType)) {
+      if (!Number.isFinite(rawTv) || rawTv < 1 || Math.abs(rawTv - Math.round(rawTv)) > 1e-6) {
+        toast.error(t('admin_daily_tasks.create_error_target_count'));
+        return;
+      }
+    }
+    setCreating(true);
+    try {
+      const body = buildCreateBody(createForm);
+      const res = await api.post<MutationResponse>('/admin/daily-tasks/definitions', body);
+      if (res.data?.ok) {
+        toast.success(t('admin_daily_tasks.create_success'));
+        setCreateForm(defaultCreateForm());
+        setShowCreate(false);
+        await load();
+      } else {
+        toast.error(res.data?.message || t('admin_daily_tasks.create_error'));
+      }
+    } catch (err: unknown) {
+      toast.error(axiosErrorMessage(err) || t('admin_daily_tasks.create_error'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const onDelete = async (id: number, slug: string) => {
+    if (!window.confirm(t('admin_daily_tasks.delete_confirm', { slug }))) return;
+    setDeletingId(id);
+    try {
+      const res = await api.delete<MutationResponse>(`/admin/daily-tasks/definitions/${id}`);
+      if (res.data?.ok) {
+        toast.success(t('admin_daily_tasks.delete_success'));
+        await load();
+      } else {
+        toast.error(res.data?.message || t('admin_daily_tasks.delete_error'));
+      }
+    } catch (err: unknown) {
+      toast.error(axiosErrorMessage(err) || t('admin_daily_tasks.delete_error'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start gap-4">
+        <div className="rounded-xl bg-amber-500/10 p-3 text-amber-500">
+          <ListChecks className="h-8 w-8" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-black tracking-tight text-white">{t('admin_daily_tasks.title')}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-400">{t('admin_daily_tasks.subtitle')}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-3xl text-sm leading-relaxed text-slate-300">{t('admin_daily_tasks.crud_hint')}</p>
+        <button
+          type="button"
+          onClick={() => setShowCreate((s) => !s)}
+          className="inline-flex shrink-0 min-h-[44px] items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-bold uppercase tracking-wide text-amber-400 hover:bg-amber-500/20"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          {t('admin_daily_tasks.create_task')}
+        </button>
+      </div>
+
+      {showCreate ? (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
+          <h2 className="text-lg font-bold text-white">{t('admin_daily_tasks.create_title')}</h2>
+          <p className="text-xs text-slate-500">{t('admin_daily_tasks.create_hint')}</p>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('admin_daily_tasks.cadence_picker')}</p>
+            <div className="flex flex-wrap gap-2">
+              {RESET_CADENCES.map((c) => {
+                const on = createForm.resetCadence === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCreateForm((f) => ({ ...f, resetCadence: c }))}
+                    className={`rounded-xl border px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+                      on
+                        ? 'border-amber-400/60 bg-amber-500/20 text-amber-100 shadow-md shadow-amber-950/40'
+                        : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                    }`}
+                  >
+                    {t(`admin_daily_tasks.cadence_${c}`)}
+                  </button>
+                );
+              })}
+            </div>
+            {createForm.taskType === 'INTERNAL_OFFERWALL' ? (
+              <p className="text-[11px] leading-relaxed text-amber-200/90 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2">
+                {t('admin_daily_tasks.create_offerwall_period_tip')}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('admin_daily_tasks.quick_start')}</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {QUICK_TEMPLATES.map(({ id, icon: Icon, labelKey, subKey }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCreateForm((f) => applyQuickTemplate(id, f))}
+                  className="group flex flex-col items-start gap-1 rounded-xl border border-slate-700/80 bg-slate-950/80 p-4 text-left transition-all hover:border-amber-500/40 hover:bg-slate-900/90"
+                >
+                  <span className="flex items-center gap-2 text-sm font-bold text-white">
+                    <Icon className="h-4 w-4 text-amber-400 shrink-0" aria-hidden />
+                    {t(labelKey)}
+                  </span>
+                  <span className="text-[11px] leading-snug text-slate-500 group-hover:text-slate-400">{t(subKey)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block space-y-1">
+              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_slug')}</span>
+              <input
+                value={createForm.slug}
+                onChange={(e) => setCreateForm((f) => ({ ...f, slug: e.target.value }))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                placeholder="daily-my-task"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_type_advanced')}</span>
+              <select
+                value={createForm.taskType}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setCreateForm((f) => {
+                    const nextTv = coerceTargetWhenSwitchingTaskType(f.taskType, v, f.targetValue);
+                    return {
+                      ...f,
+                      taskType: v,
+                      targetValue: nextTv,
+                      translationKey:
+                        v === 'INTERNAL_OFFERWALL' ? 'dailyTasks.tasks.internal_offerwall' : f.translationKey
+                    };
+                  });
+                }}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+              >
+                {TASK_TYPES.map((tt) => (
+                  <option key={tt} value={tt}>
+                    {t(`admin_daily_tasks.type_${tt}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1 sm:col-span-2">
+              <span className="text-xs font-semibold text-slate-400">{t(targetFieldLabelKey)}</span>
+              <input
+                type={isCountTaskType(createForm.taskType) ? 'number' : 'text'}
+                inputMode={isCountTaskType(createForm.taskType) ? 'numeric' : 'decimal'}
+                min={isCountTaskType(createForm.taskType) ? 1 : undefined}
+                step={isCountTaskType(createForm.taskType) ? 1 : 'any'}
+                value={createForm.targetValue}
+                onChange={(e) => setCreateForm((f) => ({ ...f, targetValue: e.target.value }))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+              />
+              <span className="block pt-1 text-[11px] leading-relaxed text-slate-500">
+                {t(`admin_daily_tasks.target_hint_${createForm.taskType}`, {
+                  defaultValue: t('admin_daily_tasks.target_hint_default')
+                })}
+              </span>
+            </label>
+            <label className="block space-y-1 sm:col-span-2">
+              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_i18n_key')}</span>
+              <input
+                value={createForm.translationKey}
+                onChange={(e) => setCreateForm((f) => ({ ...f, translationKey: e.target.value }))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_kind')}</span>
+              <select
+                value={createForm.rewardKind}
+                onChange={(e) => setCreateForm((f) => ({ ...f, rewardKind: e.target.value }))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+              >
+                {REWARD_KINDS.map((rk) => (
+                  <option key={rk} value={rk}>
+                    {t(`admin_daily_tasks.reward_${rk}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {createForm.rewardKind === 'BLK' ? (
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_blk')}</span>
+                <input
+                  value={createForm.rewardBlkAmount}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, rewardBlkAmount: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+            ) : null}
+            {createForm.rewardKind === 'POL' ? (
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_pol')}</span>
+                <input
+                  value={createForm.rewardPolAmount}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, rewardPolAmount: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+            ) : null}
+            {createForm.rewardKind === 'HASHRATE_TEMP' ? (
+              <>
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_hash')}</span>
+                  <input
+                    value={createForm.rewardHashRate}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, rewardHashRate: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_days')}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={createForm.rewardHashRateDays}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, rewardHashRateDays: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  />
+                </label>
+              </>
+            ) : null}
+            {createForm.rewardKind === 'SHOP_MINER' ? (
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_miner_id')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={createForm.rewardMinerId}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, rewardMinerId: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+            ) : null}
+            {createForm.rewardKind === 'EVENT_MINER' ? (
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_event_miner_id')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={createForm.rewardEventMinerId}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, rewardEventMinerId: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+            ) : null}
+            {createForm.taskType === 'PLAY_GAMES' ? (
+              <label className="block space-y-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_game_slug')}</span>
+                <input
+                  value={createForm.gameSlug}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, gameSlug: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  placeholder="memory"
+                />
+              </label>
+            ) : null}
+            {createForm.taskType === 'INTERNAL_OFFERWALL' ? (
+              <label className="block space-y-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_internal_offerwall_offer_id')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={createForm.internalOfferwallOfferId}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, internalOfferwallOfferId: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  placeholder="1"
+                />
+              </label>
+            ) : null}
+            <label className="flex items-center gap-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={createForm.autoSortOrder}
+                onChange={(e) => setCreateForm((f) => ({ ...f, autoSortOrder: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-600 accent-amber-500"
+              />
+              <span className="text-sm text-slate-300">{t('admin_daily_tasks.create_auto_order')}</span>
+            </label>
+            {!createForm.autoSortOrder ? (
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_sort_order')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99999}
+                  value={createForm.sortOrder}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, sortOrder: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => void onCreate()}
+              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-2.5 text-sm font-black uppercase tracking-wide text-white disabled:opacity-50"
+            >
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : t('admin_daily_tasks.create_submit')}
+            </button>
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => {
+                setShowCreate(false);
+                setCreateForm(defaultCreateForm());
+              }}
+              className="rounded-xl border border-slate-700 px-6 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+            >
+              {t('admin_daily_tasks.create_cancel')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-slate-400">
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          <span>{t('admin_daily_tasks.loading')}</span>
+        </div>
+      ) : loadFailed ? (
+        <div className="rounded-2xl border border-red-500/25 bg-red-950/20 p-6 space-y-4 max-w-2xl">
+          <p className="text-sm text-red-100/95 leading-relaxed">{t('admin_daily_tasks.load_failed_body')}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex items-center justify-center rounded-xl border border-red-400/40 bg-red-500/15 px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-red-200 hover:bg-red-500/25"
+          >
+            {t('admin_daily_tasks.retry')}
+          </button>
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="text-slate-500">{t('admin_daily_tasks.empty')}</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+          <table className="min-w-full text-left text-sm text-slate-300">
+            <thead className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_slug')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_type')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_cadence')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_target')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_i18n_key')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_io_offer')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_reward')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_active')}</th>
+                <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_order')}</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">{t('admin_daily_tasks.col_save_order')}</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">{t('admin_daily_tasks.col_delete')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80">
+              {rows.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-800/30">
+                  <td className="px-4 py-3 font-mono text-xs text-amber-500/90">{r.slug}</td>
+                  <td className="px-4 py-3">{r.taskType}</td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={String(r.resetCadence || 'DAILY').toUpperCase()}
+                      disabled={Boolean(patching[r.id])}
+                      aria-label={t('admin_daily_tasks.cadence_select_aria')}
+                      onChange={(e) => onCadenceChange(r.id, e.target.value, r.resetCadence)}
+                      className="max-w-[9.5rem] rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white disabled:opacity-40"
+                    >
+                      {RESET_CADENCES.map((c) => (
+                        <option key={c} value={c}>
+                          {t(`admin_daily_tasks.cadence_${c}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs">{String(r.targetValue)}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-400">{r.translationKey}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                    {r.internalOfferwallOfferId != null ? String(r.internalOfferwallOfferId) : '—'}
+                  </td>
+                  <td className="px-4 py-3">{r.rewardKind}</td>
+                  <td className="px-4 py-3">
+                    <label className="inline-flex cursor-pointer select-none items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(r.isActive)}
+                        disabled={Boolean(patching[r.id])}
+                        aria-label={t('admin_daily_tasks.toggle_aria')}
+                        onChange={(e) => onToggleActive(r.id, e.target.checked)}
+                        className="h-5 w-5 rounded border-slate-600 bg-slate-950 accent-emerald-500 focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-40"
+                      />
+                      <span className="text-xs text-slate-400">{r.isActive ? t('admin_daily_tasks.yes') : t('admin_daily_tasks.no')}</span>
+                    </label>
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      min={0}
+                      max={99999}
+                      className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 font-mono text-xs text-white disabled:opacity-40"
+                      value={orderDraft[r.id] ?? ''}
+                      disabled={Boolean(patching[r.id])}
+                      aria-label={t('admin_daily_tasks.order_placeholder')}
+                      onChange={(e) => setOrderDraft((d) => ({ ...d, [r.id]: e.target.value }))}
+                    />
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <button
+                      type="button"
+                      disabled={Boolean(patching[r.id])}
+                      onClick={() => onSaveOrder(r.id)}
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-amber-400 hover:bg-amber-500/25 disabled:opacity-40"
+                    >
+                      {patching[r.id] ? (
+                        <Loader2 className="inline h-3.5 w-3.5 animate-spin" aria-hidden />
+                      ) : (
+                        t('admin_daily_tasks.save_order')
+                      )}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <button
+                      type="button"
+                      disabled={deletingId === r.id || Boolean(patching[r.id])}
+                      onClick={() => void onDelete(r.id, r.slug)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-red-400 hover:bg-red-500/20 disabled:opacity-40"
+                      aria-label={t('admin_daily_tasks.delete_task')}
+                    >
+                      {deletingId === r.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      )}
+                      {t('admin_daily_tasks.delete_task')}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { normalizeEvmAddress } from "../server/services/adminAccountCollisionService.js";
+import { normalizeEvmAddress } from "#server/services/adminAccountCollisionService.js";
 
 describe("adminAccountCollisionService", () => {
   it("normalizeEvmAddress accepts checksummed hex and lowercases", () => {

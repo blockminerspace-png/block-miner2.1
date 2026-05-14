@@ -12,7 +12,7 @@ import {
   normalize2048Cell,
   parseBoard,
   unwrapBoardJson
-} from "../server/services/game2048Engine.js";
+} from "#server/services/game2048Engine.js";
 
 describe("game2048Engine", () => {
   it("uses a 4x4 board", () => {

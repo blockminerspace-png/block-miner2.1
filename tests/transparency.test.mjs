@@ -30,7 +30,7 @@ const {
   adminUpdate,
   adminDelete,
   adminWalletPutSettings,
-} = await import('../server/controllers/transparencyController.js');
+} = await import('#server/controllers/transparencyController.js');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

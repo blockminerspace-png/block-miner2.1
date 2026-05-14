@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { estimateNetworkHashRateHs, HS_PER_ACTIVE_RIG, MIN_NETWORK_HS } from "../server/services/publicLiveStatsService.js";
+import { estimateNetworkHashRateHs, HS_PER_ACTIVE_RIG, MIN_NETWORK_HS } from "#server/services/publicLiveStatsService.js";
 
 describe("publicLiveStatsService helpers", () => {
   it("estimateNetworkHashRateHs uses floor and landing-style minimum", () => {

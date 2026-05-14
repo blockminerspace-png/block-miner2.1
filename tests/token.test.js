@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getTokenFromRequest } from "../server/utils/token.js";
+import { getTokenFromRequest } from "#server/utils/token.js";
 
 test("getTokenFromRequest prioritizes access cookie over bearer header", () => {
   const req = {

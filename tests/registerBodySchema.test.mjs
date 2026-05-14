@@ -5,7 +5,7 @@ import {
   REGISTER_EMAIL_MAX_LEN,
   REGISTER_PASSWORD_MAX_LEN,
   REGISTER_REF_CODE_MAX_LEN,
-} from "../server/validation/registerBodySchema.js";
+} from "#server/validation/registerBodySchema.js";
 
 const base = {
   username: "valid_user",
@@ -42,16 +42,17 @@ describe("registerBodySchema", () => {
     assert.ok(r.error.issues.some((i) => i.message === "auth.register.errors.password_max"));
   });
 
-  it("rejects refCode longer than REGISTER_REF_CODE_MAX_LEN", () => {
-    const r = registerBodySchema.safeParse({ ...base, refCode: "1".repeat(REGISTER_REF_CODE_MAX_LEN + 1) });
-    assert.equal(r.success, false);
-    assert.ok(r.error.issues.some((i) => i.message === "auth.register.errors.ref_code_too_long"));
+  it("truncates refCode longer than REGISTER_REF_CODE_MAX_LEN during preprocess", () => {
+    const long = "1".repeat(REGISTER_REF_CODE_MAX_LEN + 10);
+    const r = registerBodySchema.safeParse({ ...base, refCode: long });
+    assert.equal(r.success, true);
+    assert.equal(r.data.refCode?.length, REGISTER_REF_CODE_MAX_LEN);
   });
 
-  it("rejects refCode with invalid characters", () => {
+  it("sanitizes refCode by stripping non-alphanumeric characters during preprocess", () => {
     const r = registerBodySchema.safeParse({ ...base, refCode: "abc<script>" });
-    assert.equal(r.success, false);
-    assert.ok(r.error.issues.some((i) => i.message === "auth.register.errors.ref_code_invalid"));
+    assert.equal(r.success, true);
+    assert.equal(r.data.refCode, "abcscript");
   });
 
   it("rejects email from a non-allowlisted domain", () => {

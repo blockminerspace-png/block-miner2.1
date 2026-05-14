@@ -9,11 +9,11 @@ process.env.ROOM_MAX = "4";
 process.env.RACKS_PER_ROOM = "4"; // reduzido para testes
 process.env.JWT_SECRET = process.env.JWT_SECRET || "testsecret";
 
-import * as roomsController from "../server/controllers/roomsController.js";
-import prisma from "../server/src/db/prisma.js";
-import * as miningRuntime from "../server/src/runtime/miningRuntime.js";
-import * as minerProfileModel from "../server/models/minerProfileModel.js";
-import { stableRequestHash } from "../server/utils/stableRequestHash.js";
+import * as roomsController from "#server/controllers/roomsController.js";
+import prisma from "#server/src/db/prisma.js";
+import * as miningRuntime from "#server/src/runtime/miningRuntime.js";
+import * as minerProfileModel from "#server/models/minerProfileModel.js";
+import { stableRequestHash } from "#server/utils/stableRequestHash.js";
 
 // â”€â”€ Helpers de req/res â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function createRes() {

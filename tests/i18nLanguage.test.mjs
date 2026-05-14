@@ -6,7 +6,7 @@ import {
   normalizeExplicitLanguage,
   resolveFallbackLanguages,
   resolveInitialLanguage,
-} from "../client/src/i18n/language.js";
+} from "../client/src/i18n/language.ts";
 
 describe("client i18n language resolution", () => {
   it("keeps explicit English choice from app storage", () => {

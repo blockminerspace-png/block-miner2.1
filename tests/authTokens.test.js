@@ -8,7 +8,7 @@ const {
   verifyAccessToken,
   createRefreshToken,
   parseRefreshToken
-} = await import("../server/utils/authTokens.js");
+} = await import("#server/utils/authTokens.js");
 
 test("signAccessToken and verifyAccessToken roundtrip", () => {
   const token = signAccessToken({ id: 101, name: "alice", email: "alice@example.com" });

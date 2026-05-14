@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolveRequestPublicOrigin } from "../server/utils/requestPublicOrigin.js";
+import { resolveRequestPublicOrigin } from "#server/utils/requestPublicOrigin.js";
 
 function makeReq(headers, secure = false) {
   const h = headers || {};

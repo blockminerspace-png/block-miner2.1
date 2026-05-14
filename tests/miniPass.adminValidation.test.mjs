@@ -6,7 +6,7 @@ import {
   normalizeTitleI18nForMiniPass,
   validateAndNormalizeLevelRewardInput,
   validateMissionInput
-} from "../server/services/miniPass/miniPassAdminValidation.js";
+} from "#server/services/miniPass/miniPassAdminValidation.js";
 import {
   MISSION_AUTO_MINING_TURBO,
   MISSION_INTERNAL_OFFERWALL,
@@ -18,7 +18,7 @@ import {
   REWARD_NONE,
   REWARD_POL,
   REWARD_SHOP_MINER
-} from "../server/services/miniPass/miniPassConstants.js";
+} from "#server/services/miniPass/miniPassConstants.js";
 
 describe("validateAndNormalizeLevelRewardInput", () => {
   it("accepts NONE with cleared refs", () => {

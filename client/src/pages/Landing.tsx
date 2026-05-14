@@ -23,14 +23,14 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
-import BrandLogo from '../components/BrandLogo';
-import SiteFooter from '../components/SiteFooter';
-import { normalizeExternalUrl } from '../components/CommunityShortcuts';
-import { formatHashrate } from '../utils/machine';
-import { persistUtmParams, trackLandingEvent, initMetaPixel } from '../utils/landingAnalytics';
-import { useLandingScrollDepth } from '../hooks/useLandingScrollDepth';
-import { usePublicStatsPoll, type PublicStatsPayload } from '../hooks/usePublicStatsPoll';
-import { useLandingSeo, type LandingFaqItemDef } from '../hooks/useLandingSeo';
+import BrandLogo from '../shared/components/BrandLogo';
+import SiteFooter from '../shared/components/SiteFooter';
+import { normalizeExternalUrl } from '../shared/components/CommunityShortcuts';
+import { formatHashrate } from '../shared/utils/machine';
+import { persistUtmParams, trackLandingEvent, initMetaPixel } from '../shared/utils/landingAnalytics';
+import { useLandingScrollDepth } from '../shared/hooks/useLandingScrollDepth';
+import { usePublicStatsPoll, type PublicStatsPayload } from '../shared/hooks/usePublicStatsPoll';
+import { useLandingSeo, type LandingFaqItemDef } from '../shared/hooks/useLandingSeo';
 
 const LAUNCH_DATE = new Date('2026-03-05T00:00:00.000Z');
 const HS_PER_ACTIVE_RIG = 4000;

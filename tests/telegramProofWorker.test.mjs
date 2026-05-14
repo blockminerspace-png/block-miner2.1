@@ -5,7 +5,7 @@ process.env.DATABASE_URL ||= "postgresql://user:pass@127.0.0.1:1/db?schema=publi
 process.env.POLYGONSCAN_BASE_URL = "https://polygonscan.com";
 
 const worker = await import("../services/telegram-proof-worker/telegramProofWorker.js");
-const { TELEGRAM_EVENT_TYPES } = await import("../server/services/withdrawalTelegramService.js");
+const { TELEGRAM_EVENT_TYPES } = await import("#server/services/withdrawalTelegramService.js");
 
 test("Telegram sendMessage payload preserves string chat id and includes thread id", async () => {
   let captured;

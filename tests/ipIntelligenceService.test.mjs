@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { enrichIp, getCachedIpIntelligence, lookupProxycheck } from "../server/services/ipIntelligenceService.js";
+import { enrichIp, getCachedIpIntelligence, lookupProxycheck } from "#server/services/ipIntelligenceService.js";
 
 const oldEnv = { ...process.env };
 
@@ -125,6 +125,12 @@ describe("IP intelligence enrichment", () => {
     process.env.PROXYCHECK_ENABLED = "true";
     process.env.PROXYCHECK_DAILY_LIMIT = "1000";
 
+    const nowMs = Date.now();
+    const coreFreshUntil = new Date(nowMs + 7 * 24 * 60 * 60 * 1000);
+    const coreCheckedAt = new Date(nowMs - 2 * 24 * 60 * 60 * 1000);
+    const proxyStale = new Date(nowMs - 2 * 24 * 60 * 60 * 1000);
+    const proxyCheckedAt = new Date(nowMs - 3 * 24 * 60 * 60 * 1000);
+
     let upserted = null;
     let fetchCalls = 0;
     const prisma = {
@@ -142,10 +148,10 @@ describe("IP intelligence enrichment", () => {
           confidence: "medium",
           source: "cache",
           error: null,
-          checkedAt: new Date("2026-04-27T12:00:00Z"),
-          expiresAt: new Date("2026-05-10T12:00:00Z"),
-          proxyCheckedAt: new Date("2026-04-25T12:00:00Z"),
-          proxyExpiresAt: new Date("2026-04-26T12:00:00Z"),
+          checkedAt: coreCheckedAt,
+          expiresAt: coreFreshUntil,
+          proxyCheckedAt,
+          proxyExpiresAt: proxyStale,
         }),
         count: async () => 12,
         upsert: async ({ create }) => {

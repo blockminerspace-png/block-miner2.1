@@ -10,8 +10,8 @@ import {
   coerceInternalOfferwallEarnRoot,
   coerceParentLockedSidebarEntries,
   mergeMissingSidebarRegistryEntries
-} from "../server/services/sidebarNavRegistry.js";
-import { buildResolvedCategories } from "../server/services/sidebarNavService.js";
+} from "#server/services/sidebarNavRegistry.js";
+import { buildResolvedCategories } from "#server/services/sidebarNavService.js";
 
 test("default entries pass validation", () => {
   const d = buildDefaultSidebarEntries();

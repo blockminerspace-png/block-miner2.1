@@ -8,7 +8,7 @@ import {
   normalizeOfferCurrency,
   userBalanceFieldForCurrency,
   SUPPORTED_OFFER_CURRENCIES
-} from "../server/services/offerEventHelpers.js";
+} from "#server/services/offerEventHelpers.js";
 
 test("isOfferEventActiveForPublic respects window and flags", () => {
   const now = new Date("2026-06-15T12:00:00Z");

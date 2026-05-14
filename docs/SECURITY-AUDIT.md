@@ -149,7 +149,7 @@ Unit test added: `tests/databaseBackupService.test.mjs` (`resolveBackupDownloadP
 CI runs **`npm run coverage:gate`** after unit tests (see `.github/workflows/ci.yml`).
 
 - **Server (`c8`):** `server/utils/**` with **≥80% line** coverage; **`mailer.js`**, **`cryptoPrice.js`**, and **`checkinStreak.js`** are excluded (SMTP / network / time-heavy — cover with integration tests, not the gate).
-- **Client (`vitest`):** with **`COVERAGE_GATE=1`**, only the curated **`src/utils/*`** list in `client/vite.config.js` is measured, **line** threshold **80%** (same modules that already have focused unit tests).
+- **Client (`vitest`):** with **`COVERAGE_GATE=1`**, only the curated **`src/utils/*`** list in `client/vite.config.ts` is measured, **line** threshold **80%** (same modules that already have focused unit tests).
 
 This is **not** “whole `client/src` at 80%” (that would require a large UI test push); it locks a **high-signal minimum** on shared utils + server helpers. Expand the include lists as you add tests.
 

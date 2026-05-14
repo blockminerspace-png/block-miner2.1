@@ -4,7 +4,7 @@ import {
   listAdminFraudSignals,
   resetAdminFraudCollectionData,
   ADMIN_FRAUD_COLLECTION_RESET_CONFIRM,
-} from "../server/services/adminFraudSignalsService.js";
+} from "#server/services/adminFraudSignalsService.js";
 
 function fakePrisma({ queryResults = [], cachedIntel = [] } = {}) {
   const queue = [...queryResults];

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { stableRequestHash } from "../server/utils/stableRequestHash.js";
+import { stableRequestHash } from "#server/utils/stableRequestHash.js";
 
 describe("stableRequestHash", () => {
   it("is stable under key reordering for nested objects", () => {

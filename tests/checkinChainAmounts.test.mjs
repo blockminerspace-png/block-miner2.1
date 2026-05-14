@@ -3,7 +3,7 @@ import { test } from "node:test";
 import {
   parseCheckinAmountWei,
   parseCheckinBalanceAmountWei
-} from "../server/services/checkinChain.js";
+} from "#server/services/checkinChain.js";
 
 test("parseCheckinAmountWei defaults to 0.01 POL", () => {
   assert.equal(parseCheckinAmountWei(), 10_000_000_000_000_000n);

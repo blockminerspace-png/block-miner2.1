@@ -4,7 +4,7 @@ import {
   BUILTIN_IFRAME_HOSTS,
   getIframeHostAllowlistCachedSync,
   validateFrameHostnameForStorage
-} from "../server/services/internalOfferwall/iframeHostAllowlistCache.js";
+} from "#server/services/internalOfferwall/iframeHostAllowlistCache.js";
 
 describe("iframeHostAllowlistCache validateFrameHostnameForStorage", () => {
   it("accepts a normal hostname", () => {

@@ -1,0 +1,12 @@
+{
+  "name": "blockminer-backend",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript HTTP composition layer; run install from repository root.",
+  "scripts": {
+    "typecheck": "npm run typecheck:backend --prefix ..",
+    "build": "npm run build:backend --prefix ..",
+    "prisma:validate": "npx --prefix .. prisma validate --schema=../server/prisma/schema.prisma",
+    "prisma:generate": "npx --prefix .. prisma generate --schema=../server/prisma/schema.prisma"
+  }
+}

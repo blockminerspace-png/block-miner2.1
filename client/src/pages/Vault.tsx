@@ -11,12 +11,12 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { Shield, AlertCircle, Pickaxe } from "lucide-react";
 import { isAxiosError } from "axios";
-import { useVault } from "../hooks/useVault";
+import { useVault } from "../shared/hooks/useVault";
 import { useGameStore } from "../store/game";
-import MachineCard from "../components/MachineCard";
-import MachineQuantityModal from "../components/MachineQuantityModal";
+import MachineCard from "../shared/components/MachineCard";
+import MachineQuantityModal from "../shared/components/MachineQuantityModal";
 import { MachinePlacementStatus } from "../constants/machinePlacement";
-import { inventoryStackKey } from "../utils/inventoryStackKey";
+import { inventoryStackKey } from "../shared/utils/inventoryStackKey";
 import type { VaultRow, VaultStackGroup } from "../types/vaultPage";
 
 function apiErrorMessage(err: unknown, fallback: string): string {

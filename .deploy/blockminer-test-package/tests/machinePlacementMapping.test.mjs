@@ -4,7 +4,7 @@ import {
   MachinePlacementStatus,
   isVaultPlacementStatus,
   placementFromBackendLocation,
-} from "../client/src/constants/machinePlacement.js";
+} from "../client/src/constants/machinePlacement.ts";
 
 describe("machinePlacement mapping", () => {
   it("maps Prisma locations to UI placement", () => {

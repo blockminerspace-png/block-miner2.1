@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertMinViewForSubmit } from "../server/services/internalOfferwall/internalOfferwallMinView.js";
-import { OFFER_KIND_PTC_IFRAME, OFFER_KIND_GENERAL_TASK } from "../server/services/internalOfferwall/internalOfferwallConstants.js";
+import { assertMinViewForSubmit } from "#server/services/internalOfferwall/internalOfferwallMinView.js";
+import { OFFER_KIND_PTC_IFRAME, OFFER_KIND_GENERAL_TASK } from "#server/services/internalOfferwall/internalOfferwallConstants.js";
 
 test("PTC requires partnerOpenedAt", () => {
   const startedAt = new Date("2026-01-01T12:00:00.000Z");

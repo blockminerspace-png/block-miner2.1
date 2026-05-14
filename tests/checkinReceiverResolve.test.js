@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveCheckinReceiverFromEnv } from "../server/controllers/checkinController.js";
+import { resolveCheckinReceiverFromEnv } from "#server/controllers/checkinController.js";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 const A = "0x1111111111111111111111111111111111111111";

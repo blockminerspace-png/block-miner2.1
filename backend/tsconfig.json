@@ -1,0 +1,178 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": [
+      "ES2022"
+    ],
+    "rootDir": "src",
+    "outDir": "dist",
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": [
+      "node"
+    ],
+    "noEmit": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "#server/routes/auth.js": [
+        "./src/types/stubs/stub-server-routes-auth.d.ts"
+      ],
+      "#server/routes/faucet.js": [
+        "./src/types/stubs/stub-server-routes-faucet.d.ts"
+      ],
+      "#server/routes/wallet.js": [
+        "./src/types/stubs/stub-server-routes-wallet.d.ts"
+      ],
+      "#server/routes/mining.js": [
+        "./src/types/stubs/stub-server-routes-mining.d.ts"
+      ],
+      "#server/routes/deposit-tickets.js": [
+        "./src/types/stubs/stub-server-routes-deposit-tickets.d.ts"
+      ],
+      "#server/routes/shop.js": [
+        "./src/types/stubs/stub-server-routes-shop.d.ts"
+      ],
+      "#server/routes/inventory.js": [
+        "./src/types/stubs/stub-server-routes-inventory.d.ts"
+      ],
+      "#server/routes/machines.js": [
+        "./src/types/stubs/stub-server-routes-machines.d.ts"
+      ],
+      "#server/routes/racks.js": [
+        "./src/types/stubs/stub-server-routes-racks.d.ts"
+      ],
+      "#server/routes/vault.js": [
+        "./src/types/stubs/stub-server-routes-vault.d.ts"
+      ],
+      "#server/routes/read-earn.js": [
+        "./src/types/stubs/stub-server-routes-read-earn.d.ts"
+      ],
+      "#server/routes/rooms.js": [
+        "./src/types/stubs/stub-server-routes-rooms.d.ts"
+      ],
+      "#server/routes/checkin.js": [
+        "./src/types/stubs/stub-server-routes-checkin.d.ts"
+      ],
+      "#server/routes/offer-events.js": [
+        "./src/types/stubs/stub-server-routes-offer-events.d.ts"
+      ],
+      "#server/routes/mini-pass.js": [
+        "./src/types/stubs/stub-server-routes-mini-pass.d.ts"
+      ],
+      "#server/routes/daily-tasks.js": [
+        "./src/types/stubs/stub-server-routes-daily-tasks.d.ts"
+      ],
+      "#server/routes/internal-offerwall.js": [
+        "./src/types/stubs/stub-server-routes-internal-offerwall.d.ts"
+      ],
+      "#server/routes/chat.js": [
+        "./src/types/stubs/stub-server-routes-chat.d.ts"
+      ],
+      "#server/routes/ranking.js": [
+        "./src/types/stubs/stub-server-routes-ranking.d.ts"
+      ],
+      "#server/routes/stats.js": [
+        "./src/types/stubs/stub-server-routes-stats.d.ts"
+      ],
+      "#server/routes/shortlink.js": [
+        "./src/types/stubs/stub-server-routes-shortlink.d.ts"
+      ],
+      "#server/routes/youtube.js": [
+        "./src/types/stubs/stub-server-routes-youtube.d.ts"
+      ],
+      "#server/routes/games.js": [
+        "./src/types/stubs/stub-server-routes-games.d.ts"
+      ],
+      "#server/routes/auto-mining-gpu.js": [
+        "./src/types/stubs/stub-server-routes-auto-mining-gpu.d.ts"
+      ],
+      "#server/routes/session.js": [
+        "./src/types/stubs/stub-server-routes-session.d.ts"
+      ],
+      "#server/routes/notification.js": [
+        "./src/types/stubs/stub-server-routes-notification.d.ts"
+      ],
+      "#server/routes/broadcast.js": [
+        "./src/types/stubs/stub-server-routes-broadcast.d.ts"
+      ],
+      "#server/routes/swap.js": [
+        "./src/types/stubs/stub-server-routes-swap.d.ts"
+      ],
+      "#server/routes/support.js": [
+        "./src/types/stubs/stub-server-routes-support.d.ts"
+      ],
+      "#server/routes/user.js": [
+        "./src/types/stubs/stub-server-routes-user.d.ts"
+      ],
+      "#server/routes/sidebar-nav.js": [
+        "./src/types/stubs/stub-server-routes-sidebar-nav.d.ts"
+      ],
+      "#server/routes/admin-auth.js": [
+        "./src/types/stubs/stub-server-routes-admin-auth.d.ts"
+      ],
+      "#server/routes/admin.js": [
+        "./src/types/stubs/stub-server-routes-admin.d.ts"
+      ],
+      "#server/routes/admin-auto-mining-rewards.js": [
+        "./src/types/stubs/stub-server-routes-admin-auto-mining-rewards.d.ts"
+      ],
+      "#server/middleware/rateLimit.js": [
+        "./src/types/stubs/stub-server-middleware-rateLimit.d.ts"
+      ],
+      "#server/middleware/distributedRateLimit.js": [
+        "./src/types/stubs/stub-server-middleware-distributedRateLimit.d.ts"
+      ],
+      "#server/middleware/csp.js": [
+        "./src/types/stubs/stub-server-middleware-csp.d.ts"
+      ],
+      "#server/middleware/csrf.js": [
+        "./src/types/stubs/stub-server-middleware-csrf.d.ts"
+      ],
+      "#server/controllers/btcpayWebhookController.js": [
+        "./src/types/stubs/stub-server-controllers-btcpayWebhookController.d.ts"
+      ],
+      "#server/src/audit/index.js": [
+        "./src/types/stubs/stub-server-src-audit-index.d.ts"
+      ],
+      "#server/middleware/httpRequestLogger.js": [
+        "./src/types/stubs/stub-server-middleware-httpRequestLogger.d.ts"
+      ],
+      "#server/utils/corsConfig.js": [
+        "./src/types/stubs/stub-server-utils-corsConfig.d.ts"
+      ],
+      "#server/controllers/publicLiveStatsController.js": [
+        "./src/types/stubs/stub-server-controllers-publicLiveStatsController.d.ts"
+      ],
+      "#server/controllers/publicStatsController.js": [
+        "./src/types/stubs/stub-server-controllers-publicStatsController.d.ts"
+      ],
+      "#server/controllers/bannerController.js": [
+        "./src/types/stubs/stub-server-controllers-bannerController.d.ts"
+      ],
+      "#server/controllers/transparencyController.js": [
+        "./src/types/stubs/stub-server-controllers-transparencyController.d.ts"
+      ],
+      "#server/utils/logger.js": [
+        "./src/types/stubs/stub-server-utils-logger.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { derivePolygonHdAddressAtIndex } from "../server/services/polygonHdWallet.js";
+import { derivePolygonHdAddressAtIndex } from "#server/services/polygonHdWallet.js";
 
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";

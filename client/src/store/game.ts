@@ -63,6 +63,39 @@ function mergeMiningStats(
   };
 }
 
+/** Chat payloads shaped for the dashboard sidebar (server fields may omit keys). */
+export interface ChatReplyPreview {
+  id?: string | number;
+  username?: string;
+  message?: string;
+}
+
+export interface ChatGlobalMessage {
+  id: string | number;
+  userId?: string | number;
+  username?: string;
+  message: string;
+  createdAt?: string | number | Date;
+  replyTo?: ChatReplyPreview | null;
+}
+
+export interface ChatPrivateMessage {
+  senderId?: string | number;
+  message: string;
+  createdAt?: string | number | Date;
+}
+
+export interface ChatConversation {
+  userId: string | number;
+  username: string;
+  lastMessageAt?: string | number | Date;
+}
+
+export interface ChatPrivateUserRef {
+  id: string | number;
+  username: string;
+}
+
 export interface MiningGameStore {
   machines: unknown[];
   vaultItems: unknown[];
@@ -71,11 +104,11 @@ export interface MiningGameStore {
   inventory: unknown[];
   racks: Record<string, string>;
   stats: MiningSocketStats | null;
-  messages: unknown[];
-  privateMessages: unknown[];
-  conversations: unknown[];
+  messages: ChatGlobalMessage[];
+  privateMessages: ChatPrivateMessage[];
+  conversations: ChatConversation[];
   notifications: unknown[];
-  activePrivateUser: unknown | null;
+  activePrivateUser: ChatPrivateUserRef | null;
   socket: Socket | null;
   isLoading: boolean;
   isChatOpen: boolean;
@@ -91,7 +124,7 @@ export interface MiningGameStore {
   closeSidebar: () => void;
   clearMention: () => void;
   clearUnreadPms: () => void;
-  setActivePrivateUser: (user: unknown) => void;
+  setActivePrivateUser: (user: ChatPrivateUserRef | null) => void;
   clearActivePrivateUser: () => void;
 
   initSocket: () => void;
@@ -104,7 +137,7 @@ export interface MiningGameStore {
   fetchConversations: () => Promise<void>;
   fetchNotifications: () => Promise<void>;
   markNotificationRead: (id: string | number) => Promise<void>;
-  sendMessage: (message: string, replyToId?: string | null) => Promise<UnknownRecord>;
+  sendMessage: (message: string, replyToId?: string | number | null) => Promise<UnknownRecord>;
   sendPrivateMessage: (receiverId: number | string, message: string) => Promise<UnknownRecord>;
   installMachine: (slotIndex: number, inventoryId: number | string) => Promise<UnknownRecord>;
   removeMachine: (machineId: number | string) => Promise<UnknownRecord>;
@@ -228,7 +261,7 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
 
     socket.on('chat:new-pm', (pm: unknown) => {
       if (!isRecord(pm)) return;
-      const activeUser = get().activePrivateUser as { id?: number } | null;
+      const activeUser = get().activePrivateUser;
       let currentUser: { id?: number } | undefined;
       try {
         const raw = localStorage.getItem('user-storage');
@@ -312,16 +345,17 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
   fetchMessages: async () => {
     try {
       const res = await api.get<{ ok?: boolean; messages?: unknown[] }>('/chat/messages');
-      if (res.data.ok && Array.isArray(res.data.messages)) set({ messages: res.data.messages });
+      if (res.data.ok && Array.isArray(res.data.messages)) set({ messages: res.data.messages as ChatGlobalMessage[] });
     } catch (err) {
       console.error(err);
     }
   },
 
-  fetchPrivateMessages: async (targetUserId) => {
+  fetchPrivateMessages: async (targetUserId: number | string) => {
     try {
       const res = await api.get<{ ok?: boolean; messages?: unknown[] }>(`/chat/private/${targetUserId}`);
-      if (res.data.ok && Array.isArray(res.data.messages)) set({ privateMessages: res.data.messages });
+      if (res.data.ok && Array.isArray(res.data.messages))
+        set({ privateMessages: res.data.messages as ChatPrivateMessage[] });
     } catch (err) {
       console.error(err);
     }
@@ -330,7 +364,8 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
   fetchConversations: async () => {
     try {
       const res = await api.get<{ ok?: boolean; conversations?: unknown[] }>('/chat/conversations');
-      if (res.data.ok && Array.isArray(res.data.conversations)) set({ conversations: res.data.conversations });
+      if (res.data.ok && Array.isArray(res.data.conversations))
+        set({ conversations: res.data.conversations as ChatConversation[] });
     } catch (err) {
       console.error(err);
     }

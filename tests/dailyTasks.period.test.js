@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getDailyTaskPeriodKey, getNextDailyTaskResetAt } from "../server/services/dailyTasks/dailyTaskPeriod.js";
+import { getDailyTaskPeriodKey, getNextDailyTaskResetAt } from "#server/services/dailyTasks/dailyTaskPeriod.js";
 
 test("getDailyTaskPeriodKey returns YYYY-MM-DD", () => {
   const key = getDailyTaskPeriodKey(new Date("2026-06-15T12:00:00.000Z"));

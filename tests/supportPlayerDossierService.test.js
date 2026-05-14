@@ -5,7 +5,7 @@ import {
   isPrismaMissingRelationError,
   parseDossierPagination,
   toNumberOrNull,
-} from "../server/services/supportPlayerDossierService.js";
+} from "#server/services/supportPlayerDossierService.js";
 
 describe("isPrismaMissingRelationError", () => {
   it("detects Prisma missing-table message", () => {

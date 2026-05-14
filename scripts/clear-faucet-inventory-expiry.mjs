@@ -2,7 +2,7 @@
  * Clears expires_at on user_inventory rows tied to the active faucet reward miner.
  * Run once after deploying permanent-faucet behavior so existing claims are not deleted by cleanup.
  *
- * Usage (from repo root): node scripts/clear-faucet-inventory-expiry.mjs
+ * Usage (from repo root): npm run build:server && node scripts/clear-faucet-inventory-expiry.mjs
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(root);
 
-const { default: prisma } = await import("../server/src/db/prisma.js");
+const { default: prisma } = await import("#server/src/db/prisma.js");
 
 try {
   const reward = await prisma.faucetReward.findFirst({

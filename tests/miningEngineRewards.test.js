@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MiningEngine } from "../server/src/miningEngine.js";
+import { MiningEngine } from "#server/src/miningEngine.js";
 
 test("MiningEngine.distributeRewards distributes proportionally", async () => {
   const engine = new MiningEngine();

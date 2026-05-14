@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const source = readFileSync(new URL("../client/src/pages/AdminMiners.jsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("../client/src/pages/admin/AdminMiners.tsx", import.meta.url), "utf8");
 const shopController = readFileSync(new URL("../server/controllers/shopController.js", import.meta.url), "utf8");
 const adminRoutes = readFileSync(new URL("../server/routes/admin.js", import.meta.url), "utf8");
 

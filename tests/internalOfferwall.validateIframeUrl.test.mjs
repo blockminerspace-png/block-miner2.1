@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   expandCspFrameSrcHostSources,
   validateIframeUrl
-} from "../server/services/internalOfferwall/validateIframeUrl.js";
+} from "#server/services/internalOfferwall/validateIframeUrl.js";
 
 describe("internalOfferwall validateIframeUrl", () => {
   const hosts = new Set(["partner.example.com", "zerads.com"]);

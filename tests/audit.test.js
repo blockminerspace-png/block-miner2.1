@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert";
-import { sanitizeAuditPayload, buildAuditSignature, stableStringify, generateCorrelationId, hashIp } from "../server/src/audit/utils.js";
-import { auditEventInputSchema } from "../server/src/audit/schemas.js";
-import { AuditEventType, AuditEventStatus } from "../server/src/audit/constants.js";
+import { sanitizeAuditPayload, buildAuditSignature, stableStringify, generateCorrelationId, hashIp } from "#server/src/audit/utils.js";
+import { auditEventInputSchema } from "#server/src/audit/schemas.js";
+import { AuditEventType, AuditEventStatus } from "#server/src/audit/constants.js";
 
 test("sanitizeAuditPayload masks sensitive strings and keeps non-sensitive values", () => {
   const input = {

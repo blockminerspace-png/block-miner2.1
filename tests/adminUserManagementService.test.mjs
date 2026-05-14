@@ -6,7 +6,7 @@ import {
   listAdminUserTransactions,
   parseAdminUserListQuery,
   setAdminUserBanState,
-} from "../server/services/adminUserManagementService.js";
+} from "#server/services/adminUserManagementService.js";
 
 function baseUser(id = 300) {
   return {

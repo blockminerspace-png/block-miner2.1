@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { calculateMultiAccountRisk } from "../server/services/multiAccountRiskService.js";
+import { calculateMultiAccountRisk } from "#server/services/multiAccountRiskService.js";
 
 describe("multi-account risk scoring", () => {
   it("hard-kills technical anomalies before score processing", () => {

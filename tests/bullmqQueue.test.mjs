@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it, afterEach } from "node:test";
-import { isBullMqPublishingEnabled } from "../server/jobs/blockminerQueue.js";
+import { isBullMqPublishingEnabled } from "#server/jobs/blockminerQueue.js";
 
 describe("BullMQ queue flags", () => {
   const savedRedis = process.env.REDIS_URL;

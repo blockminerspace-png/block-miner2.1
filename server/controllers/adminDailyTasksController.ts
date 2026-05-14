@@ -1,0 +1,184 @@
+import type { Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
+import prisma from "../src/db/prisma.js";
+import { parseCreateDailyTaskDefinition } from "../services/dailyTasks/dailyTaskDefinitionAdminValidation.js";
+import {
+  DAILY_TASK_RESET_CADENCES,
+  normalizeDailyTaskResetCadence,
+} from "../services/dailyTasks/dailyTaskPeriod.js";
+
+function prismaErrCode(e: unknown): string | undefined {
+  if (e !== null && typeof e === "object" && "code" in e) {
+    const c = (e as { code?: unknown }).code;
+    return typeof c === "string" ? c : undefined;
+  }
+  return undefined;
+}
+
+type DefinitionIdParams = { id: string };
+
+type PatchDefinitionBody = {
+  isActive?: unknown;
+  sortOrder?: unknown;
+  resetCadence?: unknown;
+  internalOfferwallOfferId?: unknown;
+};
+
+export async function listDefinitions(_req: Request, res: Response): Promise<void> {
+  try {
+    const rows = await prisma.dailyTaskDefinition.findMany({
+      orderBy: { sortOrder: "asc" },
+    });
+    res.json({ ok: true, definitions: rows });
+  } catch (e: unknown) {
+    console.error("adminDailyTasks listDefinitions", e);
+    res.status(500).json({ ok: false, message: "Failed to load daily task definitions." });
+  }
+}
+
+/**
+ * Partial update: `isActive`, `sortOrder`, `resetCadence`, `internalOfferwallOfferId` (validated).
+ */
+export async function patchDefinition(
+  req: Request<DefinitionIdParams, unknown, PatchDefinitionBody>,
+  res: Response
+): Promise<void> {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id < 1) {
+      res.status(400).json({ ok: false, message: "Invalid task id." });
+      return;
+    }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const data: Prisma.DailyTaskDefinitionUncheckedUpdateInput = {};
+
+    if (typeof body.isActive === "boolean") {
+      data.isActive = body.isActive;
+    }
+    if (body.sortOrder !== undefined && body.sortOrder !== null) {
+      const n = parseInt(String(body.sortOrder), 10);
+      if (!Number.isInteger(n) || n < 0 || n > 99999) {
+        res.status(400).json({ ok: false, message: "Invalid sort order." });
+        return;
+      }
+      data.sortOrder = n;
+    }
+    if (body.resetCadence !== undefined) {
+      const cadence = normalizeDailyTaskResetCadence(String(body.resetCadence));
+      if (!(DAILY_TASK_RESET_CADENCES as readonly string[]).includes(cadence)) {
+        res.status(400).json({ ok: false, message: "Invalid reset cadence." });
+        return;
+      }
+      data.resetCadence = cadence;
+    }
+    if (body.internalOfferwallOfferId !== undefined) {
+      if (body.internalOfferwallOfferId === null || body.internalOfferwallOfferId === "") {
+        data.internalOfferwallOfferId = null;
+      } else {
+        const oid = parseInt(String(body.internalOfferwallOfferId), 10);
+        if (!Number.isInteger(oid) || oid < 1) {
+          res.status(400).json({ ok: false, message: "Invalid internalOfferwallOfferId." });
+          return;
+        }
+        const offer = await prisma.internalOfferwallOffer.findUnique({ where: { id: oid } });
+        if (!offer) {
+          res.status(400).json({ ok: false, message: "internalOfferwallOfferId does not exist." });
+          return;
+        }
+        data.internalOfferwallOfferId = oid;
+      }
+    }
+    if (Object.keys(data).length === 0) {
+      res.status(400).json({ ok: false, message: "No valid fields to update." });
+      return;
+    }
+    await prisma.dailyTaskDefinition.update({ where: { id }, data });
+    const row = await prisma.dailyTaskDefinition.findUnique({ where: { id } });
+    res.json({ ok: true, definition: row });
+  } catch (e: unknown) {
+    if (prismaErrCode(e) === "P2025") {
+      res.status(404).json({ ok: false, message: "Task definition not found." });
+      return;
+    }
+    console.error("adminDailyTasks patchDefinition", e);
+    res.status(500).json({ ok: false, message: "Failed to update daily task definition." });
+  }
+}
+
+export async function createDefinition(req: Request, res: Response): Promise<void> {
+  try {
+    const parsed = parseCreateDailyTaskDefinition(req.body);
+    if (!parsed.ok) {
+      res.status(parsed.status).json({ ok: false, message: parsed.message });
+      return;
+    }
+    const { data, autoSortOrder } = parsed as {
+      ok: true;
+      autoSortOrder: boolean;
+      data: Prisma.DailyTaskDefinitionUncheckedCreateInput;
+    };
+
+    if (data.rewardMinerId) {
+      const miner = await prisma.miner.findUnique({ where: { id: data.rewardMinerId } });
+      if (!miner) {
+        res.status(400).json({ ok: false, message: "rewardMinerId does not exist." });
+        return;
+      }
+    }
+    if (data.rewardEventMinerId) {
+      const em = await prisma.eventMiner.findUnique({ where: { id: data.rewardEventMinerId } });
+      if (!em) {
+        res.status(400).json({ ok: false, message: "rewardEventMinerId does not exist." });
+        return;
+      }
+    }
+    if (data.internalOfferwallOfferId) {
+      const offer = await prisma.internalOfferwallOffer.findUnique({
+        where: { id: data.internalOfferwallOfferId },
+      });
+      if (!offer) {
+        res.status(400).json({ ok: false, message: "internalOfferwallOfferId does not exist." });
+        return;
+      }
+    }
+
+    if (autoSortOrder) {
+      const agg = await prisma.dailyTaskDefinition.aggregate({ _max: { sortOrder: true } });
+      const max = agg._max.sortOrder ?? 0;
+      data.sortOrder = max + 10;
+    }
+
+    const row = await prisma.dailyTaskDefinition.create({ data });
+    res.status(201).json({ ok: true, definition: row });
+  } catch (e: unknown) {
+    if (prismaErrCode(e) === "P2002") {
+      res.status(409).json({ ok: false, message: "Slug already exists." });
+      return;
+    }
+    if (prismaErrCode(e) === "P2003") {
+      res.status(400).json({ ok: false, message: "Invalid foreign key (miner or event miner)." });
+      return;
+    }
+    console.error("adminDailyTasks createDefinition", e);
+    res.status(500).json({ ok: false, message: "Failed to create daily task definition." });
+  }
+}
+
+export async function deleteDefinition(req: Request<DefinitionIdParams>, res: Response): Promise<void> {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id < 1) {
+      res.status(400).json({ ok: false, message: "Invalid task id." });
+      return;
+    }
+    await prisma.dailyTaskDefinition.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (e: unknown) {
+    if (prismaErrCode(e) === "P2025") {
+      res.status(404).json({ ok: false, message: "Task definition not found." });
+      return;
+    }
+    console.error("adminDailyTasks deleteDefinition", e);
+    res.status(500).json({ ok: false, message: "Failed to delete daily task definition." });
+  }
+}

@@ -1,11 +1,11 @@
-import prisma from "../../server/src/db/prisma.js";
+import prisma from "#server/src/db/prisma.js";
 import {
   TELEGRAM_EVENT_TYPES,
   buildPolygonscanTxUrl,
   getWithdrawalTelegramSettings,
   isValidPolygonTxHash,
   normalizeThreadId,
-} from "../../server/services/withdrawalTelegramService.js";
+} from "#server/services/withdrawalTelegramService.js";
 
 const SAFE_ERROR_MAX = 500;
 

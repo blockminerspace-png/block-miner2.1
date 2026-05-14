@@ -21,7 +21,12 @@ if (files.length === 0) {
 
 const result = spawnSync(
   process.execPath,
-  ["--test", "--experimental-test-coverage", ...files],
+  [
+    "--experimental-strip-types",
+    "--test",
+    "--experimental-test-coverage",
+    ...files,
+  ],
   {
     stdio: "inherit",
     cwd: root,

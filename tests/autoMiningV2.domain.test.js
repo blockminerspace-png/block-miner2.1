@@ -20,7 +20,7 @@ import {
   validateImpressionForTurboClaim,
   assertValidMiningMode,
   nextClaimAfterSuccess
-} from "../server/services/autoMiningV2/autoMiningV2Domain.js";
+} from "#server/services/autoMiningV2/autoMiningV2Domain.js";
 
 test("startOfUtcDay returns UTC midnight for the same calendar day", () => {
   const d = new Date("2026-04-09T15:30:00.000Z");

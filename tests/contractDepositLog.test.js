@@ -4,8 +4,8 @@ import { ethers } from "ethers";
 import {
   contractDepositMatchesLinkedWallet,
   extractDepositReceivedFromReceipt
-} from "../server/services/contractDepositLog.js";
-import { BLOCK_MINER_DEPOSIT_ABI } from "../server/services/blockMinerDepositAbi.js";
+} from "#server/services/contractDepositLog.js";
+import { BLOCK_MINER_DEPOSIT_ABI } from "#server/services/blockMinerDepositAbi.js";
 
 test("extractDepositReceivedFromReceipt parses event amount and addresses", () => {
   const iface = new ethers.Interface(BLOCK_MINER_DEPOSIT_ABI);

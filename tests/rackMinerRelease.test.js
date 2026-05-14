@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { releaseUserMinerFromRacksTx } from "../server/utils/rackMinerRelease.js";
+import { releaseUserMinerFromRacksTx } from "#server/utils/rackMinerRelease.js";
 
 describe("releaseUserMinerFromRacksTx", () => {
   it("clears primary and blocked racks by userMiner id only", async () => {

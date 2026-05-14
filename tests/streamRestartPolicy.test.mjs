@@ -4,7 +4,7 @@ import {
   isPermanentStreamStartFailure,
   MAX_AUTO_RESTART_ATTEMPTS,
   restartDelayMsForAttempt
-} from "../server/services/streaming/streamRestartPolicy.js";
+} from "#server/services/streaming/streamRestartPolicy.js";
 
 describe("streamRestartPolicy", () => {
   it("restartDelayMsForAttempt clamps to backoff table", () => {

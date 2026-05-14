@@ -174,7 +174,7 @@ function extractSpecs(content) {
 function describeConnections(relPath, refs) {
   if (refs.length === 0) return "Sem dependências locais detectadas automaticamente.";
   if (relPath === "server/server.js") return "Ponto de montagem do backend; importa rotas, middlewares, engine e serviços-base.";
-  if (relPath === "client/src/App.jsx") return "Ponto central do roteamento do frontend; conecta páginas, layout e guardas.";
+  if (relPath === "client/src/app/App.tsx") return "Ponto central do roteamento do frontend; conecta páginas, layout e guardas.";
   return "Conecta-se diretamente aos arquivos listados em dependências locais detectadas.";
 }
 

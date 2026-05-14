@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
-import { auditLogListQuerySchema, buildAuditEventWhere } from "../server/src/audit/query/filters.js";
-import { encodeAuditCursor, decodeAuditCursor, buildCursorWhere, buildOrderBy, normalizeResults } from "../server/src/audit/query/pagination.js";
+import { auditLogListQuerySchema, buildAuditEventWhere } from "#server/src/audit/query/filters.js";
+import { encodeAuditCursor, decodeAuditCursor, buildCursorWhere, buildOrderBy, normalizeResults } from "#server/src/audit/query/pagination.js";
 
 test("auditLogListQuerySchema should parse defaults and validate values", () => {
   const parsed = auditLogListQuerySchema.parse({});

@@ -4,7 +4,7 @@ import {
   buildDeviceFingerprint,
   evaluateRegistrationAttempt,
   getAuthIpContext,
-} from "../server/services/authNetworkSignalService.js";
+} from "#server/services/authNetworkSignalService.js";
 
 describe("auth network signal service", () => {
   it("builds a stable device fingerprint from the anti-bot payload", () => {

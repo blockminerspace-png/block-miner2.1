@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {
   getMinDepositPol,
   getRequiredBlockConfirmations
-} from "../server/services/polygonDepositConfig.js";
+} from "#server/services/polygonDepositConfig.js";
 
 test("getMinDepositPol reads MIN_DEPOSIT_AMOUNT each call", () => {
   const save = process.env.MIN_DEPOSIT_AMOUNT;

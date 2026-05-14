@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import {
   evaluateExplicitSocketHandshakeToken,
   attachSocketIoExplicitAuthMiddleware,
-} from "../server/utils/socketHandshakeAuthPolicy.js";
+} from "#server/utils/socketHandshakeAuthPolicy.js";
 
 function makeVerifier(secret) {
   return (token) => {

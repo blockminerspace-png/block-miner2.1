@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { computeCheckinStreakFromDateKeys } from "../server/utils/checkinStreak.js";
+import { computeCheckinStreakFromDateKeys } from "#server/utils/checkinStreak.js";
 
 describe("computeCheckinStreakFromDateKeys", () => {
   it("keeps the streak on the next day before today's check-in", () => {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isIncomingNativePolTx } from "../server/services/polygonHdDepositScanner.js";
+import { isIncomingNativePolTx } from "#server/services/polygonHdDepositScanner.js";
 
 test("isIncomingNativePolTx accepts native POL to HD address", () => {
   const addr = "0xabc0000000000000000000000000000000000001".toLowerCase();

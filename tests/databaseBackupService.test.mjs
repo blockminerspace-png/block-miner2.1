@@ -11,7 +11,7 @@ import {
   resolveBackupDownloadPath,
   isSafePublicTableNameForRowCount,
   collectPublicTableExactRowCounts,
-} from "../server/services/databaseBackupService.js";
+} from "#server/services/databaseBackupService.js";
 
 describe("databaseBackupService", () => {
   it("scanPlainPgDumpForCopyLines detects pg_dump header and COPY public.* lines", async () => {
@@ -75,11 +75,12 @@ describe("databaseBackupService", () => {
   });
 
   it("collectPublicTableExactRowCounts aggregates totals", async () => {
+    let call = 0;
     const prisma = {
-      $queryRawUnsafe: async (sql) => {
-        if (sql === "SELECT COUNT(*)::bigint AS c FROM public.alpha") return [{ c: 2n }];
-        if (sql === "SELECT COUNT(*)::bigint AS c FROM public.beta") return [{ c: 0n }];
-        throw new Error(`unexpected sql: ${sql}`);
+      $queryRaw: async () => {
+        call += 1;
+        if (call === 1) return [{ c: 2n }];
+        return [{ c: 0n }];
       },
     };
     const r = await collectPublicTableExactRowCounts(prisma, ["alpha", "beta"]);

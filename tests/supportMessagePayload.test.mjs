@@ -4,7 +4,7 @@ import {
   serializeSupportPayload,
   parseSupportPayload,
   isAllowedUploadUrl
-} from "../server/utils/supportMessagePayload.js";
+} from "#server/utils/supportMessagePayload.js";
 
 test("roundtrip body with attachments", () => {
   const raw = serializeSupportPayload("Hello", [{ url: "/uploads/x.png", mimeType: "image/png" }]);

@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore, api } from '../store/auth';
-import { formatHashrate } from '../utils/machine';
+import { formatHashrate } from '../shared/utils/machine';
 import { Link } from 'react-router-dom';
 import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,14 +23,14 @@ import {
   hitTestMemoryCardIndex,
   getMatch3GridLayout,
   hitTestMatch3Cell,
-} from '../games/minerGamesLayout.js';
+} from '../games/minerGamesLayout';
 import {
   translateGameSocketError,
   translateGameFinishedFailure,
   translateGameReward,
-} from '../games/minerGamesSocketMessages.js';
+} from '../games/minerGamesSocketMessages';
 import { createMinerGamesSocketGuard } from '../games/minerGamesSocketGuards';
-import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from '../games/cryptoGameIcons.js';
+import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from '../games/cryptoGameIcons';
 
 type CryptoIconKey = keyof typeof CRYPTO_ICONS;
 

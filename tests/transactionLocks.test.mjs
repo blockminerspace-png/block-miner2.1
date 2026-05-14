@@ -6,7 +6,7 @@ import {
   lockUserMinerRowForUpdate,
   lockUserRowForUpdate,
   lockUserVaultRowForUpdate
-} from "../server/utils/transactionLocks.js";
+} from "#server/utils/transactionLocks.js";
 
 function createTxMock(returnRows) {
   const calls = [];

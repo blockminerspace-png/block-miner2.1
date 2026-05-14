@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCreateDailyTaskDefinition } from "../server/services/dailyTasks/dailyTaskDefinitionAdminValidation.js";
+import { parseCreateDailyTaskDefinition } from "#server/services/dailyTasks/dailyTaskDefinitionAdminValidation.js";
 
 test("parseCreate rejects invalid slug", () => {
   const r = parseCreateDailyTaskDefinition({ slug: "BAD_SLUG", taskType: "LOGIN_DAY", targetValue: 1, translationKey: "dailyTasks.tasks.x", rewardKind: "BLK", rewardBlkAmount: 0.01 });

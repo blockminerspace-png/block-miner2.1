@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "pretest:coverage": "node -e \"require('node:fs').mkdirSync('coverage/.tmp',{recursive:true})\"",
     "test:coverage": "vitest run --coverage",
-    "test:coverage:auth": "vitest run --coverage src/pages/Login.test.tsx src/pages/Register.test.tsx src/store/auth.test.js --coverage.include=src/pages/Login.tsx --coverage.include=src/pages/Register.tsx --coverage.include=src/store/auth.js --coverage.include=src/utils/registerInputGuards.ts --coverage.include=src/utils/registerAllowedEmailDomains.js"
+    "test:coverage:auth": "vitest run --coverage src/pages/auth/LoginPage.test.tsx src/pages/auth/RegisterPage.test.tsx src/store/auth.test.ts --coverage.include=src/pages/auth/LoginPage.tsx --coverage.include=src/pages/auth/RegisterPage.tsx --coverage.include=src/store/auth.ts --coverage.include=src/shared/utils/registerInputGuards.ts --coverage.include=src/shared/utils/registerAllowedEmailDomains.ts"
   },
   "dependencies": {
     "@reown/appkit": "^1.8.19",

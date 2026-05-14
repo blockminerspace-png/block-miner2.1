@@ -14,7 +14,7 @@ export function isMinerSocketGameSlug(value: unknown): value is MinerSocketGameS
 export function createMinerGamesSocketGuard(options?: { laneEmitMinMs?: number }) {
   const laneMin = Math.max(0, options?.laneEmitMinMs ?? 88);
   let startPending = false;
-  let lastLaneEmit = 0;
+  let lastLaneEmit = -Infinity;
 
   return {
     tryBeginStart(): boolean {

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { moveToVaultBodySchema, retrieveFromVaultBodySchema } from "../server/utils/vaultSchemas.js";
+import { moveToVaultBodySchema, retrieveFromVaultBodySchema } from "#server/utils/vaultSchemas.js";
 
 describe("vaultSchemas", () => {
   it("moveToVaultBodySchema accepts inventory and rack", () => {

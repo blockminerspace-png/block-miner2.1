@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import walletModel from "../server/models/walletModel.js";
-import * as walletController from "../server/controllers/walletController.js";
+import walletModel from "#server/models/walletModel.js";
+import * as walletController from "#server/controllers/walletController.js";
 
 // Mocking the environment
 process.env.NODE_ENV = "test";

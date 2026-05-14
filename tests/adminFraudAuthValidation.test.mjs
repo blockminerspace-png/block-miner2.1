@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { requireAdminAuth } from "../server/middleware/adminAuth.js";
-import { listAdminFraudSignals } from "../server/services/adminFraudSignalsService.js";
+import { requireAdminAuth } from "#server/middleware/adminAuth.js";
+import { listAdminFraudSignals } from "#server/services/adminFraudSignalsService.js";
 
 const oldSecret = process.env.JWT_SECRET;
 

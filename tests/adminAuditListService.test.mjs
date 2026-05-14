@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { inferAuditCategory } from "../server/services/adminAuditListService.js";
+import { inferAuditCategory } from "#server/services/adminAuditListService.js";
 
 describe("adminAuditListService.inferAuditCategory", () => {
   it("buckets admin vs auth login events", () => {

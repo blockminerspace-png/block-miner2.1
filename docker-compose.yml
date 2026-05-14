@@ -82,7 +82,7 @@ services:
       - ./backups:/app/backups
       - ./uploads:/app/uploads
     restart: unless-stopped
-    command: ["node", "server/jobs/runBlockminerWorker.js"]
+    command: ["node", "dist/server/jobs/runBlockminerWorker.js"]
 
   nginx:
     image: nginx:alpine

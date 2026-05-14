@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const shopController = readFileSync(new URL("../server/controllers/shopController.js", import.meta.url), "utf8");
+const shopController = readFileSync(
+  new URL("../dist/server/controllers/shopController.js", import.meta.url),
+  "utf8",
+);
 
 test("shop controller registra tentativa, rejeicoes e sucesso com logs estruturados", () => {
   assert.match(shopController, /logger\.info\("purchaseMiner attempt"/);

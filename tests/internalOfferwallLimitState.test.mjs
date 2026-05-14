@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getDailyTaskPeriodKey } from "../server/services/dailyTasks/dailyTaskPeriod.js";
-import { computeUsageSnapshot, getOfferLimitConfig } from "../server/services/internalOfferwall/internalOfferwallLimitState.js";
-import { RESET_TYPE_COOLDOWN, RESET_TYPE_DAILY } from "../server/services/internalOfferwall/internalOfferwallConstants.js";
+import { getDailyTaskPeriodKey } from "#server/services/dailyTasks/dailyTaskPeriod.js";
+import { computeUsageSnapshot, getOfferLimitConfig } from "#server/services/internalOfferwall/internalOfferwallLimitState.js";
+import { RESET_TYPE_COOLDOWN, RESET_TYPE_DAILY } from "#server/services/internalOfferwall/internalOfferwallConstants.js";
 
 describe("internalOfferwallLimitState", () => {
   it("defaults to DAILY reset from empty metadata", () => {

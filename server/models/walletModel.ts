@@ -1,0 +1,365 @@
+import prisma from '../src/db/prisma.js';
+import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
+import { ethers } from "ethers";
+import {
+  TELEGRAM_EVENT_TYPES,
+  createTelegramOutboxEventTx,
+} from "../services/withdrawalTelegramService.js";
+
+async function getUserBalance(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      polBalance: true,
+      blkBalance: true,
+      blkLocked: true,
+      miningPayoutMode: true,
+      walletAddress: true,
+      miningLogs: {
+        select: {
+          rewardAmount: true
+        }
+      }
+    }
+  });
+
+  if (!user) {
+    return {
+      balance: 0,
+      blkBalance: 0,
+      blkLocked: 0,
+      miningPayoutMode: 'pol',
+      blkUsdEquivalent: 0,
+      lifetimeMined: 0,
+      totalWithdrawn: 0,
+      walletAddress: null
+    };
+  }
+
+  // Calculate lifetime mined from mining logs
+  const lifetimeMined = user.miningLogs.reduce((acc, log) => acc + Number(log.rewardAmount), 0);
+
+  // Calculate total withdrawn from transactions
+  const aggregations = await prisma.transaction.aggregate({
+    where: { userId, type: 'withdrawal', status: 'completed' },
+    _sum: { amount: true }
+  });
+
+  const blkAvail = Number(user.blkBalance);
+  const blkLocked = Number(user.blkLocked);
+
+  return {
+    balance: Number(user.polBalance),
+    blkBalance: blkAvail,
+    blkLocked,
+    miningPayoutMode: user.miningPayoutMode === 'blk' ? 'blk' : 'pol',
+    blkUsdEquivalent: blkAvail,
+    lifetimeMined: Number(lifetimeMined),
+    totalWithdrawn: Number(aggregations._sum.amount || 0),
+    walletAddress: user.walletAddress
+  };
+}
+
+async function saveWalletAddress(userId, walletAddress) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { walletAddress }
+  });
+  return true;
+}
+
+const MOCK_RPC_URL = process.env.NODE_ENV === 'test' ? null : null; // Will just use standard logic
+async function createDepositRequest(userId, amount, txHash) {
+  if (!txHash || !amount) {
+    throw new Error("Amount and TX Hash required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Check if txHash already exists to prevent double spend
+    const existingTx = await tx.transaction.findFirst({
+      where: { txHash, type: 'deposit' }
+    });
+
+    if (existingTx) {
+      throw new Error("Transaction hash already used for deposit.");
+    }
+
+    // 2. Setup ethers provider
+    const rpcUrl = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
+    const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS;
+
+    if (!depositAddress) {
+      throw new Error("Deposit wallet address not configured on server.");
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+    let transaction;
+    // For tests running without real network
+    if (process.env.NODE_ENV === 'test' && !process.env.REAL_RPC_TEST) {
+      // Mock validation passes
+    } else {
+      // 3. Get transaction details from blockchain
+      try {
+        transaction = await provider.getTransaction(txHash);
+      } catch (err) {
+        throw new Error("Invalid transaction hash or network error.");
+      }
+
+      if (!transaction) {
+        throw new Error("Transaction not found on the network. Make sure it's on Polygon Mainnet.");
+      }
+
+      // 4. Verify validations
+      if (!transaction.to || transaction.to.toLowerCase() !== depositAddress.toLowerCase()) {
+        throw new Error("Transaction was not sent to the correct deposit address.");
+      }
+
+      // Chain ID check (Polygon Mainnet is 137)
+      if (transaction.chainId !== 137n && transaction.chainId !== 137) {
+        throw new Error("Transaction must be on Polygon Mainnet (Chain ID 137).");
+      }
+
+      // Check amount with tolerance for floating point
+      const txValueInPol = ethers.formatEther(transaction.value);
+      if (parseFloat(txValueInPol) < parseFloat(amount) * 0.999) { // 0.1% tolerance
+        throw new Error(`Transaction amount ${txValueInPol} is less than requested amount ${amount}.`);
+      }
+
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (!receipt || receipt.status !== 1) {
+        throw new Error("Transaction is not confirmed yet or has failed on-chain.");
+      }
+
+      // Optional: Check minimum confirmations
+      const currentBlock = await provider.getBlockNumber();
+      if (currentBlock - receipt.blockNumber < 1) {
+        // We allow 1 confirmation for speed, but could increase for security
+      }
+    }
+
+    // 5. Update Database
+    const newTx = await tx.transaction.create({
+      data: {
+        userId,
+        type: 'deposit',
+        amount,
+        txHash,
+        status: 'completed',
+        completedAt: new Date()
+      }
+    });
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { polBalance: { increment: amount } }
+    });
+
+    // Notify runtime
+    applyUserBalanceDelta(userId, Number(amount));
+
+    // 6. Create User Notification
+    try {
+      const { createNotification } = await import('../controllers/notificationController.js');
+      await createNotification({
+        userId,
+        title: "Depósito Confirmado",
+        message: `Seu depósito de ${Number(amount).toFixed(4)} POL foi processado com sucesso e adicionado ao seu saldo.`,
+        type: "success"
+      });
+    } catch (notifyErr) {
+      console.error("Error creating deposit notification:", notifyErr);
+    }
+
+    return newTx;
+  });
+}
+
+async function hasPendingWithdrawal(userId) {
+  const pending = await prisma.transaction.findFirst({
+    where: { userId, type: 'withdrawal', status: 'pending' }
+  });
+  return !!pending;
+}
+
+async function createWithdrawal(userId, amount, address) {
+  return prisma.$transaction(async (tx) => {
+    const pending = await tx.transaction.findFirst({
+      where: { userId, type: 'withdrawal', status: 'pending' }
+    });
+    if (pending) throw new Error("Pending withdrawal exists");
+
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, email: true, registrationIp: true, ip: true, polBalance: true },
+    });
+    if (!user) throw new Error("User not found");
+    if (user.polBalance.lt(amount)) throw new Error("Insufficient balance");
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { polBalance: { decrement: amount } }
+    });
+
+    const transaction = await tx.transaction.create({
+      data: {
+        userId,
+        type: 'withdrawal',
+        amount,
+        address,
+        status: 'pending',
+        fundsReserved: true
+      }
+    });
+
+    await createTelegramOutboxEventTx(tx, TELEGRAM_EVENT_TYPES.WITHDRAWAL_REQUESTED_PRIVATE_ALERT, {
+      ...transaction,
+      user,
+    });
+
+    applyUserBalanceDelta(userId, -Number(amount));
+    return transaction;
+  });
+}
+
+async function getTransactions(userId, limit = 50) {
+  return prisma.transaction.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: limit
+  });
+}
+
+async function updateTransactionStatus(transactionId: number, status: string, txHash: string | null = null) {
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    const transaction = await tx.transaction.findUnique({ where: { id: transactionId } });
+    if (!transaction) return true;
+
+    const prevStatus = transaction.status;
+    const updated = await tx.transaction.update({
+      where: { id: transactionId },
+      data: {
+        status,
+        txHash: txHash || transaction.txHash,
+        completedAt: status === 'completed' ? now : transaction.completedAt,
+        updatedAt: now
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (transaction.type === 'withdrawal') {
+      if (status === 'completed' && prevStatus !== 'completed') {
+        // Total withdrawn tracking logic here
+      }
+      if (status === 'completed' && txHash) {
+        await createTelegramOutboxEventTx(tx, TELEGRAM_EVENT_TYPES.WITHDRAWAL_COMPLETED_PUBLIC_PROOF, updated, { txHash });
+      }
+      if (status === 'failed' && prevStatus !== 'failed' && prevStatus !== 'completed') {
+        if (transaction.fundsReserved) {
+          await tx.user.update({
+            where: { id: transaction.userId },
+            data: { polBalance: { increment: transaction.amount } }
+          });
+          applyUserBalanceDelta(transaction.userId, Number(transaction.amount));
+        }
+      }
+    }
+
+    if (transaction.type === 'blk_withdrawal') {
+      if (status === 'completed' && prevStatus !== 'completed' && transaction.fundsReserved) {
+        await tx.user.update({
+          where: { id: transaction.userId },
+          data: { blkLocked: { decrement: transaction.amount } }
+        });
+      }
+      if (status === 'failed' && prevStatus !== 'failed' && prevStatus !== 'completed') {
+        if (transaction.fundsReserved) {
+          await tx.user.update({
+            where: { id: transaction.userId },
+            data: {
+              blkLocked: { decrement: transaction.amount },
+              blkBalance: { increment: transaction.amount }
+            }
+          });
+        }
+      }
+    }
+    return {
+      ok: true,
+      prevStatus,
+      nextStatus: status,
+      transactionType: transaction.type,
+    };
+  });
+  return true;
+}
+
+async function getPendingWithdrawals() {
+  return prisma.transaction.findMany({
+    where: { type: 'withdrawal', status: { in: ['pending', 'approved'] } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          walletAddress: true,
+          registrationIp: true,
+          ip: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+/** Só saques já aprovados pelo admin — usado pelo cron de envio on-chain (opcional). */
+async function getApprovedWithdrawalsForAutoSend() {
+  return prisma.transaction.findMany({
+    where: { type: 'withdrawal', status: 'approved' },
+    include: { user: { select: { username: true } } },
+    orderBy: { createdAt: 'asc' }
+  });
+}
+
+async function failAllPendingWithdrawals() {
+  // Safety guard: pending withdrawals must never be auto-cancelled on restart.
+  // This function is kept for backward compatibility but intentionally does nothing.
+  return { totalPending: 0, skipped: true };
+}
+
+const walletModel = {
+  getUserBalance,
+  saveWalletAddress,
+  createDepositRequest,
+  hasPendingWithdrawal,
+  createWithdrawal,
+  getTransactions,
+  updateTransactionStatus,
+  getPendingWithdrawals,
+  getApprovedWithdrawalsForAutoSend,
+  failAllPendingWithdrawals
+};
+
+export default walletModel;
+export {
+  getUserBalance,
+  saveWalletAddress,
+  createDepositRequest,
+  hasPendingWithdrawal,
+  createWithdrawal,
+  getTransactions,
+  updateTransactionStatus,
+  getPendingWithdrawals,
+  getApprovedWithdrawalsForAutoSend,
+  failAllPendingWithdrawals
+};

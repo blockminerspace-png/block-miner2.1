@@ -4,7 +4,7 @@ import {
   assertValidTransparencyWalletAddress,
   fetchTrackedWalletsSummary,
   fetchWalletNativeActivity,
-} from "../server/services/transparencyWalletService.js";
+} from "#server/services/transparencyWalletService.js";
 
 const originalFetch = global.fetch;
 

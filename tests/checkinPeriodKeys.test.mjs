@@ -7,7 +7,7 @@ import {
   getBrazilIsoWeekPeriodKey,
   getBrazilMonthPeriodKey,
   normalizeBrazilDateKey
-} from "../server/utils/checkinDate.js";
+} from "#server/utils/checkinDate.js";
 
 describe("check-in period keys (Brazil calendar)", () => {
   it("month key matches YYYY-MM prefix of Brazil day key", () => {

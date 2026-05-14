@@ -4,6 +4,7 @@ import loggerLib from "../utils/logger.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { notifyDailyTaskYoutubeWatch } from "../services/dailyTasks/dailyTaskHookService.js";
+import type { Prisma } from "@prisma/client";
 
 const logger = loggerLib.child("YouTubeController");
 
@@ -104,7 +105,7 @@ export async function claimReward(req: Request, res: Response) {
 
     const expiresAt = new Date(Date.now() + DURATION_HOURS * 60 * 60 * 1000);
 
-    const historyRow = await prisma.$transaction(async (tx) => {
+    const historyRow = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.youtubeWatchPower.create({
         data: { userId, sourceVideoId: videoId, hashRate: REWARD_PER_CLAIM, claimedAt: now, expiresAt }
       });

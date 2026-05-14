@@ -5,7 +5,7 @@ import {
   resolveMissionPeriodKey,
   utcDayKey,
   utcIsoWeekKey
-} from "../server/services/miniPass/miniPassPeriod.js";
+} from "#server/services/miniPass/miniPassPeriod.js";
 import {
   CADENCE_DAILY,
   CADENCE_EVENT,
@@ -13,7 +13,7 @@ import {
   EVENT_PERIOD_KEY,
   MISSION_LOGIN_DAY,
   MISSION_PLAY_GAMES
-} from "../server/services/miniPass/miniPassConstants.js";
+} from "#server/services/miniPass/miniPassConstants.js";
 
 describe("miniPassPeriod helpers", () => {
   it("builds UTC day keys", () => {

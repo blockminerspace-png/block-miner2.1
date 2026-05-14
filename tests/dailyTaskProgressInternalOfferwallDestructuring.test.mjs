@@ -6,10 +6,12 @@ import path from "path";
 
 test("bumpDailyTasksForUser destructures internalOfferwallOfferId (no ReferenceError at runtime)", () => {
   const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const file = path.join(root, "server/services/dailyTasks/dailyTaskProgressService.js");
+  const file = path.join(root, "dist/server/services/dailyTasks/dailyTaskProgressService.js");
   const src = readFileSync(file, "utf8");
   assert.ok(
-    src.includes("{ dedupeKey, delta, gameSlug, internalOfferwallOfferId } = {}"),
-    "internalOfferwallOfferId must be in bumpDailyTasksForUser destructuring"
+    src.includes("internalOfferwallOfferId") &&
+      src.includes("bumpDailyTasksForUser") &&
+      /const \{[^}]*internalOfferwallOfferId[^}]*\}\s*=\s*opts/.test(src),
+    "internalOfferwallOfferId must be destructured from opts in bumpDailyTasksForUser",
   );
 });

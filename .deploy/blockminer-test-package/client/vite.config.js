@@ -6,10 +6,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-/** Docker frontend stage copies engine here; dev uses repo `server/services` (see Dockerfile). */
-const game2048EngineEntry = fs.existsSync(path.resolve(__dirname, 'engine/game2048Engine.js'))
-  ? path.resolve(__dirname, 'engine/game2048Engine.js')
-  : path.resolve(__dirname, '../server/services/game2048Engine.js')
+/** Docker frontend stage copies engine here; dev prefers built `dist/server`, then TS source. */
+const game2048EngineEntry = [
+  path.resolve(__dirname, 'engine/game2048Engine.js'),
+  path.resolve(__dirname, '../dist/server/services/game2048Engine.js'),
+  path.resolve(__dirname, '../server/services/game2048Engine.ts'),
+].find((p) => fs.existsSync(p)) ?? path.resolve(__dirname, '../dist/server/services/game2048Engine.js')
 
 // https://vite.dev/config/
 const blockminerOrigin =

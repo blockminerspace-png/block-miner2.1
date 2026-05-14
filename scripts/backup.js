@@ -1,12 +1,16 @@
-const logger = require("../utils/logger").child("BackupCLI");
-const { db, run } = require("../src/db/sqlite");
-const {
+import loggerLib from "#server/utils/logger.js";
+import sqlite from "#server/src/db/sqlite.js";
+import {
   createDatabaseBackup,
   pruneBackups,
   getBackupConfig,
   replicateBackupToExternal,
-  runCloudBackupCommand
-} = require("../utils/backup");
+  runCloudBackupCommand,
+} from "#server/utils/backup.js";
+import { errMsg } from "#server/types/tsNarrowing.js";
+
+const logger = loggerLib.child("BackupCLI");
+const { db, run } = sqlite;
 
 function closeDatabase() {
   return new Promise((resolve) => {
@@ -27,13 +31,13 @@ async function main() {
     try {
       const external = await replicateBackupToExternal({
         backupFile: result.backupFile,
-        externalBackupDir: config.externalBackupDir
+        externalBackupDir: config.externalBackupDir,
       });
       logger.info("External backup replicated", external);
     } catch (error) {
       logger.warn("External backup replication failed", {
-        error: error.message,
-        externalBackupDir: config.externalBackupDir
+        error: errMsg(error),
+        externalBackupDir: config.externalBackupDir,
       });
     }
   }
@@ -42,19 +46,19 @@ async function main() {
     const cloud = await runCloudBackupCommand({
       backupFile: result.backupFile,
       commandTemplate: config.cloudCommandTemplate,
-      timeoutMs: config.cloudTimeoutMs
+      timeoutMs: config.cloudTimeoutMs,
     });
 
     if (cloud.success) {
       logger.info("Cloud backup command executed", {
         exitCode: cloud.exitCode,
-        durationMs: cloud.durationMs
+        durationMs: cloud.durationMs,
       });
     } else {
       logger.warn("Cloud backup command failed", {
         exitCode: cloud.exitCode,
         timedOut: cloud.timedOut,
-        error: cloud.error || cloud.stderr || "cloud_backup_failed"
+        error: cloud.error || cloud.stderr || "cloud_backup_failed",
       });
     }
   }
@@ -69,7 +73,7 @@ async function main() {
       backupDir: config.externalBackupDir,
       retentionDays: config.externalRetentionDays,
       filenamePrefix: config.filenamePrefix,
-      logger
+      logger,
     });
 
     if (externalPruned.deleted > 0) {
@@ -80,7 +84,7 @@ async function main() {
 
 main()
   .catch((error) => {
-    logger.error("Backup failed", { error: error.message });
+    logger.error("Backup failed", { error: errMsg(error) });
     process.exitCode = 1;
   })
   .finally(async () => {

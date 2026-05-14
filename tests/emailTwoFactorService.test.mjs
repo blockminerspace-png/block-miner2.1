@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../server/services/emailTwoFactorService.js";
+import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "#server/services/emailTwoFactorService.js";
 
 describe("emailTwoFactorService", () => {
   const snapshot = { ...process.env };

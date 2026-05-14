@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import prisma from "../src/db/prisma.js";
-import { Prisma } from "../src/db/prismaNamespace.js";
+import { Prisma } from "@prisma/client";
+import type { DailyCheckin } from "@prisma/client";
 import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { getBrazilCheckinDateKey, getBrazilDateKeyAliases, normalizeBrazilDateKey } from "../utils/checkinDate.js";
 import { computeCheckinStreak } from "../utils/checkinStreak.js";
@@ -352,7 +353,7 @@ export async function processStalePendingCheckins({ batchSize = 40 }: { batchSiz
 
 async function buildCadenceStatusBundle(userId: number, wallet: string | null, treasuryOk: boolean) {
   const todayKey = periodKeyForCadence("daily");
-  let dailyRow = null;
+  let dailyRow: DailyCheckin | null = null;
 
   if (treasuryOk) {
     await tryFinalizeTodayCheckin(userId, wallet);
@@ -595,7 +596,7 @@ async function confirmDailyCheckin(req: Request, res: Response) {
   };
 
   try {
-    const outcome = await prisma.$transaction(async (tx) => {
+    const outcome = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await advisoryXactTryLockOrThrow(tx, `checkin:${userId}`);
       await lockUserRowForUpdate(tx, userId);
 
@@ -744,7 +745,7 @@ export async function checkinBalance(req: Request, res: Response) {
   const synthTx = balanceCheckinSyntheticTxHash(userId, today);
 
   try {
-    const outcome = await prisma.$transaction(async (tx) => {
+    const outcome = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BalanceOutcome> => {
       await advisoryXactTryLockOrThrow(tx, `checkin:${userId}`);
       await lockUserRowForUpdate(tx, userId);
 
@@ -761,7 +762,7 @@ export async function checkinBalance(req: Request, res: Response) {
 
       const existing = await findDailyCheckinForBrazilDay(tx, userId, today);
       if (existing?.status === "confirmed") {
-        return { kind: "already" } as BalanceOutcome;
+        return { kind: "already" };
       }
       if (existing?.status === "pending") {
         throw new CheckinHttpError("CHECKIN_PENDING_PAYMENT", "pending");

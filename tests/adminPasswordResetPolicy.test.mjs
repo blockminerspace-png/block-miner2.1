@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAdminKeyedPasswordResetApiEnabled } from "../server/utils/adminPasswordResetPolicy.js";
+import { isAdminKeyedPasswordResetApiEnabled } from "#server/utils/adminPasswordResetPolicy.js";
 
 test("non-production always allows admin-keyed reset API", () => {
   const prev = process.env.NODE_ENV;
