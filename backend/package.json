@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "description": "TypeScript HTTP composition layer; run install from repository root.",
+  "imports": {
+    "#server/*": "./_server_vendor/*"
+  },
   "scripts": {
     "typecheck": "npm run typecheck:backend --prefix ..",
     "build": "npm run build:backend --prefix ..",
