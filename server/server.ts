@@ -251,11 +251,11 @@ app.use(
   })
 );
 
-const publicPath = path.join(__dirname, "..", "client", "dist");
+const publicPath = path.join(PROJECT_ROOT, "client", "dist");
 // Static crypto broadcast board (TradingView, etc.) — NOT under /dashboardcrypto so the SPA route
 // `/dashboardcrypto` works like `/liveserver` (no competing Express handlers → no redirect loops).
 const cryptoBroadcastDist = path.join(publicPath, "crypto-broadcast");
-const cryptoBroadcastSrc = path.join(__dirname, "..", "client", "public", "crypto-broadcast");
+const cryptoBroadcastSrc = path.join(PROJECT_ROOT, "client", "public", "crypto-broadcast");
 const cryptoBroadcastRoot = existsSync(path.join(cryptoBroadcastDist, "index.html"))
   ? cryptoBroadcastDist
   : cryptoBroadcastSrc;
