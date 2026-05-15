@@ -6,17 +6,15 @@ import { existsSync, readFileSync } from "fs";
  * @returns {string}
  */
 export function findBlockMinerProjectRoot(fromDir) {
-  let dir = fromDir;
-  for (let i = 0; i < 12; i++) {
+  let dir = path.resolve(fromDir);
+  for (let i = 0; i < 16; i++) {
+    const marker = path.join(dir, "server", "prisma", "schema.prisma");
     const pkgPath = path.join(dir, "package.json");
-    if (existsSync(pkgPath)) {
+    if (existsSync(marker) && existsSync(pkgPath)) {
       try {
         const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
         if (pkg && pkg.name === "block-miner") {
-          const marker = path.join(dir, "server", "prisma", "schema.prisma");
-          if (existsSync(marker)) {
-            return dir;
-          }
+          return dir;
         }
       } catch {
         /* ignore */
@@ -29,7 +27,8 @@ export function findBlockMinerProjectRoot(fromDir) {
   const normalized = fromDir.replace(/\\/g, "/");
   if (normalized.includes("/dist/server")) {
     const guess = path.resolve(fromDir, "..", "..");
-    if (existsSync(path.join(guess, "package.json"))) {
+    const guessMarker = path.join(guess, "server", "prisma", "schema.prisma");
+    if (existsSync(guessMarker) && existsSync(path.join(guess, "package.json"))) {
       return guess;
     }
   }
