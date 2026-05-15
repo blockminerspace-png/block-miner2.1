@@ -63,4 +63,11 @@ if is_true "${START_PHD_IN_APP_CONTAINER:-false}"; then
 fi
 
 echo "Starting application..."
+# Failsafe: backend ESM resolves `#server/*` via `backend/package.json` → `./_server_vendor/*`.
+# If the image layer skipped populating `_server_vendor`, sync from compiled `dist/server` at boot.
+if [ ! -f backend/_server_vendor/middleware/rateLimit.js ] && [ -f dist/server/middleware/rateLimit.js ]; then
+  echo "Restoring backend/_server_vendor from dist/server (runtime failsafe)..."
+  mkdir -p backend/_server_vendor
+  cp -a dist/server/. backend/_server_vendor/
+fi
 exec "$@"
