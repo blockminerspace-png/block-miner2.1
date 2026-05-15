@@ -12,7 +12,12 @@ export function findBlockMinerProjectRoot(fromDir) {
     if (existsSync(pkgPath)) {
       try {
         const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-        if (pkg && pkg.name === "block-miner") return dir;
+        if (pkg && pkg.name === "block-miner") {
+          const marker = path.join(dir, "server", "prisma", "schema.prisma");
+          if (existsSync(marker)) {
+            return dir;
+          }
+        }
       } catch {
         /* ignore */
       }
@@ -20,6 +25,13 @@ export function findBlockMinerProjectRoot(fromDir) {
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
+  }
+  const normalized = fromDir.replace(/\\/g, "/");
+  if (normalized.includes("/dist/server")) {
+    const guess = path.resolve(fromDir, "..", "..");
+    if (existsSync(path.join(guess, "package.json"))) {
+      return guess;
+    }
   }
   return path.join(fromDir, "..");
 }
