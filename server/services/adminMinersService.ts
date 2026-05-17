@@ -6,6 +6,40 @@ const MAX_METADATA_CHARS = 3000;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ALLOWED_TIERS = new Set(["common", "uncommon", "rare", "epic", "legendary", "special"]);
 const ALLOWED_SOURCES = new Set(["store", "reward", "shortlink", "faucet", "admin", "event"]);
+const ALLOWED_FILTERS = new Set([
+  "all",
+  "active",
+  "inactive",
+  "store",
+  "hidden",
+  "free",
+  "paid",
+  "reward",
+  "shortlink",
+  "faucet",
+  "admin",
+  "event",
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary",
+  "special",
+  "archived",
+]);
+const ALLOWED_SORTS = new Set([
+  "recent",
+  "oldest",
+  "name",
+  "price_asc",
+  "price_desc",
+  "power_asc",
+  "power_desc",
+  "hashrate_asc",
+  "hashrate_desc",
+  "sold",
+  "value",
+]);
 
 function parsePositiveInt(value: unknown, fallback: number, max = MAX_LIMIT): number {
   if (value === undefined || value === null || value === "") return fallback;
@@ -102,9 +136,11 @@ function parseMetadata(value: unknown): Prisma.InputJsonValue | null | undefined
 export function parseAdminMinerQuery(query: QueryRecord = {}) {
   const page = parsePositiveInt(query.page, 1, 100000);
   const limit = parsePositiveInt(query.limit ?? query.pageSize, 25, MAX_LIMIT);
-  const q = cleanSearch(query.q);
-  const filter = String(query.filter || "all").trim().toLowerCase();
-  const sort = String(query.sort || "recent").trim().toLowerCase();
+  const q = cleanSearch(query.q ?? query.search);
+  const rawFilter = String(query.filter || "all").trim().toLowerCase();
+  const rawSort = String(query.sort || "recent").trim().toLowerCase();
+  const filter = ALLOWED_FILTERS.has(rawFilter) || rawFilter.startsWith("slots_") ? rawFilter : "all";
+  const sort = ALLOWED_SORTS.has(rawSort) ? rawSort : "recent";
   return { page, limit, q, filter, sort };
 }
 
@@ -254,11 +290,12 @@ function buildWhere(parsed: { q: string; filter: string }): Prisma.MinerWhereInp
 }
 
 function orderBy(sort: string): Prisma.MinerOrderByWithRelationInput[] {
+  if (sort === "oldest") return [{ createdAt: "asc" }, { id: "asc" }];
   if (sort === "name") return [{ name: "asc" }];
   if (sort === "price_asc") return [{ price: "asc" }, { id: "asc" }];
   if (sort === "price_desc") return [{ price: "desc" }, { id: "desc" }];
-  if (sort === "hashrate_asc") return [{ baseHashRate: "asc" }, { id: "asc" }];
-  if (sort === "hashrate_desc") return [{ baseHashRate: "desc" }, { id: "desc" }];
+  if (sort === "hashrate_asc" || sort === "power_asc") return [{ baseHashRate: "asc" }, { id: "asc" }];
+  if (sort === "hashrate_desc" || sort === "power_desc") return [{ baseHashRate: "desc" }, { id: "desc" }];
   if (sort === "sold") return [{ stockSold: "desc" }, { id: "desc" }];
   if (sort === "value") return [{ price: "asc" }, { baseHashRate: "desc" }];
   return [{ createdAt: "desc" }, { id: "desc" }];
@@ -273,11 +310,17 @@ export async function listAdminMiners(prisma: PrismaClient, query: QueryRecord =
       orderBy: orderBy(parsed.sort),
       skip: (parsed.page - 1) * parsed.limit,
       take: parsed.limit,
-      select: minerSelect({ _count: { select: { userOwnedMachines: true } } }),
+      select: minerSelect(),
     }),
     prisma.miner.count({ where }),
   ]);
-  return { ok: true, ...parsed, total, miners: rows.map((r) => minerDto(r as MinerRow)) };
+  return {
+    ok: true,
+    ...parsed,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / parsed.limit)),
+    miners: rows.map((r) => minerDto(r as MinerRow)).filter((m) => m !== null),
+  };
 }
 
 export async function getAdminMiner(prisma: PrismaClient, id: unknown) {

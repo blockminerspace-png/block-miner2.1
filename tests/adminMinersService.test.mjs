@@ -133,8 +133,21 @@ describe("admin miners service", () => {
     await createAdminMiner(prisma, validMiner);
     const list = await listAdminMiners(prisma, { page: 1, limit: 10, q: "elite" });
     assert.equal(list.miners.length, 1);
+    assert.equal(list.totalPages, 1);
     assert.equal(validateMinerImageUrl("/uploads/safe.png"), "/uploads/safe.png");
     assert.throws(() => validateMinerImageUrl("javascript:alert(1)"), /invalid_image/);
     assert.throws(() => validateMinerImageUrl("/uploads/../x.png"), /invalid_image/);
+  });
+
+  it("normalizes invalid filter and sort instead of throwing 500-prone errors", async () => {
+    const prisma = prismaMock();
+    await createAdminMiner(prisma, validMiner);
+    const list = await listAdminMiners(prisma, { page: "bad", limit: 10, filter: "not-real", sort: "not-real" }).catch((err) => err);
+    assert.match(String(list.message), /invalid_pagination/);
+
+    const normalized = await listAdminMiners(prisma, { page: 1, limit: 10, filter: "not-real", sort: "not-real" });
+    assert.equal(normalized.filter, "all");
+    assert.equal(normalized.sort, "recent");
+    assert.equal(normalized.miners.length, 1);
   });
 });

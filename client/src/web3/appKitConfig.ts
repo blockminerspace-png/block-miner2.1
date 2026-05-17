@@ -3,7 +3,8 @@ import { ApiController } from '@reown/appkit-controllers';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { polygon } from '@reown/appkit/networks';
 import { QueryClient } from '@tanstack/react-query';
-import { getWalletConnectMetadataUrl, getWalletConnectProjectId } from '../shared/utils/walletConnect';
+import { getWalletConnectMetadataUrl } from '../shared/utils/walletConnect';
+import { getWalletConnectProjectId, isValidWalletConnectProjectId } from '../shared/web3/web3Config';
 
 /**
  * Wagmi / AppKit use TanStack Query internally (e.g. balance reads). Defaults that refetch
@@ -22,39 +23,55 @@ export const queryClient = new QueryClient({
   },
 });
 
-const projectId = getWalletConnectProjectId() || '00000000000000000000000000000000';
-
 /** Non-empty tuple required by AppKit / Wagmi adapter typings. */
 export const networks: [typeof polygon, ...typeof polygon[]] = [polygon];
 
-const metaUrl = getWalletConnectMetadataUrl();
+let appKitInit: { wagmiAdapter: WagmiAdapter } | null = null;
 
-export const wagmiAdapter = new WagmiAdapter({
-  networks,
-  projectId,
-  ssr: false,
-});
+/**
+ * Initializes Reown AppKit + WagmiAdapter once when `VITE_WALLETCONNECT_PROJECT_ID` (or alias) is a valid 32-char hex id.
+ * Does not run on import — avoids remote calls with placeholder or missing project ids.
+ */
+export function ensureAppKitInitialized(): WagmiAdapter | null {
+  const projectId = getWalletConnectProjectId();
+  if (!isValidWalletConnectProjectId(projectId)) {
+    return null;
+  }
 
-void createAppKit({
-  adapters: [wagmiAdapter],
-  networks,
-  projectId,
-  defaultNetwork: polygon,
-  metadata: {
-    name: 'BlockMiner',
-    description: 'POL on Polygon — BlockMiner',
-    url: metaUrl,
-    icons: [`${metaUrl}/favicon.ico`],
-  },
-  // Fewer optional Reown analytics calls. Persistent 403s need a real VITE_WALLETCONNECT_PROJECT_ID and allowed domains in the Reown dashboard.
-  features: {
-    analytics: false,
-  },
-});
+  if (!appKitInit) {
+    void import('@reown/appkit-scaffold-ui/w3m-modal');
 
-// AppKit only auto-prefetches the explorer in headless mode without injected wallets; with MetaMask
-// etc. the "All wallets" grid could stay on skeletons until this runs.
-// Defer so the wallet chunk never competes with landing LCP / first API calls.
+    const wagmiAdapter = new WagmiAdapter({
+      networks,
+      projectId,
+      ssr: false,
+    });
+
+    const metaUrl = getWalletConnectMetadataUrl();
+
+    void createAppKit({
+      adapters: [wagmiAdapter],
+      networks,
+      projectId,
+      defaultNetwork: polygon,
+      metadata: {
+        name: 'BlockMiner',
+        description: 'POL on Polygon — BlockMiner',
+        url: metaUrl,
+        icons: [`${metaUrl}/favicon.ico`],
+      },
+      features: {
+        analytics: false,
+      },
+    });
+
+    scheduleAppKitWalletPrefetch();
+    appKitInit = { wagmiAdapter };
+  }
+
+  return appKitInit.wagmiAdapter;
+}
+
 function scheduleAppKitWalletPrefetch() {
   const run = () => {
     void ApiController.prefetch({
@@ -71,4 +88,8 @@ function scheduleAppKitWalletPrefetch() {
     window.setTimeout(run, 1500);
   }
 }
-scheduleAppKitWalletPrefetch();
+
+/** Test helper: clears lazy init state (module stays loaded). */
+export function resetAppKitInitForTests() {
+  appKitInit = null;
+}

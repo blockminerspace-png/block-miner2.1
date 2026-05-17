@@ -4,9 +4,16 @@ import { toast } from 'sonner';
 import i18n from '../i18n/config';
 import { generateSecurityPayload } from '../shared/utils/security';
 import { clearWalletSessionClearedByUserFlag } from '../shared/utils/walletSessionPreference';
+import { readAuthErrorMessage } from '../pages/auth/shared/auth.errors';
 
-/** Session user shape from `/auth/session` and auth endpoints (kept loose; UI narrows fields it needs). */
-export type AuthUser = Record<string, unknown>;
+/** Public session user (matches server auth JSON; no secrets). */
+export type AuthUser = {
+  id: number;
+  name: string;
+  username: string | null;
+  email: string;
+  hasReferral?: boolean;
+};
 
 export interface RegisterPayload {
   username?: string;
@@ -14,7 +21,7 @@ export interface RegisterPayload {
   password?: string;
   refCode?: string;
   acceptTerms?: boolean;
-  [key: string]: unknown;
+  cfTurnstileToken?: string;
 }
 
 export interface RegisterFailureResult {
@@ -46,6 +53,21 @@ export interface CheckSessionOptions {
   silent?: boolean;
 }
 
+function parseAuthUserPayload(raw: unknown): AuthUser | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.id !== 'number') return null;
+  if (typeof o.name !== 'string') return null;
+  if (typeof o.email !== 'string') return null;
+  const un = o.username;
+  if (un !== null && typeof un !== 'string') return null;
+  const out: AuthUser = { id: o.id, name: o.name, email: o.email, username: un };
+  if (typeof o.hasReferral === 'boolean') {
+    out.hasReferral = o.hasReferral;
+  }
+  return out;
+}
+
 function readTokenFromPayload(data: unknown): string | null {
   if (typeof data !== 'object' || data === null || !('token' in data)) return null;
   const t = (data as { token?: unknown }).token;
@@ -71,10 +93,10 @@ export interface AuthState {
 
 function readAxiosResponseMessage(response: AxiosResponse<unknown> | undefined, fallback = ''): string {
   const data = response?.data;
-  if (typeof data === 'object' && data !== null && 'message' in data) {
-    const msg = (data as { message?: unknown }).message;
-    if (typeof msg === 'string' && msg.trim()) return msg;
-  }
+  if (typeof data !== 'object' || data === null) return fallback;
+  const d = data as Record<string, unknown>;
+  if (typeof d.message === 'string' && d.message.trim()) return d.message.trim();
+  if (typeof d.error === 'string' && d.error.trim()) return d.error.trim();
   return fallback;
 }
 
@@ -238,8 +260,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         }
         const response = await api.get('/auth/session', { timeout: 20000 });
         const rawUser = response.data && typeof response.data === 'object' ? (response.data as { user?: unknown }).user : null;
-        const u: AuthUser | null =
-          rawUser !== null && typeof rawUser === 'object' ? (rawUser as AuthUser) : null;
+        const u = parseAuthUserPayload(rawUser);
         set((state) => {
           const tokenNew = readTokenFromPayload(response.data);
           return {
@@ -249,8 +270,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
             token: !u ? null : tokenNew !== null ? tokenNew : state.token,
           };
         });
-      } catch {
-        set({ user: null, isAuthenticated: false, isLoading: false, token: null });
+      } catch (error: unknown) {
+        const axiosError = isAxiosError(error) ? error : null;
+        const status = axiosError?.response?.status;
+        const message =
+          status && status >= 500
+            ? readAxiosResponseMessage(
+                axiosError?.response,
+                'Não foi possível verificar sua sessão agora. Tente novamente.',
+              )
+            : null;
+        set({ user: null, isAuthenticated: false, isLoading: false, token: null, error: message });
       } finally {
         sessionCheckPromise = null;
         set({ authHydrated: true });
@@ -268,22 +298,25 @@ export const useAuthStore = create<AuthState>()((set) => ({
         response.data && typeof response.data === 'object'
           ? (response.data as { user?: unknown }).user
           : null;
-      const user: AuthUser | null =
-        rawUser !== null && typeof rawUser === 'object' ? (rawUser as AuthUser) : null;
+      const user = parseAuthUserPayload(rawUser);
       const token = readTokenFromPayload(response.data);
-      set({ user, isAuthenticated: true, isLoading: false, token: token ?? null });
+      set({ user, isAuthenticated: Boolean(user), isLoading: false, token: token ?? null });
       return { success: true as const };
     } catch (error: unknown) {
-      const message = isAxiosError(error)
-        ? readAxiosResponseMessage(error.response, 'Erro ao realizar login')
-        : 'Erro ao realizar login';
+      let fallback = 'Não foi possível entrar. Verifique os dados e tente novamente.';
+      try {
+        fallback = i18n.t('auth.login.errors.generic_fallback');
+      } catch {
+        /* keep default */
+      }
+      const message = isAxiosError(error) ? readAuthErrorMessage(error, fallback) : fallback;
       set({
         error: message,
         isLoading: false,
       });
       return {
         success: false as const,
-        message: isAxiosError(error) ? readAxiosResponseMessage(error.response) || undefined : undefined,
+        message: isAxiosError(error) ? readAuthErrorMessage(error) || undefined : undefined,
       };
     }
   },
@@ -296,10 +329,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
         response.data && typeof response.data === 'object'
           ? (response.data as { user?: unknown }).user
           : null;
-      const user: AuthUser | null =
-        rawUser !== null && typeof rawUser === 'object' ? (rawUser as AuthUser) : null;
+      const user = parseAuthUserPayload(rawUser);
       const token = readTokenFromPayload(response.data);
-      set({ user, isAuthenticated: true, isLoading: false, token: token ?? null });
+      set({ user, isAuthenticated: Boolean(user), isLoading: false, token: token ?? null });
       return { success: true as const };
     } catch (error: unknown) {
       const firstError = isAxiosError(error) ? readRegisterFirstError(error.response) : null;

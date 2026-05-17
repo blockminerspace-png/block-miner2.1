@@ -607,11 +607,21 @@
       "submit": "Acessar Conta",
       "no_account": "Ainda não tem uma conta?",
       "register_now": "Criar Conta Agora",
+      "two_factor_title": "Verificação em duas etapas",
+      "two_factor_subtitle_email": "Digite o código de 6 dígitos enviado ao seu e-mail.",
+      "two_factor_subtitle_other": "Digite o código de 6 dígitos do seu autenticador.",
+      "two_factor_email_hint": "Enviamos um código para o seu e-mail. Digite abaixo para concluir o login.",
       "errors": {
         "identifier_not_found": "Email ou username não existe.",
-        "invalid_credentials": "Senha incorreta.",
-        "invalid_2fa": "Código 2FA inválido.",
-        "login_failed": "Login falhou."
+        "invalid_credentials": "Credenciais inválidas. Verifique email ou usuário e senha.",
+        "invalid_2fa": "Código 2FA inválido ou expirado.",
+        "login_failed": "Não foi possível entrar. Tente novamente.",
+        "generic_fallback": "Não foi possível entrar. Verifique os dados e tente novamente.",
+        "internal_error": "Erro interno ao entrar. Tente novamente em instantes.",
+        "email_2fa_unavailable": "Verificação por e-mail indisponível no momento.",
+        "two_factor_challenge_required": "Sessão 2FA incompleta. Volte e solicite um novo código.",
+        "two_factor_code_required": "Informe o código enviado ao seu e-mail.",
+        "account_disabled": "Conta bloqueada."
       },
       "validation": {
         "identifier_empty": "Informe email ou nome de usuário.",

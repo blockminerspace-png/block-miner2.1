@@ -17,7 +17,7 @@ import type { LucideIcon } from 'lucide-react';
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Default Polygon wallet if none is configured in admin (Transparency → wallet settings). */
-const FALLBACK_INVESTMENT_WALLET = '0x1f4872991e6bFc74C2064E2fE4875a78503B5cc1';
+const FALLBACK_INVESTMENT_WALLET = '0x9da76e16147cc728ab46f4403e6c1d4d718ea289';
 const POLYGON_RPC = 'https://polygon-rpc.com';
 
 const POOL_POSITIONS = [

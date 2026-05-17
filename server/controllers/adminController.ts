@@ -270,6 +270,7 @@ export async function listRecentUsers(req: Request, res: Response) {
     const { users, total } = await userModel.listUsers({ page, pageSize, query, fromDate, toDate });
     res.json({ ok: true, users, page, pageSize, total });
   } catch (error: unknown) {
+    logger.error("listRecentUsers failed", { error: errMsg(error), code: prismaErrCode(error) });
     res.status(500).json({ ok: false, message: "Unable to load users." });
   }
 }

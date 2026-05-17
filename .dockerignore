@@ -8,6 +8,7 @@ logs
 .env
 .env.production
 .env.production.*
+deploy.secrets.local
 .git
 .github
 *.log

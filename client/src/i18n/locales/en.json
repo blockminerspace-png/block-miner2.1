@@ -607,11 +607,21 @@
       "submit": "Sign In",
       "no_account": "Don't have an account yet?",
       "register_now": "Register Now",
+      "two_factor_title": "Two-step verification",
+      "two_factor_subtitle_email": "Enter the 6-digit code sent to your email.",
+      "two_factor_subtitle_other": "Enter the 6-digit code from your authenticator app.",
+      "two_factor_email_hint": "We sent a code to your email. Enter it below to finish signing in.",
       "errors": {
         "identifier_not_found": "Email or username does not exist.",
-        "invalid_credentials": "Incorrect password.",
-        "invalid_2fa": "Invalid 2FA code.",
-        "login_failed": "Login failed."
+        "invalid_credentials": "Invalid credentials. Check your email or username and password.",
+        "invalid_2fa": "Invalid or expired 2FA code.",
+        "login_failed": "Could not sign in. Please try again.",
+        "generic_fallback": "Could not sign in. Check your details and try again.",
+        "internal_error": "Something went wrong while signing in. Please try again shortly.",
+        "email_2fa_unavailable": "Email verification is unavailable right now.",
+        "two_factor_challenge_required": "Two-step session is incomplete. Go back and request a new code.",
+        "two_factor_code_required": "Enter the verification code sent to your email.",
+        "account_disabled": "This account is disabled."
       },
       "validation": {
         "identifier_empty": "Enter your email or username.",

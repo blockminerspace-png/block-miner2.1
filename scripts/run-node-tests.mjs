@@ -10,9 +10,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 const testsDir = path.join(root, "tests");
 
-const files = readdirSync(testsDir)
-  .filter((f) => /\.test\.(js|mjs)$/.test(f))
-  .map((f) => path.join(testsDir, f));
+/** Collect `*.test.{js,mjs}` under `tests/` (including subfolders like `tests/wallet/`). */
+function collectTestFiles(dir) {
+  const out = [];
+  const walk = (d) => {
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, ent.name);
+      if (ent.isDirectory()) {
+        walk(full);
+      } else if (/\.test\.(js|mjs)$/.test(ent.name)) {
+        out.push(full);
+      }
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
+
+const files = collectTestFiles(testsDir);
 
 if (files.length === 0) {
   console.error("No tests/*.test.{js,mjs} files found.");

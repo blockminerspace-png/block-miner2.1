@@ -243,11 +243,21 @@
       "submit": "Iniciar Sesión",
       "no_account": "¿Aún no tienes cuenta?",
       "register_now": "Regístrate Ahora",
+      "two_factor_title": "Verificación en dos pasos",
+      "two_factor_subtitle_email": "Introduce el código de 6 dígitos enviado a tu correo.",
+      "two_factor_subtitle_other": "Introduce el código de 6 dígitos de tu autenticador.",
+      "two_factor_email_hint": "Enviamos un código a tu correo. Introdúcelo abajo para terminar el acceso.",
       "errors": {
         "identifier_not_found": "El correo o usuario no existe.",
-        "invalid_credentials": "Contraseña incorrecta.",
-        "invalid_2fa": "Código 2FA inválido.",
-        "login_failed": "El inicio de sesión falló."
+        "invalid_credentials": "Credenciales inválidas. Revisa correo o usuario y contraseña.",
+        "invalid_2fa": "Código 2FA inválido o caducado.",
+        "login_failed": "No se pudo iniciar sesión. Inténtalo de nuevo.",
+        "generic_fallback": "No se pudo iniciar sesión. Revisa los datos e inténtalo de nuevo.",
+        "internal_error": "Error interno al iniciar sesión. Inténtalo de nuevo en unos instantes.",
+        "email_2fa_unavailable": "La verificación por correo no está disponible ahora.",
+        "two_factor_challenge_required": "Sesión 2FA incompleta. Vuelve y solicita un código nuevo.",
+        "two_factor_code_required": "Introduce el código enviado a tu correo.",
+        "account_disabled": "Cuenta deshabilitada."
       },
       "validation": {
         "identifier_empty": "Introduce tu correo o usuario.",

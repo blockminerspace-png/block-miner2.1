@@ -30,6 +30,9 @@ import {
     AlertTriangle
 } from 'lucide-react';
 import { api } from '../../store/auth';
+import { walletApi } from './wallet.api';
+import type { DepositTicketRow, PendingDepositRow, WalletTransactionRow } from './wallet.types';
+import { WALLET_MIN_WITHDRAW_POL, isValidPolygonWithdrawAddress } from './wallet.validation';
 import { parseEther, isAddress, getAddress, Interface } from 'ethers';
 import { BLOCK_MINER_DEPOSIT_ABI } from '../../web3/blockMinerDepositAbi';
 import { useSendTransaction } from 'wagmi';
@@ -146,7 +149,7 @@ async function sendPolDepositEip1193({
                 valueHex,
                 ...(txPayload.data ? { data: txPayload.data } : {}),
             };
-            const estRes = await api.post('/wallet/deposit/estimate-gas', estBody);
+            const estRes = await walletApi.postDepositEstimateGas(estBody as Record<string, unknown>);
             if (estRes.data?.ok && estRes.data.gasLimit) {
                 gasLimit = estRes.data.gasLimit;
             }
@@ -158,37 +161,6 @@ async function sendPolDepositEip1193({
             params: [{ ...txPayload, gas: gasLimit as Hex }],
         });
     }
-}
-
-interface WalletTransactionRow {
-    type: string;
-    amount: number | string;
-    status: string;
-    createdAt?: string;
-    created_at?: string;
-    txHash?: string | null;
-}
-
-interface PendingDepositRow {
-    id: string | number;
-    txHash?: string | null;
-    status: string;
-    verifyAttempts?: number;
-    verifyMaxAttempts?: number;
-    confirmationsCurrent?: number;
-    confirmationsRequired?: number;
-    txReverted?: boolean;
-    txMined?: boolean;
-    amount?: number | string;
-    failReason?: string | null;
-}
-
-interface DepositTicketRow {
-    id: number | string;
-    status: string;
-    txHash?: string | null;
-    createdAt: string;
-    creditedAmount?: number | string | null;
 }
 
 export default function Wallet() {
@@ -236,7 +208,7 @@ export default function Wallet() {
     const [depositChannel, setDepositChannel] = useState('smart_contract');
     const [btcpayDepositEnabled, setBtcpayDepositEnabled] = useState(false);
     const [btcpayDepositComingSoon, setBtcpayDepositComingSoon] = useState(false);
-    const [btcpayMissingEnvKeys, setBtcpayMissingEnvKeys] = useState([]);
+    const [btcpayMissingEnvKeys, setBtcpayMissingEnvKeys] = useState<string[]>([]);
     const [btcpayCheckoutLink, setBtcpayCheckoutLink] = useState('');
     const [btcpayInvoiceId, setBtcpayInvoiceId] = useState('');
     const [btcpayBtcAddr, setBtcpayBtcAddr] = useState<string | null>(null);
@@ -244,7 +216,7 @@ export default function Wallet() {
     const [btcpayInvoiceStatus, setBtcpayInvoiceStatus] = useState<string | null>(null);
     const [polygonHdDepositEnabled, setPolygonHdDepositEnabled] = useState(false);
     const [polygonHdFeatureVisible, setPolygonHdFeatureVisible] = useState(false);
-    const [polygonHdMissingEnvKeys, setPolygonHdMissingEnvKeys] = useState([]);
+    const [polygonHdMissingEnvKeys, setPolygonHdMissingEnvKeys] = useState<string[]>([]);
     const [polygonHdMinPol, setPolygonHdMinPol] = useState(1);
     const [polygonHdAddress, setPolygonHdAddress] = useState('');
     const [polygonHdLoadError, setPolygonHdLoadError] = useState('');
@@ -284,7 +256,7 @@ export default function Wallet() {
 
     const fetchPrice = async () => {
         try {
-            const res = await api.get('/wallet/pol-usd');
+            const res = await walletApi.getPolUsd();
             if (res.data?.ok && typeof res.data.priceUsd === 'number') {
                 setPolPrice(res.data.priceUsd);
             }
@@ -296,8 +268,8 @@ export default function Wallet() {
     const fetchWalletData = useCallback(async () => {
         try {
             const [balanceRes, historyRes] = await Promise.all([
-                api.get('/wallet/balance'),
-                api.get('/wallet/transactions')
+                walletApi.getBalance(),
+                walletApi.getTransactions()
             ]);
 
             if (balanceRes.data.ok) {
@@ -343,8 +315,9 @@ export default function Wallet() {
                 }
 
                 // If user has a saved address but not connected, pre-fill it for convenience
-                if (!withdrawForm.address && balanceRes.data.walletAddress) {
-                    setWithdrawForm(prev => ({ ...prev, address: balanceRes.data.walletAddress }));
+                const savedWalletAddr = balanceRes.data.walletAddress;
+                if (!withdrawForm.address && typeof savedWalletAddr === 'string' && savedWalletAddr.length > 0) {
+                    setWithdrawForm((prev) => ({ ...prev, address: savedWalletAddr }));
                 }
             }
 
@@ -360,7 +333,7 @@ export default function Wallet() {
 
     const fetchPendingDeposits = useCallback(async () => {
         try {
-            const res = await api.get('/wallet/deposit/pending');
+            const res = await walletApi.getDepositPending();
             if (res.data.ok) {
                 setPendingDeposits(res.data.deposits || []);
             }
@@ -429,7 +402,7 @@ export default function Wallet() {
         setPolygonHdLoadError('');
         (async () => {
             try {
-                const res = await api.get('/wallet/deposit/hd-address');
+                const res = await walletApi.getHdAddress();
                 if (cancelled) return;
                 if (res.data?.ok && res.data.address) {
                     setPolygonHdAddress(res.data.address);
@@ -488,11 +461,9 @@ export default function Wallet() {
         if (!btcpayInvoiceId || depositChannel !== 'btcpay') return undefined;
         const poll = async () => {
             try {
-                const res = await api.get(
-                    `/wallet/btcpay/invoice/${encodeURIComponent(btcpayInvoiceId)}`
-                );
+                const res = await walletApi.getBtcpayInvoiceStatus(btcpayInvoiceId);
                 if (res.data?.ok) {
-                    setBtcpayInvoiceStatus(res.data.localStatus);
+                    setBtcpayInvoiceStatus(res.data.localStatus ?? null);
                     if (res.data.btcAddress != null) setBtcpayBtcAddr(res.data.btcAddress);
                     if (res.data.lightningInvoice != null) setBtcpayLightningInvoice(res.data.lightningInvoice);
                     if (res.data.localStatus === 'completed') {
@@ -550,8 +521,8 @@ export default function Wallet() {
         setIsActionLoading(true);
         try {
             if (depositChannel === 'smart_contract') {
-                const hasContract = systemContractAddress && isAddress(systemContractAddress);
-                const hasTreasury = systemDepositAddress && isAddress(systemDepositAddress);
+                const hasContract = systemContractAddress && isAddress(String(systemContractAddress).trim());
+                const hasTreasury = systemDepositAddress && isAddress(String(systemDepositAddress).trim());
                 if (!hasContract && !hasTreasury) {
                     toast.error(t('wallet.web3_deposit.no_deposit_config'));
                     return;
@@ -595,9 +566,9 @@ export default function Wallet() {
             }
 
             const useContract =
-                systemContractAddress && isAddress(systemContractAddress);
+                systemContractAddress && isAddress(String(systemContractAddress).trim());
             const useTreasury =
-                !useContract && systemDepositAddress && isAddress(systemDepositAddress);
+                !useContract && systemDepositAddress && isAddress(String(systemDepositAddress).trim());
 
             if (!useContract && !useTreasury) {
                 toast.error(t('wallet.web3_deposit.no_deposit_config'));
@@ -675,7 +646,7 @@ export default function Wallet() {
 
             toast.info(t('wallet.web3_deposit.tx_submitted'));
 
-            const res = await api.post('/wallet/deposit/submit', {
+            const res = await walletApi.postDepositSubmit({
                 txHash: txHash,
                 claimedAmount: amount
             });
@@ -714,13 +685,13 @@ export default function Wallet() {
         }
         setIsActionLoading(true);
         try {
-            const res = await api.post('/wallet/btcpay/invoice', { amountPol: amount });
+            const res = await walletApi.postBtcpayInvoice({ amountPol: amount });
             if (res.data?.ok) {
-                setBtcpayInvoiceId(res.data.invoiceId);
-                setBtcpayCheckoutLink(res.data.checkoutLink);
-                setBtcpayBtcAddr(res.data.btcAddress || null);
-                setBtcpayLightningInvoice(res.data.lightningInvoice || null);
-                setBtcpayInvoiceStatus(res.data.status);
+                setBtcpayInvoiceId(typeof res.data.invoiceId === 'string' ? res.data.invoiceId : '');
+                setBtcpayCheckoutLink(typeof res.data.checkoutLink === 'string' ? res.data.checkoutLink : '');
+                setBtcpayBtcAddr(res.data.btcAddress ?? null);
+                setBtcpayLightningInvoice(res.data.lightningInvoice ?? null);
+                setBtcpayInvoiceStatus(typeof res.data.status === 'string' ? res.data.status : null);
                 toast.success(t('wallet.btcpay.invoice_created'));
                 void fetchPendingDeposits();
                 startPendingPoll();
@@ -740,14 +711,19 @@ export default function Wallet() {
 
     const handleWithdraw = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (isActionLoading) return;
         const amount = parseFloat(withdrawForm.amount);
 
         if (!withdrawForm.address) {
             toast.error(t('wallet.dest_address'));
             return;
         }
-        if (isNaN(amount) || amount < 10) {
-            toast.error(t('wallet.min_withdraw_error', { min: 10 }));
+        if (!isValidPolygonWithdrawAddress(withdrawForm.address)) {
+            toast.error(t('wallet.dest_address'));
+            return;
+        }
+        if (isNaN(amount) || amount < WALLET_MIN_WITHDRAW_POL) {
+            toast.error(t('wallet.min_withdraw_error', { min: WALLET_MIN_WITHDRAW_POL }));
             return;
         }
         if (amount > balance.amount) {
@@ -757,7 +733,7 @@ export default function Wallet() {
 
         try {
             setIsActionLoading(true);
-            const res = await api.post('/wallet/withdraw', {
+            const res = await walletApi.postWithdraw({
                 amount,
                 address: withdrawForm.address
             });
@@ -784,7 +760,7 @@ export default function Wallet() {
 
     const fetchMyTickets = async () => {
         try {
-            const res = await api.get('/deposit-tickets');
+            const res = await walletApi.getDepositTickets();
             if (res.data.ok) setMyTickets(res.data.tickets || []);
         } catch {}
         setTicketsLoaded(true);
@@ -798,7 +774,7 @@ export default function Wallet() {
         }
         try {
             setIsSubmittingTicket(true);
-            const res = await api.post('/deposit-tickets', ticketForm);
+            const res = await walletApi.postDepositTicket(ticketForm as unknown as Record<string, unknown>);
             if (res.data.ok) {
                 toast.success(t('wallet.ticket_open_success'));
                 setTicketForm({ walletAddress: '', txHash: '', amountClaimed: '', description: '' });
@@ -1080,7 +1056,7 @@ export default function Wallet() {
                                                     Max
                                                 </button>
                                             </div>
-                                            <p className="text-[9px] text-slate-600 font-bold ml-2">{t('wallet.min_withdraw_hint', { min: 10 })}</p>
+                                            <p className="text-[9px] text-slate-600 font-bold ml-2">{t('wallet.min_withdraw_hint', { min: WALLET_MIN_WITHDRAW_POL })}</p>
                                         </div>
                                     </div>
 
@@ -1332,10 +1308,10 @@ export default function Wallet() {
                                             <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
                                                 {depositChannel === 'smart_contract'
                                                     ? systemContractAddress &&
-                                                      isAddress(systemContractAddress)
+                                                      isAddress(String(systemContractAddress).trim())
                                                         ? t('wallet.web3_deposit.smart_contract_hint')
                                                         : systemDepositAddress &&
-                                                            isAddress(systemDepositAddress)
+                                                            isAddress(String(systemDepositAddress).trim())
                                                           ? t('wallet.web3_deposit.treasury_browser_hint')
                                                           : t('wallet.web3_deposit.no_deposit_config')
                                                     : t('wallet.deposit_options.walletconnect_hint')}

@@ -61,7 +61,9 @@ COPY . .
 # TypeScript HTTP composition layer (`backend/src`) — uses root `package.json` `"imports"` (`#server/*` → `dist/server/*`).
 RUN npm install --no-save typescript@5.8.3 @types/node@22.15.3 @types/express@5.0.1 @types/cors@2.8.17 @types/compression@1.7.5 @types/pg@8.20.0 @types/jsonwebtoken@9.0.10 @types/multer@1.4.12 && \
     npx tsc -p tsconfig.server.json && \
-    npx tsc -p backend/tsconfig.json
+    npx tsc -p backend/tsconfig.json && \
+    mkdir -p backend/_server_vendor && \
+    cp -a dist/server/. backend/_server_vendor/
 
 # Copy compiled React SPA into the backend container
 COPY --from=frontend-builder /app/dist ./client/dist

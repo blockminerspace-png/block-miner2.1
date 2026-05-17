@@ -2,13 +2,13 @@ import { useState, useEffect, useLayoutEffect, useRef, type ChangeEvent, type Fo
 import { toast } from 'sonner';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuthStore } from '../../store/auth';
+import { useAuthStore } from '../../../store/auth';
 import { Mail, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Gift } from 'lucide-react';
-import BrandLogo from '../../shared/components/BrandLogo';
-import SocialLoginButtons from '../../shared/components/auth/SocialLoginButtons';
-import TurnstileField, { prefetchTurnstileScript } from '../../shared/components/auth/TurnstileField';
-import { resolveTurnstileSiteKeyRegister } from '../../constants/turnstilePublic';
-import SiteFooter from '../../shared/components/SiteFooter';
+import BrandLogo from '../../../shared/components/BrandLogo';
+import SocialLoginButtons from '../../../shared/components/auth/SocialLoginButtons';
+import TurnstileField, { prefetchTurnstileScript } from '../../../shared/components/auth/TurnstileField';
+import { resolveTurnstileSiteKeyRegister } from '../../../constants/turnstilePublic';
+import SiteFooter from '../../../shared/components/SiteFooter';
 import {
   REGISTER_USERNAME_MIN,
   REGISTER_USERNAME_MAX,
@@ -16,8 +16,8 @@ import {
   REGISTER_PASSWORD_MIN_LEN,
   REGISTER_PASSWORD_MAX_LEN,
   REGISTER_REF_CODE_MAX_LEN,
-} from '../../constants/registerFieldLimits';
-import { isRegisterAllowedEmailDomain } from '../../shared/utils/registerAllowedEmailDomains';
+} from '../../../constants/registerFieldLimits';
+import { isRegisterAllowedEmailDomain } from '../../../shared/utils/registerAllowedEmailDomains';
 import {
   clipRefCodeFromQuery,
   sanitizeRegisterUsername,
@@ -27,7 +27,7 @@ import {
   validateUsernameShape,
   validateEmailShape,
   safeInlineMessage,
-} from '../../shared/utils/registerInputGuards';
+} from '../../../shared/utils/registerInputGuards';
 
 const FIELD_MAX_LEN: Record<string, number> = {
   username: REGISTER_USERNAME_MAX,
@@ -66,6 +66,7 @@ export default function Register() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const termsCheckboxRef = useRef<HTMLInputElement | null>(null);
   const turnstileRef = useRef<TurnstileRef>(null);
+  const registerSubmitLockRef = useRef(false);
   const navigate = useNavigate();
   const { register, error, isLoading, isAuthenticated, checkSession } = useAuthStore();
 
@@ -79,10 +80,6 @@ export default function Register() {
     if (!TURNSTILE_REGISTER_SITE_KEY) return undefined;
     void prefetchTurnstileScript();
     return undefined;
-  }, []);
-
-  useEffect(() => {
-    void import("../../shared/components/Web3Providers");
   }, []);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -172,39 +169,45 @@ export default function Register() {
       return;
     }
 
-    const result = await register({
-      username: u,
-      email: em,
-      password: pw,
-      refCode: ref,
-      acceptTerms: formData.acceptTerms,
-      cfTurnstileToken: cfTurnstileToken || undefined,
-    });
+    if (registerSubmitLockRef.current) return;
+    registerSubmitLockRef.current = true;
+    try {
+      const result = await register({
+        username: u,
+        email: em,
+        password: pw,
+        refCode: ref,
+        acceptTerms: formData.acceptTerms,
+        cfTurnstileToken: cfTurnstileToken || undefined,
+      });
 
-    if (!result.success) {
-      if (result.fieldPath === 'acceptTerms') {
-        setFieldErrors({
-          acceptTerms: t(String(result.fieldMessage || 'validation.errors.termsRequired')),
-        });
-        focusTermsCheckbox();
+      if (!result.success) {
+        if (result.fieldPath === 'acceptTerms') {
+          setFieldErrors({
+            acceptTerms: t(String(result.fieldMessage || 'validation.errors.termsRequired')),
+          });
+          focusTermsCheckbox();
+          return;
+        }
+
+        const codeKey = result.code ? `auth.register.errors.${String(result.code).toLowerCase()}` : '';
+        const translated = codeKey && codeKey !== 'auth.register.errors.' ? t(codeKey) : '';
+        const looksMissingI18n = translated === codeKey || translated.startsWith('auth.register.errors.');
+        if (translated && !looksMissingI18n) {
+          toast.error(translated);
+        } else if (result.message) {
+          const raw = String(result.message);
+          toast.error(safeInlineMessage(t(raw, { defaultValue: raw })));
+        }
+        turnstileRef.current?.reset();
         return;
       }
 
-      const codeKey = result.code ? `auth.register.errors.${String(result.code).toLowerCase()}` : '';
-      const translated = codeKey && codeKey !== 'auth.register.errors.' ? t(codeKey) : '';
-      const looksMissingI18n = translated === codeKey || translated.startsWith('auth.register.errors.');
-      if (translated && !looksMissingI18n) {
-        toast.error(translated);
-      } else if (result.message) {
-        const raw = String(result.message);
-        toast.error(safeInlineMessage(t(raw, { defaultValue: raw })));
-      }
-      turnstileRef.current?.reset();
-      return;
+      await checkSession({ silent: true });
+      navigate('/dashboard');
+    } finally {
+      registerSubmitLockRef.current = false;
     }
-
-    await checkSession({ silent: true });
-    navigate('/dashboard');
   };
 
   const displayStoreError = error ? safeInlineMessage(t(error, { defaultValue: error })) : '';

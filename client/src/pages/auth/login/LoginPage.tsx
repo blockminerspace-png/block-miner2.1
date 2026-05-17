@@ -1,7 +1,10 @@
 import { useState, useEffect, useLayoutEffect, useRef, type FormEvent } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuthStore, api } from '../../store/auth';
+import { useAuthStore, api } from '../../../store/auth';
+import { postAuthLogin } from './login.api';
+import { responseRequiresTwoFactorStep } from './login.twoFactorUi';
+import { readAuthErrorMessage } from '../shared/auth.errors';
 import {
   Mail,
   Lock,
@@ -15,10 +18,10 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import BrandLogo from '../../shared/components/BrandLogo';
-import SocialLoginButtons from '../../shared/components/auth/SocialLoginButtons';
-import TurnstileField, { prefetchTurnstileScript } from '../../shared/components/auth/TurnstileField';
-import { resolveTurnstileSiteKeyLogin } from '../../constants/turnstilePublic';
+import BrandLogo from '../../../shared/components/BrandLogo';
+import SocialLoginButtons from '../../../shared/components/auth/SocialLoginButtons';
+import TurnstileField, { prefetchTurnstileScript } from '../../../shared/components/auth/TurnstileField';
+import { resolveTurnstileSiteKeyLogin } from '../../../constants/turnstilePublic';
 import {
   clampLoginIdentifier,
   clampLoginPassword,
@@ -31,7 +34,7 @@ import {
   LOGIN_IDENTIFIER_MAX_LEN,
   LOGIN_PASSWORD_MAX_LEN,
   TWO_FACTOR_CODE_LEN,
-} from '../../shared/utils/authInputGuards';
+} from '../../../shared/utils/authInputGuards';
 
 const TURNSTILE_LOGIN_SITE_KEY = resolveTurnstileSiteKeyLogin();
 
@@ -57,6 +60,10 @@ export default function Login() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  const [twoFactorChallengeToken, setTwoFactorChallengeToken] = useState('');
+  const [twoFactorMethod, setTwoFactorMethod] = useState<'email' | 'other'>('email');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const loginSubmitLockRef = useRef(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -72,11 +79,6 @@ export default function Login() {
     if (!TURNSTILE_LOGIN_SITE_KEY) return undefined;
     void prefetchTurnstileScript();
     return undefined;
-  }, []);
-
-  /** Warm wallet chunk before redirect to /dashboard (avoids long full-screen spinner after login). */
-  useEffect(() => {
-    void import("../../shared/components/Web3Providers");
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -121,25 +123,39 @@ export default function Login() {
       }
     }
 
+    if (loginSubmitLockRef.current) return;
+    loginSubmitLockRef.current = true;
+    setIsSubmitting(true);
     try {
       const idPayload = clampLoginIdentifier(identifier);
       const pwPayload = clampLoginPassword(password);
-      const res = await api.post('/auth/login', {
+      const res = await postAuthLogin({
         identifier: idPayload,
         password: pwPayload,
         twoFactorToken: requires2FA ? normalizeTwoFactorInput(twoFactorToken) : undefined,
+        twoFactorChallengeToken: requires2FA && twoFactorChallengeToken ? twoFactorChallengeToken : undefined,
         cfTurnstileToken: cfTurnstileToken || undefined,
       });
 
       const data = res.data as {
         require2FA?: boolean;
+        code?: string;
+        twoFactorChallengeToken?: string;
+        twoFactorMethod?: string;
         needsLegacyReset?: boolean;
         ok?: boolean;
       };
 
-      if (data.require2FA) {
+      if (responseRequiresTwoFactorStep(data)) {
         turnstileRef.current?.reset();
+        const ch = typeof data.twoFactorChallengeToken === 'string' ? data.twoFactorChallengeToken : '';
+        setTwoFactorChallengeToken(ch);
+        setTwoFactorMethod(data.twoFactorMethod === 'email' ? 'email' : 'other');
         setRequires2FA(true);
+        setLocalError('');
+        if (data.twoFactorMethod === 'email') {
+          toast.message(t('auth.login.two_factor_email_hint'));
+        }
         return;
       }
 
@@ -149,6 +165,9 @@ export default function Login() {
       }
 
       if (data.ok) {
+        setTwoFactorChallengeToken('');
+        setRequires2FA(false);
+        setTwoFactorMethod('email');
         await checkSession({ silent: true });
         const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
         navigate(from && from !== '/login' ? from : '/dashboard');
@@ -156,9 +175,16 @@ export default function Login() {
     } catch (err: unknown) {
       if (isAxiosLikeError(err)) {
         const body = err.response?.data as Record<string, unknown> | undefined;
-        if (body?.require2FA) {
+        if (body && responseRequiresTwoFactorStep(body as { require2FA?: boolean; code?: string })) {
           turnstileRef.current?.reset();
+          const ch = typeof body.twoFactorChallengeToken === 'string' ? body.twoFactorChallengeToken : '';
+          setTwoFactorChallengeToken(ch);
+          setTwoFactorMethod(body.twoFactorMethod === 'email' ? 'email' : 'other');
           setRequires2FA(true);
+          setLocalError('');
+          if (body.twoFactorMethod === 'email') {
+            toast.message(t('auth.login.two_factor_email_hint'));
+          }
           return;
         }
         if (body?.needsLegacyReset) {
@@ -175,29 +201,38 @@ export default function Login() {
           messageKey && messageKey.startsWith('errors.security.') ? t(messageKey) : null;
 
         const errorByCode: Record<string, string> = {
-          IDENTIFIER_NOT_FOUND: t('auth.login.errors.identifier_not_found'),
+          IDENTIFIER_NOT_FOUND: t('auth.login.errors.invalid_credentials'),
           INVALID_CREDENTIALS: t('auth.login.errors.invalid_credentials'),
           INVALID_2FA: t('auth.login.errors.invalid_2fa'),
-          LOGIN_FAILED: t('auth.login.errors.login_failed'),
+          INVALID_TWO_FACTOR_CODE: t('auth.login.errors.invalid_2fa'),
+          INTERNAL_ERROR: t('auth.login.errors.internal_error'),
+          EMAIL_2FA_UNAVAILABLE: t('auth.login.errors.email_2fa_unavailable'),
+          TWO_FACTOR_CHALLENGE_REQUIRED: t('auth.login.errors.two_factor_challenge_required'),
+          TWO_FACTOR_CODE_REQUIRED: t('auth.login.errors.two_factor_code_required'),
+          ACCOUNT_DISABLED: t('auth.login.errors.account_disabled'),
+          LOGIN_FAILED: t('auth.login.errors.generic_fallback'),
           ACCOUNT_LOCKED: t('errors.security.ACCOUNT_LOCKED'),
           RATE_LIMIT_EXCEEDED: t('errors.security.RATE_LIMIT_EXCEEDED'),
           CAPTCHA_REQUIRED: t('errors.security.CAPTCHA_REQUIRED'),
           CAPTCHA_FAILED: t('errors.security.CAPTCHA_FAILED'),
         };
 
-        const rawMsg = typeof body?.message === 'string' ? safeInlineMessage(body.message) : '';
+        const fromApi = safeInlineMessage(readAuthErrorMessage(err, ''));
         setLocalError(
           fieldError ||
             i18nSecurity ||
             errorByCode[code] ||
-            rawMsg ||
-            t('auth.login.errors.login_failed'),
+            (fromApi.length > 0 ? fromApi : '') ||
+            t('auth.login.errors.generic_fallback'),
         );
         turnstileRef.current?.reset();
       } else {
-        setLocalError(t('auth.login.errors.login_failed'));
+        setLocalError(readAuthErrorMessage(err, t('auth.login.errors.generic_fallback')));
         turnstileRef.current?.reset();
       }
+    } finally {
+      setIsSubmitting(false);
+      loginSubmitLockRef.current = false;
     }
   };
 
@@ -235,7 +270,7 @@ export default function Login() {
       const msg = isAxiosLikeError(err)
         ? String((err.response?.data as { message?: string })?.message || '')
         : '';
-      toast.error(msg ? safeInlineMessage(msg) : t('auth.login.errors.login_failed'));
+      toast.error(msg ? safeInlineMessage(msg) : t('auth.login.errors.generic_fallback'));
     } finally {
       setIsResetting(false);
     }
@@ -423,8 +458,12 @@ export default function Login() {
                   </div>
                 </div>
                 <div className="text-center mb-6">
-                  <h3 className="text-white font-bold text-lg">Autenticação 2FA</h3>
-                  <p className="text-sm text-gray-400 mt-1">Insira o código do seu Authenticator.</p>
+                  <h3 className="text-white font-bold text-lg">{t('auth.login.two_factor_title')}</h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {twoFactorMethod === 'email'
+                      ? t('auth.login.two_factor_subtitle_email')
+                      : t('auth.login.two_factor_subtitle_other')}
+                  </p>
                 </div>
                 <input
                   type="text"
@@ -442,6 +481,9 @@ export default function Login() {
                   type="button"
                   onClick={() => {
                     setRequires2FA(false);
+                    setTwoFactorChallengeToken('');
+                    setTwoFactorMethod('email');
+                    setLocalError('');
                     turnstileRef.current?.reset();
                   }}
                   className="w-full text-center text-xs text-gray-500 hover:text-white transition-colors"
@@ -457,10 +499,10 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting || isLoading}
               className="w-full flex justify-center items-center gap-2 py-4 px-6 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-primary/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group"
             >
-              {isLoading ? (
+              {isSubmitting || isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>

@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { useAppKit, useAppKitAccount, useAppKitNetwork, useAppKitProvider } from '@reown/appkit/react';
-import { polygon } from '@reown/appkit/networks';
 import { useDisconnect, useSignMessage } from 'wagmi';
 import type { EIP1193Provider } from 'viem';
 import { api } from '../../store/auth';
 import { getBrowserEthereumProvider, getVerifiedBrowserEthereumProvider } from '../utils/walletProvider';
 import { isWalletConnectConfigured } from '../utils/walletConnect';
+import { useWalletAppKitBridge } from '../web3/walletAppKitBridge';
 import { subscribeInjectedEthereumEvents } from '../utils/eip1193ProviderEvents';
 import {
   clearWalletSessionClearedByUserFlag,
@@ -140,10 +139,14 @@ interface ConnectOptions {
 
 export function useWallet() {
   const { t } = useTranslation();
-  const { open } = useAppKit();
-  const { address: kitAddress, isConnected: kitConnected } = useAppKitAccount();
-  const { chainId: kitChainId, switchNetwork: appKitSwitchNetwork } = useAppKitNetwork();
-  const { walletProvider } = useAppKitProvider('eip155');
+  const {
+    openConnectModal: open,
+    kitAddress,
+    kitConnected,
+    kitChainId,
+    switchToPolygon: appKitSwitchNetwork,
+    walletProvider,
+  } = useWalletAppKitBridge();
   const { disconnectAsync } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
 
@@ -462,7 +465,7 @@ export function useWallet() {
   const switchNetwork = useCallback(async () => {
     if (walletConnectConfigured && kitConnected) {
       try {
-        await appKitSwitchNetwork(polygon);
+        await appKitSwitchNetwork();
       } catch (e: unknown) {
         console.error(e);
         const meta = readWalletErrorMeta(e);
@@ -494,7 +497,7 @@ export function useWallet() {
 
     const n = normalizeChainNum(kitChainId);
     if (n != null && n !== POLYGON_NUM) {
-      appKitSwitchNetwork(polygon).catch((e: unknown) => console.error('AppKit switch network', e));
+      appKitSwitchNetwork().catch((e: unknown) => console.error('AppKit switch network', e));
       return;
     }
 

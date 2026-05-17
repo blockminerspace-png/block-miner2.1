@@ -8,12 +8,20 @@ client/node_modules/
 # Vite build output (regenerate with `npm run build` in client/ or Docker frontend stage)
 client/dist/
 backend/dist/
+backend/_server_vendor/
 server/dist/
 /dist/
 server/node_modules/
 contracts/node_modules/
 contracts/cache/
 contracts/artifacts/
+
+# Artefactos de deploy (zip grande; não versionar)
+/blockminer-deploy.zip
+/blockminer-deploy-*.zip
+/blockminer.zip
+/blockminer-server-images-from-vm.tgz
+/assets/server-images-from-vm/
 
 # Env / secrets
 # Guia local de deploy (pode conter notas sensíveis) — não commitar

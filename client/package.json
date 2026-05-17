@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "pretest:coverage": "node -e \"require('node:fs').mkdirSync('coverage/.tmp',{recursive:true})\"",
     "test:coverage": "vitest run --coverage",
-    "test:coverage:auth": "vitest run --coverage src/pages/auth/LoginPage.test.tsx src/pages/auth/RegisterPage.test.tsx src/store/auth.test.ts --coverage.include=src/pages/auth/LoginPage.tsx --coverage.include=src/pages/auth/RegisterPage.tsx --coverage.include=src/store/auth.ts --coverage.include=src/shared/utils/registerInputGuards.ts --coverage.include=src/shared/utils/registerAllowedEmailDomains.ts"
+    "test:coverage:auth": "vitest run --coverage tests/auth/LoginPage.test.tsx tests/auth/RegisterPage.test.tsx src/store/auth.test.ts --coverage.include=src/pages/auth/login/LoginPage.tsx --coverage.include=src/pages/auth/login/login.api.ts --coverage.include=src/pages/auth/register/RegisterPage.tsx --coverage.include=src/store/auth.ts --coverage.include=src/shared/utils/registerInputGuards.ts --coverage.include=src/shared/utils/registerAllowedEmailDomains.ts"
   },
   "dependencies": {
     "@reown/appkit": "^1.8.19",

@@ -2,6 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore, api } from './auth';
 
+function mockAxiosError(data: unknown, status = 500): AxiosError {
+  const err = new AxiosError('mock failure');
+  err.response = {
+    data,
+    status,
+    statusText: 'Error',
+    headers: {},
+    config: {} as InternalAxiosRequestConfig,
+  };
+  return err;
+}
+
 function mockRegisterAxiosError(data: unknown, status = 400): AxiosError {
   const err = new AxiosError('mock register failure');
   err.response = {
@@ -56,6 +68,29 @@ describe('useAuthStore checkSession', () => {
     expect(useAuthStore.getState().authHydrated).toBe(true);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
+
+  it('treats session 401 as logged out without surfacing a login error', async () => {
+    vi.spyOn(api, 'get').mockRejectedValue(
+      mockAxiosError({ ok: false, code: 'UNAUTHENTICATED', message: 'Sessão expirada ou ausente.' }, 401),
+    );
+    await useAuthStore.getState().checkSession({ silent: true });
+    const s = useAuthStore.getState();
+    expect(s.authHydrated).toBe(true);
+    expect(s.isAuthenticated).toBe(false);
+    expect(s.user).toBe(null);
+    expect(s.error).toBe(null);
+  });
+
+  it('surfaces a clean message for session 500 without authenticating', async () => {
+    vi.spyOn(api, 'get').mockRejectedValue(
+      mockAxiosError({ ok: false, code: 'INTERNAL_ERROR', message: 'Não foi possível processar a autenticação agora.' }, 500),
+    );
+    await useAuthStore.getState().checkSession({ silent: true });
+    const s = useAuthStore.getState();
+    expect(s.authHydrated).toBe(true);
+    expect(s.isAuthenticated).toBe(false);
+    expect(s.error).toBe('Não foi possível processar a autenticação agora.');
+  });
 });
 
 describe('useAuthStore register', () => {
@@ -76,7 +111,7 @@ describe('useAuthStore register', () => {
 
   it('sets user and isAuthenticated on success', async () => {
     vi.spyOn(api, 'post').mockResolvedValue({
-      data: { user: { id: 7, username: 'u', email: 'u@gmail.com' } },
+      data: { user: { id: 7, name: 'U', username: 'u', email: 'u@gmail.com' } },
     });
     const payload = {
       username: 'validuser',
@@ -89,7 +124,7 @@ describe('useAuthStore register', () => {
     expect(out).toEqual({ success: true });
     const s = useAuthStore.getState();
     expect(s.isAuthenticated).toBe(true);
-    expect(s.user).toEqual({ id: 7, username: 'u', email: 'u@gmail.com' });
+    expect(s.user).toEqual({ id: 7, name: 'U', username: 'u', email: 'u@gmail.com' });
     expect(s.isLoading).toBe(false);
     expect(s.error).toBe(null);
     expect(api.post).toHaveBeenCalledWith('/auth/register', payload);

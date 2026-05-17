@@ -1,58 +1,34 @@
-import paramiko
-import os
+#!/usr/bin/env python3
+"""Envia `blockminer.zip` na raiz do repo para a VM (usa credenciais de `vm_config_secret.py`)."""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+ZIP_DEFAULT = REPO_ROOT / "blockminer-deploy.zip"
+ZIP_LEGACY = REPO_ROOT / "blockminer.zip"
+TARGET = SCRIPT_DIR / "vm-deploy-local-over-ssh.py"
 
 
-IP = "89.167.114.67"
-USER = "root"
-PW = "gMKbVKEsmpLw"
-LOCAL_FILE = "blockminer.zip"
-REMOTE_PATH = "/tmp/blockminer.zip"
-APP_ROOT = "/root/block-miner-v3"
+def main() -> int:
+    zip_path = ZIP_DEFAULT if ZIP_DEFAULT.is_file() else ZIP_LEGACY
+    if not zip_path.is_file():
+        print(
+            f"Coloca um arquivo ZIP na raiz do repo. Procurados: {ZIP_DEFAULT.name}, {ZIP_LEGACY.name}\n"
+            "Gera um ZIP só com ficheiros Git (sem .env):  bash scripts/make-deploy-zip.sh",
+            file=sys.stderr,
+        )
+        return 2
+    if not TARGET.is_file():
+        print(f"Missing {TARGET}", file=sys.stderr)
+        return 2
+    cmd = [sys.executable, str(TARGET), "--zip", str(zip_path), *sys.argv[1:]]
+    return int(subprocess.call(cmd))
 
-def main():
-    print(f"Connecting to {IP}...")
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(IP, username=USER, password=PW)
-
-    if not os.path.exists(LOCAL_FILE):
-        print(f"Error: {LOCAL_FILE} not found!")
-        return
-
-    def progress(done, total):
-        print(f"Uploaded {done}/{total} bytes ({100.0*done/total:.1f}%)", end='\r')
-
-    print(f"Uploading {LOCAL_FILE} to {REMOTE_PATH}...")
-    sftp = ssh.open_sftp()
-    sftp.put(os.path.abspath(LOCAL_FILE), REMOTE_PATH, callback=progress)
-    print("\nUpload complete!")
-    sftp.close()
-
-
-
-
-    print("Extracting zip and building...")
-    commands = [
-        "apt-get update && apt-get install -y unzip",
-        f"mkdir -p {APP_ROOT}",
-        f"unzip -o {REMOTE_PATH} -d {APP_ROOT}",
-        f"cd {APP_ROOT} && export BLOCKMINER_DOCKER_BUILD_NO_CACHE=1 && docker compose build --no-cache phd app && docker compose up -d db phd app",
-        f"rm {REMOTE_PATH}"
-    ]
-
-
-    for cmd in commands:
-        print(f"Executing: {cmd}")
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status != 0:
-            print(f"Command failed with status {exit_status}")
-            print(stderr.read().decode())
-        else:
-            print(stdout.read().decode())
-
-    ssh.close()
-    print("Deployment finished!")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

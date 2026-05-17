@@ -16,7 +16,7 @@ const authState = {
   checkSession: checkSessionMock,
 };
 
-vi.mock('../../constants/turnstilePublic', () => ({
+vi.mock('../../src/constants/turnstilePublic', () => ({
   resolveTurnstileSiteKeyRegister: () => '',
 }));
 
@@ -28,19 +28,19 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('../../store/auth', () => ({
+vi.mock('../../src/store/auth', () => ({
   useAuthStore: () => authState,
 }));
 
-vi.mock('../../shared/components/BrandLogo', () => ({
+vi.mock('../../src/shared/components/BrandLogo', () => ({
   default: () => <div data-testid="brand-logo" />,
 }));
 
-vi.mock('../../shared/components/auth/SocialLoginButtons', () => ({
+vi.mock('../../src/shared/components/auth/SocialLoginButtons', () => ({
   default: () => <div data-testid="social-login" />,
 }));
 
-vi.mock('../../shared/components/SiteFooter', () => ({
+vi.mock('../../src/shared/components/SiteFooter', () => ({
   default: () => <footer data-testid="site-footer" />,
 }));
 
@@ -63,7 +63,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-import Register from './RegisterPage';
+import Register from '../../src/pages/auth/register/RegisterPage';
 
 function getRegisterForm() {
   return screen.getByTestId('register-main-form') as HTMLFormElement;

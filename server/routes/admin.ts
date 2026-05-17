@@ -10,6 +10,7 @@ import * as transparencyController from "../controllers/transparencyController.j
 import { adminOfferEventsRouter } from "./admin-offer-events.js";
 import { adminMiniPassRouter } from "./admin-mini-pass.js";
 import { adminLogsRouter } from "./admin-logs.js";
+import { adminMinersRouter } from "../modules/admin-miners/index.js";
 import { requireAdminAuth } from "../middleware/adminAuth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import * as walletModel from "../models/walletModel.js";
@@ -41,17 +42,6 @@ import {
 import { getCachedIpIntelligence } from "../services/ipIntelligenceService.js";
 import { normalizeIp, getClientIp } from "../utils/clientIp.js";
 import {
-    archiveAdminMiner,
-    createAdminMiner,
-    duplicateAdminMiner,
-    getAdminMiner,
-    listAdminMiners,
-    toggleAdminMinerActive,
-    toggleAdminMinerStore,
-    updateAdminMiner,
-    validateMinerImageUrl,
-} from "../services/adminMinersService.js";
-import {
     getAdminUserProfile,
     listAdminUserLogs,
     listAdminUserMachines,
@@ -73,12 +63,6 @@ import { createAuditLogBestEffort } from "../models/auditLogModel.js";
 
 function adminErrMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function prismaErrorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" ? code : undefined;
 }
 
 function queryPositiveInt(v: unknown): number | undefined {
@@ -154,14 +138,6 @@ const uploadMedia = multer({
         else cb(new Error('Formato não suportado. Use imagens (PNG, JPG, GIF, WebP) ou vídeos (MP4, WebM).'));
     }
 });
-const uploadMinerImage = multer({
-    storage: sharedStorage,
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-        if (/^image\/(jpeg|png|webp)$/.test(file.mimetype)) cb(null, true);
-        else cb(new Error('Formato não suportado. Use JPG, PNG ou WebP.'));
-    }
-});
 
 // Protect all admin routes
 adminRouter.use(requireAdminAuth, adminLimiter);
@@ -169,6 +145,7 @@ adminRouter.use(requireAdminAuth, adminLimiter);
 adminRouter.use(adminOfferEventsRouter);
 adminRouter.use(adminMiniPassRouter);
 adminRouter.use("/logs", adminLogsRouter);
+adminRouter.use(adminMinersRouter);
 
 // Upload de imagem (event/miner covers)
 adminRouter.post("/upload-image", upload.single("image"), (req, res) => {
@@ -510,143 +487,6 @@ adminRouter.post("/users/:id/unban", async (req, res) => {
         }
         res.status(500).json({ ok: false, message: "Unable to unban user." });
     }
-});
-
-// Miners
-adminRouter.get("/miners", async (req, res) => {
-    try {
-        const data = await listAdminMiners(prisma, req.query);
-        type MinerRowDto = (typeof data.miners)[number];
-        type EventAugmentedMiner = {
-          id: string;
-          name: string;
-          baseHashRate: number;
-          price: number;
-          slotSize: number;
-          imageUrl: string | null;
-          isActive: boolean;
-          showInShop: boolean;
-          slug: null;
-          createdAt: Date;
-        };
-        const miners: Array<MinerRowDto | EventAugmentedMiner> = [...data.miners];
-        if (req.query.withEvents === '1') {
-            const eventMiners = await prisma.eventMiner.findMany({
-                where: { isActive: true, event: { isActive: true, deletedAt: null } },
-                include: { event: { select: { title: true } } },
-                orderBy: { id: 'asc' }
-            });
-            for (const em of eventMiners) {
-                miners.push({
-                    id: `event_${em.id}`,
-                    name: `[Evento: ${em.event.title}] ${em.name}`,
-                    baseHashRate: Number(em.hashRate),
-                    price: 0,
-                    slotSize: Number(em.slotSize ?? 1),
-                    imageUrl: em.imageUrl && String(em.imageUrl).trim() !== "" ? String(em.imageUrl).trim() : null,
-                    isActive: Boolean(em.isActive),
-                    showInShop: false,
-                    slug: null,
-                    createdAt: em.createdAt
-                });
-            }
-        }
-
-        res.json({ ...data, miners });
-    } catch (error) {
-        console.error('[admin miners error]', adminErrMessage(error));
-        if (adminErrMessage(error).startsWith("invalid_")) {
-            return res.status(400).json({ ok: false, message: "Invalid miner query." });
-        }
-        res.status(500).json({ ok: false, message: "Load failed" });
-    }
-});
-adminRouter.post("/miners", async (req, res) => {
-    try {
-        res.json(await createAdminMiner(prisma, req.body));
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner payload." });
-        if (prismaErrorCode(error) === "P2002") return res.status(409).json({ ok: false, message: "Slug must be unique." });
-        res.status(500).json({ ok: false, message: "Creation failed" });
-    }
-});
-adminRouter.get("/miners/:id", async (req, res) => {
-    try {
-        const data = await getAdminMiner(prisma, req.params.id);
-        if (!data) return res.status(404).json({ ok: false, message: "Miner not found." });
-        res.json(data);
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner id." });
-        res.status(500).json({ ok: false, message: "Load failed" });
-    }
-});
-adminRouter.patch("/miners/:id", async (req, res) => {
-    try {
-        const data = await updateAdminMiner(prisma, req.params.id, req.body);
-        if (!data) return res.status(404).json({ ok: false, message: "Miner not found." });
-        res.json(data);
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner payload." });
-        if (prismaErrorCode(error) === "P2002") return res.status(409).json({ ok: false, message: "Slug must be unique." });
-        res.status(500).json({ ok: false, message: "Update failed" });
-    }
-});
-adminRouter.put("/miners/:id", async (req, res) => {
-    try {
-        const data = await updateAdminMiner(prisma, req.params.id, req.body);
-        if (!data) return res.status(404).json({ ok: false, message: "Miner not found." });
-        res.json(data);
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner payload." });
-        if (prismaErrorCode(error) === "P2002") return res.status(409).json({ ok: false, message: "Slug must be unique." });
-        res.status(500).json({ ok: false, message: "Update failed" });
-    }
-});
-adminRouter.post("/miners/:id/duplicate", async (req, res) => {
-    try {
-        const data = await duplicateAdminMiner(prisma, req.params.id);
-        if (!data) return res.status(404).json({ ok: false, message: "Miner not found." });
-        res.json(data);
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner id." });
-        res.status(500).json({ ok: false, message: "Duplicate failed" });
-    }
-});
-adminRouter.post("/miners/:id/archive", async (req, res) => {
-    try {
-        res.json(await archiveAdminMiner(prisma, req.params.id));
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner id." });
-        res.status(500).json({ ok: false, message: "Archive failed" });
-    }
-});
-adminRouter.post("/miners/:id/toggle-store", async (req, res) => {
-    try {
-        res.json(await toggleAdminMinerStore(prisma, req.params.id, req.body?.showInShop ?? req.body?.isStoreVisible));
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner id." });
-        res.status(500).json({ ok: false, message: "Toggle failed" });
-    }
-});
-adminRouter.post("/miners/:id/toggle-active", async (req, res) => {
-    try {
-        res.json(await toggleAdminMinerActive(prisma, req.params.id, req.body?.isActive));
-    } catch (error) {
-        if (adminErrMessage(error).startsWith("invalid_")) return res.status(400).json({ ok: false, message: "Invalid miner id." });
-        res.status(500).json({ ok: false, message: "Toggle failed" });
-    }
-});
-adminRouter.post("/miners/upload-image", (req, res) => {
-    uploadMinerImage.single("image")(req, res, (err: unknown) => {
-      try {
-        if (err) return res.status(400).json({ ok: false, message: adminErrMessage(err) || "Upload inválido." });
-        if (!req.file) return res.status(400).json({ ok: false, message: "Nenhum arquivo enviado." });
-        const url = validateMinerImageUrl(`/uploads/${req.file.filename}`);
-        res.json({ ok: true, url });
-      } catch {
-        res.status(400).json({ ok: false, message: "Imagem inválida." });
-      }
-    });
 });
 
 // Faucet — imagem/poder vêm do registro Miner ligado ao FaucetReward (persistidos no DB)

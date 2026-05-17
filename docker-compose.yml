@@ -1,5 +1,6 @@
 # Stack: nginx + app + db (three containers). Polygon HD: set START_PHD_IN_APP_CONTAINER=true
 # in .env.production so entrypoint runs server/phdServer.js inside the app container.
+# Optional `.env` (gitignored) is loaded after `.env.production` so overrides win in containers.
 name: block-miner
 
 services:
@@ -36,6 +37,9 @@ services:
       context: .
       args:
         VITE_DISABLE_ADBLOCK_DETECTION: ${VITE_DISABLE_ADBLOCK_DETECTION:-}
+        # Baked at client build in Dockerfile; must be in shell env or use:
+        #   docker compose --env-file .env.production build app
+        VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -45,6 +49,8 @@ services:
         condition: service_healthy
     env_file:
       - .env.production
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -66,6 +72,7 @@ services:
       context: .
       args:
         VITE_DISABLE_ADBLOCK_DETECTION: ${VITE_DISABLE_ADBLOCK_DETECTION:-}
+        VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
     depends_on:
       db:
         condition: service_healthy
@@ -73,6 +80,8 @@ services:
         condition: service_healthy
     env_file:
       - .env.production
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"

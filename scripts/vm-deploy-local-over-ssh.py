@@ -8,21 +8,26 @@ exact tree from **your local** `git HEAD` (committed files only).
 From repo root:
 
   python3 scripts/vm-deploy-local-over-ssh.py
+  python3 scripts/vm-deploy-local-over-ssh.py --zip ~/Documentos/BlockMiner\\ 2.1.zip
+  BLOCKMINER_DEPLOY_ZIP=/path/to/file.zip python3 scripts/vm-deploy-local-over-ssh.py
 
 Credentials: same as `deploy-test-vm-remote.py` — `scripts/vm_config_secret.py`
 (copy from `vm_config_secret.example.py`) or env `VM_IP`, `VM_USER`, `VM_PASSWORD`.
 
 Optional env:
+  BLOCKMINER_DEPLOY_ZIP=path         — upload this .zip instead of `git archive` (same as --zip)
   VM_APP_ROOT=/root/block-miner-v3   — remote app directory (must exist)
-  BLOCKMINER_DOCKER_BUILD_NO_CACHE=1 — `docker compose build --no-cache phd app`
+  BLOCKMINER_DOCKER_BUILD_NO_CACHE=1 — `docker compose build --no-cache app worker`
   SKIP_DOCKER=1                     — only upload + extract tracked files (no compose)
 
 Requires: paramiko, local `git`, remote `docker` + same compose layout as production deploy.
 """
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -72,6 +77,28 @@ def load_secret() -> tuple[str, str, str]:
     return ip, login, pw
 
 
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Deploy BlockMiner tree to VM over SSH (Paramiko)")
+    p.add_argument(
+        "--zip",
+        metavar="PATH",
+        default=os.environ.get("BLOCKMINER_DEPLOY_ZIP", "").strip() or None,
+        help="Local .zip to upload instead of git-archive HEAD (or set BLOCKMINER_DEPLOY_ZIP)",
+    )
+    return p.parse_args(argv)
+
+
+def _resolve_zip_path(raw: str) -> Path:
+    z = Path(raw).expanduser()
+    if not z.is_absolute():
+        z = (REPO_ROOT / z).resolve()
+    if not z.is_file():
+        raise SystemExit(f"ZIP not found or not a file: {z}")
+    if z.suffix.lower() != ".zip":
+        raise SystemExit(f"Expected a .zip file, got: {z}")
+    return z
+
+
 def _make_gzipped_archive() -> Path:
     """Tracked files only at HEAD (same as `git archive`), compressed (shell pipe avoids pipe deadlocks)."""
     tmp = Path(tempfile.mkdtemp(prefix="bm-deploy-"))
@@ -94,45 +121,96 @@ def _make_gzipped_archive() -> Path:
     return out
 
 
-def _remote_script(app_root: str) -> str:
+def _remote_script(app_root: str, *, archive_basename: str, extract_kind: str) -> str:
+    """extract_kind: 'tgz' (tar.gz) or 'zip'."""
     no_cache = "export BLOCKMINER_DOCKER_BUILD_NO_CACHE=1\n" if _docker_no_cache_enabled() else ""
+    remote_arc = f"/tmp/{archive_basename}"
+    # Never let `unzip -o` / tar replace server-side secrets: backup env files, extract, restore into final APP_ROOT.
+    env_restore_loop = """for f in .env .env.production .env.production.vm-backup deploy.secrets.local; do
+  if [[ -f "$BM_ENV_BACKUP/$f" ]]; then cp -a "$BM_ENV_BACKUP/$f" "$APP_ROOT/$f"; fi
+done
+rm -rf "$BM_ENV_BACKUP"
+"""
+    env_backup_loop = """BM_ENV_BACKUP="$(mktemp -d /tmp/bm-env-XXXXXX)"
+for f in .env .env.production .env.production.vm-backup deploy.secrets.local; do
+  if [[ -f "$APP_ROOT/$f" ]]; then cp -a "$APP_ROOT/$f" "$BM_ENV_BACKUP/$f"; fi
+done
+"""
+    compose_discover = """if [[ ! -f "$APP_ROOT/docker-compose.yml" ]]; then
+  for cand in "$APP_ROOT"/*; do
+    if [[ -d "$cand" && -f "$cand/docker-compose.yml" ]]; then
+      APP_ROOT="$cand"
+      break
+    fi
+  done
+fi
+"""
+    if extract_kind == "zip":
+        extract = f'''command -v unzip >/dev/null 2>&1 || {{ apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unzip; }}
+mkdir -p "$APP_ROOT"
+{env_backup_loop}
+unzip -o -q "{remote_arc}" -d "$APP_ROOT"
+rm -f "{remote_arc}"
+{compose_discover}
+{env_restore_loop}
+'''
+    else:
+        extract = f'''mkdir -p "$APP_ROOT"
+{env_backup_loop}
+cd "$APP_ROOT"
+tar xzf "{remote_arc}"
+rm -f "{remote_arc}"
+{compose_discover}
+{env_restore_loop}
+'''
     if _skip_docker():
         return f"""set -euo pipefail
-{no_cache}APP_ROOT={app_root}
-cd "$APP_ROOT"
-tar xzf /tmp/blockminer_local_deploy.tgz
-rm -f /tmp/blockminer_local_deploy.tgz
-echo "[vm] extract OK (SKIP_DOCKER=1)"
+{no_cache}APP_ROOT={shlex.quote(app_root)}
+{extract}echo "[vm] extract OK (SKIP_DOCKER=1)"
 """
     return f"""set -euo pipefail
-{no_cache}APP_ROOT={app_root}
-cd "$APP_ROOT"
-tar xzf /tmp/blockminer_local_deploy.tgz
-rm -f /tmp/blockminer_local_deploy.tgz
+{no_cache}APP_ROOT={shlex.quote(app_root)}
+{extract}cd "$APP_ROOT"
 compose=(docker compose)
 if [[ -f .env.production ]]; then compose+=(--env-file .env.production); fi
 if [[ "${{BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}}" == "1" ]]; then
-  "${{compose[@]}}" build --no-cache phd app
+  "${{compose[@]}}" build --no-cache app worker
 else
-  "${{compose[@]}}" build phd app
+  "${{compose[@]}}" build app worker
 fi
-"${{compose[@]}}" up -d db phd app
+"${{compose[@]}}" up -d --remove-orphans
 "${{compose[@]}}" exec -T app npx prisma migrate deploy --schema=server/prisma/schema.prisma || true
-COMPOSE_PROFILES=proxy "${{compose[@]}}" up -d nginx || true
-curl -sS -o /dev/null -w "health:%{{http_code}}\\n" http://127.0.0.1:3001/health || true
+# Nginx can start while host :80 is still held (e.g. systemd nginx); Docker then leaves the container "Up" with no published ports. Heal once.
+if ! ss -tlnp 2>/dev/null | grep -qF ':80 '; then
+  echo "[vm] host :80 not bound after compose; force-recreating nginx"
+  "${{compose[@]}}" up -d --force-recreate --no-deps nginx || true
+fi
+curl -sS -o /dev/null -w "health:%{{http_code}}\\n" http://127.0.0.1:3000/health || true
 echo "[vm] docker steps finished"
 """
 
 
-def main() -> int:
-    if not (REPO_ROOT / ".git").is_dir():
-        raise SystemExit(f"Not a git repo: {REPO_ROOT}")
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv if argv is not None else sys.argv[1:])
 
+    use_zip = bool(args.zip)
+    if use_zip:
+        archive = _resolve_zip_path(args.zip or "")
+        archive_is_temp = False
+        remote_name = "blockminer_local_deploy.zip"
+        extract_kind = "zip"
+        print(f"[local] using zip {archive.stat().st_size} bytes -> {archive}", flush=True)
+    else:
+        if not (REPO_ROOT / ".git").is_dir():
+            raise SystemExit(f"Not a git repo: {REPO_ROOT}")
+        archive = _make_gzipped_archive()
+        archive_is_temp = True
+        remote_name = "blockminer_local_deploy.tgz"
+        extract_kind = "tgz"
+
+    remote_path = f"/tmp/{remote_name}"
     host, user, password = load_secret()
     app_root = (os.environ.get("VM_APP_ROOT") or "/root/block-miner-v3").strip()
-
-    archive = _make_gzipped_archive()
-    remote_tgz = "/tmp/blockminer_local_deploy.tgz"
 
     try:
         client = paramiko.SSHClient()
@@ -151,7 +229,7 @@ def main() -> int:
         size = archive.stat().st_size
         t0 = time.monotonic()
         sftp = client.open_sftp()
-        print(f"[sftp] {archive.name} -> {user}@{host}:{remote_tgz} ({size} bytes)", flush=True)
+        print(f"[sftp] {archive.name} -> {user}@{host}:{remote_path} ({size} bytes)", flush=True)
 
         last = [0]
 
@@ -164,13 +242,13 @@ def main() -> int:
                 pct = 100.0 * done / total
                 print(f"[sftp] {done / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} MiB ({pct:.0f}%)", flush=True)
 
-        sftp.put(str(archive), remote_tgz, callback=progress)
+        sftp.put(str(archive), remote_path, callback=progress)
         sftp.close()
         print(f"[sftp] upload done in {time.monotonic() - t0:.1f}s", flush=True)
 
         # No PTY: avoids an interactive prompt hanging the session after long docker steps.
         stdin, stdout, stderr = client.exec_command("bash -s", get_pty=False)
-        stdin.write(_remote_script(app_root))
+        stdin.write(_remote_script(app_root, archive_basename=remote_name, extract_kind=extract_kind))
         stdin.close()
         ch = stdout.channel
         while True:
@@ -189,11 +267,12 @@ def main() -> int:
         client.close()
         return int(code)
     finally:
-        try:
-            archive.unlink(missing_ok=True)
-            archive.parent.rmdir()
-        except OSError:
-            pass
+        if archive_is_temp:
+            try:
+                archive.unlink(missing_ok=True)
+                archive.parent.rmdir()
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

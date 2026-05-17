@@ -15,9 +15,19 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { api } from '../../store/auth';
 import { formatHashrate } from '../../shared/utils/machine';
 import { readAxiosResponseMessage } from './admin.api';
+import {
+  archiveAdminMiner,
+  createAdminMiner,
+  duplicateAdminMiner,
+  fetchAdminMiners,
+  toggleAdminMinerActive,
+  toggleAdminMinerStore,
+  updateAdminMiner,
+  uploadAdminMinerImage,
+} from './miners/adminMiners.api';
+import type { AdminMinerApiRow } from './miners/adminMiners.types';
 
 const FALLBACK_IMAGE = '/icon.png';
 
@@ -44,17 +54,6 @@ type MinerFormState = {
   metadata: string;
   stockSold?: number;
 };
-
-type AdminMinerApiRow = Record<string, unknown> & { id?: number };
-
-type MinersListResponse = {
-  miners?: AdminMinerApiRow[];
-  total?: number | string;
-};
-
-type MinerMutationResponse = { ok?: boolean };
-
-type UploadImageResponse = { url?: string };
 
 const EMPTY_FORM: MinerFormState = {
   name: '',
@@ -187,20 +186,26 @@ export default function AdminMiners() {
   const [drawer, setDrawer] = useState<DrawerMode>(null);
   const [form, setForm] = useState<MinerFormState>(EMPTY_FORM);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const limit = 25;
 
   const fetchMiners = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(limit), filter, sort });
-      if (q.trim()) params.set('q', q.trim());
-      const res = await api.get<MinersListResponse>(`/admin/miners?${params.toString()}`);
-      setMiners((res.data.miners || []).map((row) => normalizeMiner(row)));
-      setTotal(Number(res.data.total || 0));
+      const data = await fetchAdminMiners({ page, limit, filter, sort, q: q.trim() || undefined }, controller.signal);
+      setMiners((data.miners || []).map((row) => normalizeMiner(row)));
+      setTotal(Number(data.total || 0));
     } catch (err: unknown) {
+      if (typeof err === 'object' && err !== null && 'name' in err && (err as { name?: unknown }).name === 'CanceledError') return;
       toast.error(readAxiosResponseMessage(err) || 'Erro ao carregar mineradoras');
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setLoading(false);
+      }
     }
   }, [page, filter, sort, q]);
 
@@ -226,11 +231,8 @@ export default function AdminMiners() {
     setSaving(true);
     try {
       const payload = makePayload(form);
-      const res =
-        drawer === 'edit' && form.id != null
-          ? await api.patch<MinerMutationResponse>(`/admin/miners/${form.id}`, payload)
-          : await api.post<MinerMutationResponse>('/admin/miners', payload);
-      if (res.data.ok) {
+      const res = drawer === 'edit' && form.id != null ? await updateAdminMiner(form.id, payload) : await createAdminMiner(payload);
+      if (res.ok) {
         toast.success(drawer === 'edit' ? 'Mineradora atualizada' : 'Mineradora criada');
         setDrawer(null);
         void fetchMiners();
@@ -248,10 +250,8 @@ export default function AdminMiners() {
     const formData = new FormData();
     formData.append('image', file);
     try {
-      const res = await api.post<UploadImageResponse>('/admin/miners/upload-image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      if (res.data.url) setForm((prev) => ({ ...prev, imageUrl: res.data.url as string }));
+      const res = await uploadAdminMinerImage(formData);
+      if (res.url) setForm((prev) => ({ ...prev, imageUrl: res.url as string }));
       toast.success('Imagem enviada');
     } catch (err: unknown) {
       toast.error(readAxiosResponseMessage(err) || 'Upload recusado');
@@ -263,10 +263,10 @@ export default function AdminMiners() {
   const quickAction = async (miner: MinerFormState, action: QuickAction) => {
     if (miner.id == null) return;
     try {
-      if (action === 'duplicate') await api.post(`/admin/miners/${miner.id}/duplicate`);
-      if (action === 'archive') await api.post(`/admin/miners/${miner.id}/archive`);
-      if (action === 'store') await api.post(`/admin/miners/${miner.id}/toggle-store`, { showInShop: !miner.showInShop });
-      if (action === 'active') await api.post(`/admin/miners/${miner.id}/toggle-active`, { isActive: !miner.isActive });
+      if (action === 'duplicate') await duplicateAdminMiner(miner.id);
+      if (action === 'archive') await archiveAdminMiner(miner.id);
+      if (action === 'store') await toggleAdminMinerStore(miner.id, !miner.showInShop);
+      if (action === 'active') await toggleAdminMinerActive(miner.id, !miner.isActive);
       toast.success('Ação aplicada');
       void fetchMiners();
     } catch (err: unknown) {

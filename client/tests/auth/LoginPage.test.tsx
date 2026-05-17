@@ -35,20 +35,20 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('../../store/auth', () => ({
+vi.mock('../../src/store/auth', () => ({
   useAuthStore: () => authState,
   api: { post: (...args: unknown[]) => apiPostMock(...args), get: vi.fn() },
 }));
 
-vi.mock('../../shared/components/BrandLogo', () => ({
+vi.mock('../../src/shared/components/BrandLogo', () => ({
   default: () => <div data-testid="brand-logo" />,
 }));
 
-vi.mock('../../shared/components/auth/SocialLoginButtons', () => ({
+vi.mock('../../src/shared/components/auth/SocialLoginButtons', () => ({
   default: () => <div data-testid="social-login" />,
 }));
 
-vi.mock('../../shared/components/auth/TurnstileField', () => ({
+vi.mock('../../src/shared/components/auth/TurnstileField', () => ({
   default: React.forwardRef((_props: unknown, ref: React.Ref<{ reset: () => void }>) => {
     React.useImperativeHandle(ref, () => ({ reset: vi.fn() }));
     return null;
@@ -71,7 +71,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-import Login from './LoginPage';
+import Login from '../../src/pages/auth/login/LoginPage';
 
 function getLoginForm() {
   return screen.getByTestId('login-main-form') as HTMLFormElement;
@@ -160,8 +160,24 @@ describe('Login page', () => {
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/wallet'));
   });
 
+  it('enters 2FA step when API returns code TWO_FACTOR_REQUIRED without require2FA', async () => {
+    apiPostMock.mockResolvedValue({
+      data: { ok: false, code: 'TWO_FACTOR_REQUIRED', twoFactorChallengeToken: 'challenge-xyz' },
+    });
+    renderLogin();
+    fireEvent.change(screen.getByLabelText('auth.login.identifier_label'), { target: { value: 'u@gmail.com' } });
+    fireEvent.change(screen.getByLabelText('auth.login.password_label'), { target: { value: 'pass123456' } });
+    fireEvent.submit(getLoginForm());
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('000000')).toBeInTheDocument();
+    });
+    expect(apiPostMock).toHaveBeenCalledTimes(1);
+  });
+
   it('enters 2FA step when API returns require2FA', async () => {
-    apiPostMock.mockResolvedValue({ data: { require2FA: true } });
+    apiPostMock.mockResolvedValue({
+      data: { require2FA: true, twoFactorChallengeToken: 'challenge-abc' },
+    });
     renderLogin();
     fireEvent.change(screen.getByLabelText('auth.login.identifier_label'), { target: { value: 'u@gmail.com' } });
     fireEvent.change(screen.getByLabelText('auth.login.password_label'), { target: { value: 'pass123456' } });
@@ -173,7 +189,9 @@ describe('Login page', () => {
   });
 
   it('blocks 2FA submit until 6 digits', async () => {
-    apiPostMock.mockResolvedValueOnce({ data: { require2FA: true } });
+    apiPostMock.mockResolvedValueOnce({
+      data: { require2FA: true, twoFactorChallengeToken: 'challenge-abc' },
+    });
     renderLogin();
     fireEvent.change(screen.getByLabelText('auth.login.identifier_label'), { target: { value: 'u@gmail.com' } });
     fireEvent.change(screen.getByLabelText('auth.login.password_label'), { target: { value: 'pass123456' } });
@@ -188,8 +206,12 @@ describe('Login page', () => {
     expect(apiPostMock).toHaveBeenCalledTimes(1);
   });
 
-  it('submits 2FA code and completes login', async () => {
-    apiPostMock.mockResolvedValueOnce({ data: { require2FA: true } }).mockResolvedValueOnce({ data: { ok: true } });
+  it('submits 2FA code and challenge token and completes login', async () => {
+    apiPostMock
+      .mockResolvedValueOnce({
+        data: { require2FA: true, twoFactorChallengeToken: 'challenge-abc' },
+      })
+      .mockResolvedValueOnce({ data: { ok: true } });
     renderLogin();
     fireEvent.change(screen.getByLabelText('auth.login.identifier_label'), { target: { value: 'u@gmail.com' } });
     fireEvent.change(screen.getByLabelText('auth.login.password_label'), { target: { value: 'pass123456' } });
@@ -204,6 +226,7 @@ describe('Login page', () => {
         '/auth/login',
         expect.objectContaining({
           twoFactorToken: '123456',
+          twoFactorChallengeToken: 'challenge-abc',
         }),
       ),
     );
@@ -222,6 +245,35 @@ describe('Login page', () => {
     await waitFor(() => {
       expect(screen.getByText('auth.login.errors.invalid_credentials')).toBeInTheDocument();
     });
+  });
+
+  it('uses API message when code is unknown but message is present', async () => {
+    apiPostMock.mockRejectedValue({
+      response: { data: { code: 'UNKNOWN', message: 'Custom server message' } },
+    });
+    renderLogin();
+    fireEvent.change(screen.getByLabelText('auth.login.identifier_label'), { target: { value: 'x@gmail.com' } });
+    fireEvent.change(screen.getByLabelText('auth.login.password_label'), { target: { value: 'wrongpass1' } });
+    fireEvent.submit(getLoginForm());
+    await waitFor(() => {
+      expect(screen.getByText('Custom server message')).toBeInTheDocument();
+    });
+  });
+
+  it('does not fire second login request while first is in flight', async () => {
+    let resolveFirst: (v: unknown) => void;
+    const first = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+    apiPostMock.mockReturnValueOnce(first as Promise<unknown>);
+    renderLogin();
+    fireEvent.change(screen.getByLabelText('auth.login.identifier_label'), { target: { value: 'x@gmail.com' } });
+    fireEvent.change(screen.getByLabelText('auth.login.password_label'), { target: { value: 'password12' } });
+    fireEvent.submit(getLoginForm());
+    fireEvent.submit(getLoginForm());
+    expect(apiPostMock).toHaveBeenCalledTimes(1);
+    resolveFirst!({ data: { ok: true } });
+    await waitFor(() => expect(apiPostMock).toHaveBeenCalledTimes(1));
   });
 
   it('redirects when already authenticated', () => {

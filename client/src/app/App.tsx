@@ -6,8 +6,8 @@ import { useAuthStore } from '../store/auth';
 
 /** Eager: first paint must not wait on a second chunk fetch (lazy was a full-screen spinner on `/`). */
 import Landing from '../pages/Landing';
-import Login from '../pages/auth/LoginPage';
-import Register from '../pages/auth/RegisterPage';
+import Login from '../pages/auth/login/LoginPage';
+import Register from '../pages/auth/register/RegisterPage';
 
 import Sidebar from '../shared/components/Sidebar';
 import Header from '../shared/components/Header';
