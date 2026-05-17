@@ -15,6 +15,7 @@ import { setMiningEngine } from "./src/miningEngineInstance.js";
 import { setMiningEngine as setRuntimeMiningEngine } from "./src/runtime/miningRuntime.js";
 import loggerLib, { logUnhandledError } from "./utils/logger.js";
 import { findBlockMinerProjectRoot } from "./utils/projectRoot.js";
+import { resolveWalletConnectProjectIdFromEnv } from "./utils/walletConnectProjectId.js";
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
 import {
@@ -334,8 +335,8 @@ app.get("/{*all}", async (req, res) => {
         : "",
     );
 
-    // WalletConnect: SPA may be built without VITE_*; Node still has .env.production at runtime.
-    const wcId = String(process.env.VITE_WALLETCONNECT_PROJECT_ID || "").trim();
+    // WalletConnect: inject only a valid 32-char hex project id (never placeholders).
+    const wcId = resolveWalletConnectProjectIdFromEnv();
     const wcAppUrl = String(
       process.env.VITE_PUBLIC_WALLET_APP_URL || process.env.APP_URL || ""
     )

@@ -17,7 +17,7 @@ import {
   toggleAdminMinerStoreForAdmin,
   updateAdminMinerForAdmin,
 } from "./adminMiners.service.js";
-import { ADMIN_MINERS_ERROR, prismaErrorCode, unknownErrorMessage } from "./adminMiners.errors.js";
+import { ADMIN_MINERS_ERROR, isPrismaSchemaMismatch, prismaErrorCode, unknownErrorMessage } from "./adminMiners.errors.js";
 
 const logger = loggerLib.child("AdminMiners");
 
@@ -36,6 +36,15 @@ function handleAdminMinersError(res: Response, error: unknown, fallbackMessage: 
   if (prismaErrorCode(error) === "P2002") {
     return sendFailure(res, 409, ADMIN_MINERS_ERROR.DUPLICATE_SLUG, "Slug já está em uso.");
   }
+  if (isPrismaSchemaMismatch(error)) {
+    logger.error("admin_miners.schema_out_of_date", { message: unknownErrorMessage(error) });
+    return sendFailure(
+      res,
+      503,
+      ADMIN_MINERS_ERROR.SCHEMA_OUT_OF_DATE,
+      "Catálogo de mineradoras requer atualização do banco (migration admin_miner_catalog).",
+    );
+  }
   logger.error("admin_miners.unexpected", { message: unknownErrorMessage(error) });
   return sendFailure(res, 500, ADMIN_MINERS_ERROR.INTERNAL_ERROR, fallbackMessage);
 }
@@ -47,6 +56,15 @@ export async function listAdminMinersController(req: Request, res: Response) {
   } catch (error: unknown) {
     if (isInvalidInput(error)) {
       return sendFailure(res, 400, ADMIN_MINERS_ERROR.INVALID_QUERY, "Consulta de mineradoras inválida.");
+    }
+    if (isPrismaSchemaMismatch(error)) {
+      logger.error("admin_miners.list.schema_out_of_date", { message: unknownErrorMessage(error) });
+      return sendFailure(
+        res,
+        503,
+        ADMIN_MINERS_ERROR.SCHEMA_OUT_OF_DATE,
+        "Catálogo de mineradoras requer atualização do banco (migration admin_miner_catalog).",
+      );
     }
     logger.error("admin_miners.list.unexpected", { message: unknownErrorMessage(error) });
     return sendFailure(res, 500, ADMIN_MINERS_ERROR.INTERNAL_ERROR, "Não foi possível carregar mineradoras agora.");
