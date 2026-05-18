@@ -170,21 +170,9 @@ rm -f "{remote_arc}"
 """
     return f"""set -euo pipefail
 {no_cache}APP_ROOT={shlex.quote(app_root)}
-{extract}cd "$APP_ROOT"
-compose=(docker compose)
-if [[ -f .env.production ]]; then compose+=(--env-file .env.production); fi
-if [[ "${{BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}}" == "1" ]]; then
-  "${{compose[@]}}" build --no-cache app worker
-else
-  "${{compose[@]}}" build app worker
-fi
-"${{compose[@]}}" up -d --remove-orphans
-"${{compose[@]}}" exec -T app npx prisma migrate deploy --schema=server/prisma/schema.prisma || true
-# Nginx can start while host :80 is still held (e.g. systemd nginx); Docker then leaves the container "Up" with no published ports. Heal once.
-if ! ss -tlnp 2>/dev/null | grep -qF ':80 '; then
-  echo "[vm] host :80 not bound after compose; force-recreating nginx"
-  "${{compose[@]}}" up -d --force-recreate --no-deps nginx || true
-fi
+{extract}export APP_ROOT
+export BLOCKMINER_DOCKER_BUILD_NO_CACHE="${{BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}}"
+bash "$APP_ROOT/scripts/docker-ensure-block-miner-stack.sh"
 curl -sS -o /dev/null -w "health:%{{http_code}}\\n" http://127.0.0.1:3000/health || true
 echo "[vm] docker steps finished"
 """

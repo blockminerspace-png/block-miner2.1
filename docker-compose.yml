@@ -1,5 +1,7 @@
-# Stack: nginx + app + db (three containers). Polygon HD: set START_PHD_IN_APP_CONTAINER=true
-# in .env.production so entrypoint runs server/phdServer.js inside the app container.
+# Official production stack — exactly these 5 containers (fixed names via container_name):
+#   block-miner-db, block-miner-redis, block-miner-app, block-miner-worker, block-miner-nginx
+# Deploy must use: scripts/docker-ensure-block-miner-stack.sh (or vm-deploy-local-over-ssh.py)
+# Do not run BTCPay/support compose on the same host without stopping them first.
 # Optional `.env` (gitignored) is loaded after `.env.production` so overrides win in containers.
 name: block-miner
 

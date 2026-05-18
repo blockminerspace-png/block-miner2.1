@@ -94,26 +94,13 @@ fi
 log "Post-update commit: $(git rev-parse HEAD)"
 
 if command -v docker >/dev/null 2>&1; then
-  cd "$APP_ROOT"
-  compose=(docker compose)
-  if [[ -f .env.production ]]; then
-    compose+=(--env-file .env.production)
-  fi
-
-  if [[ "$BLOCKMINER_DOCKER_BUILD_NO_CACHE" == "1" ]]; then
-    log "Docker Compose: build --no-cache phd + app (BLOCKMINER_DOCKER_BUILD_NO_CACHE=1)"
-    "${compose[@]}" build --no-cache phd app
-  else
-    log "Docker Compose: build phd + app (cached layers)"
-    "${compose[@]}" build phd app
-  fi
-  log "Docker Compose: up db + phd + app (env-file if present)"
-  "${compose[@]}" up -d db phd app
-
+  export APP_ROOT
+  export BLOCKMINER_DOCKER_BUILD_NO_CACHE
   if [[ "$START_NGINX_PROXY" == "1" ]]; then
-    log "Docker Compose: start nginx (profile proxy)"
-    COMPOSE_PROFILES=proxy "${compose[@]}" up -d nginx || log "WARN: nginx start failed (missing certs, ports, or profile)"
+    log "NOTE: START_NGINX_PROXY is ignored; nginx is always part of the official 5-container stack."
   fi
+  log "Docker: official stack only (db, redis, app, worker, nginx)"
+  bash "$APP_ROOT/scripts/docker-ensure-block-miner-stack.sh"
 else
   log "WARN: docker not found; skip container restart. Install deps / PM2 manually."
 fi
