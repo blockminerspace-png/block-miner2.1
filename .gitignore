@@ -30,6 +30,8 @@ deploy.md
 deploy.secrets.local
 # deploy.py na raiz é versionado (sem segredos); segredos só em deploy.secrets.local ou BLOCKMINER_VPS_PW
 scripts/vm_config_secret.py
+# One-off local VM deploy helpers (Paramiko); keep out of repo
+scripts/vm-deploy-*.sh
 scripts/deploy_credentials.local.py
 .deploy-pw.txt
 deploy-credentials.local.md
