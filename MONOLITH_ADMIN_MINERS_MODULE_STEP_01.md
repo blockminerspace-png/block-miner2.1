@@ -1,153 +1,254 @@
 # MONOLITH ADMIN MINERS MODULE STEP 01
 
-## Correção do 500 em `/api/admin/miners`
+Relatório de fechamento do módulo **Admin Miners** (backend + frontend + testes), sem alterar Wallet.
 
-1. **Causa real do 500**
-   - Em produção, `GET /api/admin/miners?page=1&limit=25&filter=all&sort=recent` retornava 500 após aproximadamente 10s.
-   - Log real capturado: `[admin miners error] timeout exceeded when trying to connect`.
-   - No mesmo período havia múltiplos erros de conexão Prisma/PG no app (`timeout exceeded when trying to connect`) em endpoints autenticados e workers, indicando saturação/indisponibilidade de conexão com o banco.
-   - A listagem de mineradoras ainda fazia `_count.userOwnedMachines` em cada linha, o que deixava a tela administrativa mais cara que o necessário e mais sensível a pool/DB sob carga.
+**Checkpoint git local:** `edefc516` (alterações desta etapa ainda não commitadas).
 
-2. **Stack/erro interno encontrado, sem secrets**
-   - `PrismaPgAdapter.queryRaw`
-   - `@prisma/client/runtime/client.js`
-   - `pg-pool/index.js`
-   - Mensagem: `timeout exceeded when trying to connect`
-   - Nenhum segredo foi exposto no relatório ou nos logs copiados.
+---
 
-3. **Arquivo e linha corrigidos**
-   - `server/services/adminMinersService.ts`
-     - Normalização segura de `filter` e `sort`.
-     - Suporte a `oldest`, `power_asc`, `power_desc`.
-     - Remoção de `_count.userOwnedMachines` da listagem principal.
-     - Inclusão de `totalPages`.
-   - `server/routes/admin.ts`
-     - Removidas rotas inline de mineradoras.
-     - Montado `adminMinersRouter` após `requireAdminAuth` e `adminLimiter`.
-   - `server/modules/admin-miners/*`
-     - Criado módulo monolito modular para Catálogo de Mineradoras.
-   - `client/src/pages/admin/AdminMiners.tsx`
-     - Centralizadas chamadas no API module.
-     - Adicionado abort/cancel de request anterior para evitar request concorrente em busca/filtro.
+## 1. Estado inicial do módulo Admin Miners
 
-4. **Estrutura backend criada/organizada**
-   - `server/modules/admin-miners/adminMiners.routes.ts`
-   - `server/modules/admin-miners/adminMiners.controller.ts`
-   - `server/modules/admin-miners/adminMiners.service.ts`
-   - `server/modules/admin-miners/adminMiners.repository.ts`
-   - `server/modules/admin-miners/adminMiners.schemas.ts`
-   - `server/modules/admin-miners/adminMiners.dto.ts`
-   - `server/modules/admin-miners/adminMiners.types.ts`
-   - `server/modules/admin-miners/adminMiners.errors.ts`
-   - `server/modules/admin-miners/index.ts`
+- Backend já tinha pasta `server/modules/admin-miners/` com controller, routes, service, dto, errors e types.
+- **Gap:** `adminMiners.repository.ts` e `adminMiners.schemas.ts` apenas reexportavam `server/services/adminMinersService.ts` (~430 linhas de Prisma/validação fora do módulo).
+- Frontend tinha API/types em `client/src/pages/admin/miners/`, mas `AdminMinersPage.tsx` era só reexport de `../AdminMiners` (~770 linhas na raiz `admin/`).
+- Testes: `tests/admin/miners/adminMinersRoutes.test.mjs` parcial; sem teste de página nem validação 503 no client.
 
-5. **Estrutura frontend criada/organizada**
-   - `client/src/pages/admin/miners/AdminMinersPage.tsx`
-   - `client/src/pages/admin/miners/adminMiners.api.ts`
-   - `client/src/pages/admin/miners/adminMiners.types.ts`
-   - `client/src/pages/admin/miners/adminMiners.hooks.ts`
-   - `client/src/pages/admin/miners/index.ts`
-   - `client/src/pages/admin/miners/adminMiners.api.test.ts`
+---
 
-6. **Rotas preservadas**
-   - `GET /api/admin/miners`
-   - `POST /api/admin/miners`
-   - `POST /api/admin/miners/upload-image`
-   - `GET /api/admin/miners/:id`
-   - `PATCH /api/admin/miners/:id`
-   - `PUT /api/admin/miners/:id`
-   - `POST /api/admin/miners/:id/duplicate`
-   - `POST /api/admin/miners/:id/archive`
-   - `POST /api/admin/miners/:id/toggle-store`
-   - `POST /api/admin/miners/:id/toggle-active`
+## 2. Arquivos encontrados antes
 
-7. **Query params suportados**
-   - `page`, `limit`, `q`, `search`, `filter`, `sort`.
-   - Filtros: `all`, `active`, `inactive`, `store`, `hidden`, `free`, `paid`, `reward`, `shortlink`, `faucet`, `admin`, `event`, `common`, `uncommon`, `rare`, `epic`, `legendary`, `special`, `archived`, `slots_N`.
-   - Sorts: `recent`, `oldest`, `name`, `price_asc`, `price_desc`, `power_asc`, `power_desc`, `hashrate_asc`, `hashrate_desc`, `sold`, `value`.
-   - Filtro/sort desconhecido é normalizado para `all`/`recent`, sem gerar 500.
+**Backend**
 
-8. **DTO criado/revisado**
-   - `adminMiners.dto.ts` serializa linha segura para listagem.
-   - Mantém compatibilidade com `baseHashRate`, `showInShop`, `isStoreVisible`, `stockSold`.
-   - Expõe aliases seguros `power`, `hashRate`, `isVisible`, `isStoreItem`, `salesCount`.
+- `server/modules/admin-miners/*` (9 arquivos)
+- `server/services/adminMinersService.ts` (fonte real de queries)
+- `server/routes/admin.ts` monta `adminMinersRouter` após `requireAdminAuth` + `adminLimiter`
 
-9. **Schemas criados/revisados**
-   - `adminMiners.schemas.ts` centraliza parse de query/body e validação de imagem usando regras existentes.
+**Frontend**
 
-10. **Prisma fields corrigidos**
-   - Listagem usa campos reais do model `Miner`: `id`, `name`, `slug`, `baseHashRate`, `price`, `slotSize`, `imageUrl`, `tier`, `sourceType`, `isActive`, `showInShop`, `isArchived`, `stockSold`, `createdAt`, `updatedAt`.
-   - Removido `_count.userOwnedMachines` da listagem principal para reduzir custo.
+- `client/src/pages/admin/AdminMiners.tsx` (UI monolítica)
+- `client/src/pages/admin/miners/adminMiners.api.ts`, `adminMiners.types.ts`, `adminMiners.hooks.ts` (`export {}`)
 
-11. **Serialização Decimal/BigInt/Date**
-   - `price` é serializado como string no DTO modular.
-   - `baseHashRate/hashRate/power` são serializados como string no DTO modular.
-   - `Date` é serializado como ISO string.
-   - Não há BigInt no DTO da listagem atual.
+**Testes**
 
-12. **Correções de performance/lentidão**
-   - Removido count relacional por linha na listagem.
-   - Mantida paginação com `take/skip`.
-   - Frontend cancela request anterior quando busca/filtro/sort mudam.
-   - Busca mantém debounce existente de 250ms.
+- `tests/admin/miners/adminMinersRoutes.test.mjs`
+- `tests/adminMinersService.test.mjs`
+- `tests/adminMinersUiSecurity.test.mjs`
 
-13. **Testes criados/ajustados**
-   - `tests/admin/miners/adminMinersRoutes.test.mjs`
-   - `client/src/pages/admin/miners/adminMiners.api.test.ts`
-   - `tests/adminMinersService.test.mjs`
-   - `tests/adminMinersUiSecurity.test.mjs`
+---
 
-14. **Resultado de `GET /api/admin/miners?page=1&limit=25&filter=all&sort=recent`**
-   - Produção antes da correção: HTTP 500, log interno `timeout exceeded when trying to connect`.
-   - Validação local direta não foi executada porque não havia container local rodando na porta 3000 no início da investigação.
-   - Após deploy na VM, chamada pública sem cookie admin retornou HTTP 401 seguro:
-     `{"ok":false,"code":"ADMIN_SESSION_INVALID","message":"Admin session invalid."}`.
-   - Log pós-deploy: `/api/admin/miners?page=1&limit=25&filter=all&sort=recent` respondeu `401` em `0.891ms`, sem 500.
-   - A validação autenticada da listagem exige sessão admin do navegador.
+## 3. Nova estrutura backend
 
-15. **Resultado de `cd client && npm run typecheck`**
-   - Passou.
+```txt
+server/modules/admin-miners/
+  index.ts
+  adminMiners.routes.ts
+  adminMiners.controller.ts
+  adminMiners.service.ts
+  adminMiners.repository.ts    ← Prisma + regras de catálogo (antes em adminMinersService)
+  adminMiners.schemas.ts       ← parse query/body + validateMinerImageUrl + minerSelect
+  adminMiners.dto.ts
+  adminMiners.types.ts
+  adminMiners.errors.ts
+```
 
-16. **Resultado de `cd client && npm run build`**
-   - Passou.
-   - Warnings existentes de Rollup/Reown e chunks grandes permanecem.
+`server/services/adminMinersService.ts` permanece como **facade de compatibilidade** (reexporta schemas + repository) para testes legados (`tests/adminMinersService.test.mjs`).
 
-17. **Resultado de `cd client && npm test`**
-   - Passou: 46 arquivos, 282 testes.
+---
 
-18. **Resultado de `npm test`**
-   - Passou: 483 testes.
+## 4. Nova estrutura frontend
 
-19. **Resultado de `npm run typecheck:server`**
-   - Passou.
+```txt
+client/src/pages/admin/miners/
+  AdminMinersPage.tsx           ← UI completa (movida de AdminMiners.tsx)
+  adminMiners.api.ts
+  adminMiners.types.ts
+  adminMiners.hooks.ts          ← useAdminMinersList (debounce, abort, erro 503)
+  adminMiners.validation.ts
+  adminMiners.api.test.ts
+  adminMiners.validation.test.ts
+  AdminMinersPage.test.tsx
+  components/AdminMinersError.tsx
+  index.ts
 
-20. **Resultado de `npm run build:server`**
-   - Passou.
+client/src/pages/admin/AdminMiners.tsx  → barrel: export { default } from './miners/AdminMinersPage'
+```
 
-21. **Resultado de `npm run build:backend`**
-   - Passou.
+Componentes granulares (`AdminMinersTable`, `AdminMinerForm`, etc.) **não foram extraídos** para evitar redesenho/refactor visual; a tela permanece uma página, com erro 503 isolado em componente.
 
-22. **Resultado de `docker compose build --no-cache`**
-   - Passou: imagens `app` e `worker` built.
-   - Warnings não bloqueantes:
-     - Docker buildx/Bake indisponível.
-     - Dockerfile alerta sobre ARG/ENV `VITE_TURNSTILE_SITE_KEY*`.
-     - npm peer/deprecated warnings existentes.
+---
 
-23. **Resultado do teste manual**
-   - Não executei criação/edição manual local porque não havia ambiente local rodando e não rodei fluxo destrutivo/alteração de dados.
-   - Deploy em produção executado por ZIP para `/root/block-miner`, preservando `.env`, `.env.production`, `.env.production.vm-backup` e `deploy.secrets.local`.
-   - `docker compose --env-file .env.production build --no-cache app worker` passou na VM.
-   - `docker compose --env-file .env.production up -d --no-deps app worker` recriou apenas `app` e `worker`.
-   - `https://blockminer.space/health` retornou HTTP 200.
-   - `https://blockminer.space/api/admin/miners?page=1&limit=25&filter=all&sort=recent` sem cookie retornou HTTP 401 seguro, não 500.
-   - Teste autenticado no navegador ainda depende de sessão admin ativa.
+## 5. Rotas preservadas
 
-24. **Confirmação de que nenhum `.js` fonte foi recriado em `server/`**
-   - Confirmado por `find`: nenhum `.js` fonte em `server/` fora de exclusões.
+Montagem em `server/routes/admin.ts`: `adminRouter.use(adminMinersRouter)` após auth admin.
 
-25. **Confirmação de que `client/src` continua sem `.js/.jsx`**
-   - Confirmado por `find`: nenhum `.js/.jsx` em `client/src`.
+| Método | Rota |
+|--------|------|
+| GET | `/api/admin/miners` |
+| POST | `/api/admin/miners` |
+| POST | `/api/admin/miners/upload-image` |
+| GET | `/api/admin/miners/:id` |
+| PATCH/PUT | `/api/admin/miners/:id` |
+| POST | `/api/admin/miners/:id/duplicate` |
+| POST | `/api/admin/miners/:id/archive` |
+| POST | `/api/admin/miners/:id/toggle-store` |
+| POST | `/api/admin/miners/:id/toggle-active` |
 
-26. **Próximo módulo recomendado**
-   - Modularizar `admin-users` ou `admin-finance`, porque ambos ainda concentram rotas administrativas extensas e sensíveis em `server/routes/admin.ts`.
+---
+
+## 6. Endpoints testados
+
+| Cenário | Resultado esperado |
+|---------|-------------------|
+| GET `/api/admin/miners` sem cookie admin | 401/403, não 500 |
+| GET com `filter=all&sort=recent` | 200 (com DB migrado) ou 503 schema |
+| Query inválida (`page=bad`) | 400 `ADMIN_MINERS_INVALID_QUERY` |
+| Schema desatualizado (coluna ausente) | 503 `ADMIN_MINERS_SCHEMA_OUT_OF_DATE` |
+
+---
+
+## 7. Query params suportados
+
+- **page:** default 1, mínimo 1; inválido → `invalid_pagination` → 400.
+- **limit:** default 25, máximo 100.
+- **q / search:** até 120 chars.
+- **filter:** `all`, `active`, `inactive`, `store`, `hidden`, `free`, `paid`, `reward`, `shortlink`, `faucet`, `admin`, `event`, tiers, `archived`, `slots_N`; desconhecido → `all`.
+- **sort:** `recent`, `oldest`, `name`, `price_asc`, `price_desc`, `power_asc`, `power_desc`, `hashrate_asc`, `hashrate_desc`, `sold`, `value`; desconhecido → `recent`.
+
+---
+
+## 8. DTOs criados/revisados
+
+- `adminMiners.dto.ts`: `toAdminMinerListRow`, `toAdminMinersListResponse`.
+- Serializa `price`, `baseHashRate`/`power`/`hashRate` como **string**.
+- `Date` → ISO string.
+- Aliases: `isVisible`, `isStoreItem`, `salesCount` (de `stockSold`).
+- Não expõe campos sensíveis (`passwordHash`, etc.).
+
+---
+
+## 9. Schemas criados/revisados
+
+- `adminMiners.schemas.ts`: `parseAdminMinerQuery`, `parseMinerWriteBody`, `validateMinerImageUrl`, `minerSelect`.
+- Validação de slug, tier, source, metadata, imagem, paginação.
+
+---
+
+## 10. Prisma / select / orderBy
+
+- `minerSelect()` alinhado ao model `Miner` (incl. `longDescription`, `tier`, `stockSold`, etc.).
+- `buildWhere` + `orderBy` tipados com `Prisma.MinerWhereInput` / `MinerOrderByWithRelationInput[]`.
+- Listagem **sem** `_count.userOwnedMachines` por linha (usa `stockSold`).
+
+---
+
+## 11. Tratamento de schema desatualizado
+
+- `isPrismaSchemaMismatch()` em `adminMiners.errors.ts` (P2021/P2022 ou mensagem “does not exist in the current database”).
+- Controller retorna **503** com `code: ADMIN_MINERS_SCHEMA_OUT_OF_DATE` e mensagem segura (sem stack).
+- Frontend: banner `AdminMinersError` com texto  
+  *“Catálogo indisponível: o banco ainda precisa da migration do catálogo de mineradoras.”*  
+  + botão “Tentar novamente”.
+
+Migration crítica: `20260424170000_admin_miner_catalog`.
+
+---
+
+## 12. Correções de frontend
+
+- Página em `miners/AdminMinersPage.tsx`; rota `/admin/miners` inalterada via barrel.
+- Hook `useAdminMinersList`: debounce 250ms, cancelamento de request anterior, estado `listError`.
+- Imagens da tabela com `loading="lazy"`.
+- API centralizada em `adminMiners.api.ts` (sem `api.get` espalhado na página).
+
+---
+
+## 13. Correções de performance
+
+- Sem `_count` na listagem.
+- Paginação real (`skip`/`take` + `total`/`totalPages`).
+- Abort de fetch ao mudar filtro/busca/sort/página.
+
+---
+
+## 14. Testes criados/ajustados
+
+| Arquivo | Cobertura |
+|---------|-----------|
+| `tests/admin/miners/adminMinersRoutes.test.mjs` | rotas, DTO, schema mismatch, parse query, normalização filter/sort |
+| `tests/adminMinersService.test.mjs` | CRUD/list via facade (inalterado, importa facade) |
+| `tests/adminMinersUiSecurity.test.mjs` | lê `AdminMinersPage.tsx`, upload endpoint, mount auth |
+| `client/.../adminMiners.api.test.ts` | params GET, toggle-store |
+| `client/.../adminMiners.validation.test.ts` | 503 + mensagem |
+| `client/.../AdminMinersPage.test.tsx` | render OK + banner 503 |
+
+---
+
+## 15–22. Validação obrigatória (2026-05-17, sessão atual)
+
+| Comando | Resultado |
+|---------|-----------|
+| `cd client && npm run typecheck` | **OK** |
+| `cd client && npm run build` | **OK** (warnings Rollup/chunks grandes — pré-existentes) |
+| `cd client && npm test` | **OK** — 48 arquivos, **285** testes |
+| `npm test` (raiz) | **OK** |
+| `npm run typecheck:server` | **OK** |
+| `npm run build:server` | **OK** |
+| `npm run build:backend` | **OK** |
+| `docker compose build app` | **OK** (build com cache; `--no-cache` não reexecutado nesta sessão) |
+
+---
+
+## 23. Teste manual
+
+- **Não executado** nesta sessão (sem VM/login admin ativo no agente).
+- Produção anterior (checkpoint `edefc516`): `/admin/miners` → 200; `/api/admin/miners` sem cookie → 401.
+- Após deploy destas alterações: repetir login admin → listagem, filtros, busca, paginação; se DB sem migration → banner 503.
+
+---
+
+## 24. `server/` sem `.js` fonte
+
+```bash
+find server -name "*.js" -type f \
+  -not -path "server/node_modules/*" \
+  -not -path "server/dist/*"
+# (vazio)
+```
+
+---
+
+## 25. `client/src` sem `.js/.jsx`
+
+```bash
+find client/src \( -name "*.js" -o -name "*.jsx" \) -type f
+# (vazio)
+```
+
+---
+
+## 26. `@ts-ignore` / `any` no módulo
+
+`grep` em `server/modules/admin-miners` e `client/src/pages/admin/miners` — **sem ocorrências** de `@ts-ignore`, `@ts-nocheck`, `as any`, `: any`.
+
+---
+
+## 27. Próximo módulo recomendado
+
+**Wallet** — explicitamente adiado até Admin Miners fechado.  
+Após deploy desta etapa, seguir `MONOLITH_WALLET_MODULE_STEP_01.md` com o mesmo padrão (módulo em `server/modules/wallet/`, pasta `client/src/pages/wallet/`, testes em `tests/wallet/`).
+
+---
+
+## Critério de aceite (checklist)
+
+- [x] Backend Admin Miners em módulo próprio (lógica Prisma em `repository` + `schemas`)
+- [x] Frontend em `client/src/pages/admin/miners/`
+- [x] `/admin/miners` preservado (barrel `AdminMiners.tsx`)
+- [x] 503 schema + 400 query inválida (não 500 opaco)
+- [x] DTO seguro
+- [x] Testes passando
+- [x] Docker build `app` OK
+- [x] Sem `.js` fonte em `server/` e `client/src`
+- [x] Relatório atualizado
+- [ ] Commit/push (aguardando pedido do usuário)
+- [ ] Teste manual autenticado pós-deploy

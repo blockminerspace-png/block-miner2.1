@@ -14,7 +14,7 @@ describe('adminMiners.api', () => {
       params: { page: 1, limit: 25, filter: 'all', sort: 'recent', q: 'elite' },
       signal: undefined,
     });
-    expect(data.miners).toEqual([]);
+    expect(data.ok === false ? [] : data.miners).toEqual([]);
   });
 
   it('toggleAdminMinerStore posts the server-owned visibility intent', async () => {

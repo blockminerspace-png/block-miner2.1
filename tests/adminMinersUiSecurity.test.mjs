@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const source = readFileSync(new URL("../client/src/pages/admin/AdminMiners.tsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("../client/src/pages/admin/miners/AdminMinersPage.tsx", import.meta.url), "utf8");
 const adminMinersApi = readFileSync(
   new URL("../client/src/pages/admin/miners/adminMiners.api.ts", import.meta.url),
   "utf8",
