@@ -273,14 +273,19 @@ export const useAuthStore = create<AuthState>()((set) => ({
       } catch (error: unknown) {
         const axiosError = isAxiosError(error) ? error : null;
         const status = axiosError?.response?.status;
-        const message =
-          status && status >= 500
-            ? readAxiosResponseMessage(
-                axiosError?.response,
-                'Não foi possível verificar sua sessão agora. Tente novamente.',
-              )
-            : null;
-        set({ user: null, isAuthenticated: false, isLoading: false, token: null, error: message });
+        // 401 without cookie = guest; must not surface as a critical UI error.
+        if (status === 401) {
+          set({ user: null, isAuthenticated: false, isLoading: false, token: null, error: null });
+        } else {
+          const message =
+            status && status >= 500
+              ? readAxiosResponseMessage(
+                  axiosError?.response,
+                  'Não foi possível verificar sua sessão agora. Tente novamente.',
+                )
+              : null;
+          set({ user: null, isAuthenticated: false, isLoading: false, token: null, error: message });
+        }
       } finally {
         sessionCheckPromise = null;
         set({ authHydrated: true });

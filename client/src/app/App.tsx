@@ -78,7 +78,8 @@ const LiveServer = lazy(() => import('../pages/LiveServer'));
 const DashboardCryptoStream = lazy(() => import('../pages/DashboardCryptoStream'));
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
 const TermsOfUse = lazy(() => import('../pages/TermsOfUse'));
-const Web3Providers = lazy(() => import('../shared/components/Web3Providers'));
+import Web3Boundary from '../shared/web3/Web3Boundary';
+import { clearChunkReloadMarkers } from '../shared/utils/chunkLoadError';
 
 function RouteLoader(): JSX.Element {
   return (
@@ -157,11 +158,9 @@ const ProtectedLayout = () => {
 /** Wagmi/AppKit chunk loads only when entering the authenticated shell (not on `/`). */
 function ProtectedLayoutWithWeb3() {
   return (
-    <Suspense fallback={<RouteLoader />}>
-      <Web3Providers>
-        <ProtectedLayout />
-      </Web3Providers>
-    </Suspense>
+    <Web3Boundary fallback={<RouteLoader />}>
+      <ProtectedLayout />
+    </Web3Boundary>
   );
 }
 
@@ -169,6 +168,7 @@ function App() {
   const { checkSession } = useAuthStore();
 
   useEffect(() => {
+    clearChunkReloadMarkers();
     void checkSession();
   }, [checkSession]);
 

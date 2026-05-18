@@ -1,4 +1,10 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
+import {
+  clearChunkReloadMarkers,
+  forceReloadForNewBuild,
+  handleChunkLoadFailure,
+  isChunkLoadError,
+} from '../utils/chunkLoadError';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -9,7 +15,7 @@ interface ErrorBoundaryState {
   error: Error | null;
   errorDetail?: string;
   errorStack?: string | null;
-  staleChunkAfterReload?: boolean;
+  staleChunk?: boolean;
 }
 
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -24,29 +30,19 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   componentDidCatch(error: unknown, errorInfo: ErrorInfo): void {
     const msg = String(
-      error instanceof Error ? error.message : typeof error === 'string' ? error : error ?? '',
+      error instanceof Error ? error.message : typeof error === 'string' ? error : (error ?? ''),
     );
-    const isStaleChunk =
-      /Failed to fetch dynamically imported module|ChunkLoadError|Loading chunk [\d]+ failed|Importing a module script failed/i.test(
-        msg,
-      );
-    if (isStaleChunk) {
-      try {
-        const k = 'bm_chunk_reload_v1';
-        if (!sessionStorage.getItem(k)) {
-          sessionStorage.setItem(k, '1');
-          window.location.reload();
-          return;
-        }
-      } catch {
-        /* private mode */
-      }
+
+    if (handleChunkLoadFailure(error)) {
+      return;
     }
+
+    const staleChunk = isChunkLoadError(msg) || isChunkLoadError(error);
     console.error('Critical Render Error caught by Boundary:', error, errorInfo);
     this.setState({
       errorDetail: msg,
       errorStack: errorInfo?.componentStack,
-      staleChunkAfterReload: isStaleChunk,
+      staleChunk,
     });
   }
 
@@ -85,20 +81,15 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
             Erro de Interface
           </h1>
           <p style={{ color: '#94a3b8', maxWidth: '420px', marginBottom: '30px', lineHeight: '1.5' }}>
-            {this.state.staleChunkAfterReload
-              ? 'O navegador ficou com uma versão antiga dos ficheiros (cache) enquanto o site já foi atualizado. Faz um recarregamento forçado (Ctrl+Shift+R) ou limpa o cache deste site.'
+            {this.state.staleChunk
+              ? 'A plataforma foi atualizada. Recarregue para baixar a versão mais recente.'
               : 'Ocorreu um erro crítico na renderização. Isso acontece quando alguns dados da conta estão inconsistentes.'}
           </p>
           <button
             type="button"
             onClick={() => {
-              try {
-                sessionStorage.removeItem('bm_chunk_reload_v1');
-                sessionStorage.removeItem('bm_asset_reload_v1');
-              } catch {
-                /* ignore */
-              }
-              window.location.reload();
+              clearChunkReloadMarkers();
+              forceReloadForNewBuild();
             }}
             style={{
               padding: '12px 24px',
@@ -113,7 +104,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
               letterSpacing: '1px',
             }}
           >
-            Recarregar Plataforma
+            Recarregar plataforma
           </button>
           {this.state.errorDetail ? (
             <details style={{ marginTop: '20px', maxWidth: '600px', textAlign: 'left' }}>

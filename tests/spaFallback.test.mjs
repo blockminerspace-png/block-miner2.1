@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import {
+  applyNoStoreHtmlHeaders,
   attachClientDistStatic,
   attachSpaFallback,
   isApiRequestPath,
@@ -102,6 +103,65 @@ test("SPA routes return 503 when index.html is missing", async () => {
   } finally {
     server.close();
   }
+});
+
+test("SPA HTML responses use no-store cache headers", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "bm-spa-cache-"));
+  const root = path.join(tmp, "repo");
+  const distDir = path.join(root, "client", "dist");
+  const assetsDir = path.join(distDir, "assets");
+  fs.mkdirSync(assetsDir, { recursive: true });
+  fs.writeFileSync(path.join(distDir, "index.html"), "<!doctype html><html><body>spa</body></html>");
+  fs.writeFileSync(path.join(assetsDir, "index-D0TfrHPc.js"), "console.log('ok');");
+
+  const paths = resolveClientDistPaths(root);
+  const app = express();
+  attachClientDistStatic(app, paths.distPath, paths.indexExists);
+  attachSpaFallback(app, {
+    indexPath: paths.indexPath,
+    indexExists: paths.indexExists,
+    renderIndex: (html) => html,
+  });
+
+  const { server, baseUrl } = await listen(app);
+  try {
+    const login = await request(baseUrl, "/login");
+    assert.equal(login.status, 200);
+    const loginCache = login.headers.get("cache-control") || "";
+    assert.match(loginCache, /no-store/i);
+    assert.match(loginCache, /no-cache/i);
+
+    const dashboard = await request(baseUrl, "/dashboard");
+    assert.equal(dashboard.status, 200);
+    const dashCache = dashboard.headers.get("cache-control") || "";
+    assert.match(dashCache, /no-store/i);
+
+    const asset = await request(baseUrl, "/assets/index-D0TfrHPc.js");
+    assert.equal(asset.status, 200);
+    const assetCache = asset.headers.get("cache-control") || "";
+    assert.match(assetCache, /immutable/i);
+  } finally {
+    server.close();
+  }
+});
+
+test("applyNoStoreHtmlHeaders sets pragma and expires", () => {
+  const app = express();
+  app.get("/probe", (_req, res) => {
+    applyNoStoreHtmlHeaders(res);
+    res.status(200).send("ok");
+  });
+  return listen(app).then(async ({ server, baseUrl }) => {
+    try {
+      const res = await request(baseUrl, "/probe");
+      assert.equal(res.status, 200);
+      assert.match(res.headers.get("cache-control") || "", /no-store/i);
+      assert.equal(res.headers.get("pragma"), "no-cache");
+      assert.equal(res.headers.get("expires"), "0");
+    } finally {
+      server.close();
+    }
+  });
 });
 
 test("API paths do not hit SPA fallback (404 from catch-all guard)", async () => {

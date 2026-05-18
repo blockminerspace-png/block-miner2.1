@@ -24,6 +24,21 @@ export function isApiRequestPath(pathname: string): boolean {
   return pathname === "/api" || pathname.startsWith("/api/");
 }
 
+export function applyNoStoreHtmlHeaders(res: Response): void {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+}
+
+function isHashedAssetPath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  if (normalized.includes("/assets/")) {
+    return true;
+  }
+  const base = path.basename(filePath);
+  return /[-.][0-9A-Za-z_-]{7,}\.(m?js|css|wasm)$/i.test(base);
+}
+
 export function attachClientDistStatic(app: Express, distPath: string, indexExists: boolean): void {
   if (!indexExists) {
     return;
@@ -34,14 +49,20 @@ export function attachClientDistStatic(app: Express, distPath: string, indexExis
       index: false,
       acceptRanges: false,
       setHeaders(res, filePath) {
-        const base = path.basename(filePath);
-        if (/[-.][0-9A-Za-z_-]{7,}\.(m?js|css|wasm)$/i.test(base)) {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        } else if (/\.(png|jpe?g|webp|gif|ico|svg)$/i.test(base)) {
-          res.setHeader("Cache-Control", "public, max-age=604800, immutable");
-        } else if (/\.(m?js|css|wasm)$/i.test(base)) {
-          res.setHeader("Cache-Control", "no-cache");
+        const normalized = filePath.replace(/\\/g, "/");
+        if (normalized.endsWith("/index.html") || path.basename(filePath) === "index.html") {
+          applyNoStoreHtmlHeaders(res);
+          return;
         }
+        if (isHashedAssetPath(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          return;
+        }
+        if (/\.(png|jpe?g|webp|gif|ico|svg)$/i.test(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+          return;
+        }
+        res.setHeader("Cache-Control", "public, max-age=3600");
       },
     }),
   );
@@ -94,8 +115,7 @@ export function attachSpaFallback(app: Express, opts: SpaFallbackOptions): void 
       const nonce = typeof res.locals.cspNonce === "string" ? res.locals.cspNonce : "";
       const html = renderIndex(rawHtml, { nonce });
 
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-      res.setHeader("Pragma", "no-cache");
+      applyNoStoreHtmlHeaders(res);
       res.type("html");
       res.send(html);
     } catch (error: unknown) {

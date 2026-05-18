@@ -4,25 +4,18 @@ import './index.css'
 import './i18n/config' // Import i18n config
 import App from './app/App'
 import ErrorBoundary from './shared/components/ErrorBoundary'
+import { handleChunkLoadFailure } from './shared/utils/chunkLoadError'
 
-// Stale CDN/browser cache: old index references missing chunks → reload once.
+// Stale CDN/browser cache: old index references missing hashed chunks.
 window.addEventListener(
   'error',
   (event) => {
     const t = event?.target
     if (t && 'tagName' in t && t.tagName === 'SCRIPT' && 'src' in t && t.src) {
-      try {
-        const k = 'bm_asset_reload_v1'
-        if (!sessionStorage.getItem(k)) {
-          sessionStorage.setItem(k, '1')
-          window.location.reload()
-        }
-      } catch {
-        /* private mode */
-      }
+      handleChunkLoadFailure(new Error(`Script load failed: ${String(t.src)}`))
     }
   },
-  true
+  true,
 )
 
 /** Reown/wagmi: no wallet accounts yet (guest login page) — avoid noisy uncaught rejections. */
@@ -41,24 +34,9 @@ window.addEventListener('unhandledrejection', (event) => {
       return
     }
   }
-})
 
-/** React.lazy / Vite dynamic import(): failed fetch (404 hash mismatch) does not fire script `error`. */
-window.addEventListener('unhandledrejection', (event) => {
-  const r = event?.reason
-  const msg = typeof r === 'string' ? r : r?.message || String(r || '')
-  if (!/Failed to fetch dynamically imported module|ChunkLoadError|Loading chunk [\d]+ failed/i.test(msg)) {
-    return
-  }
-  try {
-    const k = 'bm_chunk_reload_v1'
-    if (!sessionStorage.getItem(k)) {
-      sessionStorage.setItem(k, '1')
-      event.preventDefault()
-      window.location.reload()
-    }
-  } catch {
-    /* private mode */
+  if (handleChunkLoadFailure(event.reason)) {
+    event.preventDefault()
   }
 })
 

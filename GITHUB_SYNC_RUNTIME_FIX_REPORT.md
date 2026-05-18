@@ -279,6 +279,89 @@ Docker rebuild na VM: pendente após commit desta correção.
 
 ---
 
+## Correção de cache/chunk antigo após deploy
+
+**Date:** 2026-05-18  
+**Symptom:** `Failed to fetch dynamically imported module: …/Web3Providers-*.js` + tela “Erro de interface” após deploy.
+
+### 1. Causa real
+
+- Navegador com `index.html` ou entry antigo em cache apontando para chunks hashados que **não existem mais** no servidor após novo build Vite.
+- `Web3Providers` / `walletAppKitBridge` são dynamic imports; falha não dispara só `script onerror`, e sim `unhandledrejection` / ErrorBoundary.
+- `ERR_NETWORK_CHANGED` no mesmo momento é ruído de rede (não é o bug principal).
+- **`GET /api/auth/session` → 401** sem cookie continua **esperado** (guest).
+
+### 2. Chunk que falhou (exemplo produção)
+
+- `https://blockminer.space/assets/Web3Providers-CHMMhKVw.js`
+- `https://blockminer.space/assets/walletAppKitBridge-*.js`
+
+### 3. Headers antigos
+
+- `index.html` via fallback já tinha `no-store`, mas ficheiros em `/assets/` sem regra explícita por pasta; alguns `.js` não-hashados recebiam `no-cache` apenas por regex de basename.
+
+### 4–5. Headers novos
+
+| Recurso | Cache-Control |
+|---------|----------------|
+| `index.html` (static + fallback SPA) | `no-store, no-cache, must-revalidate, proxy-revalidate` + `Pragma: no-cache` + `Expires: 0` |
+| `/assets/*` (hash Vite) | `public, max-age=31536000, immutable` |
+| Outros estáticos | `public, max-age=3600` |
+
+Implementação: `server/utils/spaStatic.ts` (`applyNoStoreHtmlHeaders`, `isHashedAssetPath`). Nginx continua a fazer proxy para Node (sem cache estático próprio).
+
+### 6. Detecção de chunk load error
+
+- `client/src/shared/utils/chunkLoadError.ts` — `isChunkLoadError`, `shouldAutoReloadChunkError` (1 reload / 60s), `forceReloadForNewBuild` (`_bm_build` query).
+
+### 7. Reload seguro
+
+- Auto-reload uma vez por janela de 60s (`sessionStorage`).
+- Botão “Recarregar plataforma” limpa marcadores e faz `location.replace` com cache-bust.
+- `main.tsx` escuta `error` (SCRIPT) e `unhandledrejection` (dynamic import).
+
+### 8. Web3 sem derrubar o app
+
+- `client/src/shared/web3/Web3Boundary.tsx` — carrega `Web3Providers` com `import()`; em falha de chunk usa `Web3ProvidersLight` (wagmi injected-only) + banner.
+- Web3 só monta em rotas autenticadas (`ProtectedLayoutWithWeb3`), não em `/login`.
+
+### 9. `/api/auth/session` 401
+
+- `checkSession`: `401` → `isAuthenticated: false`, `error: null` (sem toast/ErrorBoundary).
+- Teste existente em `client/src/store/auth.test.ts`.
+
+### 10. Testes
+
+| Arquivo | Cobertura |
+|---------|-----------|
+| `tests/spaFallback.test.mjs` | no-store em `/login` e `/dashboard`; immutable em `/assets/*` |
+| `client/src/shared/utils/chunkLoadError.test.ts` | detecção + throttle reload |
+| `client/src/shared/web3/Web3Boundary.test.tsx` | load OK + `Web3ProvidersLight` |
+
+### 11. Validação local
+
+| Comando | Resultado |
+|---------|-----------|
+| `client` typecheck / build / test (292) | PASS |
+| `npm test` (raiz) | PASS |
+| `typecheck:server` / `build:server` | PASS |
+
+### 12. Curls produção (após deploy)
+
+| URL | Esperado |
+|-----|----------|
+| `curl -I https://blockminer.space/login` | 200 + `Cache-Control` com `no-store` |
+| `curl -I https://blockminer.space/dashboard` | 200 + `no-store` |
+| `curl -I https://blockminer.space/assets/<hash>.js` | `immutable` |
+| `curl -i https://blockminer.space/api/auth/session` | 401 JSON |
+
+### 13–14. Confirmações
+
+- `server/` sem `.js` fonte (fora `node_modules` / `dist`).
+- `client/src` sem `.js` / `.jsx`.
+
+---
+
 ## Acceptance summary
 
 | Criterion | Met |
