@@ -362,6 +362,92 @@ Implementação: `server/utils/spaStatic.ts` (`applyNoStoreHtmlHeaders`, `isHash
 
 ---
 
+## Correção dos 500 em stats/power e checkin/status
+
+**Date:** 2026-05-17
+
+### 1. Causa real — `/api/stats/power`
+
+- Handler: `server/controllers/powerStatsController.ts` → `GET /api/stats/power` via `server/routes/stats.ts`.
+- Produção: respostas **500** com `durationMs ≈ 10003` — alinhado ao `connectionTimeoutMillis` padrão de **10s** do pool PG (`backend/src/shared/prisma/client.ts`).
+- Logs simultâneos: `Auth middleware error: timeout exceeded when trying to connect` — **saturação do pool** / DB lento, não ausência de sessão (sem cookie → **401** correto).
+- Carga extra: `prisma.user.findMany({ where: { isBanned: false }, select: rankingUserSelect(...) })` carregava **todos** os usuários com miners/powers para ranking.
+
+### 2. Causa real — `/api/checkin/status`
+
+- Handler: `server/controllers/checkinController.ts` → `GET /api/checkin/status` via `server/routes/checkin.ts`.
+- Mesmo padrão de timeout de conexão (~10s) sob stress de pool.
+- Sem sessão: **401** (não 500). Erros de DB no `catch` externo retornavam **500** genérico em vez de **503** diagnosticável.
+
+### 3. Stack / erro interno (sem secrets)
+
+```txt
+timeout exceeded when trying to connect
+Auth middleware error (pool wait / PG unavailable)
+Prisma transaction timeout (workers paralelos no mesmo período)
+```
+
+### 4. Arquivos corrigidos
+
+| Área | Arquivo |
+|------|---------|
+| DB errors HTTP | `server/utils/prismaHttpErrors.ts` (novo) |
+| Auth | `server/middleware/auth.ts` — 503 em erro de conexão |
+| Power stats | `server/controllers/powerStatsController.ts` — queries em fases, ranking limitado |
+| Ranking | `server/services/networkHashrateService.ts` — `loadUsersForPowerStatsRanking` |
+| Check-in | `server/controllers/checkinController.ts` — 401 padronizado, 503 em DB |
+| Frontend poll | `client/src/shared/hooks/useUserPowerStats.ts`, `client/src/shared/utils/httpPollingGuard.ts` |
+| Check-in UI | `client/src/pages/checkin/CheckinPage.tsx` |
+| Stats UI | `client/src/pages/stats/StatsPage.tsx` — mensagem de erro real |
+
+### 5–8. Rotas, DTOs, Prisma, serialização
+
+- Rotas preservadas: `/api/stats/power`, `/api/checkin/status`.
+- Ranking: amostra de até **400** usuários ativos (7 dias) + usuário atual se fora da amostra.
+- Decimal/BigInt/Date: sem mudança de contrato; respostas continuam com `Number()` / ISO onde já existia.
+- Erros esperados: `SERVICE_UNAVAILABLE` (503), `SCHEMA_OUT_OF_DATE` (503), `UNAUTHENTICATED` (401).
+
+### 9. Frontend — anti-loop
+
+- `useUserPowerStats`: para polling após **401/500/503**; `refetch` reabilita.
+- `CheckinPage`: `pollHaltedRef` após falha; botão **Tentar de novo** (`common.retry`).
+
+### 10. Testes
+
+| Arquivo |
+|---------|
+| `tests/stats/powerStatsRoutes.test.mjs` |
+| `tests/checkin/checkinStatusRoutes.test.mjs` |
+| `client/src/pages/stats/stats.api.test.ts` |
+| `client/src/pages/checkin/checkin.api.test.ts` |
+| `client/src/shared/utils/httpPollingGuard.test.ts` |
+
+### 11–12. Curls (VM / produção)
+
+```bash
+# Sem cookie — esperado 401
+curl -i "http://127.0.0.1:3000/api/stats/power"
+curl -i "http://127.0.0.1:3000/api/checkin/status"
+
+# Com sessão válida — esperado 200 JSON ok:true
+```
+
+### 13–20. Validação / pendências
+
+| Comando | Resultado |
+|---------|-----------|
+| `npm run typecheck:server` | PASS |
+| `npm run build:server` / `build:backend` | PASS |
+| `npm test` (raiz) | PASS |
+| `client` typecheck / build / test (296) | PASS |
+| `docker compose build app` | Rodar no deploy (não executado nesta sessão local) |
+
+- `server/` sem `.js` fonte; `client/src` sem `.js`/`.jsx`.
+- Se schema desatualizado na VM: `npx prisma migrate deploy --schema=server/prisma/schema.prisma` (com backup; não automático em produção).
+- Pendência real: carga global de DB/workers (audit, deposit verifier) pode ainda pressionar o pool — monitorar `PG_POOL_MAX` e conexões PG.
+
+---
+
 ## Acceptance summary
 
 | Criterion | Met |

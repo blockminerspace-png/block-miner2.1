@@ -142,7 +142,7 @@ export default function PowerStatistics() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{t('powerStats.load_error')}</div>
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
       )}
 
       {loading && !data ? (

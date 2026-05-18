@@ -4,6 +4,7 @@ import { verifyAccessToken } from "../utils/authTokens.js";
 import { getTokenFromRequest } from "../utils/token.js";
 import loggerNamespace from "../utils/logger.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
+import { isPrismaConnectionError, unknownErrorMessage } from "../utils/prismaHttpErrors.js";
 
 const logger = loggerNamespace.child("AuthMiddleware");
 
@@ -51,9 +52,23 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     req.user = user;
     next();
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = unknownErrorMessage(error);
     logger.error("Auth middleware error", { error: msg });
-    res.status(500).json({ ok: false, message: "Unable to authenticate." });
+    if (isPrismaConnectionError(error)) {
+      res.status(503).json({
+        ok: false,
+        code: "SERVICE_UNAVAILABLE",
+        message: "Serviço temporariamente indisponível. Tente novamente em instantes.",
+        error: "Serviço temporariamente indisponível. Tente novamente em instantes.",
+      });
+      return;
+    }
+    res.status(500).json({
+      ok: false,
+      code: "INTERNAL_ERROR",
+      message: "Unable to authenticate.",
+      error: "Unable to authenticate.",
+    });
   }
 }
 

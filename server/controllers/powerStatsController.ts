@@ -7,9 +7,10 @@ import {
   aggregateUserHashrates,
   buildRankingRows,
   computeUserRank,
-  rankingUserSelect
+  loadUsersForPowerStatsRanking
 } from "../services/networkHashrateService.js";
 import { readErrorMessage, requireSessionUser } from "./controllerHttpStatusError.js";
+import { respondPrismaAwareError } from "../utils/prismaHttpErrors.js";
 import { isAutoMiningV2SchemaAvailable } from "../services/autoMiningV2/autoMiningV2DbAvailability.js";
 
 const HISTORY_LOG_DAYS = 30;
@@ -39,19 +40,7 @@ export async function getPowerStats(req: Request, res: Response) {
     const now = new Date();
     const v2SchemaOk = await isAutoMiningV2SchemaAvailable();
 
-    const [
-      userRow,
-      allMiners,
-      gamePowers,
-      ytPowers,
-      gpuPowers,
-      ytHistory,
-      miningLogs,
-      blkCycles,
-      streak,
-      allRankUsers,
-      activeUsers24h
-    ] = await Promise.all([
+    const [userRow, allMiners] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -73,7 +62,10 @@ export async function getPowerStats(req: Request, res: Response) {
           }
         },
         orderBy: { slotIndex: "asc" }
-      }),
+      })
+    ]);
+
+    const [gamePowers, ytPowers, gpuPowers, ytHistory] = await Promise.all([
       prisma.userPowerGame.findMany({
         where: { userId, expiresAt: { gt: now } },
         include: { game: { select: { id: true, name: true, slug: true } } },
@@ -100,7 +92,10 @@ export async function getPowerStats(req: Request, res: Response) {
           status: true,
           createdAt: true
         }
-      }),
+      })
+    ]);
+
+    const [miningLogs, blkCycles, streak, activeUsers24h, allRankUsers] = await Promise.all([
       prisma.miningRewardsLog.findMany({
         where: {
           userId,
@@ -124,10 +119,6 @@ export async function getPowerStats(req: Request, res: Response) {
         }
       }),
       computeCheckinStreak(userId),
-      prisma.user.findMany({
-        where: { isBanned: false },
-        select: rankingUserSelect(now, { includeAutoMiningV2: v2SchemaOk })
-      }),
       prisma.user.count({
         where: {
           isBanned: false,
@@ -136,7 +127,8 @@ export async function getPowerStats(req: Request, res: Response) {
             { lastLoginAt: { gte: new Date(Date.now() - 86400000) } }
           ]
         }
-      })
+      }),
+      loadUsersForPowerStatsRanking(prisma, userId, now, v2SchemaOk)
     ]);
 
     const gpuV2Powers = v2SchemaOk
@@ -453,8 +445,8 @@ export async function getPowerStats(req: Request, res: Response) {
         miningLogSamples: miningLogs.length
       }
     });
-  } catch (e) {
-    console.error("getPowerStats", e);
-    res.status(500).json({ ok: false, message: "Unable to load power statistics." });
+  } catch (e: unknown) {
+    console.error("getPowerStats", readErrorMessage(e));
+    respondPrismaAwareError(res, e, "Não foi possível carregar as estatísticas de poder agora.");
   }
 }

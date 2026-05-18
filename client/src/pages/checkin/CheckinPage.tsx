@@ -21,6 +21,11 @@ import {
   statusNeedsCheckinPoll,
   weiHexFromDecimalString,
 } from '../../shared/utils/checkinHelpers';
+import {
+  readAxiosHttpStatus,
+  readAxiosResponseMessage,
+  shouldStopApiPolling,
+} from '../../shared/utils/httpPollingGuard';
 
 function formatMilestoneReward(m: CheckinMilestoneRow, t: TFunction): string {
   const rt = String(m.rewardType || '').toLowerCase();
@@ -64,6 +69,8 @@ export default function Checkin() {
   const [isLoading, setIsLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollHaltedRef = useRef(false);
+  const [statusLoadError, setStatusLoadError] = useState<string | null>(null);
   /** Single-flight: wallet and balance paths cannot overlap (double-submit / race). */
   const payKindRef = useRef<'none' | 'wallet' | 'balance'>('none');
 
@@ -83,16 +90,31 @@ export default function Checkin() {
     try {
       const data = await fetchCheckinStatus();
       if (data.ok) {
+        setStatusLoadError(null);
+        pollHaltedRef.current = false;
         setStatus((s) => mergeStatus(s, data));
         return data;
       }
+      const envelopeMsg =
+        typeof data === 'object' && data !== null && 'message' in data && typeof (data as { message?: unknown }).message === 'string'
+          ? (data as { message: string }).message
+          : null;
+      setStatusLoadError(envelopeMsg || t('checkin.unavailable'));
+      pollHaltedRef.current = true;
       setStatus({ ok: false });
     } catch (err) {
-      console.error('Check-in status', err);
+      const httpStatus = readAxiosHttpStatus(err);
+      if (shouldStopApiPolling(httpStatus)) {
+        pollHaltedRef.current = true;
+      }
+      setStatusLoadError(readAxiosResponseMessage(err, t('checkin.unavailable')));
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Check-in status', err);
+      }
       setStatus({ ok: false });
     }
     return null;
-  }, []);
+  }, [t]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -105,6 +127,13 @@ export default function Checkin() {
   }, [load]);
 
   useEffect(() => {
+    if (pollHaltedRef.current) {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      return undefined;
+    }
     const needPoll = status && statusNeedsCheckinPoll(status);
     if (!needPoll) {
       if (pollRef.current) {
@@ -247,9 +276,25 @@ export default function Checkin() {
   if (!status?.ok || status?.statusDegraded) {
     return (
       <div className="p-8 text-center text-gray-400 space-y-3 max-w-md mx-auto">
-        <p>{status?.statusDegraded ? t('checkin.status_degraded') : t('checkin.unavailable')}</p>
+        <p>
+          {status?.statusDegraded
+            ? t('checkin.status_degraded')
+            : statusLoadError || t('checkin.unavailable')}
+        </p>
         {status?.statusDegraded ? (
           <p className="text-xs text-slate-600">{t('checkin.status_degraded_hint')}</p>
+        ) : null}
+        {!status?.statusDegraded ? (
+          <button
+            type="button"
+            onClick={() => {
+              pollHaltedRef.current = false;
+              void load();
+            }}
+            className="mt-2 px-4 py-2 rounded-xl bg-surface border border-gray-700 text-sm font-semibold text-white hover:border-primary/50"
+          >
+            {t('common.retry')}
+          </button>
         ) : null}
       </div>
     );

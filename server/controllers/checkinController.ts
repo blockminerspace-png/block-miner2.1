@@ -25,6 +25,7 @@ import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { logSecurityEvent, logSecurityWarn } from "../utils/securityLogger.js";
 import loggerLib, { logUserActivity } from "../utils/logger.js";
 import { prismaSafeErrorMeta } from "../utils/prismaSafeError.js";
+import { respondPrismaAwareError } from "../utils/prismaHttpErrors.js";
 
 const checkinLog = loggerLib.child("Checkin");
 
@@ -446,11 +447,17 @@ export async function getStatus(req: Request, res: Response) {
     });
   } catch (e: unknown) {
     if (e instanceof Error && e.message === "UNAUTHENTICATED") {
-      res.status(401).json({ ok: false, message: "Authentication required." });
+      const message = "Sessão expirada ou ausente.";
+      res.status(401).json({
+        ok: false,
+        code: "UNAUTHENTICATED",
+        message,
+        error: message,
+      });
       return;
     }
     checkinLog.error("Checkin getStatus:", prismaSafeErrorMeta(e));
-    res.status(500).json({ ok: false, message: "Unable to load check-in status." });
+    respondPrismaAwareError(res, e, "Não foi possível carregar o status do check-in agora.");
   }
 }
 
