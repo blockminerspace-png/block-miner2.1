@@ -1,7 +1,6 @@
 import "dotenv/config";
 import path from "path";
 import { existsSync } from "fs";
-import fs from "fs/promises";
 import http from "http";
 import crypto from "crypto";
 import { fileURLToPath, pathToFileURL } from "url";
@@ -15,6 +14,12 @@ import { setMiningEngine } from "./src/miningEngineInstance.js";
 import { setMiningEngine as setRuntimeMiningEngine } from "./src/runtime/miningRuntime.js";
 import loggerLib, { logUnhandledError } from "./utils/logger.js";
 import { findBlockMinerProjectRoot } from "./utils/projectRoot.js";
+import {
+  attachClientDistStatic,
+  attachSpaFallback,
+  resolveClientDistPaths,
+  type SpaIndexRenderer,
+} from "./utils/spaStatic.js";
 import { resolveWalletConnectProjectIdFromEnv } from "./utils/walletConnectProjectId.js";
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
@@ -252,7 +257,16 @@ app.use(
   })
 );
 
-const publicPath = path.join(PROJECT_ROOT, "client", "dist");
+const clientDist = resolveClientDistPaths(PROJECT_ROOT);
+const publicPath = clientDist.distPath;
+
+if (!clientDist.indexExists) {
+  logger.warn("client.dist.missing", {
+    projectRoot: PROJECT_ROOT,
+    distPath: clientDist.distPath,
+    indexPath: clientDist.indexPath,
+  });
+}
 // Static crypto broadcast board (TradingView, etc.) — NOT under /dashboardcrypto so the SPA route
 // `/dashboardcrypto` works like `/liveserver` (no competing Express handlers → no redirect loops).
 const cryptoBroadcastDist = path.join(publicPath, "crypto-broadcast");
@@ -293,82 +307,53 @@ app.use(
 // stick on an old bundle after deploy (stale check-in UI, etc.).
 // acceptRanges: false — some mobile clients + HTTP/2 + nginx proxy stall on 206 Range chains
 // for module scripts (DevTools: CSS 206, entry JS stuck "pending"). Full-file 200 is safer here.
-app.use(
-  express.static(publicPath, {
-    index: false,
-    acceptRanges: false,
-    setHeaders(res, filePath) {
-      const base = path.basename(filePath);
-      if (/[-.][0-9A-Za-z_-]{7,}\.(m?js|css|wasm)$/i.test(base)) {
-        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      } else if (/\.(png|jpe?g|webp|gif|ico|svg)$/i.test(base)) {
-        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
-      } else if (/\.(m?js|css|wasm)$/i.test(base)) {
-        res.setHeader("Cache-Control", "no-cache");
-      }
-    },
-  })
-);
+attachClientDistStatic(app, publicPath, clientDist.indexExists);
 
-// Express 5 / path-to-regexp 8+ catch-all syntax
-app.get("/{*all}", async (req, res) => {
-  if (req.path.startsWith("/api")) {
-    res.status(404).type("text/plain").send("Not found");
-    return;
-  }
-  if (ADMIN_ONLY_MODE && !req.path.startsWith("/admin")) {
-    res.redirect(302, "/admin/login");
-    return;
-  }
-  try {
-    const indexPath = path.join(publicPath, "index.html");
-    let html = await fs.readFile(indexPath, "utf8");
+const renderSpaIndex: SpaIndexRenderer = (html, { nonce }) => {
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : "";
 
-    const nonce = res.locals.cspNonce || "";
-    const nonceAttr = nonce ? ` nonce="${nonce}"` : "";
+  let out = html.replace(
+    "<!--__BM_CSP_NONCE_BOOT__-->",
+    nonce
+      ? `<script${nonceAttr}>window.__BLOCKMINER_CSP_NONCE__=${JSON.stringify(nonce)}<\/script>`
+      : "",
+  );
 
-    // CSP nonce for Turnstile (Cloudflare: put nonce on api.js; Turnstile propagates to child resources).
-    html = html.replace(
-      "<!--__BM_CSP_NONCE_BOOT__-->",
-      nonce
-        ? `<script${nonceAttr}>window.__BLOCKMINER_CSP_NONCE__=${JSON.stringify(nonce)}<\/script>`
-        : "",
-    );
-
-    // WalletConnect: inject only a valid 32-char hex project id (never placeholders).
-    const wcId = resolveWalletConnectProjectIdFromEnv();
-    const wcAppUrl = String(
-      process.env.VITE_PUBLIC_WALLET_APP_URL || process.env.APP_URL || ""
-    )
-      .trim()
-      .replace(/\/+$/, "");
-    if (wcId) {
-      const payload = JSON.stringify({
-        VITE_WALLETCONNECT_PROJECT_ID: wcId,
-        ...(wcAppUrl ? { VITE_PUBLIC_WALLET_APP_URL: wcAppUrl } : {}),
-      });
-      const injectScript = `<script${nonceAttr}>window.__BLOCKMINER_ENV__=${payload.replace(/</g, "\\u003c")}<\/script>`;
-      if (html.includes("<!--__BM_RUNTIME_CONFIG__-->")) {
-        html = html.replace("<!--__BM_RUNTIME_CONFIG__-->", injectScript);
-      } else if (!html.includes("__BLOCKMINER_ENV__")) {
-        html = html.replace("<head>", `<head>${injectScript}`);
-      }
-    } else {
-      html = html.replace("<!--__BM_RUNTIME_CONFIG__-->", "");
+  const wcId = resolveWalletConnectProjectIdFromEnv();
+  const wcAppUrl = String(process.env.VITE_PUBLIC_WALLET_APP_URL || process.env.APP_URL || "")
+    .trim()
+    .replace(/\/+$/, "");
+  if (wcId) {
+    const payload = JSON.stringify({
+      VITE_WALLETCONNECT_PROJECT_ID: wcId,
+      ...(wcAppUrl ? { VITE_PUBLIC_WALLET_APP_URL: wcAppUrl } : {}),
+    });
+    const injectScript = `<script${nonceAttr}>window.__BLOCKMINER_ENV__=${payload.replace(/</g, "\\u003c")}<\/script>`;
+    if (out.includes("<!--__BM_RUNTIME_CONFIG__-->")) {
+      out = out.replace("<!--__BM_RUNTIME_CONFIG__-->", injectScript);
+    } else if (!out.includes("__BLOCKMINER_ENV__")) {
+      out = out.replace("<head>", `<head>${injectScript}`);
     }
-
-    // Inject the nonce into all script and style tags that have the placeholder
-    html = html.replace(/__CSP_NONCE__/g, nonce);
-
-    // Avoid stale index.html after deploy (prevents "Failed to fetch dynamically imported module" for old chunk hashes)
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-    res.setHeader("Pragma", "no-cache");
-
-    res.send(html);
-  } catch (error: unknown) {
-    logger.error("Error serving index.html", { error: errMsg(error) });
-    res.status(500).send("Internal Server Error");
+  } else {
+    out = out.replace("<!--__BM_RUNTIME_CONFIG__-->", "");
   }
+
+  return out.replace(/__CSP_NONCE__/g, nonce);
+};
+
+attachSpaFallback(app, {
+  indexPath: clientDist.indexPath,
+  indexExists: clientDist.indexExists,
+  adminOnlyMode: ADMIN_ONLY_MODE,
+  renderIndex: renderSpaIndex,
+  onMissingIndex(res) {
+    logger.warn("spa.index.missing", { indexPath: clientDist.indexPath });
+    res.status(503).type("text/plain").send("Frontend build unavailable.");
+  },
+  onRenderFailure(res, error) {
+    logger.error("spa.index.render_failed", { error: errMsg(error), indexPath: clientDist.indexPath });
+    res.status(503).type("text/plain").send("Frontend build unavailable.");
+  },
 });
 
 app.use(apiErrorHandler);

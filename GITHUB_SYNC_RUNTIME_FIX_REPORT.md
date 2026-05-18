@@ -223,6 +223,62 @@ Browser DevTools on `/login` should show **no** `api.web3modal.org` / `pulse.wal
 
 ---
 
+## Correção do 500 em GET /login
+
+### Causa real
+
+O catch-all SPA em `server/server.ts` fazia `fs.readFile(client/dist/index.html)` e, em qualquer falha (arquivo ausente, `PROJECT_ROOT` errado como `/app/dist` em vez de `/app`, ou erro ao injetar HTML), respondia **`500 Internal Server Error`**.
+
+Cenários típicos no deploy:
+
+- `client/dist/index.html` inexistente na imagem ou caminho resolvido errado → `ENOENT` → **500**
+- Fallback final de `findBlockMinerProjectRoot()` apontava para `dist/` em vez da raiz do monorepo quando a heurística principal falhava
+
+`/api/auth/session` → **401** sem cookie continua correto e não foi alterado.
+
+### Caminhos
+
+| | Caminho |
+|---|--------|
+| Esperado | `{PROJECT_ROOT}/client/dist/index.html` (ex.: `/app/client/dist/index.html` no Docker) |
+| Encontrado na VM (18 May 2026) | `/app/client/dist/index.html` — `exists: true` |
+
+### Arquivos corrigidos
+
+| Arquivo | Mudança |
+|---------|---------|
+| `server/utils/spaStatic.ts` | **Novo** — static + fallback SPA; **503** se build ausente; `/api/*` → 404 texto |
+| `server/server.ts` | Usa `spaStatic`; remove resposta **500** no fallback |
+| `server/utils/projectRoot.ts` | Fallback seguro: de `dist/server` sobe **dois** níveis para a raiz do repo |
+| `tests/spaFallback.test.mjs` | **Novo** — regressão `/login`, `/admin/miners`, API vs SPA, 503 sem dist |
+
+### Comportamento do fallback SPA
+
+1. APIs montadas antes (inalterado).
+2. `express.static(client/dist)` quando `index.html` existe.
+3. `GET /{*all}`: se path começa com `/api` → **404** (não SPA).
+4. Rotas browser (`/login`, `/register`, `/admin/miners`, …) → HTML do `index.html` com injeção CSP/WC.
+5. Se `index.html` ausente ou leitura falhar → **503** `Frontend build unavailable.` (sem stack ao cliente).
+
+### `curl` após correção (local / testes automatizados)
+
+| Rota | Status |
+|------|--------|
+| `/login` | **200** `text/html` |
+| `/register` | **200** `text/html` |
+| `/admin/miners` | **200** `text/html` |
+| `/api/auth/session` (sem cookie) | **404** no mini-app de teste SPA-only; **401** no app completo com router auth |
+
+### Builds / testes
+
+- `npm run typecheck:server` — PASS
+- `npm run build:server` — PASS
+- `npm test` (incl. `tests/spaFallback.test.mjs`) — PASS
+
+Docker rebuild na VM: pendente após commit desta correção.
+
+---
+
 ## Acceptance summary
 
 | Criterion | Met |
@@ -230,7 +286,7 @@ Browser DevTools on `/login` should show **no** `api.web3modal.org` / `pulse.wal
 | Repo synced with GitHub | Yes |
 | Builds/tests green | Yes |
 | Docker build green | Yes |
-| `/login` not 500 | Yes |
+| `/login` not 500 | Yes (code); redeploy VM recommended |
 | `/api/auth/session` not 500 (no cookie) | Yes (401) |
 | `/api/admin/miners` not 500 for normal query without auth | Yes (401); with auth needs DB migration |
 | No fake WC projectId injection | Yes |

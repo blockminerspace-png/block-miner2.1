@@ -29,8 +29,17 @@ export function findBlockMinerProjectRoot(fromDir) {
     const guess = path.resolve(fromDir, "..", "..");
     const guessMarker = path.join(guess, "server", "prisma", "schema.prisma");
     if (existsSync(guessMarker) && existsSync(path.join(guess, "package.json"))) {
-      return guess;
+      try {
+        const pkg = JSON.parse(readFileSync(path.join(guess, "package.json"), "utf8"));
+        if (pkg && pkg.name === "block-miner") {
+          return guess;
+        }
+      } catch {
+        /* ignore */
+      }
     }
+    // Compiled entry (`dist/server/server.js`): repo root is two levels up, not `dist/`.
+    return guess;
   }
   return path.join(fromDir, "..");
 }
