@@ -5,6 +5,7 @@ name: block-miner
 
 services:
   db:
+    container_name: block-miner-db
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: blockminer
@@ -22,6 +23,7 @@ services:
       retries: 10
 
   redis:
+    container_name: block-miner-redis
     image: redis:7-alpine
     ports:
       - "${REDIS_PUBLISH_PORT:-6379}:6379"
@@ -33,6 +35,7 @@ services:
       retries: 20
 
   app:
+    container_name: block-miner-app
     build:
       context: .
       args:
@@ -68,6 +71,7 @@ services:
     restart: unless-stopped
 
   worker:
+    container_name: block-miner-worker
     build:
       context: .
       args:
@@ -94,6 +98,7 @@ services:
     command: ["node", "dist/server/jobs/runBlockminerWorker.js"]
 
   nginx:
+    container_name: block-miner-nginx
     image: nginx:alpine
     ports:
       - "80:80"
