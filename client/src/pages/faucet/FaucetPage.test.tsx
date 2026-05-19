@@ -2,21 +2,22 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import Faucet from "./Faucet";
+import Faucet from "./FaucetPage";
 
 const api = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn()
 }));
 
-vi.mock("../store/auth", () => ({
+vi.mock("../../store/auth", () => ({
   api
 }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key
-  })
+  }),
+  initReactI18next: { type: "3rdParty", init: () => undefined }
 }));
 
 function statusPayload(overrides: { reward?: Record<string, unknown> } & Record<string, unknown> = {}) {

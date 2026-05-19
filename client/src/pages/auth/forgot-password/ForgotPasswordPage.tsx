@@ -4,8 +4,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
-import { api } from '../../store/auth';
-import BrandLogo from '../../shared/components/BrandLogo';
+import { api } from '../../../store/auth';
+import BrandLogo from '../../../shared/components/BrandLogo';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();

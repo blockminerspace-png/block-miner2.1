@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const checkinControllerPath = join(__dirname, "../dist/server/controllers/checkinController.js");
+const checkinControllerPath = join(__dirname, "../server/modules/checkin/checkin.controller.ts");
 
 test("wallet check-in rejects users without a linked wallet (server gate)", () => {
   const src = readFileSync(checkinControllerPath, "utf8");

@@ -19,7 +19,7 @@ import BroadcastPopup from '../shared/components/BroadcastPopup';
 import TransparencyErrorBoundary from '../shared/components/TransparencyErrorBoundary';
 import { prefetchProtectedBootstrap } from '../shared/utils/routePrefetch';
 
-const ForgotPassword = lazy(() => import('../pages/auth/ForgotPasswordPage'));
+const ForgotPassword = lazy(() => import('../pages/auth/forgot-password/ForgotPasswordPage'));
 const Dashboard = lazy(() => import('../pages/dashboard'));
 const Shop = lazy(() => import('../pages/shop'));
 const Inventory = lazy(() => import('../pages/machines'));

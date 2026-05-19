@@ -1,6 +1,6 @@
 export { default as LoginPage } from './login/LoginPage';
 export { default as RegisterPage } from './register/RegisterPage';
-export { default as ForgotPasswordPage } from './ForgotPasswordPage';
+export { default as ForgotPasswordPage } from './forgot-password/ForgotPasswordPage';
 export * from './login/login.api';
 export * from './register/register.api';
 export * from './shared/auth.types';

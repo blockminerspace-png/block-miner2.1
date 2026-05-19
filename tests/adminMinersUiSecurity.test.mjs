@@ -8,7 +8,7 @@ const adminMinersApi = readFileSync(
   "utf8",
 );
 const shopController = readFileSync(
-  new URL("../dist/server/controllers/shopController.js", import.meta.url),
+  new URL("../server/modules/shop/shop.controller.ts", import.meta.url),
   "utf8",
 );
 const adminRoutes = readFileSync(new URL("../dist/server/routes/admin.js", import.meta.url), "utf8");

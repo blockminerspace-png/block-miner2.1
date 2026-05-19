@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const shopController = readFileSync(
-  new URL("../dist/server/controllers/shopController.js", import.meta.url),
+  new URL("../server/modules/shop/shop.controller.ts", import.meta.url),
   "utf8",
 );
 
