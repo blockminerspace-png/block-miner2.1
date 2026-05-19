@@ -7,6 +7,8 @@ node_modules/
 client/node_modules/
 # Vite build output (regenerate with `npm run build` in client/ or Docker frontend stage)
 client/dist/
+client/coverage/
+coverage/
 backend/dist/
 backend/_server_vendor/
 server/dist/
@@ -70,7 +72,9 @@ yarn-error.log*
 # OS / Editor
 .DS_Store
 Thumbs.db
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 # Universal agent skills installer (`npx skills add …`) clones upstream repos here — do not commit.
 .agents/
 # Same installer may leave a root symlink + lock file — do not commit.

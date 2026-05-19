@@ -1,0 +1,23 @@
+{
+  "files.exclude": {
+    "**/client/dist": true,
+    "**/client/coverage": true,
+    "**/client/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/client/dist": true,
+    "**/client/coverage": true,
+    "**/client/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/node_modules": true
+  },
+  "files.watcherExclude": {
+    "**/client/dist/**": true,
+    "**/client/coverage/**": true,
+    "**/client/node_modules/**": true
+  }
+}
