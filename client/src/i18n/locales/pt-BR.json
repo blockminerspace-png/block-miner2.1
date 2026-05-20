@@ -1858,8 +1858,8 @@
     "express_mode_note": "EXPRESS: associe a carteira para assinar transferências na Polygon. O saldo atualiza após {{n}} confirmações de bloco."
   },
   "faucet": {
-    "title": "Faucet de Equipamentos",
-    "subtitle": "Ganhe mineradoras gratuitas a cada 60 minutos. Complete o passo do parceiro para desbloquear seu prêmio.",
+    "title": "Faucet de Poder",
+    "subtitle": "Ganhe Poder de Mineração Temporário a cada 60 minutos. Complete o passo do parceiro para desbloquear seu bônus.",
     "loading": "Carregando faucet…",
     "reward_permanent": "Não expira",
     "reward_temporary": "Por tempo limitado",
@@ -1877,10 +1877,10 @@
     "partner_new_tab_hint": "O patrocinador abre numa nova aba",
     "partner_toast_started": "Patrocinador aberto numa nova aba. Mantenha-a aberta por alguns segundos.",
     "wait_seconds": "Mantenha aberto por {{seconds}}s...",
-    "claim_miner": "Resgatar Mineradora",
+    "claim_miner": "Resgatar Poder",
     "claiming": "Resgatando...",
     "how_it_works_msg": "Para manter o pool gratuito, pedimos que visite nossos patrocinadores. Clique no banner, mantenha o site aberto por alguns segundos e o botão de resgate será ativado automaticamente.",
-    "permanent_equipment_note": "O equipamento da faucet é permanente: permanece no inventário como qualquer outra máquina até você colocá-lo num rack ou removê-lo — não some após 24 horas."
+    "permanent_equipment_note": "O poder concedido pela Faucet não ocupa slots no inventário. O bônus dura exatas 24 horas e é acumulado diretamente na sua mineração atual."
   },
   "shortlinks": {
     "title": "Shortlinks",

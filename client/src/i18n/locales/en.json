@@ -1855,8 +1855,8 @@
     "express_mode_note": "EXPRESS: Link your wallet to sign transfers on Polygon. Balance updates after {{n}} block confirmations."
   },
   "faucet": {
-    "title": "Equipment Faucet",
-    "subtitle": "Earn free miners every 60 minutes. Complete the partner step to unlock your prize.",
+    "title": "Power Faucet",
+    "subtitle": "Earn temporary mining power every 60 minutes. Complete the partner step to unlock your bonus.",
     "loading": "Loading faucet…",
     "reward_permanent": "Never expires",
     "reward_temporary": "Time-limited",
@@ -1874,10 +1874,10 @@
     "partner_new_tab_hint": "The sponsor opens in a new tab",
     "partner_toast_started": "Sponsor opened in a new tab. Keep it open for a few seconds.",
     "wait_seconds": "Keep open for {{seconds}}s...",
-    "claim_miner": "Claim Miner",
+    "claim_miner": "Claim Power",
     "claiming": "Claiming...",
     "how_it_works_msg": "To keep the pool free, we ask you to visit our sponsors. Click the banner, keep the site open for a few seconds, and the claim button will activate automatically.",
-    "permanent_equipment_note": "Faucet equipment is permanent: it stays in your inventory like any other machine until you place it on a rack or remove it — it does not disappear after 24 hours."
+    "permanent_equipment_note": "The power granted by the Faucet does not take up inventory slots. The bonus lasts exactly 24 hours and is added directly to your current mining."
   },
   "shortlinks": {
     "title": "Shortlinks",
