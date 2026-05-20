@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { normalizeIp } from "../utils/clientIp.js";
+import { excludeQaTestUsersWhere, isQaTestUserRecord } from "../utils/qaTestUser.js";
 import { getCachedIpIntelligence } from "./ipIntelligenceService.js";
 
 const MAX_SEARCH = 140;
@@ -15,7 +16,7 @@ export function parseAdminUserListQuery(query: AdminQueryRecord = {}) {
   const filter = cleanEnum(query.filter || "all", [
     "all", "active", "banned", "with_balance", "with_active_machines", "hashrate_positive",
     "wallet_linked", "wallet_missing", "with_deposits", "with_withdrawals", "with_faucet",
-    "shared_ip", "suspected", "asn_provider", "today", "7d", "30d",
+    "shared_ip", "suspected", "asn_provider", "today", "7d", "30d", "show_qa",
   ] as const, "all");
   const sort = cleanEnum(query.sort || "recent_id", [
     "recent_id", "oldest_id", "highest_balance", "highest_hashrate", "last_login",
@@ -294,6 +295,9 @@ function buildUserWhere(args: { q: string; filter: string; candidateIds: number[
   const { q, filter, candidateIds } = args;
   const where: Prisma.UserWhereInput = {};
   const and: Prisma.UserWhereInput[] = [];
+  if (filter !== "show_qa") {
+    and.push(excludeQaTestUsersWhere());
+  }
   if (q) {
     const nid = numericId(q);
     const nip = normalizeIp(q);
@@ -423,6 +427,7 @@ type ListUserOut = {
     hasSharedIp: boolean;
     possibleMultiAccount: boolean;
     isBanned: boolean;
+    isQaTestAccount: boolean;
   };
 };
 
@@ -510,6 +515,7 @@ export async function listAdminUsers(prisma: PrismaClient, query: AdminQueryReco
         hasSharedIp,
         possibleMultiAccount: hasSharedIp || Boolean(u.walletAddress && candidateIds.includes(u.id) && isWalletLike(parsed.q)),
         isBanned: u.isBanned,
+        isQaTestAccount: isQaTestUserRecord({ username: u.username, email: u.email }),
       },
     };
   });

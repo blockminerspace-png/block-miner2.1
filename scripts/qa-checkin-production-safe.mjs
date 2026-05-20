@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Safe production check-in QA harness.
+ * Safe production check-in QA harness (does not create users).
  * Never logs passwords, cookies, tokens, or DATABASE_URL.
  *
  * Env:
@@ -13,7 +13,7 @@
  *   BLOCKMINER_QA_SKIP_CLAIM=1      status/onchain tests only
  */
 import { spawnSync } from "node:child_process";
-import crypto from "node:crypto";
+import { isProductionQaBaseUrl } from "./qa-test-user-patterns.mjs";
 
 const BASE = (process.env.BLOCKMINER_QA_BASE_URL || "https://blockminer.space").replace(/\/$/, "");
 const IDENT = String(process.env.BLOCKMINER_QA_IDENTIFIER || "").trim();

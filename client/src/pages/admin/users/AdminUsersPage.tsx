@@ -62,6 +62,7 @@ type AdminUsersListRow = {
     hasWithdrawal?: boolean;
     hasSharedIp?: boolean;
     possibleMultiAccount?: boolean;
+    isQaTestAccount?: boolean;
   } | null;
   totalTransactions?: number | null;
   totalLogs?: number | null;
@@ -206,6 +207,7 @@ const FILTERS: [string, string][] = [
   ['today', 'Hoje'],
   ['7d', '7 dias'],
   ['30d', '30 dias'],
+  ['show_qa', 'Contas QA (teste)'],
 ];
 
 const SORTS: [string, string][] = [
@@ -550,6 +552,11 @@ export default function AdminUsers() {
                           >
                             {u.status}
                           </span>
+                          {u.indicators?.isQaTestAccount ? (
+                            <span className="ml-1 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[9px] font-black uppercase text-violet-300">
+                              QA
+                            </span>
+                          ) : null}
                         </div>
                         <span className="text-xs font-bold text-white">
                           {u.username || u.name || '--'} <CopyButton value={u.username || u.name} />
