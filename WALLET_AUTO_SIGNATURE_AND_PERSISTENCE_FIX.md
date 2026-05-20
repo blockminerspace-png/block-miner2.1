@@ -99,7 +99,14 @@ IDE/linter: no issues reported on edited TS/TSX files.
 
 ## 14. Docker build
 
-**Not run** (requires `npm` / Docker in environment).
+**Production VM** (`scripts/vm-deploy-local-over-ssh.py`, commit `242deec8`): Docker images rebuilt (`app`, `worker`), containers recreated, 5-stack healthy.
+
+Post-deploy smoke (no session):
+
+- `GET https://blockminer.space/api/wallet/me` → **401** `application/json`
+- `GET https://blockminer.space/api/auth/session` → **401** `application/json`
+
+Local agent: `npm`/Docker CLI not installed — local typecheck/build not executed here.
 
 ## 15. `$queryRawUnsafe`
 
