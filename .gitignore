@@ -18,6 +18,9 @@ scripts/__pycache__/
 *~
 scripts/migration_*.txt
 scripts/schema_dump*.txt
+.qa-checkin-summary.json
+.qa-creds.tmp
+.qa-checkin-pass.tmp
 server/storage/logs/**/*.log
 !server/storage/logs/**/.gitkeep
 
