@@ -232,7 +232,155 @@ find client/src \( -name "*.js" -o -name "*.jsx" \) -type f
 
 ---
 
-## 27. Próximo módulo recomendado
+## 27. Correção real do upload e preview de imagem (2026-05-19)
+
+### 1. Causa real da imagem placeholder aparecer
+
+| # | Causa | Efeito |
+|---|--------|--------|
+| 1 | `express.static('/uploads')` com **fallthrough** default (`true`) | Ficheiro inexistente → SPA devolvia `index.html` → `<img>` falhava → UI mostrava logo |
+| 2 | `onError` no preview/tabela trocava silenciosamente para `/icon.png` | Parecia “logo BlockMiner” mesmo com `imageUrl` correto no input |
+| 3 | Upload imediato revogava `objectURL` antes do remoto carregar | Preview saltava para URL remota que ainda podia falhar |
+| 4 | `PATCH` com `imageUrl: ''` | Podia limpar imagem em edições sem intenção (corrigido antes; mantido) |
+| 5 | Placeholder `/icon.png` aceite como URL persistível | Risco de gravar logo no banco |
+
+### 2. Ficheiro no disco / pasta
+
+- **Sim**, o upload grava em `uploads/miners/` (volume Docker `./uploads:/app/uploads`).
+- Nome gerado no servidor: `miner-<timestamp>-<random>.{jpg|png|webp}` (ignora nome original para path).
+
+### 3. `/uploads/miners/...` antes vs depois
+
+- **Antes:** 404 ou HTML do SPA (fallthrough) → preview quebrado.
+- **Depois:** `fallthrough: false` + `index: false` em `server/server.ts` → 404 real se faltar ficheiro; preview mostra **“Imagem não carregou”** em vez de logo.
+
+### 4. Campo no banco
+
+- `Miner.imageUrl` (string, path público relativo ou URL https externa válida).
+
+### 5. Campo no frontend
+
+- `form.imageUrl` — só URL real persistível (`normalizePersistableMinerImageUrl`).
+- `selectedImageFile` — ficheiro pendente até **Salvar** (multipart no PATCH/POST).
+- Placeholder **só** em render (`ADMIN_MINER_IMAGE_PLACEHOLDER`), nunca no payload.
+
+### 6. FormData
+
+- `buildAdminMinerFormData` / `createAdminMiner` / `updateAdminMiner` enviam multipart com campo **`image`** quando há ficheiro.
+- Sem header `Content-Type` manual (boundary automático do axios).
+- `POST /api/admin/miners/upload-image` mantido para upload antecipado opcional.
+
+### 7–8. Armazenamento e URL pública
+
+- Disco: `{UPLOADS_DIR}/miners/<arquivo>` (default `uploads/miners/`).
+- URL: `/uploads/miners/<arquivo>`.
+
+### 9. Servir `/uploads`
+
+```ts
+app.use("/uploads", express.static(UPLOADS_STATIC_ROOT, { index: false, fallthrough: false }));
+```
+
+Antes do fallback SPA (`attachSpaFallback`).
+
+### 10. Ordem do preview
+
+1. `URL.createObjectURL(file)` se ficheiro selecionado.
+2. `imageUrl` real do formulário/BD (+ cache bust opcional).
+3. Placeholder visual `/icon.png` só se não há URL.
+4. Se URL existe mas falha: mensagem **“Imagem não carregou”** (sem substituir por logo).
+
+### 11. Edição sem imagem nova
+
+- `preserveImageUrlRef` + schema: `imageUrl` vazio no PATCH **não** apaga.
+- `normalizePersistableMinerImageUrl` impede reenviar placeholder.
+
+### 12–13. Segurança
+
+- MIME: `image/png`, `image/jpeg`, `image/webp` apenas; SVG/HTML bloqueados.
+- Tamanho máx. 5 MB.
+- `path.basename` no nome final; rejeita `..` e `javascript:`.
+- `isPlaceholderMinerImageUrl` bloqueia persistir logo.
+
+### 14. Testes
+
+- `tests/admin/miners/adminMinerImageUpload.test.mjs`
+- `client/src/pages/admin/miners/adminMiners.image.test.ts`
+- `client/src/pages/admin/miners/adminMiners.api.test.ts`
+- `client/src/pages/admin/miners/components/AdminMinerImageInput.test.tsx`
+
+### 15. Comandos (ambiente local)
+
+| Comando | Resultado |
+|---------|-----------|
+| `node --test tests/admin/miners/adminMinerImageUpload.test.mjs` | **7/7 OK** |
+| `tsc -p client/tsconfig.json` | **OK** (sem erros no módulo miners) |
+| `npm test` / vitest miners | requer `jsdom` no ambiente CI/local completo |
+
+### 16. Teste manual
+
+Pendente pós-deploy: fluxo em `/admin/miners` → editar → GPU → salvar → `curl -I https://blockminer.space/uploads/miners/<file>` → 200.
+
+### 17–18. Sem `.js` fonte
+
+- `server/modules/admin-miners/` — apenas `.ts`.
+- `client/src/pages/admin/miners/` — apenas `.ts` / `.tsx`.
+
+---
+
+## 28. Correção de tamanho/preview da imagem da mineradora (2026-05-19)
+
+### 1. Causa real da imagem minúscula
+
+- Preview usava classes fixas **`h-24 w-24` (96px)** dentro de caixas muito maiores (`Preview`, `Preview loja`, tabela).
+- Placeholder e imagem real partilhavam o mesmo tamanho reduzido; GPU ficava “perdida” no centro.
+- Loja pública (`ShopPage`) já usava `w-full h-full object-contain` em `aspect-square` — OK.
+
+### 2. Componentes
+
+- `components/AdminMinerImage.tsx` — renderização unificada (`form` | `table` | `shop`).
+- `components/AdminMinerPreview.tsx` — label + frame do preview no formulário.
+- `AdminMinerImageInput.tsx` — passa a usar `AdminMinerPreview`.
+
+### 3. CSS
+
+| Variante | Frame | Imagem real |
+|----------|-------|-------------|
+| `form` | `min-h-[180px] h-[200px] w-full` | `h-full w-full object-contain object-center` |
+| `table` | preenche célula `h-16` | `h-full w-full object-contain` |
+| `shop` | `min-h-[140px]` no drawer | `h-full w-full object-contain` |
+
+Placeholder: ícone pequeno (`h-14` / `h-8`) com opacidade reduzida — **não** o mesmo tamanho da imagem real.
+
+### 4. Ordem do preview
+
+1. `objectURL` do ficheiro selecionado  
+2. `imageUrl` real (+ cache bust)  
+3. Placeholder visual  
+4. Erro “Imagem não carregou” se URL falhar (sem trocar por logo)
+
+### 5. Backend
+
+- **Sem** `sharp` no projeto — não foi adicionada normalização de thumbnail nesta etapa.
+- Upload seguro mantido (`uploadsRoot`, MIME, 5MB, `/uploads/miners/...`).
+
+### 6. Loja pública
+
+- `ShopPage` inalterada (layout já correto); usa `imageUrl` do catálogo.
+
+### 7. Testes
+
+- `AdminMinerImage.test.tsx`, `AdminMinerPreview.test.tsx`
+- `adminMinerImageUpload.test.mjs` — rejeita `h-24 w-24` no preview principal
+
+### 8. Validação
+
+- `node --test tests/admin/miners/adminMinerImageUpload.test.mjs` — OK
+- `tsc` client + server — OK
+
+---
+
+## 29. Próximo módulo recomendado
 
 **Wallet** — explicitamente adiado até Admin Miners fechado.  
 Após deploy desta etapa, seguir `MONOLITH_WALLET_MODULE_STEP_01.md` com o mesmo padrão (módulo em `server/modules/wallet/`, pasta `client/src/pages/wallet/`, testes em `tests/wallet/`).

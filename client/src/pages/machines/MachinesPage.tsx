@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useId,
-  type SyntheticEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +17,9 @@ import { api } from "../../store/auth";
 import { getRooms, getInventory } from "./machines.api";
 import { useGameStore } from "../../store/game";
 import i18n from "../../i18n/config";
-import { formatHashrate, DEFAULT_MINER_IMAGE_URL, getMachineDescriptor } from "../../shared/utils/machine";
+import { formatHashrate, getMachineDescriptor } from "../../shared/utils/machine";
+import { getMachineDisplayImageUrl } from "./machineDisplayImage";
+import { MachineImage } from "./components/MachineImage";
 import { dedupeOccupiedSlotsForDismantle } from "../../shared/utils/inventoryRackUtils";
 import RackMachineTooltipPortal from "../../shared/components/inventory/RackMachineTooltipPortal";
 import MachineQuantityModal from "../../shared/components/MachineQuantityModal";
@@ -36,7 +37,6 @@ import type {
 import {
   parsePositiveIntFromDrag,
   safeDisplayLabel,
-  sanitizeMachineImageSrc,
 } from "../../shared/utils/inventoryPageGuards";
 
 const RACK_TOOLTIP_SHOW_MS = 120;
@@ -256,7 +256,12 @@ const SlotModal = memo(function SlotModal({
   );
   const hasMoreInventoryGroups = visibleCount < groupedInventory.length;
   const descriptor = machine ? getMachineDescriptor(machine) : null;
-  const imgSrc = descriptor ? sanitizeMachineImageSrc(descriptor.image) : DEFAULT_MINER_IMAGE_URL;
+  const modalImageUrl = machine
+    ? getMachineDisplayImageUrl({
+        imageUrl: machine.imageUrl,
+        imageSource: machine.imageSource,
+      })
+    : null;
   const displayNameSafe = machine
     ? safeDisplayLabel(machine.minerName || descriptor?.name || "")
     : "";
@@ -285,13 +290,10 @@ const SlotModal = memo(function SlotModal({
             <div className="space-y-6">
               <div className="flex flex-col gap-4 rounded-2xl border border-gray-800/50 bg-gray-800/20 p-4 sm:flex-row sm:items-center sm:gap-6">
                 <div className="mx-auto flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-gray-800/50 bg-gray-900/50 p-3 sm:mx-0">
-                  <img
-                    src={imgSrc}
-                    alt={safeDisplayLabel(descriptor?.name || "")}
+                  <MachineImage
+                    imageUrl={modalImageUrl}
+                    name={safeDisplayLabel(descriptor?.name || machine?.minerName || "")}
                     className="max-h-full max-w-full object-contain"
-                    onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                      e.currentTarget.src = DEFAULT_MINER_IMAGE_URL;
-                    }}
                   />
                 </div>
                 <div className="min-w-0 flex-1 text-center sm:text-left">
@@ -407,13 +409,11 @@ const SlotModal = memo(function SlotModal({
               ) : (
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                   {visibleInventoryGroups.map((group) => {
-                    const desc = getMachineDescriptor({
-                      hashRate: group.hashRate,
-                      slotSize: group.slotSize,
-                      imageUrl: group.imageUrl,
-                    });
-                    const rowImg = sanitizeMachineImageSrc(desc.image);
                     const rowAlt = safeDisplayLabel(group.minerName);
+                    const rowImageUrl = getMachineDisplayImageUrl({
+                      imageUrl: group.imageUrl,
+                      imageSource: group.imageSource,
+                    });
                     return (
                       <button
                         key={inventoryStackKey(group)}
@@ -449,13 +449,10 @@ const SlotModal = memo(function SlotModal({
                       >
                         <div className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 bg-gray-900 rounded-lg p-2 shrink-0 relative">
-                            <img
-                              src={rowImg}
-                              alt={rowAlt}
-                              className="w-full h-full object-contain"
-                              onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                                e.currentTarget.src = DEFAULT_MINER_IMAGE_URL;
-                              }}
+                            <MachineImage
+                              imageUrl={rowImageUrl}
+                              name={rowAlt}
+                              className="h-full w-full object-contain"
                             />
                             <div className="absolute -top-2 -right-2 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-lg border border-primary/20">x{group.quantity}</div>
                           </div>
@@ -707,16 +704,16 @@ const RackCard = memo(function RackCard({
                     : "border-gray-800/50 bg-gray-900/30 hover:border-gray-700"
                 } ${isDoubleSlot ? "aspect-[2/1]" : "aspect-square"}`}
               >
-                {isOccupied && descriptor ? (
+                {isOccupied && machine ? (
                   <>
                     <div className="pointer-events-none flex min-h-0 w-full flex-1 items-center justify-center p-0.5 sm:p-2">
-                      <img
-                        src={sanitizeMachineImageSrc(descriptor.image)}
-                        alt=""
+                      <MachineImage
+                        imageUrl={getMachineDisplayImageUrl({
+                          imageUrl: machine.imageUrl,
+                          imageSource: machine.imageSource,
+                        })}
+                        name={displayName}
                         className="max-h-full max-w-full object-contain transition-transform group-hover:scale-105"
-                        onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                          e.currentTarget.src = DEFAULT_MINER_IMAGE_URL;
-                        }}
                       />
                     </div>
                     <div className="pointer-events-none absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary sm:right-1.5 sm:top-1.5" />
@@ -1330,12 +1327,10 @@ export default function Inventory() {
             ) : (
               <div className="space-y-3 max-h-[60vh] overflow-y-auto scrollbar-hide pr-1">
                 {visibleInventoryGroups.map((group) => {
-                  const descriptor = getMachineDescriptor({
-                    hashRate: group.hashRate,
-                    slotSize: group.slotSize,
+                  const sideImageUrl = getMachineDisplayImageUrl({
                     imageUrl: group.imageUrl,
+                    imageSource: group.imageSource,
                   });
-                  const sideImg = sanitizeMachineImageSrc(descriptor.image);
                   const sideName = safeDisplayLabel(group.minerName);
                   const firstId = group.items[0]?.id;
                   return (
@@ -1355,13 +1350,10 @@ export default function Inventory() {
                     >
                       <div className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-3">
                         <div className="relative h-14 w-14 shrink-0 rounded-xl border border-gray-800/50 bg-gray-900/50 p-2">
-                          <img
-                            src={sideImg}
-                            alt={sideName}
+                          <MachineImage
+                            imageUrl={sideImageUrl}
+                            name={sideName}
                             className="h-full w-full object-contain"
-                            onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                              e.currentTarget.src = DEFAULT_MINER_IMAGE_URL;
-                            }}
                           />
                           <div className="absolute -right-2 -top-2 z-[1] rounded-full border border-primary/20 bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">x{group.quantity}</div>
                         </div>

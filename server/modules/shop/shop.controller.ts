@@ -25,8 +25,7 @@ import {
   readErrorMessage,
   requireSessionUser,
 } from "../../controllers/controllerHttpStatusError.js";
-
-const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
+import { normalizePersistableMinerImageUrl } from "../../utils/ownedMachineImage.js";
 const logger = loggerLib.child("Shop");
 
 function isShopPurchaseReplayPayload(
@@ -56,7 +55,7 @@ export async function listMiners(req: Request, res: Response) {
       baseHashRate: Number(miner.baseHashRate || 0),
       slotSize: Number(miner.slotSize || 1),
       price: Number(miner.price || 0),
-      imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
+      imageUrl: normalizePersistableMinerImageUrl(miner.imageUrl) ?? null,
     }));
 
     res.json({
@@ -221,7 +220,7 @@ export async function purchaseMiner(req: Request, res: Response) {
               level: 1,
               hashRate: currentHashRate,
               slotSize: currentSlotSize,
-              imageUrl: currentMiner.imageUrl || DEFAULT_MINER_IMAGE_URL,
+              imageUrl: normalizePersistableMinerImageUrl(currentMiner.imageUrl),
               snapshotSlug: currentMiner.slug,
               snapshotPrice: currentPrice,
               acquisitionSource: "shop",

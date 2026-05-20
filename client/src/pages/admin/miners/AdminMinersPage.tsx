@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
@@ -12,7 +12,6 @@ import {
   Plus,
   Save,
   Search,
-  Upload,
   X,
 } from 'lucide-react';
 import { formatHashrate } from '../../../shared/utils/machine';
@@ -24,13 +23,14 @@ import {
   toggleAdminMinerActive,
   toggleAdminMinerStore,
   updateAdminMiner,
-  uploadAdminMinerImage,
 } from './adminMiners.api';
 import { useAdminMinersList } from './adminMiners.hooks';
 import type { AdminMinerApiRow } from './adminMiners.types';
+import { normalizePersistableMinerImageUrl } from './adminMiners.image';
 import { AdminMinersError } from './components/AdminMinersError';
-
-const FALLBACK_IMAGE = '/icon.png';
+import AdminMinerImage from './components/AdminMinerImage';
+import AdminMinerImageInput from './components/AdminMinerImageInput';
+import { AdminOrphanMachineTypesPanel } from './AdminOrphanMachineTypesPanel';
 
 type MinerFormState = {
   id?: number;
@@ -54,6 +54,7 @@ type MinerFormState = {
   availableUntil: string;
   metadata: string;
   stockSold?: number;
+  updatedAt?: string | null;
 };
 
 const EMPTY_FORM: MinerFormState = {
@@ -106,6 +107,7 @@ function normalizeMiner(m: AdminMinerApiRow): MinerFormState {
     availableUntil: m.availableUntil ? String(m.availableUntil).slice(0, 16) : '',
     metadata: m.metadata && typeof m.metadata === 'object' ? JSON.stringify(m.metadata, null, 2) : '',
     stockSold: typeof m.stockSold === 'number' ? m.stockSold : Number(m.stockSold) || 0,
+    updatedAt: m.updatedAt ? String(m.updatedAt) : null,
   };
 }
 
@@ -137,10 +139,19 @@ type MinerSavePayload = {
   metadata: unknown;
 };
 
-function makePayload(form: MinerFormState): MinerSavePayload {
+function makePayload(form: MinerFormState, preserveImageUrl: string | null = null): MinerSavePayload {
   let parsedMeta: unknown = null;
   if (form.metadata?.trim()) {
     parsedMeta = JSON.parse(form.metadata) as unknown;
+  }
+  const trimmedImage = normalizePersistableMinerImageUrl(form.imageUrl);
+  let imageUrl: string | null;
+  if (trimmedImage) {
+    imageUrl = trimmedImage;
+  } else if (preserveImageUrl) {
+    imageUrl = normalizePersistableMinerImageUrl(preserveImageUrl);
+  } else {
+    imageUrl = null;
   }
   return {
     name: form.name,
@@ -150,7 +161,7 @@ function makePayload(form: MinerFormState): MinerSavePayload {
     baseHashRate: Number(form.baseHashRate),
     price: Number(form.price),
     slotSize: Number(form.slotSize),
-    imageUrl: form.imageUrl || null,
+    imageUrl,
     tier: form.tier,
     sourceType: form.sourceType,
     isActive: Boolean(form.isActive),
@@ -182,6 +193,12 @@ function Badge({ children, tone = 'slate' }: { children: ReactNode; tone?: Badge
 
 type DrawerMode = 'create' | 'edit' | null;
 
+function MinerTablePreview({ imageUrl, cacheBust }: { imageUrl: string; cacheBust?: string | number | null }) {
+  return (
+    <AdminMinerImage imageUrl={imageUrl} cacheBust={cacheBust} variant="table" showLoadError={false} />
+  );
+}
+
 export default function AdminMinersPage() {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
@@ -190,7 +207,9 @@ export default function AdminMinersPage() {
   const [saving, setSaving] = useState(false);
   const [drawer, setDrawer] = useState<DrawerMode>(null);
   const [form, setForm] = useState<MinerFormState>(EMPTY_FORM);
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const preserveImageUrlRef = useRef<string | null>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [imageCacheBust, setImageCacheBust] = useState<number>(0);
   const limit = 25;
 
   const { miners: minerRows, total, loading, listError, reload } = useAdminMinersList({
@@ -207,11 +226,15 @@ export default function AdminMinersPage() {
 
   const openCreate = () => {
     setDrawer('create');
+    preserveImageUrlRef.current = null;
+    setSelectedImageFile(null);
     setForm(EMPTY_FORM);
   };
 
   const openEdit = (miner: MinerFormState) => {
     setDrawer('edit');
+    preserveImageUrlRef.current = normalizePersistableMinerImageUrl(miner.imageUrl);
+    setSelectedImageFile(null);
     setForm(miner);
   };
 
@@ -219,10 +242,20 @@ export default function AdminMinersPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = makePayload(form);
-      const res = drawer === 'edit' && form.id != null ? await updateAdminMiner(form.id, payload) : await createAdminMiner(payload);
+      const payload = makePayload(
+        form,
+        drawer === 'edit' ? preserveImageUrlRef.current : null,
+      );
+      const res =
+        drawer === 'edit' && form.id != null
+          ? await updateAdminMiner(form.id, payload, selectedImageFile)
+          : await createAdminMiner(payload, selectedImageFile);
       if (res.ok) {
         toast.success(drawer === 'edit' ? 'Mineradora atualizada' : 'Mineradora criada');
+        if (res.miner?.imageUrl) {
+          setImageCacheBust(Date.now());
+        }
+        setSelectedImageFile(null);
         setDrawer(null);
         void reload();
       }
@@ -234,20 +267,18 @@ export default function AdminMinersPage() {
     }
   };
 
-  const uploadImage = async (file: File | undefined) => {
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('image', file);
-    try {
-      const res = await uploadAdminMinerImage(formData);
-      if (res.url) setForm((prev) => ({ ...prev, imageUrl: res.url as string }));
-      toast.success('Imagem enviada');
-    } catch (err: unknown) {
-      toast.error(readAxiosResponseMessage(err) || 'Upload recusado');
-    }
-  };
-
   type QuickAction = 'duplicate' | 'archive' | 'store' | 'active';
+
+  const drawerPreviewObjectUrl = useMemo(
+    () => (selectedImageFile ? URL.createObjectURL(selectedImageFile) : null),
+    [selectedImageFile],
+  );
+  useEffect(() => {
+    return () => {
+      if (drawerPreviewObjectUrl) URL.revokeObjectURL(drawerPreviewObjectUrl);
+    };
+  }, [drawerPreviewObjectUrl]);
+
 
   const quickAction = async (miner: MinerFormState, action: QuickAction) => {
     if (miner.id == null) return;
@@ -318,6 +349,8 @@ export default function AdminMinersPage() {
       </div>
 
       {listError ? <AdminMinersError message={listError} onRetry={() => void reload()} /> : null}
+
+      <AdminOrphanMachineTypesPanel />
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
         <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
@@ -400,15 +433,7 @@ export default function AdminMinersPage() {
                   <tr key={m.id ?? m.slug} className="align-top hover:bg-slate-800/30">
                     <td className="px-6 py-5">
                       <div className="h-16 w-16 rounded-2xl border border-slate-800 bg-slate-950 p-2">
-                        <img
-                          src={m.imageUrl || FALLBACK_IMAGE}
-                          alt=""
-                          loading="lazy"
-                          className="h-full w-full object-contain"
-                          onError={(e) => {
-                            e.currentTarget.src = FALLBACK_IMAGE;
-                          }}
-                        />
+                        <MinerTablePreview imageUrl={m.imageUrl} cacheBust={m.updatedAt ?? m.id} />
                       </div>
                     </td>
                     <td className="px-6 py-5">
@@ -566,29 +591,13 @@ export default function AdminMinersPage() {
                       className={CONTROL_CLASS}
                     />
                   </Field>
-                  <Field label="Imagem">
-                    <div className="flex gap-2">
-                      <input
-                        value={form.imageUrl || ''}
-                        onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                        className={CONTROL_CLASS}
-                        placeholder="/uploads/..."
-                      />
-                      <button type="button" onClick={() => fileRef.current?.click()} className="rounded-xl bg-slate-800 px-3 text-slate-300 hover:bg-slate-700">
-                        <Upload className="h-4 w-4" />
-                      </button>
-                      <input
-                        ref={fileRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={(e) => {
-                          void uploadImage(e.target.files?.[0]);
-                          e.target.value = '';
-                        }}
-                      />
-                    </div>
-                  </Field>
+                  <AdminMinerImageInput
+                    imageUrl={form.imageUrl}
+                    onImageUrlChange={(url) => setForm((prev) => ({ ...prev, imageUrl: url }))}
+                    onImageFileChange={setSelectedImageFile}
+                    cacheBust={imageCacheBust}
+                    disabled={saving}
+                  />
                   <Field label="Preço POL">
                     <input
                       required
@@ -685,13 +694,13 @@ export default function AdminMinersPage() {
                       <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-slate-500">
                         <ImageIcon className="h-4 w-4" /> Preview loja
                       </div>
-                      <img
-                        src={form.imageUrl || FALLBACK_IMAGE}
-                        alt=""
-                        className="mx-auto h-24 w-24 object-contain"
-                        onError={(e) => {
-                          e.currentTarget.src = FALLBACK_IMAGE;
-                        }}
+                      <AdminMinerImage
+                        imageUrl={form.imageUrl}
+                        localObjectUrl={drawerPreviewObjectUrl}
+                        cacheBust={imageCacheBust}
+                        alt={form.name || 'Mineradora'}
+                        variant="shop"
+                        frameClassName="min-h-[140px] border-0 bg-slate-950/50 p-2"
                       />
                       <p className="mt-3 truncate text-center text-sm font-black text-white">{form.name || 'Mineradora'}</p>
                       <p className="text-center text-xs text-amber-300">{Number(form.price || 0).toFixed(4)} POL</p>

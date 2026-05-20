@@ -16,6 +16,12 @@ test("isPrismaConnectionError detects pool timeout message", () => {
     isPrismaConnectionError(new Error("timeout exceeded when trying to connect")),
     true,
   );
+  assert.equal(
+    isPrismaConnectionError(
+      new Error("Transaction API error: Unable to start a transaction in the given time."),
+    ),
+    true,
+  );
   assert.equal(isPrismaConnectionError(new Error("invalid input")), false);
 });
 

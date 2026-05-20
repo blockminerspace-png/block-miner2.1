@@ -21,3 +21,13 @@ export function useMemoryRateLimitStore() {
   if (process.env.NODE_ENV === "test") return true;
   return envTruthy("API_RATE_LIMIT_USE_MEMORY");
 }
+
+/**
+ * Login lockout counters in memory (single app container). Avoids Postgres advisory-lock
+ * transactions on every login attempt when the pool is already under pressure.
+ */
+export function useAuthLockoutMemoryStore() {
+  if (String(process.env.FORCE_PG_LOCKOUT || "").trim() === "1") return false;
+  if (process.env.NODE_ENV === "test") return true;
+  return envTruthy("AUTH_LOCKOUT_USE_MEMORY") || envTruthy("API_RATE_LIMIT_USE_MEMORY");
+}

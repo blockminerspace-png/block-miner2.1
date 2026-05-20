@@ -5,7 +5,7 @@ import { Toaster } from 'sonner';
 import { useAuthStore } from '../store/auth';
 
 /** Eager: first paint must not wait on a second chunk fetch (lazy was a full-screen spinner on `/`). */
-import Landing from '../pages/Landing';
+import Landing from '../pages/landing';
 import Login from '../pages/auth/login/LoginPage';
 import Register from '../pages/auth/register/RegisterPage';
 
@@ -23,26 +23,26 @@ const ForgotPassword = lazy(() => import('../pages/auth/forgot-password/ForgotPa
 const Dashboard = lazy(() => import('../pages/dashboard'));
 const Shop = lazy(() => import('../pages/shop'));
 const Inventory = lazy(() => import('../pages/machines'));
-const Vault = lazy(() => import('../pages/Vault'));
+const Vault = lazy(() => import('../pages/vault'));
 const Wallet = lazy(() => import('../pages/wallet'));
-const Faucet = lazy(() => import('../pages/Faucet'));
-const Shortlinks = lazy(() => import('../pages/Shortlinks'));
+const Faucet = lazy(() => import('../pages/faucet'));
+const Shortlinks = lazy(() => import('../pages/shortlinks'));
 const Checkin = lazy(() => import('../pages/checkin'));
 const PowerStatistics = lazy(() => import('../pages/stats'));
 const PopularOffers = lazy(() => import('../pages/offers'));
 const DailyTasks = lazy(() => import('../pages/tasks'));
 const Support = lazy(() => import('../pages/support'));
-const YouTubeWatch = lazy(() => import('../pages/YouTubeWatch'));
-const Ranking = lazy(() => import('../pages/Ranking'));
-const PublicRoom = lazy(() => import('../pages/PublicRoom'));
-const Settings = lazy(() => import('../pages/Settings'));
-const AutoMining = lazy(() => import('../pages/AutoMining'));
-const Games = lazy(() => import('../pages/Games'));
-const Game2048Page = lazy(() => import('../pages/Game2048Page'));
-const ShortlinkStep = lazy(() => import('../pages/ShortlinkStep'));
-const Roadmap = lazy(() => import('../pages/Roadmap'));
-const Manual = lazy(() => import('../pages/Manual'));
-const CalculatorPage = lazy(() => import('../pages/Calculator'));
+const YouTubeWatch = lazy(() => import('../pages/youtube-watch'));
+const Ranking = lazy(() => import('../pages/ranking'));
+const PublicRoom = lazy(() => import('../pages/public-room'));
+const Settings = lazy(() => import('../pages/settings'));
+const AutoMining = lazy(() => import('../pages/auto-mining'));
+const Games = lazy(() => import('../pages/games'));
+const Game2048Page = lazy(() => import('../pages/games/game-2048'));
+const ShortlinkStep = lazy(() => import('../pages/shortlinks/ShortlinkStepPage'));
+const Roadmap = lazy(() => import('../pages/roadmap'));
+const Manual = lazy(() => import('../pages/manual'));
+const CalculatorPage = lazy(() => import('../pages/calculator'));
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'));
 const AdminLayout = lazy(() => import('../pages/admin/components/AdminLayout'));
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
@@ -70,14 +70,14 @@ const AdminInternalOfferwall = lazy(() => import('../pages/admin/AdminInternalOf
 const AdminStreaming = lazy(() => import('../pages/admin/AdminStreaming'));
 const AdminMiniPass = lazy(() => import('../pages/admin/AdminMiniPass'));
 const AdminMiniPassSeason = lazy(() => import('../pages/admin/AdminMiniPassSeason'));
-const ReadEarn = lazy(() => import('../pages/ReadEarn'));
-const InternalOfferwall = lazy(() => import('../pages/InternalOfferwall'));
-const MiniPass = lazy(() => import('../pages/MiniPass'));
-const Transparency = lazy(() => import('../pages/Transparency'));
-const LiveServer = lazy(() => import('../pages/LiveServer'));
-const DashboardCryptoStream = lazy(() => import('../pages/DashboardCryptoStream'));
-const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
-const TermsOfUse = lazy(() => import('../pages/TermsOfUse'));
+const ReadEarn = lazy(() => import('../pages/read-earn'));
+const InternalOfferwall = lazy(() => import('../pages/internal-offerwall'));
+const MiniPass = lazy(() => import('../pages/mini-pass'));
+const Transparency = lazy(() => import('../pages/transparency'));
+const LiveServer = lazy(() => import('../pages/live-server'));
+const DashboardCryptoStream = lazy(() => import('../pages/crypto-stream'));
+const PrivacyPolicy = lazy(() => import('../pages/legal/privacy-policy'));
+const TermsOfUse = lazy(() => import('../pages/legal/terms-of-use'));
 import Web3Boundary from '../shared/web3/Web3Boundary';
 import { clearChunkReloadMarkers } from '../shared/utils/chunkLoadError';
 
@@ -209,6 +209,10 @@ function App() {
           <Route path="/liveserver" element={<LiveServer />} />
           <Route path="/dashboardcrypto" element={<DashboardCryptoStream />} />
 
+          <Route element={<ProtectedLayout />}>
+            <Route path="/checkin" element={<Checkin />} />
+          </Route>
+
           <Route element={<ProtectedLayoutWithWeb3 />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/power-stats" element={<PowerStatistics />} />
@@ -220,7 +224,6 @@ function App() {
             <Route path="/wallets" element={<Navigate to="/wallet" replace />} />
             <Route path="/faucet" element={<Faucet />} />
             <Route path="/shortlinks" element={<Shortlinks />} />
-            <Route path="/checkin" element={<Checkin />} />
             <Route path="/read-earn" element={<ReadEarn />} />
             <Route path="/internal-offerwall" element={<InternalOfferwall />} />
             <Route path="/mini-pass" element={<MiniPass />} />

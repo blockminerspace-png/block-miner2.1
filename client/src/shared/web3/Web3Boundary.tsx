@@ -59,22 +59,16 @@ export default function Web3Boundary({ children, fallback }: Web3BoundaryProps) 
     };
   }, []);
 
-  if (useLightProviders) {
-    return (
-      <>
-        <Web3WalletChunkBanner onReload={() => window.location.reload()} />
-        <Web3ProvidersLight>{children}</Web3ProvidersLight>
-      </>
-    );
-  }
-
-  if (!Web3Providers) {
-    return <>{fallback}</>;
-  }
+  const Providers = useLightProviders || !Web3Providers ? Web3ProvidersLight : Web3Providers;
 
   return (
-    <Suspense fallback={fallback}>
-      <Web3Providers>{children}</Web3Providers>
-    </Suspense>
+    <>
+      {useLightProviders ? (
+        <Web3WalletChunkBanner onReload={() => window.location.reload()} />
+      ) : null}
+      <Suspense fallback={fallback}>
+        <Providers>{children}</Providers>
+      </Suspense>
+    </>
   );
 }

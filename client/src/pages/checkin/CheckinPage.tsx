@@ -5,11 +5,10 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Calendar, CheckCircle2, Trophy, Zap, Loader2, History, Gift, Lock, ExternalLink } from 'lucide-react';
 import type { AxiosError } from 'axios';
-import { getAddress, isAddress, type Hex } from 'viem';
-import { useWallet } from '../../shared/hooks/useWallet';
-import { getBrowserEthereumProvider } from '../../shared/utils/walletProvider';
 import type { CheckinMilestoneRow, CheckinStatusPayload } from '../../types/checkin';
 import { fetchCheckinStatus, postCheckinBalanceDaily, postCheckinWalletDaily } from './checkin.api';
+import { sendCheckinTransaction, resolveCheckinPaymentTarget } from './checkin.contract';
+import { CheckinWalletError, hasInjectedWallet } from './checkin.wallet';
 import {
   balanceCoversWeiCost,
   buildPolygonscanTxUrl,
@@ -19,7 +18,6 @@ import {
   mergeStatus,
   sanitizeCheckinUiText,
   statusNeedsCheckinPoll,
-  weiHexFromDecimalString,
 } from '../../shared/utils/checkinHelpers';
 import {
   readAxiosHttpStatus,
@@ -64,7 +62,6 @@ export default function Checkin() {
     [t],
   );
 
-  const { account, isConnected, isCorrectNetwork, connect, isConnecting, switchNetwork } = useWallet();
   const [status, setStatus] = useState<CheckinStatusPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [paying, setPaying] = useState(false);
@@ -187,53 +184,21 @@ export default function Checkin() {
   };
 
   const handleWalletDaily = async () => {
-    if (!status?.checkinReceiver || !status?.checkinAmountWei) {
+    if (!status || !resolveCheckinPaymentTarget(status)) {
       toast.error(t('common.error'));
       return;
     }
-    if (!isConnected || !account) {
-      toast.error(t('checkin.link_wallet_first'));
-      return;
-    }
-    if (!isCorrectNetwork) {
-      await switchNetwork();
-      toast.message(t('checkin.wrong_network'));
-      return;
-    }
-    const provider = getBrowserEthereumProvider();
-    if (!provider) {
+    if (!hasInjectedWallet()) {
       toast.error(t('checkin.no_wallet'));
       return;
     }
     if (!tryBeginPay('wallet')) return;
     try {
-      if (!isAddress(account) || !isAddress(status.checkinReceiver)) {
-        toast.error(t('common.error'));
-        return;
-      }
-      const valueHex = weiHexFromDecimalString(status.checkinAmountWei);
-      if (typeof valueHex !== 'string' || !valueHex.startsWith('0x')) {
-        toast.error(t('common.error'));
-        return;
-      }
-      const txHash = (await provider.request({
-        method: 'eth_sendTransaction',
-        params: [
-          {
-            from: getAddress(account),
-            to: getAddress(status.checkinReceiver),
-            value: valueHex as Hex,
-          },
-        ],
-      })) as unknown;
-      if (!txHash || typeof txHash !== 'string') {
-        throw new Error('No transaction hash');
-      }
-      const trimmed = txHash.trim();
-      const d = await postCheckinWalletDaily(trimmed);
+      const { txHash, walletAddress, chainId } = await sendCheckinTransaction(status);
+      const d = await postCheckinWalletDaily({ txHash, walletAddress, chainId });
       if (d.ok && d.status === 'confirmed') {
         toast.success(
-          t('checkin.reward_msg', { amount: `${formatPolFromWei(status.checkinAmountWei)} POL` }),
+          t('checkin.reward_msg', { amount: `${formatPolFromWei(status.checkinAmountWei ?? '0')} POL` }),
         );
         await fetchStatus();
       } else if (d.ok && d.alreadyCheckedIn) {
@@ -247,16 +212,28 @@ export default function Checkin() {
         await fetchStatus();
       }
     } catch (err: unknown) {
-      const e = err as { code?: number | string; message?: string };
-      if (e?.code === 4001 || e?.code === '4001') {
-        toast.error(t('checkin.rejected_wallet'));
-      } else {
-        const payload = readApiErrorPayload(err);
-        if (payload?.code) {
-          toast.error(translateCheckinApi(payload.code, payload.message));
-          await fetchStatus();
+      if (err instanceof CheckinWalletError) {
+        if (err.code === 'USER_REJECTED') {
+          toast.error(t('checkin.rejected_wallet'));
+        } else if (err.code === 'NO_INJECTED_WALLET') {
+          toast.error(t('checkin.no_wallet'));
+        } else if (err.code === 'WRONG_NETWORK') {
+          toast.error(t('checkin.wrong_network'));
         } else {
-          toast.error(e?.message || t('common.error'));
+          toast.error(err.message);
+        }
+      } else {
+        const e = err as { code?: number | string; message?: string };
+        if (e?.code === 4001 || e?.code === '4001') {
+          toast.error(t('checkin.rejected_wallet'));
+        } else {
+          const payload = readApiErrorPayload(err);
+          if (payload?.code) {
+            toast.error(translateCheckinApi(payload.code, payload.message));
+            await fetchStatus();
+          } else {
+            toast.error(e?.message || t('common.error'));
+          }
         }
       }
     } finally {
@@ -305,7 +282,8 @@ export default function Checkin() {
   const rawRecent = Array.isArray(status.recentCheckins) ? status.recentCheckins : [];
   const recentCheckins = rawRecent.filter((row) => row && isValidHistoryDateKey(row.date));
   const milestones = Array.isArray(status.milestones) ? status.milestones : [];
-  const walletPaymentConfigured = Boolean(status.checkinReceiver && status.checkinAmountWei);
+  const walletPaymentConfigured = Boolean(resolveCheckinPaymentTarget(status));
+  const browserWalletAvailable = hasInjectedWallet();
   const balanceWeiStr = status.checkinBalanceAmountWei || '0';
   const polBal = Number(status.polBalance ?? 0);
   const balanceAffordable = balanceCoversWeiCost(polBal, balanceWeiStr);
@@ -430,11 +408,11 @@ export default function Checkin() {
                     onClick={() => void handleWalletDaily()}
                     disabled={
                       paying ||
-                      !isConnected ||
-                      isConnecting ||
+                      isLoading ||
                       cs.pending ||
                       !walletPaymentConfigured ||
-                      cs.checkedIn
+                      cs.checkedIn ||
+                      !browserWalletAvailable
                     }
                     aria-busy={paying}
                     className="flex w-full min-h-[3.75rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-2xl bg-amber-500 px-4 py-3 text-slate-950 shadow-lg shadow-amber-500/15 hover:bg-amber-600 disabled:opacity-50"
@@ -455,7 +433,7 @@ export default function Checkin() {
                   <button
                     type="button"
                     onClick={() => void handleBalanceDaily()}
-                    disabled={paying || cs.pending || !balanceAffordable || cs.checkedIn}
+                    disabled={paying || isLoading || cs.pending || !balanceAffordable || cs.checkedIn}
                     aria-busy={paying}
                     className="flex w-full min-h-[3.5rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-2xl border border-sky-500/40 bg-slate-900/80 px-4 py-3 text-sky-100 shadow-md hover:bg-slate-800 disabled:opacity-50"
                   >
@@ -472,24 +450,8 @@ export default function Checkin() {
                     </span>
                   </button>
 
-                  {!isConnected && (
-                    <button
-                      type="button"
-                      onClick={() => connect()}
-                      disabled={isConnecting}
-                      className="w-full rounded-xl border border-primary/40 py-3 text-sm text-primary"
-                    >
-                      {isConnecting ? t('common.loading') : t('checkin.connect_browser_wallet')}
-                    </button>
-                  )}
-                  {isConnected && !isCorrectNetwork && (
-                    <button
-                      type="button"
-                      onClick={() => void switchNetwork()}
-                      className="w-full rounded-xl border border-amber-500/30 py-3 text-sm text-amber-400"
-                    >
-                      {t('checkin.switch_polygon')}
-                    </button>
+                  {!browserWalletAvailable && (
+                    <p className="text-center text-xs text-slate-500 leading-relaxed">{t('checkin.no_wallet')}</p>
                   )}
                 </div>
               )}

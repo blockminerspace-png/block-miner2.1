@@ -1,10 +1,13 @@
 import prisma from '../src/db/prisma.js';
-
-const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
+import { normalizePersistableMinerImageUrl } from '../utils/ownedMachineImage.js';
 
 export async function listVault(userId) {
   return prisma.userVault.findMany({
     where: { userId },
+    include: {
+      ownedMachine: { select: { id: true, imageUrl: true } },
+      miner: { select: { imageUrl: true } },
+    },
     orderBy: { storedAt: 'asc' }
   });
 }
@@ -47,7 +50,7 @@ export async function updateVaultItemMeta(userId, vaultId, minerName, slotSize, 
   let imageUrl: string | undefined;
   if (minerId) {
     const miner = await prisma.miner.findUnique({ where: { id: minerId } });
-    imageUrl = miner?.imageUrl || DEFAULT_MINER_IMAGE_URL;
+    imageUrl = normalizePersistableMinerImageUrl(miner?.imageUrl ?? null) ?? undefined;
   }
 
   return prisma.userVault.update({

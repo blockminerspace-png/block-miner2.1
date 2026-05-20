@@ -6,7 +6,7 @@
 import crypto from "crypto";
 import prisma from "../src/db/prisma.js";
 import { advisoryXactTryLockOrThrow } from "../utils/pgAdvisoryLocks.js";
-import { useMemorySecurityStores } from "../utils/securityStoreMode.js";
+import { useAuthLockoutMemoryStore, useMemorySecurityStores } from "../utils/securityStoreMode.js";
 
 const mem = new Map();
 
@@ -55,7 +55,7 @@ function userHashKey(userId) {
 export async function getAuthLockStatus(p) {
   const now = Date.now();
 
-  if (useMemorySecurityStores()) {
+  if (useMemorySecurityStores() || useAuthLockoutMemoryStore()) {
     const checkMem = (key) => {
       const rec = mem.get(key);
       if (!rec) return { locked: false };
@@ -104,7 +104,7 @@ export async function getAuthLockStatus(p) {
  * @returns {Promise<void>}
  */
 export async function recordAuthLoginSuccess(p) {
-  if (useMemorySecurityStores()) {
+  if (useMemorySecurityStores() || useAuthLockoutMemoryStore()) {
     mem.delete(ipHashKey(p.ip).h);
     if (p.userId != null && Number.isFinite(p.userId)) mem.delete(userHashKey(p.userId).h);
     return;
@@ -126,7 +126,7 @@ export async function recordAuthLoginSuccess(p) {
 export async function recordAuthLoginFailure(p) {
   const now = Date.now();
 
-  if (useMemorySecurityStores()) {
+  if (useMemorySecurityStores() || useAuthLockoutMemoryStore()) {
     const bump = (key) => {
       let rec = mem.get(key) || { failedAttempts: 0, windowStartedAt: now, lockUntil: 0 };
       if (rec.lockUntil > now) return;

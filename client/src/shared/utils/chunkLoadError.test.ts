@@ -21,6 +21,16 @@ describe('chunkLoadError', () => {
     expect(isChunkLoadError(new Error('ChunkLoadError: Loading chunk 9 failed'))).toBe(true);
   });
 
+  it('detects MIME text/html module script errors', () => {
+    expect(
+      isChunkLoadError(
+        new Error(
+          "Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of \"text/html\"",
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it('allows only one auto reload within 60 seconds', () => {
     expect(shouldAutoReloadChunkError(1_000)).toBe(true);
     expect(shouldAutoReloadChunkError(2_000)).toBe(false);

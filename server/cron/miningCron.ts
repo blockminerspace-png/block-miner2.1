@@ -96,7 +96,7 @@ export function startMiningLoop(
       validateFailureLogLevel: "debug",
       validate: async () => {
         if (!engine || typeof engine.tickAsync !== "function") return { ok: false, reason: "invalid_engine" };
-        if (!io || typeof io.emit !== "function") return { ok: false, reason: "invalid_socket_io" };
+        if (!io || typeof io.to !== "function") return { ok: false, reason: "invalid_socket_io" };
         return { ok: true };
       },
       sanitize: async () => ({ hasPublicStateBuilder: typeof buildPublicState === "function" }),
@@ -117,7 +117,11 @@ export function startMiningLoop(
                 : engine.getPublicState(miner.id);
             const safeUserState = sanitizePublicStateForSocket(userState);
             if (safeUserState) {
-              io.to(roomName).emit("state:update", safeUserState);
+              try {
+                io.to(roomName).emit("state:update", safeUserState);
+              } catch (emitErr: unknown) {
+                logger.debug("Mining user state emit skipped", { roomName, error: errMsg(emitErr) });
+              }
             }
           }
         }
@@ -127,8 +131,12 @@ export function startMiningLoop(
             ? await buildPublicState()
             : engine.getPublicState();
         const safeGlobal = sanitizePublicStateForSocket(globalState);
-        if (safeGlobal) {
-          io.except(activeUserRooms).emit("state:update", safeGlobal);
+        if (safeGlobal && typeof io.except === "function") {
+          try {
+            io.except(activeUserRooms).emit("state:update", safeGlobal);
+          } catch (emitErr: unknown) {
+            logger.debug("Mining global state emit skipped", { error: errMsg(emitErr) });
+          }
         }
 
         return { emitted: true };

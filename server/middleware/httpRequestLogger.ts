@@ -9,17 +9,19 @@ export function createHttpRequestLogger(): RequestHandler {
     res.on("finish", () => {
       const end = process.hrtime.bigint();
       const durationMs = Number(end - start) / 1e6;
-      log.info(
-        "http_request",
-        {
-          method: req.method,
-          route: req.route?.path || req.path,
-          path: req.originalUrl || req.url,
-          statusCode: res.statusCode,
-          durationMs: Math.round(durationMs * 1000) / 1000,
-        },
-        req,
-      );
+      const roundedMs = Math.round(durationMs * 1000) / 1000;
+      const details = {
+        method: req.method,
+        route: req.route?.path || req.path,
+        path: req.originalUrl || req.url,
+        statusCode: res.statusCode,
+        durationMs: roundedMs,
+      };
+      if (roundedMs >= 1000 || res.statusCode >= 500) {
+        log.warn("http_request_slow", details, req);
+      } else {
+        log.info("http_request", details, req);
+      }
     });
     next();
   };

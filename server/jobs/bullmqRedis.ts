@@ -10,8 +10,10 @@ export function createBullmqConnection(): Redis {
   if (!url) {
     throw new Error("REDIS_URL is not set");
   }
+  const connectTimeoutMs = Number.parseInt(String(process.env.REDIS_CONNECT_TIMEOUT_MS || "5000"), 10) || 5000;
   return new Redis(url, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
+    connectTimeout: connectTimeoutMs,
   });
 }

@@ -20,6 +20,7 @@ import {
   resolveClientDistPaths,
   type SpaIndexRenderer,
 } from "./utils/spaStatic.js";
+import { mountUploadsStatic } from "./utils/uploadsStatic.js";
 import { resolveWalletConnectProjectIdFromEnv } from "./utils/walletConnectProjectId.js";
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
@@ -46,6 +47,7 @@ import { ensureDefaultInternalReward } from "./models/shortlinkRewardModel.js";
 import { ensureFaucetReward } from "./src/bootstrap/ensureFaucetReward.js";
 import { startAuditOutboxWorker } from "./src/audit/index.js";
 import { applyTrustProxy, buildSocketIoCorsConfig } from "./utils/corsConfig.js";
+import { applyHttpServerTimeouts, buildSocketIoEngineOptions } from "./utils/runtimeTimeouts.js";
 import { createHttpsEnforcementMiddleware } from "./middleware/httpsEnforcement.js";
 import { runTurnstileStartupChecks } from "./middleware/turnstile.js";
 import { errMsg } from "./types/tsNarrowing.js";
@@ -74,7 +76,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PROJECT_ROOT = findBlockMinerProjectRoot(__dirname);
-const UPLOADS_STATIC_ROOT = path.resolve(process.env.UPLOADS_DIR || path.join(PROJECT_ROOT, "uploads"));
 
 const { setupExpressHttpStack } = await import(
   pathToFileURL(path.join(PROJECT_ROOT, "backend/dist/app/setupExpressHttpStack.js")).href
@@ -94,8 +95,10 @@ app.use((req, res, next) => {
   next();
 });
 const server = http.createServer(app);
+applyHttpServerTimeouts(server);
 const io = new Server(server, {
-  cors: buildSocketIoCorsConfig()
+  cors: buildSocketIoCorsConfig(),
+  ...buildSocketIoEngineOptions(),
 });
 
 /** Reject connections that send an explicit invalid JWT in `handshake.auth.token` (e.g. games SPA). */
@@ -241,21 +244,16 @@ setupExpressHttpStack(app, { ADMIN_ONLY_MODE });
 registerHttpRoutes(app);
 
 // 6. Static assets & frontend production build
-// Serve user-uploaded miner images from the persistent volume (survives rebuilds)
-app.use(
-  "/uploads",
-  express.static(UPLOADS_STATIC_ROOT, {
-    setHeaders(res, filePath) {
-      if (/\.svg$/i.test(filePath)) {
-        res.setHeader("Content-Type", "application/octet-stream");
-        res.setHeader("X-Content-Type-Options", "nosniff");
-        res.setHeader("Content-Security-Policy", "default-src 'none'");
-      } else if (/\.(png|jpe?g|webp|gif|ico)$/i.test(filePath)) {
-        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
-      }
-    }
-  })
-);
+// User uploads before client dist and SPA fallback (missing file → 404, not 500 / index.html)
+mountUploadsStatic({
+  app,
+  fromModuleDir: __dirname,
+  logger: {
+    info: (message, meta) => logger.info(message, meta),
+    warn: (message, meta) => logger.warn(message, meta),
+    error: (message, meta) => logger.error(message, meta),
+  },
+});
 
 const clientDist = resolveClientDistPaths(PROJECT_ROOT);
 const publicPath = clientDist.distPath;
@@ -323,11 +321,14 @@ const renderSpaIndex: SpaIndexRenderer = (html, { nonce }) => {
   const wcAppUrl = String(process.env.VITE_PUBLIC_WALLET_APP_URL || process.env.APP_URL || "")
     .trim()
     .replace(/\/+$/, "");
-  if (wcId) {
-    const payload = JSON.stringify({
-      VITE_WALLETCONNECT_PROJECT_ID: wcId,
-      ...(wcAppUrl ? { VITE_PUBLIC_WALLET_APP_URL: wcAppUrl } : {}),
-    });
+  const socketTimeoutMs = String(process.env.VITE_SOCKET_TIMEOUT_MS || "").trim();
+  const runtimeEnv: Record<string, string> = {};
+  if (wcId) runtimeEnv.VITE_WALLETCONNECT_PROJECT_ID = wcId;
+  if (wcAppUrl) runtimeEnv.VITE_PUBLIC_WALLET_APP_URL = wcAppUrl;
+  if (socketTimeoutMs) runtimeEnv.VITE_SOCKET_TIMEOUT_MS = socketTimeoutMs;
+
+  if (Object.keys(runtimeEnv).length > 0) {
+    const payload = JSON.stringify(runtimeEnv);
     const injectScript = `<script${nonceAttr}>window.__BLOCKMINER_ENV__=${payload.replace(/</g, "\\u003c")}<\/script>`;
     if (out.includes("<!--__BM_RUNTIME_CONFIG__-->")) {
       out = out.replace("<!--__BM_RUNTIME_CONFIG__-->", injectScript);

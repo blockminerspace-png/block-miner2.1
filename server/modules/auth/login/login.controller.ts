@@ -6,26 +6,22 @@ import { signAccessToken, createRefreshToken } from "../../../utils/authTokens.j
 import { createRefreshTokenRecord } from "../../../models/refreshTokenModel.js";
 import { createAuditLogBestEffort } from "../../../models/auditLogModel.js";
 import { buildCsrfCookie } from "../../../middleware/csrf.js";
-import { enqueueAuditEvent, buildAuditEventFromHttpRequest } from "../../../src/audit/service.js";
+import { enqueueAuditEventBestEffort, buildAuditEventFromHttpRequest } from "../../../src/audit/service.js";
+import { unknownErrorMessage } from "../../../utils/prismaHttpErrors.js";
+import { respondAuthPrismaError } from "../shared/auth.prisma.js";
 import { AuditEventType, AuditEventStatus } from "../../../src/audit/constants.js";
 import { getRequestIp } from "../../../utils/clientIp.js";
 import { getAuthLockStatus, recordAuthLoginFailure, recordAuthLoginSuccess } from "../../../services/accountLockoutService.js";
-import { slidingWindowAllow } from "../../../services/slidingWindowRateLimit.js";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../../../utils/securityErrors.js";
 import { isSmtpConfigured } from "../../../utils/mailer.js";
 import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../../../services/emailTwoFactorService.js";
 import { buildDeviceFingerprint, getAuthIpContext, recordUserIpLog } from "../../../services/authNetworkSignalService.js";
 import { getCachedIpIntelligence } from "../../../services/ipIntelligenceService.js";
 import loggerLib, { logUserActivity } from "../../../utils/logger.js";
-import { logSecurityEvent } from "../../../utils/securityLogger.js";
 import { toAuthPublicUserDto } from "../auth.dto.js";
 import { AUTH_LOGIN_MESSAGES, buildAuthFailureJson } from "../auth.errors.js";
 import { findUserByIdentifier } from "../shared/auth.repository.js";
-import {
-  unknownErrorMessage,
-  buildAccessCookie,
-  buildRefreshCookie,
-} from "../shared/auth.security.js";
+import { buildAccessCookie, buildRefreshCookie } from "../shared/auth.security.js";
 import { comparePassword } from "../shared/auth.service.js";
 import { getAuthTwoFactorEnvConfig, shouldRequireEmailTwoFactorForLogin } from "./login.twoFactor.js";
 
@@ -41,7 +37,12 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
     };
     const clientIp = getRequestIp(req);
     const deviceFingerprint = buildDeviceFingerprint(req);
-    const ipContext = await getAuthIpContext(prisma, clientIp);
+    const ipContext = await getAuthIpContext(prisma, clientIp).catch(() => ({
+      normalizedIp: clientIp,
+      networkCidr: null,
+      asn: null,
+      providerType: "unknown",
+    }));
 
     const ipLock = await getAuthLockStatus({ ip: clientIp, userId: null });
     if (ipLock.locked) {
@@ -61,7 +62,7 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
     if (!user) {
       await recordAuthLoginFailure({ ip: clientIp, userId: null });
       logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "IDENTIFIER_NOT_FOUND" });
-      await enqueueAuditEvent({
+      void enqueueAuditEventBestEffort({
         prismaOrTx: prisma,
         event: buildAuditEventFromHttpRequest({
           req,
@@ -103,29 +104,11 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const perUserBurst = await slidingWindowAllow({
-      dedupeKey: String(user.id),
-      windowMs: 60_000,
-      max: 40,
-      redisPrefix: "rl:auth_login_user",
-    });
-    if (!perUserBurst.ok) {
-      logSecurityEvent("AUTH_RATE_LIMIT_USER", { userId: user.id, ip: clientIp }, req);
-      res
-        .status(429)
-        .json(
-          buildSecurityErrorJson(SecurityErrorCodes.RATE_LIMIT_EXCEEDED, {
-            extra: { retryAfterSec: perUserBurst.retryAfterSec },
-          }),
-        );
-      return;
-    }
-
     const isPasswordMatch = await comparePassword(String(password ?? ""), user.passwordHash);
     if (!isPasswordMatch) {
       await recordAuthLoginFailure({ ip: clientIp, userId: user.id });
       logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "INVALID_CREDENTIALS", userId: user.id });
-      await enqueueAuditEvent({
+      void enqueueAuditEventBestEffort({
         prismaOrTx: prisma,
         event: buildAuditEventFromHttpRequest({
           req,
@@ -208,7 +191,7 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
           return;
         }
         logUserActivity("AUTH_LOGIN_2FA_REQUIRED", req, { userId: user.id });
-        await enqueueAuditEvent({
+        void enqueueAuditEventBestEffort({
           prismaOrTx: prisma,
           event: buildAuditEventFromHttpRequest({
             req,
@@ -242,7 +225,7 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
       if (!twoFactorResult.ok) {
         await recordAuthLoginFailure({ ip: clientIp, userId: user.id });
         logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "INVALID_2FA", userId: user.id });
-        await enqueueAuditEvent({
+        void enqueueAuditEventBestEffort({
           prismaOrTx: prisma,
           event: buildAuditEventFromHttpRequest({
             req,
@@ -278,38 +261,42 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
         }
       : ipContext;
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          ip: clientIp,
-          lastLoginAt: new Date(),
-          userAgent: req.headers["user-agent"],
-        },
-      });
-      await enqueueAuditEvent({
-        prismaOrTx: tx,
-        event: buildAuditEventFromHttpRequest({
-          req,
-          event: {
-            userId: user.id,
-            eventType: AuditEventType.AUTH_LOGIN_SUCCESS,
-            status: AuditEventStatus.SUCCESS,
-            resultCode: "LOGIN_SUCCESS",
-            payload: {},
+    await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            ip: clientIp,
+            lastLoginAt: new Date(),
+            userAgent: req.headers["user-agent"],
           },
-        }),
-      });
-      await recordUserIpLog(tx, {
-        userId: user.id,
-        ip: clientIp,
-        networkCidr: authIpContext.networkCidr,
-        asn: authIpContext.asn,
-        providerType: authIpContext.providerType,
-        deviceFingerprint,
-        userAgent: req.headers["user-agent"] || null,
-        eventType: "login",
-      });
+        });
+        await recordUserIpLog(tx, {
+          userId: user.id,
+          ip: clientIp,
+          networkCidr: authIpContext.networkCidr,
+          asn: authIpContext.asn,
+          providerType: authIpContext.providerType,
+          deviceFingerprint,
+          userAgent: req.headers["user-agent"] || null,
+          eventType: "login",
+        });
+      },
+      { timeout: 20_000, maxWait: 15_000 },
+    );
+
+    void enqueueAuditEventBestEffort({
+      prismaOrTx: prisma,
+      event: buildAuditEventFromHttpRequest({
+        req,
+        event: {
+          userId: user.id,
+          eventType: AuditEventType.AUTH_LOGIN_SUCCESS,
+          status: AuditEventStatus.SUCCESS,
+          resultCode: "LOGIN_SUCCESS",
+          payload: {},
+        },
+      }),
     });
 
     const accessToken = signAccessToken(user);
@@ -337,10 +324,12 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
     ]);
     res.json({ ok: true, user: toAuthPublicUserDto(user) });
   } catch (error: unknown) {
-    const msg = unknownErrorMessage(error);
-    logger.error("auth.login.unexpected", { message: msg });
-    res
-      .status(500)
-      .json(buildAuthFailureJson("INTERNAL_ERROR", AUTH_LOGIN_MESSAGES.INTERNAL));
+    if (
+      respondAuthPrismaError(res, error, AUTH_LOGIN_MESSAGES.SERVICE_UNAVAILABLE, "auth.login.db_unavailable")
+    ) {
+      return;
+    }
+    logger.error("auth.login.unexpected", { message: unknownErrorMessage(error) });
+    res.status(500).json(buildAuthFailureJson("INTERNAL_ERROR", AUTH_LOGIN_MESSAGES.INTERNAL));
   }
 }

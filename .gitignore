@@ -5,6 +5,25 @@ __pycache__/
 # Dependencies
 node_modules/
 client/node_modules/
+.deploy-venv/
+coverage/
+client/coverage/
+.cache/
+.turbo/
+scripts/__pycache__/
+*.tmp
+*.bak
+*.old
+*.orig
+*~
+scripts/migration_*.txt
+scripts/schema_dump*.txt
+server/storage/logs/**/*.log
+!server/storage/logs/**/.gitkeep
+
+# Legacy deploy snapshot (obsolete duplicate of monorepo; do not re-add)
+.deploy/blockminer-test-package/
+
 # Vite build output (regenerate with `npm run build` in client/ or Docker frontend stage)
 client/dist/
 backend/dist/
@@ -30,6 +49,8 @@ deploy.md
 deploy.secrets.local
 # deploy.py na raiz é versionado (sem segredos); segredos só em deploy.secrets.local ou BLOCKMINER_VPS_PW
 scripts/vm_config_secret.py
+scripts/.blockminer-test-env
+/root/.blockminer-test-env
 # One-off local VM deploy helpers (Paramiko); keep out of repo
 scripts/vm-deploy-*.sh
 scripts/deploy_credentials.local.py

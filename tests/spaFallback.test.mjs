@@ -10,6 +10,8 @@ import {
   attachClientDistStatic,
   attachSpaFallback,
   isApiRequestPath,
+  isAssetsRequestPath,
+  isSocketIoRequestPath,
   resolveClientDistPaths,
 } from "#server/utils/spaStatic.js";
 
@@ -35,6 +37,12 @@ test("isApiRequestPath identifies API routes only", () => {
   assert.equal(isApiRequestPath("/api"), true);
   assert.equal(isApiRequestPath("/login"), false);
   assert.equal(isApiRequestPath("/admin/miners"), false);
+});
+
+test("isAssetsRequestPath and isSocketIoRequestPath guard reserved paths", () => {
+  assert.equal(isAssetsRequestPath("/assets/index-abc.js"), true);
+  assert.equal(isSocketIoRequestPath("/socket.io/"), true);
+  assert.equal(isAssetsRequestPath("/wallet"), false);
 });
 
 test("resolveClientDistPaths detects index.html", () => {
@@ -164,7 +172,7 @@ test("applyNoStoreHtmlHeaders sets pragma and expires", () => {
   });
 });
 
-test("API paths do not hit SPA fallback (404 from catch-all guard)", async () => {
+test("API paths do not hit SPA fallback (404 JSON)", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "bm-spa-api-"));
   const root = path.join(tmp, "repo");
   const distDir = path.join(root, "client", "dist");
@@ -183,7 +191,66 @@ test("API paths do not hit SPA fallback (404 from catch-all guard)", async () =>
   try {
     const res = await request(baseUrl, "/api/auth/session");
     assert.equal(res.status, 404);
-    assert.match(await res.text(), /Not found/);
+    const body = await res.json();
+    assert.equal(body.code, "ROUTE_NOT_FOUND");
+  } finally {
+    server.close();
+  }
+});
+
+test("missing /assets/*.js returns 404 JSON, never SPA HTML", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "bm-spa-asset-miss-"));
+  const root = path.join(tmp, "repo");
+  const distDir = path.join(root, "client", "dist");
+  const assetsDir = path.join(distDir, "assets");
+  fs.mkdirSync(assetsDir, { recursive: true });
+  fs.writeFileSync(path.join(distDir, "index.html"), "<!doctype html><html><body>spa</body></html>");
+
+  const paths = resolveClientDistPaths(root);
+  const app = express();
+  attachClientDistStatic(app, paths.distPath, paths.indexExists);
+  attachSpaFallback(app, {
+    indexPath: paths.indexPath,
+    indexExists: paths.indexExists,
+    renderIndex: (html) => html,
+  });
+
+  const { server, baseUrl } = await listen(app);
+  try {
+    const res = await request(baseUrl, "/assets/wifi-Cknu6UMX.js");
+    assert.equal(res.status, 404);
+    const ct = res.headers.get("content-type") || "";
+    assert.match(ct, /application\/json/i);
+    const body = await res.json();
+    assert.equal(body.code, "ASSET_NOT_FOUND");
+    const text = JSON.stringify(body);
+    assert.doesNotMatch(text, /<!doctype html>/i);
+  } finally {
+    server.close();
+  }
+});
+
+test("/socket.io path does not return SPA HTML from catch-all", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "bm-spa-sio-"));
+  const root = path.join(tmp, "repo");
+  const distDir = path.join(root, "client", "dist");
+  fs.mkdirSync(distDir, { recursive: true });
+  fs.writeFileSync(path.join(distDir, "index.html"), "<!doctype html><html></html>");
+
+  const paths = resolveClientDistPaths(root);
+  const app = express();
+  attachSpaFallback(app, {
+    indexPath: paths.indexPath,
+    indexExists: paths.indexExists,
+    renderIndex: (html) => html,
+  });
+
+  const { server, baseUrl } = await listen(app);
+  try {
+    const res = await request(baseUrl, "/socket.io/?EIO=4&transport=polling");
+    assert.equal(res.status, 404);
+    const body = await res.json();
+    assert.equal(body.code, "ROUTE_NOT_FOUND");
   } finally {
     server.close();
   }

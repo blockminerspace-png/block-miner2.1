@@ -11,6 +11,8 @@ export const AUTH_LOGIN_MESSAGES = {
   TWO_FACTOR_CODE_REQUIRED: "Informe o código de verificação enviado ao seu e-mail.",
   REQUIRE_2FA_EMAIL: "Digite o código enviado ao seu e-mail.",
   EMAIL_2FA_UNAVAILABLE: "Verificação por e-mail indisponível no momento. Tente mais tarde.",
+  SERVICE_UNAVAILABLE:
+    "O servidor está ocupado no momento. Aguarde alguns segundos e tente entrar novamente.",
   INTERNAL: "Não foi possível concluir o login. Tente novamente.",
 } as const;
 

@@ -1,8 +1,12 @@
 import prisma from "../db/prisma.js";
+import { unknownErrorMessage } from "../../utils/prismaHttpErrors.js";
+import loggerLib from "../../utils/logger.js";
 import { auditEventOutboxRecordSchema } from "./schemas.js";
 import { buildAuditSignature, generateCorrelationId, hashIp, sanitizeAuditPayload } from "./utils.js";
 import { AUDIT_DEFAULT_SOURCE, AUDIT_SCHEMA_VERSION } from "./constants.js";
 import { createAuditEventOutbox } from "./repository.js";
+
+const auditLogger = loggerLib.child("AuditService");
 
 function buildEventRecord({
   correlationId,
@@ -51,6 +55,22 @@ export async function enqueueAuditEvent({ prismaOrTx, event }) {
 
   const validated = auditEventOutboxRecordSchema.parse(record);
   return createAuditEventOutbox({ client, event: validated });
+}
+
+/** Audit must never block auth or purchases; failures are logged only. */
+export async function enqueueAuditEventBestEffort(params: Parameters<typeof enqueueAuditEvent>[0]): Promise<void> {
+  try {
+    await enqueueAuditEvent(params);
+  } catch (error: unknown) {
+    const eventType =
+      params?.event && typeof params.event === "object" && "eventType" in params.event
+        ? String((params.event as { eventType?: unknown }).eventType ?? "")
+        : "";
+    auditLogger.warn("audit.enqueue_failed", {
+      eventType: eventType || "unknown",
+      message: unknownErrorMessage(error),
+    });
+  }
 }
 
 export function buildAuditEventFromHttpRequest({ req, event }) {

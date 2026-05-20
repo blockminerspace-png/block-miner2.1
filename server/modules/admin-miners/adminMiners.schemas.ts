@@ -107,10 +107,19 @@ function normalizeSlug(value: unknown): string {
   return slug;
 }
 
+const PLACEHOLDER_IMAGE_PATHS = new Set(["/icon.png", "/icons/logo-placeholder.png"]);
+
+export function isPlaceholderMinerImageUrl(value: unknown): boolean {
+  const s = String(value || "").trim().toLowerCase();
+  if (!s) return false;
+  return PLACEHOLDER_IMAGE_PATHS.has(s) || s.includes("logo-placeholder");
+}
+
 export function validateMinerImageUrl(value: unknown): string | null {
   const s = String(value || "").trim();
   if (!s) return null;
-  if (s.startsWith("/uploads/") || s.startsWith("/machines/") || s === "/icon.png") {
+  if (isPlaceholderMinerImageUrl(s)) throw new Error("invalid_image");
+  if (s.startsWith("/uploads/") || s.startsWith("/machines/")) {
     if (s.includes("..") || s.includes("\\")) throw new Error("invalid_image");
     return s.slice(0, 500);
   }
@@ -159,7 +168,14 @@ export function parseMinerWriteBody(
   if (!partial || has("baseHashRate")) data.baseHashRate = parseDecimalNumber(body.baseHashRate, { max: 1_000_000_000_000 });
   if (!partial || has("price")) data.price = parseDecimalNumber(body.price, { max: 1_000_000_000 });
   if (!partial || has("slotSize")) data.slotSize = parseIntRange(body.slotSize, { min: 1, max: 8, required: true });
-  if (has("imageUrl")) data.imageUrl = validateMinerImageUrl(body.imageUrl);
+  if (has("imageUrl")) {
+    const raw = body.imageUrl;
+    if (partial && (raw === "" || raw === null)) {
+      // Omit clearing image when PATCH sends an empty field (preserve existing URL).
+    } else {
+      data.imageUrl = validateMinerImageUrl(raw);
+    }
+  }
   if (has("tier") || !partial) {
     const tier = String(body.tier || "common").trim().toLowerCase();
     if (!ALLOWED_TIERS.has(tier)) throw new Error("invalid_tier");

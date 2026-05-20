@@ -23,10 +23,14 @@ export function getRedis(): Redis | null {
   const url = getRedisUrl();
   if (!url) return null;
   if (client) return client;
+  const connectTimeoutMs = Number.parseInt(String(process.env.REDIS_CONNECT_TIMEOUT_MS || "3000"), 10) || 3000;
+  const commandTimeoutMs = Number.parseInt(String(process.env.REDIS_COMMAND_TIMEOUT_MS || "5000"), 10) || 5000;
   const options: RedisOptions = {
     maxRetriesPerRequest: 2,
     enableReadyCheck: true,
     lazyConnect: true,
+    connectTimeout: connectTimeoutMs,
+    commandTimeout: commandTimeoutMs,
   };
   client = new Redis(url, options);
   client.on("error", (err: Error) => {

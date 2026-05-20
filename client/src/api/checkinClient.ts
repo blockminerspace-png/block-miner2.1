@@ -13,10 +13,18 @@ export async function postCheckinBalanceDaily(): Promise<CheckinPostPayload> {
   return res.data;
 }
 
-/** POST /api/checkin/wallet — after client sends on-chain tx. */
-export async function postCheckinWalletDaily(txHash: string): Promise<CheckinPostPayload> {
+export type CheckinWalletConfirmPayload = {
+  txHash: string;
+  walletAddress: string;
+  chainId: number;
+};
+
+/** POST /api/checkin/wallet — after client sends on-chain tx (backend validates on-chain). */
+export async function postCheckinWalletDaily(payload: CheckinWalletConfirmPayload): Promise<CheckinPostPayload> {
   const res = await api.post<CheckinPostPayload>('/checkin/wallet', {
-    txHash: txHash.trim(),
+    txHash: payload.txHash.trim(),
+    walletAddress: payload.walletAddress.trim(),
+    chainId: payload.chainId,
     cadence: 'daily',
   });
   return res.data;

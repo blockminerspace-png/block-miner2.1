@@ -184,13 +184,21 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
   initSocket: () => {
     if (get().socket) return;
 
+    const runtimeSocketMs =
+      typeof window !== 'undefined' && window.__BLOCKMINER_ENV__?.VITE_SOCKET_TIMEOUT_MS
+        ? window.__BLOCKMINER_ENV__.VITE_SOCKET_TIMEOUT_MS
+        : import.meta.env.VITE_SOCKET_TIMEOUT_MS;
     const socket = io('/', {
       withCredentials: true,
-      transports: ['websocket', 'polling'],
+      // Polling first: avoids noisy "WebSocket failed" in DevTools when nginx/proxy delays the upgrade.
+      transports: ['polling', 'websocket'],
       reconnectionAttempts: 14,
       reconnectionDelay: 750,
       reconnectionDelayMax: 20000,
-      timeout: Math.min(60000, Number.parseInt(String(import.meta.env.VITE_API_TIMEOUT_MS || '25000'), 10) || 25000),
+      timeout: Math.max(
+        60_000,
+        Number.parseInt(String(runtimeSocketMs || '180000'), 10) || 180_000,
+      ),
     });
 
     socket.on('connect', () => {

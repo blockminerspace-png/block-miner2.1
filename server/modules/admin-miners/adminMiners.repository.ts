@@ -5,6 +5,7 @@ import {
   parseAdminMinerQuery,
   parseMinerWriteBody,
 } from "./adminMiners.schemas.js";
+import { clearCatalogLinkedMachineImageSnapshots } from "../../utils/ownedMachineImage.js";
 
 const ALLOWED_TIERS = new Set(["common", "uncommon", "rare", "epic", "legendary", "special"]);
 const ALLOWED_SOURCES = new Set(["store", "reward", "shortlink", "faucet", "admin", "event"]);
@@ -159,6 +160,12 @@ export async function updateAdminMiner(prisma: PrismaClient, id: unknown, body: 
   const before = await prisma.miner.findUnique({ where: { id: minerId }, select: minerSelect() });
   if (!before) return null;
   const row = await prisma.miner.update({ where: { id: minerId }, data, select: minerSelect() });
+  const imageChanged =
+    Object.prototype.hasOwnProperty.call(data, "imageUrl") &&
+    String(before.imageUrl ?? "") !== String(row.imageUrl ?? "");
+  if (imageChanged) {
+    await clearCatalogLinkedMachineImageSnapshots(prisma, minerId);
+  }
   const sensitiveChange = Number(before.price) !== Number(row.price) || Number(before.baseHashRate) !== Number(row.baseHashRate);
   await audit(prisma, sensitiveChange ? "ADMIN_MINER_ECONOMY_UPDATE" : "ADMIN_MINER_UPDATE", row.id, {
     before: { price: Number(before.price), baseHashRate: Number(before.baseHashRate), showInShop: before.showInShop, isActive: before.isActive },

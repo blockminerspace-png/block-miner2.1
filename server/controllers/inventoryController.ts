@@ -31,14 +31,52 @@ import {
   readHttpStatus,
   requireSessionUser,
 } from "./controllerHttpStatusError.js";
+import {
+  normalizePersistableMinerImageUrl,
+  resolveOwnedMachineImageUrl,
+} from "../utils/ownedMachineImage.js";
+import {
+  collectCatalogLookupDisplayNames,
+  collectEventMinerDisplayNames,
+  eventCatalogImageFromMap,
+  loadEventMinerCatalogImageMap,
+  loadMinerCatalogImageMapByDisplayNames,
+  minerCatalogImageFromMap,
+} from "../utils/eventMinerCatalogImage.js";
 
-const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
+type InventoryListRow = Awaited<ReturnType<typeof inventoryModel.listInventory>>[number];
+
+function mapInventoryItemDto(
+  row: InventoryListRow,
+  eventCatalogMap: Map<string, string | null>,
+  minerNameCatalogMap: Map<string, string | null>,
+) {
+  const { ownedMachine, miner, ...rest } = row;
+  const { imageUrl, imageSource } = resolveOwnedMachineImageUrl({
+    rowImageUrl: row.imageUrl,
+    ownedMachineImageUrl: ownedMachine?.imageUrl ?? null,
+    catalogImageUrl: miner?.imageUrl ?? minerCatalogImageFromMap(minerNameCatalogMap, row.minerName) ?? null,
+    eventCatalogImageUrl: eventCatalogImageFromMap(eventCatalogMap, row.minerName),
+  });
+  return {
+    ...rest,
+    ownedMachineId: rest.ownedMachineId ?? ownedMachine?.id ?? null,
+    imageUrl,
+    imageSource,
+  };
+}
 
 export async function getInventory(req: Request, res: Response) {
   try {
     const user = requireSessionUser(req, res);
     if (!user) return;
-    const inventory = await inventoryModel.listInventory(user.id);
+    const rows = await inventoryModel.listInventory(user.id);
+    const lookupNames = collectCatalogLookupDisplayNames(rows);
+    const [eventCatalogMap, minerNameCatalogMap] = await Promise.all([
+      loadEventMinerCatalogImageMap(collectEventMinerDisplayNames(rows)),
+      loadMinerCatalogImageMapByDisplayNames(lookupNames),
+    ]);
+    const inventory = rows.map((row) => mapInventoryItemDto(row, eventCatalogMap, minerNameCatalogMap));
     res.json({ ok: true, inventory });
   } catch (err: unknown) {
     console.error("getInventory failed", prismaSafeErrorMeta(err));
@@ -83,10 +121,21 @@ export async function installInventoryItem(req: Request, res: Response) {
 
       const inventoryItem = await tx.userInventory.findFirst({
         where: { id: inventoryId, userId: user.id },
+        include: {
+          ownedMachine: { select: { id: true, imageUrl: true } },
+          miner: { select: { imageUrl: true } },
+        },
       });
       if (!inventoryItem) {
         throw new HttpStatusError(404, "NOT_FOUND");
       }
+
+      const resolvedInstallImage = resolveOwnedMachineImageUrl({
+        rowImageUrl: inventoryItem.imageUrl,
+        ownedMachineImageUrl: inventoryItem.ownedMachine?.imageUrl ?? null,
+        catalogImageUrl: inventoryItem.miner?.imageUrl ?? null,
+      });
+      const persistImageUrl = normalizePersistableMinerImageUrl(resolvedInstallImage.imageUrl);
 
       const slotSize = Number(inventoryItem.slotSize || 1);
 
@@ -153,7 +202,7 @@ export async function installInventoryItem(req: Request, res: Response) {
           isActive: true,
           slotSize,
           minerId: inventoryItem.minerId,
-          imageUrl: inventoryItem.imageUrl || DEFAULT_MINER_IMAGE_URL,
+          imageUrl: persistImageUrl,
           ownedMachineId: omId,
         },
       });
@@ -163,7 +212,7 @@ export async function installInventoryItem(req: Request, res: Response) {
         level: inventoryItem.level,
         hashRate: inventoryItem.hashRate,
         slotSize: inventoryItem.slotSize ?? 1,
-        imageUrl: inventoryItem.imageUrl || DEFAULT_MINER_IMAGE_URL,
+        imageUrl: persistImageUrl,
       });
 
       await tx.userInventory.delete({ where: { id: inventoryId, userId: user.id } });

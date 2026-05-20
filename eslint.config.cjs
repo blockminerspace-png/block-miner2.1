@@ -47,7 +47,6 @@ module.exports = [
   // Legacy CommonJS utilities and scripts that intentionally still use require/module.
   {
     files: [
-      "app/routes/registerAppRoutes.js",
       "scripts/backup.js",
       "scripts/check-db-tables.js",
       "scripts/fix-inventory-gpu-image.js",
@@ -55,8 +54,6 @@ module.exports = [
       "scripts/inspect-faucet-inventory.js",
       "scripts/inspect-faucet.js",
       "scripts/seed-rewards-data.js",
-      "server/src/config/index.js",
-      "server/src/services/publicStateService.js",
     ],
     languageOptions: {
       sourceType: "script",

@@ -12,6 +12,9 @@ import {
 import { readErrorMessage, requireSessionUser } from "../../controllers/controllerHttpStatusError.js";
 import { respondPrismaAwareError } from "../../utils/prismaHttpErrors.js";
 import { isAutoMiningV2SchemaAvailable } from "../../services/autoMiningV2/autoMiningV2DbAvailability.js";
+import loggerLib from "../../utils/logger.js";
+
+const powerStatsLog = loggerLib.child("PowerStats");
 
 const HISTORY_LOG_DAYS = 30;
 const BLK_CYCLE_HISTORY = 20;
@@ -128,7 +131,12 @@ export async function getPowerStats(req: Request, res: Response) {
           ]
         }
       }),
-      loadUsersForPowerStatsRanking(prisma, userId, now, v2SchemaOk)
+      loadUsersForPowerStatsRanking(prisma, userId, now, v2SchemaOk).catch((rankErr: unknown) => {
+        powerStatsLog.warn("powerStats.ranking_degraded", {
+          message: readErrorMessage(rankErr),
+        });
+        return [] as Awaited<ReturnType<typeof loadUsersForPowerStatsRanking>>;
+      }),
     ]);
 
     const gpuV2Powers = v2SchemaOk

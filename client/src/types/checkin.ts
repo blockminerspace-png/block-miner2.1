@@ -39,9 +39,11 @@ export type CheckinStatusPayload = {
   walletLinked?: boolean;
   paymentRequired?: boolean;
   checkinReceiver?: string | null;
+  checkinContractAddress?: string | null;
   checkinAmountWei?: string;
   checkinBalanceAmountWei?: string;
   chainId?: number;
+  checkinChainId?: number;
   rpcConfigured?: boolean;
   milestones?: CheckinMilestoneRow[];
   polBalance?: number;

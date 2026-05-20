@@ -23,6 +23,15 @@ import {
 } from "../utils/transactionLocks.js";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
 import { advisoryXactTryLockOrThrow } from "../services/distributedLockService.js";
+import { resolveOwnedMachineImageUrl } from "../utils/ownedMachineImage.js";
+import {
+  collectCatalogLookupDisplayNames,
+  collectEventMinerDisplayNames,
+  eventCatalogImageFromMap,
+  loadEventMinerCatalogImageMap,
+  loadMinerCatalogImageMapByDisplayNames,
+  minerCatalogImageFromMap,
+} from "../utils/eventMinerCatalogImage.js";
 import {
   cancelCriticalMutation,
   finalizeCriticalMutationSuccess,
@@ -345,7 +354,27 @@ export async function getVault(req: Request, res: Response) {
       return;
     }
     const user = req.user;
-    const vault = await vaultModel.listVault(user.id);
+    const vaultRows = await vaultModel.listVault(user.id);
+    const lookupNames = collectCatalogLookupDisplayNames(vaultRows);
+    const [eventCatalogMap, minerNameCatalogMap] = await Promise.all([
+      loadEventMinerCatalogImageMap(collectEventMinerDisplayNames(vaultRows)),
+      loadMinerCatalogImageMapByDisplayNames(lookupNames),
+    ]);
+    const vault = vaultRows.map((row) => {
+      const { ownedMachine, miner, ...rest } = row;
+      const { imageUrl, imageSource } = resolveOwnedMachineImageUrl({
+        rowImageUrl: row.imageUrl,
+        ownedMachineImageUrl: ownedMachine?.imageUrl ?? null,
+        catalogImageUrl: miner?.imageUrl ?? minerCatalogImageFromMap(minerNameCatalogMap, row.minerName) ?? null,
+        eventCatalogImageUrl: eventCatalogImageFromMap(eventCatalogMap, row.minerName),
+      });
+      return {
+        ...rest,
+        ownedMachineId: rest.ownedMachineId ?? ownedMachine?.id ?? null,
+        imageUrl,
+        imageSource,
+      };
+    });
     const ownedIds = vault.map((v) => v.ownedMachineId).filter((id) => id != null);
     if (ownedIds.length > 0) {
       const rows = await prisma.userOwnedMachine.findMany({

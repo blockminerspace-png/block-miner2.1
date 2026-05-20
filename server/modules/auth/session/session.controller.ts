@@ -7,7 +7,8 @@ import { AuditEventType, AuditEventStatus } from "../../../src/audit/constants.j
 import loggerLib, { logUserActivity } from "../../../utils/logger.js";
 import { clearAuthCookies, unknownErrorMessage } from "../shared/auth.security.js";
 import { toAuthPublicUserDto } from "../auth.dto.js";
-import { buildAuthFailureJson } from "../auth.errors.js";
+import { AUTH_LOGIN_MESSAGES, buildAuthFailureJson } from "../auth.errors.js";
+import { respondAuthPrismaError } from "../shared/auth.prisma.js";
 
 const logger = loggerLib.child("AuthSessionController");
 
@@ -55,6 +56,16 @@ export async function getSession(req: Request, res: Response): Promise<void> {
 
     res.json({ ok: true, user: toAuthPublicUserDto(user, { hasReferral }) });
   } catch (error: unknown) {
+    if (
+      respondAuthPrismaError(
+        res,
+        error,
+        AUTH_LOGIN_MESSAGES.SERVICE_UNAVAILABLE,
+        "auth.session.db_unavailable",
+      )
+    ) {
+      return;
+    }
     logger.error("auth.session.unexpected", {
       message: unknownErrorMessage(error),
     });

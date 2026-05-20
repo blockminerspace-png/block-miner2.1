@@ -39,7 +39,7 @@ function readSlotSize(machine: LooseRecord | null | undefined): number | null {
 
 export function getMachineDescriptor(machine: object | null | undefined): {
     name: string;
-    image: string;
+    image: string | null;
     size: number;
 } {
     const m = asRecord(machine);
@@ -47,35 +47,35 @@ export function getMachineDescriptor(machine: object | null | undefined): {
     const slotSize = readSlotSize(m ?? undefined);
 
     let defaultName = "Basic Miner";
-    let image = "/machines/1.png";
     let size = slotSize || 1;
 
     if (hashRate >= 1000) {
         defaultName = "Quantum Miner";
-        image = "/machines/reward3.png";
         size = slotSize || 2;
     } else if (hashRate >= 500) {
         defaultName = "Elite Miner";
-        image = "/machines/reward2.png";
         size = slotSize || 2;
     } else if (hashRate >= 100) {
         defaultName = "Pro Miner";
-        image = "/machines/reward1.png";
         size = slotSize || 2;
     } else if (hashRate >= 50) {
         defaultName = "Advanced Miner";
-        image = "/machines/3.png";
         size = slotSize || 1;
     } else if (hashRate >= 10) {
         defaultName = "Standard Miner";
-        image = "/machines/2.png";
         size = slotSize || 1;
+    }
+
+    const rawImage = m?.imageUrl ?? m?.image_url;
+    let image: string | null = null;
+    if (typeof rawImage === "string" && rawImage.trim() !== "") {
+        image = rawImage.trim();
     }
 
     return {
         name: String(m?.minerName || m?.miner_name || m?.name || defaultName),
-        image: String(m?.imageUrl || m?.image_url || image),
-        size: size
+        image,
+        size,
     };
 }
 

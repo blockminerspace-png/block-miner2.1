@@ -1,8 +1,14 @@
+import { isAxiosTimeoutError } from '../../../shared/utils/apiTimeout';
+
 /**
  * Maps Axios / API auth errors to a safe user-visible string.
  * Does not log or echo passwords, OTPs, challenge tokens, or cookies.
  */
 export function readAuthErrorMessage(error: unknown, fallback = "Não foi possível entrar. Verifique os dados e tente novamente."): string {
+  if (isAxiosTimeoutError(error)) {
+    return "O servidor demorou para responder. Aguarde alguns segundos e tente entrar novamente.";
+  }
+
   if (typeof error === "object" && error !== null && "response" in error) {
     const response = (error as { response?: { data?: unknown; status?: number } }).response;
     const status = response?.status;
@@ -33,13 +39,13 @@ export function readAuthErrorMessage(error: unknown, fallback = "Não foi possí
       return "Muitas tentativas. Aguarde um pouco e tente novamente.";
     }
 
+    if (status === 503) {
+      return "O servidor está ocupado no momento. Aguarde alguns segundos e tente novamente.";
+    }
+
     if (status === 401) {
       return "Credenciais inválidas ou sessão expirada.";
     }
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
   }
 
   return fallback;

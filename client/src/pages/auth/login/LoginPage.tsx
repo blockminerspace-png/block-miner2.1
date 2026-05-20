@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../../../store/auth';
 import { postAuthLogin } from './login.api';
 import { responseRequiresTwoFactorStep } from './login.twoFactorUi';
+import { isAxiosTimeoutError } from '../../../shared/utils/apiTimeout';
 import { readAuthErrorMessage } from '../shared/auth.errors';
 import {
   Mail,
@@ -173,6 +174,11 @@ export default function Login() {
         navigate(from && from !== '/login' ? from : '/dashboard');
       }
     } catch (err: unknown) {
+      if (isAxiosTimeoutError(err)) {
+        setLocalError(t('auth.login.errors.request_timeout'));
+        turnstileRef.current?.reset();
+        return;
+      }
       if (isAxiosLikeError(err)) {
         const body = err.response?.data as Record<string, unknown> | undefined;
         if (body && responseRequiresTwoFactorStep(body as { require2FA?: boolean; code?: string })) {
@@ -206,6 +212,8 @@ export default function Login() {
           INVALID_2FA: t('auth.login.errors.invalid_2fa'),
           INVALID_TWO_FACTOR_CODE: t('auth.login.errors.invalid_2fa'),
           INTERNAL_ERROR: t('auth.login.errors.internal_error'),
+          SERVICE_UNAVAILABLE: t('auth.login.errors.service_unavailable'),
+          INVALID_CSRF_TOKEN: t('errors.security.INVALID_CSRF_TOKEN'),
           EMAIL_2FA_UNAVAILABLE: t('auth.login.errors.email_2fa_unavailable'),
           TWO_FACTOR_CHALLENGE_REQUIRED: t('auth.login.errors.two_factor_challenge_required'),
           TWO_FACTOR_CODE_REQUIRED: t('auth.login.errors.two_factor_code_required'),

@@ -8,11 +8,17 @@ import { getBrazilCheckinDateKey, getBrazilDateKeyAliases, normalizeBrazilDateKe
 import { computeCheckinStreak } from "../../utils/checkinStreak.js";
 import {
   assertValidTxHash,
-  evaluateCheckinTx,
   normalizeAddr,
   parseCheckinAmountWei,
   parseCheckinBalanceAmountWei
 } from "../../services/checkinChain.js";
+import {
+  assertValidWalletAddress,
+  evaluateCheckinPayment,
+  getExpectedCheckinChainId,
+  parseOptionalChainIdFromBody,
+  resolveCheckinContractAddress
+} from "./checkin.contract.js";
 import { advisoryXactTryLockOrThrow } from "../../services/distributedLockService.js";
 import { lockUserRowForUpdate } from "../../utils/transactionLocks.js";
 import {
@@ -44,7 +50,6 @@ function logCheckinSideEffectFailure(label: string, err: unknown) {
   checkinLog.warn(label, { error: msg });
 }
 
-const POLYGON_CHAIN_ID = Number(process.env.POLYGON_CHAIN_ID || 137);
 const ZERO = "0x0000000000000000000000000000000000000000";
 const CHAIN_INTERNAL_CHECKIN = 0;
 
@@ -85,9 +90,9 @@ function getReceiver(): string {
   return resolveCheckinReceiverFromEnv();
 }
 
-/** Treasury (CHECKIN_RECEIVER / DEPOSIT_WALLET_ADDRESS) must exist to verify on-chain payments. */
+/** Treasury or CHECKIN_CONTRACT_ADDRESS must exist to verify on-chain payments. */
 function hasCheckinTreasury(): boolean {
-  return Boolean(getReceiver());
+  return Boolean(getReceiver()) || Boolean(resolveCheckinContractAddress());
 }
 
 /**
@@ -215,15 +220,16 @@ export async function tryFinalizeCheckinRow(row: DailyCheckinPendingRow | null) 
   if (!wallet) return row;
 
   const receiver = getReceiver();
-  if (!receiver || receiver.toLowerCase() === ZERO) return row;
+  const contractAddr = resolveCheckinContractAddress();
+  if ((!receiver || receiver.toLowerCase() === ZERO) && !contractAddr) return row;
 
   const minWei = getWalletCheckinWei();
-  let ev: Awaited<ReturnType<typeof evaluateCheckinTx>>;
+  let ev: Awaited<ReturnType<typeof evaluateCheckinPayment>>;
   try {
-    ev = await evaluateCheckinTx({
+    ev = await evaluateCheckinPayment({
       txHash: row.txHash as string,
       userWalletLower: normalizeAddr(wallet),
-      receiverLower: normalizeAddr(receiver),
+      receiverLower: normalizeAddr(receiver || contractAddr),
       minValueWei: minWei
     });
   } catch {
@@ -237,7 +243,7 @@ export async function tryFinalizeCheckinRow(row: DailyCheckinPendingRow | null) 
         status: "confirmed",
         confirmedAt: new Date(),
         amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID,
+        chainId: getExpectedCheckinChainId(),
         paymentMethod: "wallet"
       }
     });
@@ -283,9 +289,9 @@ export async function tryFinalizePeriodicCheckinRow(row: PeriodicPendingRow | nu
   if (!receiver || receiver.toLowerCase() === ZERO) return row;
 
   const minWei = getWalletCheckinWei();
-  let ev: Awaited<ReturnType<typeof evaluateCheckinTx>>;
+  let ev: Awaited<ReturnType<typeof evaluateCheckinPayment>>;
   try {
-    ev = await evaluateCheckinTx({
+    ev = await evaluateCheckinPayment({
       txHash: row.txHash as string,
       userWalletLower: normalizeAddr(wallet),
       receiverLower: normalizeAddr(receiver),
@@ -302,7 +308,7 @@ export async function tryFinalizePeriodicCheckinRow(row: PeriodicPendingRow | nu
         status: "confirmed",
         confirmedAt: new Date(),
         amount: Number(minWei) / 1e18,
-        chainId: POLYGON_CHAIN_ID
+        chainId: getExpectedCheckinChainId()
       }
     });
   }
@@ -437,9 +443,11 @@ export async function getStatus(req: Request, res: Response) {
       walletLinked: Boolean(wallet),
       paymentRequired: true,
       checkinReceiver: getReceiver() || null,
+      checkinContractAddress: resolveCheckinContractAddress() || null,
       checkinAmountWei: walletWei.toString(),
       checkinBalanceAmountWei: balanceWei.toString(),
-      chainId: POLYGON_CHAIN_ID,
+      chainId: getExpectedCheckinChainId(),
+      checkinChainId: getExpectedCheckinChainId(),
       rpcConfigured:
         treasuryOk && Boolean(process.env.AETHER_RPC_URL?.trim() || process.env.POLYGON_RPC_URL?.trim()),
       milestones: statusDegraded ? [] : milestones,
@@ -532,6 +540,22 @@ type ConfirmTxOutcome =
   | { type: "failed"; reason: string }
   | { type: "confirmed" };
 
+async function findConflictingCheckinTxHash(
+  db: Pick<typeof prisma, "dailyCheckin">,
+  txHash: string,
+  userId: number,
+  todayKey: string
+): Promise<"TX_ALREADY_USED" | null> {
+  const row = await db.dailyCheckin.findUnique({ where: { txHash } });
+  if (!row) return null;
+  if (row.userId !== userId) return "TX_ALREADY_USED";
+  const day = normalizeBrazilDateKey(row.checkinDate);
+  if (row.status === "confirmed" && day && day !== todayKey) {
+    return "TX_ALREADY_USED";
+  }
+  return null;
+}
+
 async function confirmDailyCheckin(req: Request, res: Response) {
   const userId = requireUserId(req);
   const today = getBrazilCheckinDateKey();
@@ -540,6 +564,22 @@ async function confirmDailyCheckin(req: Request, res: Response) {
     return jsonCheckinError(res, 400, body.error.code, body.error.message);
   }
   const txHash = body.txHash;
+
+  const expectedChainId = getExpectedCheckinChainId();
+  const chainFromBody = parseOptionalChainIdFromBody(req.body);
+  if (chainFromBody !== null && chainFromBody !== expectedChainId) {
+    return jsonCheckinError(res, 400, "INVALID_CHAIN", "Transaction chain does not match the required network.");
+  }
+
+  const reqBody = req.body as Record<string, unknown> | null | undefined;
+  const bodyWalletRaw = typeof reqBody?.walletAddress === "string" ? reqBody.walletAddress.trim() : "";
+  if (bodyWalletRaw) {
+    try {
+      assertValidWalletAddress(bodyWalletRaw);
+    } catch {
+      return jsonCheckinError(res, 400, "INVALID_WALLET_ADDRESS", "Invalid wallet address.");
+    }
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -556,13 +596,23 @@ async function confirmDailyCheckin(req: Request, res: Response) {
     );
   }
 
+  if (bodyWalletRaw && normalizeAddr(bodyWalletRaw) !== normalizeAddr(walletAddress)) {
+    return jsonCheckinError(
+      res,
+      400,
+      "INVALID_WALLET_ADDRESS",
+      "Wallet address does not match your linked wallet."
+    );
+  }
+
   const receiver = getReceiver();
-  if (!receiver) {
+  const contractAddr = resolveCheckinContractAddress();
+  if (!receiver && !contractAddr) {
     return jsonCheckinError(
       res,
       503,
       "CHECKIN_RECEIVER_NOT_CONFIGURED",
-      "Check-in receiver is not configured on the server."
+      "Check-in payment destination is not configured on the server."
     );
   }
 
@@ -575,13 +625,23 @@ async function confirmDailyCheckin(req: Request, res: Response) {
     });
   }
 
+  const txConflict = await findConflictingCheckinTxHash(prisma, txHash, userId, today);
+  if (txConflict) {
+    return jsonCheckinError(
+      res,
+      409,
+      "TX_ALREADY_USED",
+      "This transaction hash was already used for check-in."
+    );
+  }
+
   const minWei = getWalletCheckinWei();
-  let evalResult: Awaited<ReturnType<typeof evaluateCheckinTx>>;
+  let evalResult: Awaited<ReturnType<typeof evaluateCheckinPayment>>;
   try {
-    evalResult = await evaluateCheckinTx({
+    evalResult = await evaluateCheckinPayment({
       txHash,
       userWalletLower: normalizeAddr(walletAddress),
-      receiverLower: normalizeAddr(receiver),
+      receiverLower: normalizeAddr(receiver || contractAddr),
       minValueWei: minWei
     });
   } catch (err: unknown) {
@@ -598,7 +658,7 @@ async function confirmDailyCheckin(req: Request, res: Response) {
   const baseRow = {
     txHash,
     amount: Number(minWei) / 1e18,
-    chainId: POLYGON_CHAIN_ID,
+    chainId: expectedChainId,
     paymentMethod: "wallet"
   };
 
@@ -658,7 +718,7 @@ async function confirmDailyCheckin(req: Request, res: Response) {
       });
     }
     if (outcome.type === "failed") {
-      return jsonCheckinError(res, 400, "INVALID_TRANSACTION", outcome.reason);
+      return jsonCheckinError(res, 400, "INVALID_CHECKIN_TRANSACTION", outcome.reason);
     }
 
     await applyStreakMilestoneRewards(userId);

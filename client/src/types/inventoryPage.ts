@@ -1,11 +1,15 @@
 /** Mining-room / backpack payloads used by the Inventory page. */
 
+export type MachineImageSourceDto = "owned_snapshot" | "catalog_current" | "none";
+
 export interface RackMiner {
   id: number;
   minerId: number | null;
   minerName: string | null;
   hashRate: number | string;
   imageUrl: string | null;
+  imageSource?: MachineImageSourceDto;
+  ownedMachineId?: number | null;
   level: number;
   slotSize: number;
 }
@@ -49,6 +53,8 @@ export interface BackpackItem {
   hashRate?: number | string;
   slotSize?: number;
   imageUrl?: string | null;
+  imageSource?: MachineImageSourceDto;
+  ownedMachineId?: number | null;
   level?: number;
 }
 

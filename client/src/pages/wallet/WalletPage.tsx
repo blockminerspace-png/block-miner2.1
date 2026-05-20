@@ -40,6 +40,12 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../../shared/hooks/useWallet';
 import { useGameStore } from '../../store/game';
 import { canUseInjectedDepositChannel } from '../../shared/utils/depositChannel';
+import { getInjectedWalletProviders } from '../../shared/wallet/injectedWallet';
+import {
+    classifyWalletHttpError,
+    nextWalletBalanceBackoffMs,
+    WALLET_BALANCE_POLL_MS,
+} from './walletBalancePolling';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null;
@@ -206,6 +212,8 @@ export default function Wallet() {
     });
     const [depositForm, setDepositForm] = useState({ amount: '' });
     const [depositChannel, setDepositChannel] = useState('smart_contract');
+    const [injectedDiscovery, setInjectedDiscovery] = useState<'scanning' | 'none' | 'found'>('scanning');
+    const [detectedWalletName, setDetectedWalletName] = useState<string | null>(null);
     const [btcpayDepositEnabled, setBtcpayDepositEnabled] = useState(false);
     const [btcpayDepositComingSoon, setBtcpayDepositComingSoon] = useState(false);
     const [btcpayMissingEnvKeys, setBtcpayMissingEnvKeys] = useState<string[]>([]);
@@ -228,10 +236,19 @@ export default function Wallet() {
     // Depósitos assíncronos pendentes
     const [pendingDeposits, setPendingDeposits] = useState<PendingDepositRow[]>([]);
     const pendingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const balancePollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const balanceBackoffMsRef = useRef(WALLET_BALANCE_POLL_MS);
+    const balancePollPausedRef = useRef(false);
+    const balanceUnavailableToastRef = useRef(false);
 
     const socket = useGameStore(s => s.socket);
+    const initSocket = useGameStore(s => s.initSocket);
 
     const evmAccount = account as string | null | undefined;
+
+    useEffect(() => {
+        initSocket();
+    }, [initSocket]);
 
     useEffect(() => {
         walletConnectedRef.current = isConnected;
@@ -265,12 +282,22 @@ export default function Wallet() {
         }
     };
 
-    const fetchWalletData = useCallback(async () => {
+    const clearBalancePollTimer = useCallback(() => {
+        if (balancePollTimerRef.current) {
+            clearTimeout(balancePollTimerRef.current);
+            balancePollTimerRef.current = null;
+        }
+    }, []);
+
+    const fetchWalletData = useCallback(async (): Promise<boolean> => {
         try {
             const [balanceRes, historyRes] = await Promise.all([
                 walletApi.getBalance(),
                 walletApi.getTransactions()
             ]);
+
+            balanceBackoffMsRef.current = WALLET_BALANCE_POLL_MS;
+            balanceUnavailableToastRef.current = false;
 
             if (balanceRes.data.ok) {
                 setBalance({
@@ -316,20 +343,49 @@ export default function Wallet() {
 
                 // If user has a saved address but not connected, pre-fill it for convenience
                 const savedWalletAddr = balanceRes.data.walletAddress;
-                if (!withdrawForm.address && typeof savedWalletAddr === 'string' && savedWalletAddr.length > 0) {
-                    setWithdrawForm((prev) => ({ ...prev, address: savedWalletAddr }));
-                }
+                setWithdrawForm((prev) => {
+                    if (prev.address) return prev;
+                    if (typeof savedWalletAddr === 'string' && savedWalletAddr.length > 0) {
+                        return { ...prev, address: savedWalletAddr };
+                    }
+                    return prev;
+                });
             }
 
             if (historyRes.data.ok) {
                 setTransactions(historyRes.data.transactions || []);
             }
+            return true;
         } catch (err: unknown) {
-            console.error("Error fetching wallet data", err);
+            const kind = classifyWalletHttpError(err);
+            if (kind === 'auth') {
+                balancePollPausedRef.current = true;
+                clearBalancePollTimer();
+                return false;
+            }
+            if (kind === 'unavailable') {
+                balanceBackoffMsRef.current = nextWalletBalanceBackoffMs(balanceBackoffMsRef.current);
+                if (!balanceUnavailableToastRef.current) {
+                    balanceUnavailableToastRef.current = true;
+                    toast.error(t('wallet.balance_unavailable'), { id: 'wallet-balance-unavailable' });
+                }
+                return false;
+            }
+            return false;
         } finally {
             setIsLoading(false);
         }
-    }, [withdrawForm.address]);
+    }, [clearBalancePollTimer, t]);
+
+    const scheduleBalancePoll = useCallback(() => {
+        if (balancePollPausedRef.current) return;
+        clearBalancePollTimer();
+        balancePollTimerRef.current = setTimeout(() => {
+            void fetchWalletData().finally(() => {
+                scheduleBalancePoll();
+            });
+        }, balanceBackoffMsRef.current);
+    }, [clearBalancePollTimer, fetchWalletData]);
 
     const fetchPendingDeposits = useCallback(async () => {
         try {
@@ -354,17 +410,25 @@ export default function Wallet() {
     }, []);
 
     useEffect(() => {
-        fetchWalletData();
+        balancePollPausedRef.current = false;
+        balanceBackoffMsRef.current = WALLET_BALANCE_POLL_MS;
+        void fetchWalletData();
         fetchPrice();
         fetchPendingDeposits();
-        const dataInterval = setInterval(fetchWalletData, 30000);
+        scheduleBalancePoll();
         const priceInterval = setInterval(fetchPrice, 60000);
         return () => {
-            clearInterval(dataInterval);
+            clearBalancePollTimer();
             clearInterval(priceInterval);
             stopPendingPoll();
         };
-    }, [fetchWalletData, fetchPendingDeposits, stopPendingPoll]);
+    }, [
+        fetchWalletData,
+        fetchPendingDeposits,
+        stopPendingPoll,
+        scheduleBalancePoll,
+        clearBalancePollTimer,
+    ]);
 
     useEffect(() => {
         const canInjected = canUseInjectedDepositChannel(systemContractAddress, systemDepositAddress);
@@ -458,6 +522,27 @@ export default function Wallet() {
     }, [depositChannel]);
 
     useEffect(() => {
+        if (depositChannel !== 'smart_contract' || isConnected) {
+            return undefined;
+        }
+        let cancelled = false;
+        setInjectedDiscovery('scanning');
+        void getInjectedWalletProviders().then((list) => {
+            if (cancelled) return;
+            if (list.length === 0) {
+                setInjectedDiscovery('none');
+                setDetectedWalletName(null);
+                return;
+            }
+            setInjectedDiscovery('found');
+            setDetectedWalletName(list[0]?.name ?? null);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [depositChannel, isConnected]);
+
+    useEffect(() => {
         if (!btcpayInvoiceId || depositChannel !== 'btcpay') return undefined;
         const poll = async () => {
             try {
@@ -534,10 +619,22 @@ export default function Wallet() {
 
             if (!isConnected) {
                 try {
+                    let connected = false;
                     if (depositChannel === 'walletconnect') {
                         await connectWalletConnect();
+                        connected = await waitForWalletConnected(45000);
                     } else {
-                        await connect({ useBrowserExtension: true });
+                        connected = await connect({ useBrowserExtension: true });
+                        if (!connected) {
+                            return;
+                        }
+                        connected = await waitForWalletConnected(15000);
+                    }
+                    if (!connected) {
+                        toast.error(t('wallet.web3_deposit.connect_wallet_failed'), {
+                            id: 'wallet-connect-wallet-failed',
+                        });
+                        return;
                     }
                 } catch (e: unknown) {
                     if (isRecord(e) && e.code === 'CANCELLED') {
@@ -545,12 +642,6 @@ export default function Wallet() {
                         return;
                     }
                     throw e;
-                }
-
-                const walletReady = await waitForWalletConnected(45000);
-                if (!walletReady) {
-                    toast.error(t('wallet.web3_deposit.connect_wallet_failed'));
-                    return;
                 }
             }
 
@@ -870,23 +961,27 @@ export default function Wallet() {
                                 disabled={isConnecting}
                                 className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/30 shadow-lg shadow-indigo-900/20 disabled:opacity-50"
                             >
-                                {activeTab === 'deposit' &&
-                                depositChannel === 'walletconnect' &&
-                                walletConnectConfigured ? (
-                                    <WalletConnectWordmark
-                                        className="h-3 sm:h-3.5 w-auto max-w-[5.5rem] sm:max-w-[6.5rem] object-contain object-left brightness-0 invert shrink-0"
-                                        alt={t('wallet.deposit_options.walletconnect_logo_alt')}
-                                    />
-                                ) : (
-                                    <Smartphone className="w-4 h-4 shrink-0" />
-                                )}
-                                {isConnecting
-                                    ? t('wallet.web3_deposit.connecting')
-                                    : activeTab === 'deposit' &&
-                                        depositChannel === 'walletconnect' &&
-                                        walletConnectConfigured
-                                      ? t('wallet.web3_deposit.connect_wc')
-                                      : t('wallet.web3_deposit.connect_browser')}
+                                <span className="inline-flex min-h-4 items-center justify-center gap-2">
+                                    {activeTab === 'deposit' &&
+                                    depositChannel === 'walletconnect' &&
+                                    walletConnectConfigured ? (
+                                        <WalletConnectWordmark
+                                            className="h-3 sm:h-3.5 w-auto max-w-[5.5rem] sm:max-w-[6.5rem] object-contain object-left brightness-0 invert shrink-0"
+                                            alt={t('wallet.deposit_options.walletconnect_logo_alt')}
+                                        />
+                                    ) : (
+                                        <Smartphone className="h-4 w-4 shrink-0" aria-hidden />
+                                    )}
+                                    <span>
+                                        {isConnecting
+                                            ? t('wallet.web3_deposit.connecting')
+                                            : activeTab === 'deposit' &&
+                                                depositChannel === 'walletconnect' &&
+                                                walletConnectConfigured
+                                              ? t('wallet.web3_deposit.connect_wc')
+                                              : t('wallet.web3_deposit.connect_browser')}
+                                    </span>
+                                </span>
                             </button>
                             {showWalletSessionCancel ? (
                                 <button
@@ -1316,15 +1411,29 @@ export default function Wallet() {
                                                           : t('wallet.web3_deposit.no_deposit_config')
                                                     : t('wallet.deposit_options.walletconnect_hint')}
                                             </p>
-                                            {!walletConnectConfigured ? (
+                                            {depositChannel === 'smart_contract' && !isConnected ? (
+                                                <p className="text-[10px] text-center font-bold leading-relaxed text-slate-400">
+                                                    {injectedDiscovery === 'scanning'
+                                                        ? t('wallet.web3_deposit.injected_scanning')
+                                                        : injectedDiscovery === 'none'
+                                                          ? t('wallet.web3_deposit.no_browser_wallet')
+                                                          : detectedWalletName?.toLowerCase().includes('rabby')
+                                                            ? t('wallet.web3_deposit.injected_detected_rabby')
+                                                            : t('wallet.web3_deposit.injected_detected_name', {
+                                                                  name: detectedWalletName ?? 'Web3',
+                                                              })}
+                                                </p>
+                                            ) : null}
+                                            {depositChannel === 'walletconnect' && !walletConnectConfigured ? (
                                                 <p className="text-[9px] text-amber-300/90 font-bold leading-relaxed">
                                                     {t('wallet.web3_deposit.wc_missing_build')}
                                                 </p>
-                                            ) : (
+                                            ) : null}
+                                            {depositChannel === 'walletconnect' && walletConnectConfigured ? (
                                                 <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
                                                     {t('wallet.web3_deposit.wc_explorer_domains_hint')}
                                                 </p>
-                                            )}
+                                            ) : null}
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex flex-col sm:flex-row gap-2">
                                                     <button
@@ -1792,6 +1901,16 @@ export default function Wallet() {
                                 </div>
                             ) : (
                                 transactions.map((tx, i) => {
+                                    const txKey =
+                                        (typeof tx.txHash === 'string' && tx.txHash.trim() !== ''
+                                            ? tx.txHash
+                                            : null) ??
+                                        (typeof tx.createdAt === 'string' && tx.createdAt
+                                            ? tx.createdAt
+                                            : typeof tx.created_at === 'string' && tx.created_at
+                                              ? tx.created_at
+                                              : null) ??
+                                        `${tx.type}-${tx.amount}-${i}`;
                                     const isBlkConvert = tx.type === 'blk_convert';
                                     const isBlkWithdraw = tx.type === 'blk_withdrawal';
                                     const isWithdrawal = tx.type === 'withdrawal' || isBlkWithdraw;
@@ -1810,7 +1929,7 @@ export default function Wallet() {
                                             ? t('wallet.tx_outflow')
                                             : t('wallet.tx_inflow');
                                     return (
-                                        <div key={i} className="group relative flex items-center gap-4 p-4 hover:bg-slate-900/50 rounded-2xl transition-all border border-transparent hover:border-slate-800/50">
+                                        <div key={txKey} className="group relative flex items-center gap-4 p-4 hover:bg-slate-900/50 rounded-2xl transition-all border border-transparent hover:border-slate-800/50">
                                             <div
                                                 className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${
                                                     isWithdrawal ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'

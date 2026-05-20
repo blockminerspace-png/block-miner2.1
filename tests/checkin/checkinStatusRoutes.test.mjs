@@ -24,3 +24,11 @@ test("checkin unauthenticated JSON shape is stable", () => {
   assert.equal(payload.code, "UNAUTHENTICATED");
   assert.equal(payload.error, payload.message);
 });
+
+test("checkin confirm rejects mismatched chain id from client body", async () => {
+  const { parseOptionalChainIdFromBody, getExpectedCheckinChainId } =
+    await import("#server/modules/checkin/checkin.contract.js");
+  const expected = getExpectedCheckinChainId();
+  const fromBody = parseOptionalChainIdFromBody({ chainId: expected === 137 ? 1 : 137 });
+  assert.notEqual(fromBody, expected);
+});

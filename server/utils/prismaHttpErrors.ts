@@ -11,8 +11,27 @@ export function prismaErrorCode(error: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
+/** Prisma could not acquire a transaction slot (pool saturation or lock wait). */
+export function isPrismaTransactionStartTimeout(error: unknown): boolean {
+  return /unable to start a transaction in the given time/i.test(unknownErrorMessage(error));
+}
+
+/** Interactive transaction timed out or deadlocked under load. */
+export function isPrismaTransactionRuntimeError(error: unknown): boolean {
+  const code = prismaErrorCode(error);
+  if (code === "P2028" || code === "P2034") return true;
+  const msg = unknownErrorMessage(error).toLowerCase();
+  return (
+    msg.includes("transaction api error") ||
+    msg.includes("transaction already closed") ||
+    msg.includes("deadlock") ||
+    msg.includes("could not serialize")
+  );
+}
+
 /** Pool saturation, PG down, or adapter connection timeout (default 10s). */
 export function isPrismaConnectionError(error: unknown): boolean {
+  if (isPrismaTransactionStartTimeout(error) || isPrismaTransactionRuntimeError(error)) return true;
   const code = prismaErrorCode(error);
   if (code === "P1001" || code === "P1002" || code === "P1008" || code === "P1017") return true;
   const msg = unknownErrorMessage(error).toLowerCase();

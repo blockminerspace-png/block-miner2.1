@@ -7,4 +7,7 @@
 IP = "89.167.114.67"
 LOGIN = "root"
 ROOT_PASSWORD = "sua_senha_aqui"
+# Optional: benchmark login (gitignored file — never commit real values)
+# BLOCKMINER_TEST_IDENTIFIER = "email-de-teste-sem-2fa"
+# BLOCKMINER_TEST_PASSWORD = "senha"
 # Repo on the test server: https://github.com/blockminerspace-png/block-miner-v3.git

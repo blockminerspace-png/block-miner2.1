@@ -63,8 +63,15 @@ export async function getBalance(req: Request, res: Response) {
       polygonHdMinDepositPol: getPolygonHdMinDepositPol()
     });
   } catch (error: unknown) {
-    logger.error("Error getting balance", { error: readErrorMessage(error) });
-    res.status(500).json({ ok: false, message: "Unable to get balance." });
+    logger.error("wallet.balance.unexpected", {
+      message: readErrorMessage(error) || "unknown wallet balance error",
+    });
+    res.status(503).json({
+      ok: false,
+      code: "WALLET_BALANCE_UNAVAILABLE",
+      message: "Saldo temporariamente indisponível.",
+      error: "Saldo temporariamente indisponível.",
+    });
   }
 }
 

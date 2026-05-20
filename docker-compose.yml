@@ -63,13 +63,23 @@ services:
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
       # Avoid Postgres transaction + advisory lock on every rate-limited API call (single app process).
       API_RATE_LIMIT_USE_MEMORY: "${API_RATE_LIMIT_USE_MEMORY:-true}"
-      PG_POOL_MAX: "${PG_POOL_MAX:-25}"
+      AUTH_LOCKOUT_USE_MEMORY: "${AUTH_LOCKOUT_USE_MEMORY:-true}"
+      PG_POOL_MAX: "${PG_POOL_MAX:-40}"
+      PG_POOL_CONNECTION_TIMEOUT_MS: "${PG_POOL_CONNECTION_TIMEOUT_MS:-30000}"
+      PG_POOL_IDLE_MS: "${PG_POOL_IDLE_MS:-45000}"
+      SOCKET_PING_INTERVAL_MS: "${SOCKET_PING_INTERVAL_MS:-30000}"
+      SOCKET_PING_TIMEOUT_MS: "${SOCKET_PING_TIMEOUT_MS:-180000}"
+      SOCKET_CONNECT_TIMEOUT_MS: "${SOCKET_CONNECT_TIMEOUT_MS:-120000}"
+      SOCKET_MAX_HTTP_BUFFER_SIZE: "${SOCKET_MAX_HTTP_BUFFER_SIZE:-1048576}"
+      VITE_SOCKET_TIMEOUT_MS: "${VITE_SOCKET_TIMEOUT_MS:-180000}"
       START_PHD_IN_APP_CONTAINER: "${START_PHD_IN_APP_CONTAINER:-false}"
       PHD_PORT: "${PHD_PORT:-3847}"
+      UPLOADS_DIR: /app/uploads
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
       - ./uploads:/app/uploads
+      - ./data/uploads:/app/data/uploads
     restart: unless-stopped
 
   worker:
@@ -92,10 +102,15 @@ services:
       NODE_ENV: production
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      PG_POOL_MAX: "${WORKER_PG_POOL_MAX:-12}"
+      PG_POOL_CONNECTION_TIMEOUT_MS: "${PG_POOL_CONNECTION_TIMEOUT_MS:-30000}"
+      PG_POOL_IDLE_MS: "${PG_POOL_IDLE_MS:-45000}"
+      UPLOADS_DIR: /app/uploads
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
       - ./uploads:/app/uploads
+      - ./data/uploads:/app/data/uploads
     restart: unless-stopped
     command: ["node", "dist/server/jobs/runBlockminerWorker.js"]
 

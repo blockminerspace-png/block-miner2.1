@@ -14,7 +14,7 @@ import {
 import { bulkCreateInventoryWithOwnedMachinesTx } from "./userOwnedMachineService.js";
 import { errMsg, prismaErrCode } from "../types/tsNarrowing.js";
 
-const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
+import { normalizePersistableMinerImageUrl } from "../utils/ownedMachineImage.js";
 
 async function incrementSoldCountOptimistic(tx, minerId, quantity = 1) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -166,7 +166,7 @@ export async function purchaseEventMinerForUser(userId, eventMinerId, quantity =
           level: 1,
           hashRate: em.hashRate,
           slotSize,
-          imageUrl: em.imageUrl || DEFAULT_MINER_IMAGE_URL,
+          imageUrl: normalizePersistableMinerImageUrl(em.imageUrl),
         },
         quantity,
         now,

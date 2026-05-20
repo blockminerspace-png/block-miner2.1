@@ -27,6 +27,15 @@ import {
   readHttpStatus,
   requireSessionUser,
 } from "./controllerHttpStatusError.js";
+import { resolveOwnedMachineImageUrl } from "../utils/ownedMachineImage.js";
+import {
+  collectCatalogLookupDisplayNames,
+  collectEventMinerDisplayNames,
+  eventCatalogImageFromMap,
+  loadEventMinerCatalogImageMap,
+  loadMinerCatalogImageMapByDisplayNames,
+  minerCatalogImageFromMap,
+} from "../utils/eventMinerCatalogImage.js";
 
 const logger = loggerLib.child("Rooms");
 
@@ -128,7 +137,9 @@ export async function listRooms(req: Request, res: Response) {
                 imageUrl: true,
                 level: true,
                 slotSize: true,
-                miner: { select: { name: true } },
+                ownedMachineId: true,
+                ownedMachine: { select: { imageUrl: true, minerName: true } },
+                miner: { select: { name: true, imageUrl: true } },
               },
             },
           },
@@ -155,12 +166,30 @@ export async function listRooms(req: Request, res: Response) {
               minerName: string | null;
               hashRate: number;
               imageUrl: string | null;
+              imageSource: "owned_snapshot" | "catalog_current" | "none";
+              ownedMachineId: number | null;
               level: number;
               slotSize: number;
             } | null;
           }>;
         }
       | { roomNumber: number; unlocked: false; price: number; racks: [] };
+
+    const eventNameRows: Array<{ minerId: number | null; minerName: string | null }> = [];
+    for (const room of rooms) {
+      for (const rack of room.racks) {
+        const um = rack.userMiner;
+        if (!um) continue;
+        eventNameRows.push({
+          minerId: um.minerId,
+          minerName: um.miner?.name ?? um.ownedMachine?.minerName ?? null,
+        });
+      }
+    }
+    const [eventCatalogMap, minerNameCatalogMap] = await Promise.all([
+      loadEventMinerCatalogImageMap(collectEventMinerDisplayNames(eventNameRows)),
+      loadMinerCatalogImageMapByDisplayNames(collectCatalogLookupDisplayNames(eventNameRows)),
+    ]);
 
     const result: ListedRoomPayload[] = [];
     for (let n = 1; n <= ROOM_MAX; n++) {
@@ -178,15 +207,28 @@ export async function listRooms(req: Request, res: Response) {
             installedAt: rack.installedAt || null,
             blockedByMinerId: rack.blockedByMinerId || null,
             miner: rack.userMiner
-              ? {
-                  id: rack.userMiner.id,
-                  minerId: rack.userMiner.minerId,
-                  minerName: rack.userMiner.miner?.name ?? null,
-                  hashRate: rack.userMiner.hashRate,
-                  imageUrl: rack.userMiner.imageUrl,
-                  level: rack.userMiner.level,
-                  slotSize: rack.userMiner.slotSize,
-                }
+              ? (() => {
+                  const um = rack.userMiner;
+                  const displayName = um.miner?.name ?? um.ownedMachine?.minerName ?? null;
+                  const { imageUrl, imageSource } = resolveOwnedMachineImageUrl({
+                    rowImageUrl: um.imageUrl,
+                    ownedMachineImageUrl: um.ownedMachine?.imageUrl ?? null,
+                    catalogImageUrl:
+                      um.miner?.imageUrl ?? minerCatalogImageFromMap(minerNameCatalogMap, displayName) ?? null,
+                    eventCatalogImageUrl: eventCatalogImageFromMap(eventCatalogMap, displayName),
+                  });
+                  return {
+                    id: um.id,
+                    minerId: um.minerId,
+                    minerName: displayName,
+                    hashRate: um.hashRate,
+                    imageUrl,
+                    imageSource,
+                    ownedMachineId: um.ownedMachineId,
+                    level: um.level,
+                    slotSize: um.slotSize,
+                  };
+                })()
               : null,
           })),
         });

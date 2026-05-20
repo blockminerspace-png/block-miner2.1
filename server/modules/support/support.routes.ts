@@ -10,6 +10,7 @@ import { requireAuth, authenticateTokenOptional } from "../../middleware/auth.js
 import { createRateLimiter } from "../../middleware/rateLimit.js";
 import { requireVisibleSidebarPath, sidebarRegistryPath } from "../../middleware/sidebarFeatureGate.js";
 import { SIDEBAR_ITEM_REGISTRY } from "../../services/sidebarNavRegistry.js";
+import { resolveUploadsRoot } from "../../utils/uploadsRoot.js";
 
 export const supportRouter = express.Router();
 
@@ -27,7 +28,8 @@ const supportUploadLimiter = createRateLimiter({
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(__dirname, "../../../uploads"));
+
+const UPLOADS_DIR = resolveUploadsRoot(__dirname);
 mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const supportImageStorage = multer.diskStorage({

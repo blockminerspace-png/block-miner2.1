@@ -13,6 +13,9 @@ export function isChunkLoadError(error: unknown): boolean {
   return (
     message.includes('Failed to fetch dynamically imported module') ||
     message.includes('Importing a module script failed') ||
+    message.includes('Expected a JavaScript-or-Wasm module script') ||
+    message.includes('MIME type') ||
+    message.includes('text/html') ||
     message.includes('ChunkLoadError') ||
     message.includes('Loading chunk') ||
     message.includes('dynamically imported module')

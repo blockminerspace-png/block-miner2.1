@@ -31,6 +31,8 @@ import {
   ensureWelcomeMiner,
 } from "../shared/auth.repository.js";
 import { unknownErrorMessage, prismaClientErrorFields, buildAccessCookie, buildRefreshCookie } from "../shared/auth.security.js";
+import { AUTH_LOGIN_MESSAGES } from "../auth.errors.js";
+import { respondAuthPrismaError } from "../shared/auth.prisma.js";
 import { hashPassword } from "../shared/auth.service.js";
 
 const logger = loggerLib.child("RegisterController");
@@ -260,6 +262,10 @@ export async function registerPost(req: Request, res: Response): Promise<void> {
         code: "USER_ALREADY_EXISTS",
         message: "User already exists.",
       });
+      return;
+    }
+
+    if (respondAuthPrismaError(res, error, AUTH_LOGIN_MESSAGES.SERVICE_UNAVAILABLE, "auth.register.db_unavailable")) {
       return;
     }
 

@@ -27,8 +27,6 @@ import {
   requireSessionUser,
 } from "../../controllers/controllerHttpStatusError.js";
 
-const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
-
 export async function listMachines(req: Request, res: Response) {
   try {
     const user = requireSessionUser(req, res);

@@ -5,9 +5,20 @@ import { logUnhandledError } from "#server/utils/logger.js";
 /**
  * Express error handler: maps HttpError to JSON; generic errors stay opaque in production.
  */
+function isServeStaticNotFound(err: unknown): boolean {
+  if (typeof err !== "object" || err === null || !("status" in err)) return false;
+  return (err as { status?: unknown }).status === 404;
+}
+
+function isUploadsPath(reqPath: string): boolean {
+  return reqPath === "/uploads" || reqPath.startsWith("/uploads/");
+}
+
 export const apiErrorHandler: ErrorRequestHandler = (err: unknown, req, res, next) => {
   if (!(err instanceof HttpError)) {
-    logUnhandledError(err instanceof Error ? err : new Error(String(err)), req, { source: "express" });
+    if (!(isServeStaticNotFound(err) && isUploadsPath(String(req.path || "")))) {
+      logUnhandledError(err instanceof Error ? err : new Error(String(err)), req, { source: "express" });
+    }
   } else if (err.status >= 500) {
     logUnhandledError(err, req, { source: "express" });
   }
@@ -17,7 +28,18 @@ export const apiErrorHandler: ErrorRequestHandler = (err: unknown, req, res, nex
     return;
   }
 
-  const isApi = req.path && String(req.path).startsWith("/api");
+  const reqPath = String(req.path || "");
+  const isApi = reqPath.startsWith("/api");
+
+  if (isServeStaticNotFound(err) && isUploadsPath(reqPath)) {
+    res.status(404).json({
+      ok: false,
+      code: "UPLOAD_NOT_FOUND",
+      message: "Arquivo não encontrado.",
+      error: "Arquivo não encontrado.",
+    });
+    return;
+  }
 
   if (err instanceof HttpError) {
     if (isApi) {

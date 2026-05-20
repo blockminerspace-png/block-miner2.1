@@ -49,6 +49,10 @@ export function ensureAppKitInitialized(): WagmiAdapter | null {
 
     const metaUrl = getWalletConnectMetadataUrl();
 
+    /** System stack — skips Reown KHTeka `preload` links (avoids Chrome “preloaded but not used” on /wallet). */
+    const appFontFamily =
+      'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
     void createAppKit({
       adapters: [wagmiAdapter],
       networks,
@@ -63,21 +67,25 @@ export function ensureAppKitInitialized(): WagmiAdapter | null {
       features: {
         analytics: false,
       },
+      themeVariables: {
+        '--w3m-font-family': appFontFamily,
+        '--apkt-font-family': appFontFamily,
+      },
     });
 
-    scheduleAppKitWalletPrefetch();
     appKitInit = { wagmiAdapter };
   }
 
   return appKitInit.wagmiAdapter;
 }
 
-function scheduleAppKitWalletPrefetch() {
+/** Wallet list images — only when user opens WalletConnect (avoids unused preloads on /wallet). */
+export function prefetchAppKitWalletCatalog() {
   const run = () => {
     void ApiController.prefetch({
-      fetchNetworkImages: true,
+      fetchNetworkImages: false,
       fetchConnectorImages: true,
-      fetchWalletRanks: true,
+      fetchWalletRanks: false,
       fetchFeaturedWallets: true,
       fetchRecommendedWallets: true,
     });

@@ -1,8 +1,9 @@
-import { type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { formatHashrate, DEFAULT_MINER_IMAGE_URL, getMachineDescriptor } from "../utils/machine";
+import { formatHashrate, getMachineDescriptor } from "../utils/machine";
 import { isVaultPlacementStatus } from "../../constants/machinePlacement";
-import { safeDisplayLabel, sanitizeMachineImageSrc } from "../utils/inventoryPageGuards";
+import { safeDisplayLabel } from "../utils/inventoryPageGuards";
+import { getMachineDisplayImageUrl } from "../../pages/machines/machineDisplayImage";
+import { MachineImage } from "../../pages/machines/components/MachineImage";
 
 /** Row or stacked group from vault/inventory (structurally typed as `object` for broad call-site compatibility). */
 export type MachineCardMachine = object;
@@ -35,7 +36,12 @@ export default function MachineCard({
 
   const row = machine as Record<string, unknown>;
   const descriptor = getMachineDescriptor(machine as Parameters<typeof getMachineDescriptor>[0]);
-  const imgSrc = sanitizeMachineImageSrc(descriptor.image);
+  const rowImage = row as { imageUrl?: string | null; imageSource?: "owned_snapshot" | "catalog_current" | "none" };
+  const displayImageUrl =
+    getMachineDisplayImageUrl({
+      imageUrl: rowImage.imageUrl ?? descriptor.image,
+      imageSource: rowImage.imageSource,
+    }) ?? descriptor.image;
   const mn = row.minerName;
   const nameFromMiner = safeDisplayLabel(
     typeof mn === "string" || mn === null || mn === undefined ? mn : undefined
@@ -63,13 +69,10 @@ export default function MachineCard({
       <div className="flex gap-3 min-w-0 items-start">
         <div className="relative w-14 h-14 shrink-0 sm:w-16 sm:h-16">
           <div className="flex h-full w-full items-center justify-center rounded-xl border border-gray-800/50 bg-gray-900/50 p-2">
-            <img
-              src={imgSrc}
-              alt={altText}
+            <MachineImage
+              imageUrl={displayImageUrl}
+              name={altText}
               className="max-h-full max-w-full h-full w-full object-contain"
-              onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                e.currentTarget.src = DEFAULT_MINER_IMAGE_URL;
-              }}
             />
           </div>
           {stackBadgeQty > 1 ? (

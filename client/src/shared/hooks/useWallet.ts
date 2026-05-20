@@ -4,8 +4,17 @@ import { toast } from 'sonner';
 import { useDisconnect, useSignMessage } from 'wagmi';
 import type { EIP1193Provider } from 'viem';
 import { api } from '../../store/auth';
-import { getBrowserEthereumProvider, getVerifiedBrowserEthereumProvider } from '../utils/walletProvider';
+import { getBrowserEthereumProvider } from '../utils/walletProvider';
+import {
+  connectInjectedWallet,
+  getInjectedWalletProviders,
+  InjectedWalletError,
+  INJECTED_WALLET_ERROR_CODES,
+  isBenignInjectedWalletRpcError,
+  safeEthAccounts,
+} from '../wallet/injectedWallet';
 import { isWalletConnectConfigured } from '../utils/walletConnect';
+import { prefetchAppKitWalletCatalog } from '../../web3/appKitConfig';
 import { useWalletAppKitBridge } from '../web3/walletAppKitBridge';
 import { subscribeInjectedEthereumEvents } from '../utils/eip1193ProviderEvents';
 import {
@@ -164,6 +173,7 @@ export function useWallet() {
   /** Bumped on user cancel so in-flight sync exits after awaits without toasting errors. */
   const linkOpIdRef = useRef(0);
   const openModalRef = useRef(false);
+  const verifiedInjectedRef = useRef<EIP1193Provider | null>(null);
 
   const kitChainNum = normalizeChainNum(kitChainId);
 
@@ -189,11 +199,14 @@ export function useWallet() {
 
   const getActiveEip1193 = useCallback((): EIP1193Provider | undefined => {
     const w = walletProvider as EIP1193Provider | undefined;
-    return w || getInjectedProvider();
+    if (w) return w;
+    if (verifiedInjectedRef.current) return verifiedInjectedRef.current;
+    return getInjectedProvider();
   }, [walletProvider]);
 
   const cancelWalletSession = useCallback(async () => {
     markWalletSessionClearedByUser();
+    verifiedInjectedRef.current = null;
     linkOpIdRef.current += 1;
     openModalRef.current = false;
     Object.entries(walletLinkRejectRef.current).forEach(([, rej]) => {
@@ -342,17 +355,15 @@ export function useWallet() {
     [walletConnectConfigured, verifyWithServer, getActiveEip1193],
   );
 
-  const connectInjectedAndVerify = useCallback(async () => {
+  const connectInjectedAndVerify = useCallback(async (): Promise<boolean> => {
     clearWalletSessionClearedByUserFlag();
-    const injected = await getVerifiedBrowserEthereumProvider();
-    if (!injected) {
-      const hasSlot =
-        typeof window !== 'undefined' &&
-        (window.ethereum || window.trustwallet || window.trustWallet);
-      toast.error(
-        hasSlot ? t('wallet.web3_deposit.injected_unusable') : t('wallet.web3_deposit.no_browser_wallet'),
-      );
-      return;
+    const discovered = await getInjectedWalletProviders();
+    if (discovered.length === 0) {
+      toast.error(t('wallet.web3_deposit.no_browser_wallet'), {
+        id: 'wallet-injected-provider-error',
+        duration: 8000,
+      });
+      return false;
     }
 
     setIsConnecting(true);
@@ -361,27 +372,46 @@ export function useWallet() {
         await disconnectAsync().catch(() => {});
       }
 
-      const accounts = (await injected.request({ method: 'eth_requestAccounts' })) as string[];
-      const userAccount = accounts[0];
+      const connection = await connectInjectedWallet();
+      const injected = connection.provider as EIP1193Provider;
+      verifiedInjectedRef.current = injected;
 
-      const currentChainId = await injected.request({ method: 'eth_chainId' });
-      setChainId(typeof currentChainId === 'string' ? currentChainId : String(currentChainId));
+      const chainHex = `0x${connection.chainId.toString(16)}`;
+      setChainId(chainHex);
 
-      if (currentChainId !== POLYGON_CHAIN_ID) {
+      if (chainHex !== POLYGON_CHAIN_ID) {
         await switchNetworkFor(injected, {
           onUnknownMethod: () => toast.error(t('wallet.web3_deposit.switch_chain_unsupported')),
         });
       }
 
-      await verifyWithServer(userAccount, injected);
+      await verifyWithServer(connection.address, injected);
+      return true;
     } catch (error: unknown) {
-      console.error('Connection error:', error);
+      if (!isBenignInjectedWalletRpcError(error)) {
+        console.error('Connection error:', error);
+      }
+      if (error instanceof InjectedWalletError) {
+        if (error.code === INJECTED_WALLET_ERROR_CODES.USER_REJECTED) {
+          toast.error(t('wallet.web3_deposit.connection_cancelled'), { id: 'wallet-connect-user-rejected' });
+        } else if (error.code === INJECTED_WALLET_ERROR_CODES.NO_PROVIDER) {
+          toast.error(t('wallet.web3_deposit.no_browser_wallet'), { id: 'wallet-injected-provider-error' });
+        } else {
+          toast.error(t('wallet.web3_deposit.injected_connect_failed'), {
+            id: 'wallet-connect-verify-failed',
+          });
+        }
+        return false;
+      }
       const meta = readWalletErrorMeta(error);
       if (meta.code === 4001) {
-        toast.error('Connection cancelled by user.');
+        toast.error(t('wallet.web3_deposit.connection_cancelled'), { id: 'wallet-connect-user-rejected' });
       } else {
-        toast.error(meta.message || 'Failed to connect/verify wallet.');
+        toast.error(meta.message || t('wallet.web3_deposit.injected_connect_failed'), {
+          id: 'wallet-connect-verify-failed',
+        });
       }
+      return false;
     } finally {
       setIsConnecting(false);
     }
@@ -396,6 +426,7 @@ export function useWallet() {
     openModalRef.current = true;
     setIsConnecting(true);
     try {
+      prefetchAppKitWalletCatalog();
       await open();
     } catch (e: unknown) {
       const meta = readWalletErrorMeta(e);
@@ -412,35 +443,39 @@ export function useWallet() {
   }, [open, t]);
 
   const connect = useCallback(
-    async (options: ConnectOptions = {}) => {
+    async (options: ConnectOptions = {}): Promise<boolean> => {
       const useBrowserExtension = options.useBrowserExtension === true;
-      const hasInjectedProvider = Boolean(getBrowserEthereumProvider());
 
-      if (useBrowserExtension && !hasInjectedProvider && walletConnectConfigured) {
-        await openConnectModal();
-        return;
+      if (useBrowserExtension) {
+        const discovered = await getInjectedWalletProviders();
+        if (discovered.length === 0 && walletConnectConfigured) {
+          await openConnectModal();
+          return false;
+        }
+        return connectInjectedAndVerify();
       }
 
-      if (!walletConnectConfigured || useBrowserExtension) {
-        await connectInjectedAndVerify();
-        return;
+      if (!walletConnectConfigured) {
+        return connectInjectedAndVerify();
       }
 
       if (kitConnected && isConnected) {
         toast.info(t('wallet.web3_deposit.disconnect_to_switch'));
-        return;
+        return true;
       }
       if (kitConnected && kitAddress && !isConnected) {
         try {
           await syncKitWalletWithServer(kitAddress, { forceRetry: true });
+          return true;
         } catch (e: unknown) {
           const meta = readWalletErrorMeta(e);
           if (meta.code === 'CANCELLED') throw e;
           /* other errors: toasts inside sync */
         }
-        return;
+        return false;
       }
       await openConnectModal();
+      return false;
     },
     [
       walletConnectConfigured,
@@ -473,7 +508,8 @@ export function useWallet() {
       }
       return;
     }
-    const p = await getVerifiedBrowserEthereumProvider();
+    const discovered = await getInjectedWalletProviders();
+    const p = discovered[0]?.provider as EIP1193Provider | undefined;
     await switchNetworkFor(p, {
       onUnknownMethod: () => toast.error(t('wallet.web3_deposit.switch_chain_unsupported')),
     });
@@ -519,27 +555,30 @@ export function useWallet() {
     if (isWalletSessionClearedByUser()) {
       return;
     }
-    const provider = await getVerifiedBrowserEthereumProvider();
+    const discovered = await getInjectedWalletProviders();
+    const provider = discovered[0]?.provider;
     if (!provider) return;
 
     try {
-      const accounts = (await provider.request({ method: 'eth_accounts' })) as string[];
-      if (accounts.length > 0) {
-        const currentChainId = await provider.request({ method: 'eth_chainId' });
-        setChainId(typeof currentChainId === 'string' ? currentChainId : String(currentChainId));
+      const accounts = await safeEthAccounts(provider);
+      if (accounts.length === 0) return;
 
-        const res = await api.get('/wallet/balance');
-        if (
-          res.data.ok &&
-          res.data.walletAddress &&
-          res.data.walletAddress.toLowerCase() === accounts[0].toLowerCase()
-        ) {
-          setAccount(accounts[0]);
-          setIsConnected(true);
-        }
+      const currentChainId = await provider.request({ method: 'eth_chainId' });
+      setChainId(typeof currentChainId === 'string' ? currentChainId : String(currentChainId));
+
+      const res = await api.get('/wallet/balance');
+      if (
+        res.data.ok &&
+        res.data.walletAddress &&
+        res.data.walletAddress.toLowerCase() === accounts[0].toLowerCase()
+      ) {
+        setAccount(accounts[0]);
+        setIsConnected(true);
       }
     } catch (error: unknown) {
-      console.error('Error checking connection:', error);
+      if (!isBenignInjectedWalletRpcError(error)) {
+        console.error('Error checking connection:', error);
+      }
     }
   }, []);
 

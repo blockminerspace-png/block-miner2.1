@@ -31,33 +31,35 @@ const exactLoaders: Record<string, RouteLoader> = {
   '/dashboard': () => import('../../pages/dashboard'),
   '/inventory': () => import('../../pages/machines'),
   '/shop': () => import('../../pages/shop'),
-  '/vault': () => import('../../pages/Vault'),
+  '/vault': () => import('../../pages/vault'),
   '/wallet': () => import('../../pages/wallet'),
-  '/faucet': () => import('../../pages/Faucet'),
-  '/shortlinks': () => import('../../pages/Shortlinks'),
+  '/faucet': () => import('../../pages/faucet'),
+  '/shortlinks': () => import('../../pages/shortlinks'),
   '/checkin': () => import('../../pages/checkin'),
-  '/read-earn': () => import('../../pages/ReadEarn'),
-  '/internal-offerwall': () => import('../../pages/InternalOfferwall'),
+  '/read-earn': () => import('../../pages/read-earn'),
+  '/internal-offerwall': () => import('../../pages/internal-offerwall'),
   '/tasks': () => import('../../pages/tasks'),
-  '/youtube': () => import('../../pages/YouTubeWatch'),
-  '/auto-mining': () => import('../../pages/AutoMining'),
-  '/ranking': () => import('../../pages/Ranking'),
-  '/settings': () => import('../../pages/Settings'),
+  '/youtube': () => import('../../pages/youtube-watch'),
+  '/auto-mining': () => import('../../pages/auto-mining'),
+  '/ranking': () => import('../../pages/ranking'),
+  '/settings': () => import('../../pages/settings'),
   '/support': () => import('../../pages/support'),
-  '/games': () => import('../../pages/Games'),
-  '/roadmap': () => import('../../pages/Roadmap'),
-  '/manual': () => import('../../pages/Manual'),
-  '/calculator': () => import('../../pages/Calculator'),
-  '/transparency': () => import('../../pages/Transparency'),
+  '/games': () => import('../../pages/games'),
+  '/roadmap': () => import('../../pages/roadmap'),
+  '/manual': () => import('../../pages/manual'),
+  '/calculator': () => import('../../pages/calculator'),
+  '/transparency': () => import('../../pages/transparency'),
   '/power-stats': () => import('../../pages/stats'),
   '/offers': () => import('../../pages/offers'),
 };
 
 function prefixLoader(path: string): RouteLoader | null {
-  if (path.startsWith('/mini-pass')) return () => import('../../pages/MiniPass');
-  if (path.startsWith('/room/')) return () => import('../../pages/PublicRoom');
-  if (path.startsWith('/games/')) return () => import('../../pages/Game2048Page');
-  if (path.startsWith('/shortlink/internal-shortlink/')) return () => import('../../pages/ShortlinkStep');
+  if (path.startsWith('/mini-pass')) return () => import('../../pages/mini-pass');
+  if (path.startsWith('/room/')) return () => import('../../pages/public-room');
+  if (path.startsWith('/games/')) return () => import('../../pages/games/game-2048');
+  if (path.startsWith('/shortlink/internal-shortlink/')) {
+    return () => import('../../pages/shortlinks/ShortlinkStepPage');
+  }
   return null;
 }
 

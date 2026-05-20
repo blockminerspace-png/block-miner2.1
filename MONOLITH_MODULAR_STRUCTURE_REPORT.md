@@ -245,6 +245,116 @@ client/src/pages/
 
 ---
 
+## Limpeza final de páginas soltas em `client/src/pages`
+
+**Date:** 2026-05-19 (continuação)
+
+### 1. Arquivos soltos encontrados (raiz `pages/`)
+
+Todos os `.tsx` / `.test.tsx` que estavam diretamente em `client/src/pages/` foram movidos para pastas de domínio (kebab-case). Não restam ficheiros `.ts`/`.tsx` na raiz de `pages/`.
+
+| Arquivo solto (antes) | Novo destino |
+|----------------------|--------------|
+| `Landing.tsx`, `Landing.test.tsx` | `landing/LandingPage.tsx`, `LandingPage.test.tsx` |
+| `AutoMining.tsx`, `AutoMining.test.tsx` | `auto-mining/AutoMiningPage.tsx`, `AutoMiningPage.test.tsx` |
+| `Calculator.tsx` | `calculator/CalculatorPage.tsx` |
+| `DashboardCryptoStream.tsx` | `crypto-stream/DashboardCryptoStreamPage.tsx` |
+| `Faucet.tsx` (stub) | removido; uso de `faucet/FaucetPage.tsx` |
+| `Vault.tsx` (stub) | removido; uso de `vault/VaultPage.tsx` |
+| `Games.tsx`, `Games.test.tsx` | `games/GamesPage.tsx`, `GamesPage.test.tsx` |
+| `Game2048Page.tsx`, `Game2048Page.test.tsx` | `games/game-2048/Game2048Page.tsx`, `Game2048Page.test.tsx` |
+| `InternalOfferwall.tsx` + `internalOfferwall/*` | `internal-offerwall/` (helpers/hooks/types + page) |
+| `LiveServer.tsx` | `live-server/LiveServerPage.tsx` |
+| `Manual.tsx` | `manual/ManualPage.tsx` |
+| `MiniPass.tsx` | `mini-pass/MiniPassPage.tsx` |
+| `PrivacyPolicy.tsx`, `PrivacyPolicy.test.tsx` | `legal/privacy-policy/PrivacyPolicyPage.tsx`, `.test.tsx` |
+| `TermsOfUse.tsx`, `TermsOfUse.test.tsx` | `legal/terms-of-use/TermsOfUsePage.tsx`, `.test.tsx` |
+| `PublicRoom.tsx` | `public-room/PublicRoomPage.tsx` |
+| `Ranking.tsx` | `ranking/RankingPage.tsx` |
+| `ReadEarn.tsx` | `read-earn/ReadEarnPage.tsx` |
+| `Roadmap.tsx` | `roadmap/RoadmapPage.tsx` |
+| `Settings.tsx` | `settings/SettingsPage.tsx` |
+| `Shortlinks.tsx`, `ShortlinkStep.tsx` | `shortlinks/ShortlinksPage.tsx`, `ShortlinkStepPage.tsx` |
+| `Transparency.tsx`, `Transparency.test.tsx` | `transparency/TransparencyPage.tsx`, `.test.tsx` |
+| `YouTubeWatch.tsx` | `youtube-watch/YouTubeWatchPage.tsx` |
+
+### 2. Testes movidos
+
+Colocalizados na pasta do domínio (ex.: `faucet/FaucetPage.test.tsx`, `games/GamesPage.test.tsx`, `legal/privacy-policy/PrivacyPolicyPage.test.tsx`). Imports de mocks ajustados para profundidade `../../` ou `../../../` conforme a pasta.
+
+### 3. Imports atualizados
+
+- `client/src/app/App.tsx` — lazy/eager para `../pages/<dominio>` (barrels `index.ts`).
+- `client/src/shared/utils/routePrefetch.ts` — mesmos caminhos modulares.
+- `GamesPage.tsx` / `Game2048Page.tsx` — imports de `client/src/games/*` corrigidos (`../../games/...` e `../../../games/...`).
+- Testes: `LandingPage`, `GamesPage`, `AutoMiningPage`, `TransparencyPage`, legal i18n paths.
+
+### 4. Rotas preservadas
+
+URLs SPA inalteradas (`/`, `/faucet`, `/games`, `/games/2048`, `/internal-offerwall`, `/privacy-policy`, etc.). Apenas caminhos de `import()` no bundle mudaram.
+
+### 5. Barrels criados
+
+`index.ts` com `export { default } from './<Domain>Page'` em: `landing`, `auto-mining`, `calculator`, `crypto-stream`, `games`, `games/game-2048`, `internal-offerwall`, `live-server`, `manual`, `mini-pass`, `legal/privacy-policy`, `legal/terms-of-use`, `public-room`, `ranking`, `read-earn`, `roadmap`, `settings`, `shortlinks`, `transparency`, `youtube-watch` (além dos já existentes: `faucet`, `vault`, `dashboard`, …).
+
+### 6. Ficheiros na raiz de `pages/`
+
+Nenhum `.ts`/`.tsx` na raiz (apenas subpastas).
+
+```bash
+find client/src/pages -maxdepth 1 -type f \( -name "*.tsx" -o -name "*.ts" \) | sort
+# (vazio)
+```
+
+### 7–15. Validação
+
+| Comando | Resultado |
+|---------|-----------|
+| `cd client && npm run typecheck` | **OK** |
+| `cd client && npm run build` | **OK** |
+| `cd client && npm test` | **324 tests** — 5 falhas pré-existentes (`injectedWallet.test.ts`, 3× admin miner image) não ligadas a esta migração |
+| Testes domínios migrados (`landing`, `games`, `auto-mining`, `legal`, `transparency`, `faucet`) | **60/60 OK** |
+| `npm test` (raiz) | **Falha ambiente** — `jsdom` em falta no workspace raiz (Vitest pool); usar `cd client && npm test` |
+| `npm run typecheck:server` | **OK** |
+| `npm run build:server` | **OK** |
+| `npm run build:backend` | **OK** |
+| `docker compose build app` | **OK** (`block-miner-app:latest`) |
+
+### 16–17. Sem `.js` fonte
+
+- `client/src` — sem `.js`/`.jsx` fonte.
+- `server/` — sem `.js` fonte (excl. `node_modules`, `dist`).
+
+### 18. Grep imports antigos
+
+```bash
+grep -R "pages/AutoMining|pages/Faucet|pages/Landing|..." client/src client/tests tests
+```
+
+**Vazio** em `client/src` e testes do cliente.
+
+### 19. Próximas pendências reais
+
+1. Remover barrels legacy em `admin/` quando `App.tsx` importar só pastas kebab-case.
+2. Agrupar `read-earn` / `mini-pass` / `faucet` sob `rewards/` se fizer sentido de produto.
+3. Corrigir 5 testes client pré-existentes (wallet mock / `getByRole('img')` vs `presentation`).
+4. Instalar/configurar `jsdom` no Vitest raiz ou documentar que testes SPA correm só em `client/`.
+
+### Estrutura `pages/` (pós-limpeza)
+
+```txt
+client/src/pages/
+  landing/  auto-mining/  calculator/  crypto-stream/
+  games/  games/game-2048/
+  internal-offerwall/  live-server/  manual/  mini-pass/
+  legal/privacy-policy/  legal/terms-of-use/
+  public-room/  ranking/  read-earn/  roadmap/  settings/
+  shortlinks/  transparency/  youtube-watch/
+  (+ auth/, dashboard/, faucet/, vault/, wallet/, shop/, machines/, checkin/, tasks/, stats/, support/, offers/, admin/)
+```
+
+---
+
 ## Acceptance checklist
 
 | Criterion | Met |

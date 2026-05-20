@@ -5,6 +5,11 @@ import i18n from '../i18n/config';
 import { generateSecurityPayload } from '../shared/utils/security';
 import { clearWalletSessionClearedByUserFlag } from '../shared/utils/walletSessionPreference';
 import { readAuthErrorMessage } from '../pages/auth/shared/auth.errors';
+import {
+  API_TIMEOUT_MS_AUTH,
+  API_TIMEOUT_MS_SESSION,
+  resolveApiTimeoutMs,
+} from '../shared/utils/apiTimeout';
 
 /** Public session user (matches server auth JSON; no secrets). */
 export type AuthUser = {
@@ -128,7 +133,7 @@ export const api = axios.create({
   xsrfCookieName: 'blockminer_csrf',
   xsrfHeaderName: 'x-csrf-token',
   /** Avoid hung UI when the server or proxy is slow / wedged (checkSession also sets its own). */
-  timeout: Number.parseInt(String(import.meta.env.VITE_API_TIMEOUT_MS || '25000'), 10) || 25000,
+  timeout: resolveApiTimeoutMs(import.meta.env.VITE_API_TIMEOUT_MS),
 });
 
 // Interceptor to attach Anti-Bot payload to every API request
@@ -258,7 +263,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         if (!silent) {
           set({ isLoading: true, error: null });
         }
-        const response = await api.get('/auth/session', { timeout: 20000 });
+        const response = await api.get('/auth/session', { timeout: API_TIMEOUT_MS_SESSION });
         const rawUser = response.data && typeof response.data === 'object' ? (response.data as { user?: unknown }).user : null;
         const u = parseAuthUserPayload(rawUser);
         set((state) => {
@@ -298,7 +303,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   login: async (identifier: string, password: string) => {
     try {
       set({ isLoading: true, error: null });
-      const response = await api.post('/auth/login', { identifier, password });
+      const response = await api.post('/auth/login', { identifier, password }, { timeout: API_TIMEOUT_MS_AUTH });
       const rawUser =
         response.data && typeof response.data === 'object'
           ? (response.data as { user?: unknown }).user
@@ -329,7 +334,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   register: async (data: RegisterPayload) => {
     try {
       set({ isLoading: true, error: null });
-      const response = await api.post('/auth/register', data);
+      const response = await api.post('/auth/register', data, { timeout: API_TIMEOUT_MS_AUTH });
       const rawUser =
         response.data && typeof response.data === 'object'
           ? (response.data as { user?: unknown }).user

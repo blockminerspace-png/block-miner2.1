@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import prisma from "../src/db/prisma.js";
+import { clearEventMinerOwnedImageSnapshots } from "../utils/ownedMachineImage.js";
 
 const eventCreateSchema = z
   .object({
@@ -334,6 +335,15 @@ export async function adminUpdateEventMiner(req: Request, res: Response) {
         ...(d.claimLimitPerUser !== undefined && { claimLimitPerUser: d.claimLimitPerUser })
       }
     });
+
+    const imageChanged =
+      d.imageUrl !== undefined && String(existing.imageUrl ?? "") !== String(miner.imageUrl ?? "");
+    if (imageChanged) {
+      await clearEventMinerOwnedImageSnapshots(prisma, existing.name);
+      if (d.name != null && d.name !== existing.name) {
+        await clearEventMinerOwnedImageSnapshots(prisma, d.name);
+      }
+    }
 
     res.json({ ok: true, miner });
   } catch (e) {

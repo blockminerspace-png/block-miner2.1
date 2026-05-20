@@ -26,6 +26,7 @@ import { adminYoutubeStreamRouter } from "./admin-youtube-stream.js";
 import type { Prisma } from "@prisma/client";
 import prisma from "../src/db/prisma.js";
 import { bulkCreateInventoryWithOwnedMachinesTx } from "../services/userOwnedMachineService.js";
+import { normalizePersistableMinerImageUrl } from "../utils/ownedMachineImage.js";
 import {
     createPostgresSqlBackup,
     listSqlBackups,
@@ -60,6 +61,7 @@ import multer from "multer";
 import crypto from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import { createAuditLogBestEffort } from "../models/auditLogModel.js";
+import { resolveUploadsRoot } from "../utils/uploadsRoot.js";
 
 function adminErrMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -111,7 +113,7 @@ const adminLimiter = createRateLimiter({
 });
 
 // Multer — salva em /app/uploads (docker) ou ./uploads (dev)
-const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "../../uploads"));
+const UPLOADS_DIR = resolveUploadsRoot(path.dirname(fileURLToPath(import.meta.url)));
 // Garante que o diretório existe na inicialização (síncrono, sem risco de race condition no multer)
 mkdirSync(UPLOADS_DIR, { recursive: true });
 const sharedStorage = multer.diskStorage({
@@ -1016,11 +1018,11 @@ adminRouter.post("/users/:id/send-miner", async (req, res) => {
                     userId,
                     {
                         minerId: null,
-                        minerName: eventMiner.name,
+                        minerName: `[Event] ${eventMiner.name}`,
                         level: 1,
                         hashRate: Number(eventMiner.hashRate),
                         slotSize: Number(eventMiner.slotSize || 1),
-                        imageUrl: eventMiner.imageUrl || "/machines/reward1.png",
+                        imageUrl: normalizePersistableMinerImageUrl(eventMiner.imageUrl),
                     },
                     quantity,
                     now,
@@ -1053,7 +1055,7 @@ adminRouter.post("/users/:id/send-miner", async (req, res) => {
                         level: 1,
                         hashRate: Number(miner.baseHashRate),
                         slotSize: Number(miner.slotSize || 1),
-                        imageUrl: miner.imageUrl || "/machines/reward1.png",
+                        imageUrl: normalizePersistableMinerImageUrl(miner.imageUrl),
                     },
                     quantity,
                     now,

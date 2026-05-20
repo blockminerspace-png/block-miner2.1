@@ -1,11 +1,14 @@
 import prisma from '../src/db/prisma.js';
 import { createInventoryWithOwnedMachineTx } from '../services/userOwnedMachineService.js';
-
-const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
+import { normalizePersistableMinerImageUrl } from '../utils/ownedMachineImage.js';
 
 export async function listInventory(userId) {
   return prisma.userInventory.findMany({
     where: { userId },
+    include: {
+      ownedMachine: { select: { id: true, imageUrl: true } },
+      miner: { select: { imageUrl: true } },
+    },
     orderBy: { acquiredAt: 'asc' }
   });
 }
@@ -47,10 +50,10 @@ export async function removeInventoryItem(userId, inventoryId) {
 }
 
 export async function updateInventoryItemMeta(userId, inventoryId, minerName, slotSize, minerId = null) {
-  let imageUrl: string | undefined;
+  let imageUrl: string | null | undefined;
   if (minerId) {
     const miner = await prisma.miner.findUnique({ where: { id: minerId } });
-    imageUrl = miner?.imageUrl || DEFAULT_MINER_IMAGE_URL;
+    imageUrl = normalizePersistableMinerImageUrl(miner?.imageUrl ?? null);
   }
 
   return prisma.userInventory.update({

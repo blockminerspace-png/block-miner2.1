@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const source = readFileSync(new URL("../client/src/pages/admin/miners/AdminMinersPage.tsx", import.meta.url), "utf8");
+const imageInputSource = readFileSync(
+  new URL("../client/src/pages/admin/miners/components/AdminMinerImageInput.tsx", import.meta.url),
+  "utf8",
+);
 const adminMinersApi = readFileSync(
   new URL("../client/src/pages/admin/miners/adminMiners.api.ts", import.meta.url),
   "utf8",
@@ -25,8 +29,8 @@ describe("admin miners UI/security guards", () => {
 
   it("uses the dedicated safe upload endpoint and blocks SVG accept list", () => {
     assert.match(adminMinersApi, /\/admin\/miners\/upload-image/);
-    assert.match(source, /image\/jpeg,image\/png,image\/webp/);
-    assert.doesNotMatch(source, /image\/svg/);
+    assert.match(imageInputSource, /image\/jpeg,image\/png,image\/webp/);
+    assert.doesNotMatch(imageInputSource, /image\/svg/);
   });
 
   it("shop purchase uses backend catalog price and writes snapshot fields", () => {

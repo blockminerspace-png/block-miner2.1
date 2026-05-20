@@ -10,6 +10,13 @@ import { handleChunkLoadFailure } from './shared/utils/chunkLoadError'
 window.addEventListener(
   'error',
   (event) => {
+    const msg = typeof event?.message === 'string' ? event.message : ''
+    if (
+      /Expected a JavaScript-or-Wasm module script/i.test(msg) ||
+      /MIME type.*text\/html/i.test(msg)
+    ) {
+      if (handleChunkLoadFailure(new Error(msg))) return
+    }
     const t = event?.target
     if (t && 'tagName' in t && t.tagName === 'SCRIPT' && 'src' in t && t.src) {
       handleChunkLoadFailure(new Error(`Script load failed: ${String(t.src)}`))
@@ -28,7 +35,8 @@ window.addEventListener('unhandledrejection', (event) => {
       code === 4001 ||
       code === '4001' ||
       /wallet must has at least one account/i.test(msg) ||
-      /user rejected the request/i.test(msg)
+      /user rejected the request/i.test(msg) ||
+      /connection cancelled by user/i.test(msg)
     ) {
       event.preventDefault()
       return

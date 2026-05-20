@@ -6,10 +6,9 @@ import loggerLib, { logUserActivity } from "../utils/logger.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
 import type { FaucetClaim, Miner } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
+import { normalizePersistableMinerImageUrl } from "../utils/ownedMachineImage.js";
 
 const faucetLogger = loggerLib.child("Faucet");
-
-const DEFAULT_MINER_IMAGE_URL = "/machines/reward1.png";
 const DEFAULT_FAUCET_COOLDOWN_MS = 60 * 60 * 1000;
 const FAUCET_PARTNER_WAIT_MS = 10_000;
 const FAUCET_PARTNER_URL = String(process.env.FAUCET_PARTNER_URL || "https://faucetpay.io/").trim();
@@ -146,7 +145,7 @@ export async function getStatus(req: Request, res: Response): Promise<void> {
         name: reward.miner.name,
         hashRate: reward.miner.baseHashRate,
         slotSize: reward.miner.slotSize,
-        imageUrl: reward.miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
+        imageUrl: normalizePersistableMinerImageUrl(reward.miner.imageUrl) ?? null,
         inventoryPermanent: true,
         inventoryExpiresAt: null
       }
@@ -208,7 +207,7 @@ export async function claim(req: Request, res: Response): Promise<void> {
         level: 1,
         hashRate: miner.baseHashRate,
         slotSize: miner.slotSize,
-        imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
+        imageUrl: normalizePersistableMinerImageUrl(miner.imageUrl),
         acquiredAt: now,
         updatedAt: now
       });
