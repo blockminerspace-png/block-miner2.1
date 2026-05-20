@@ -1,4 +1,4 @@
-import type { FaucetClaim, Prisma } from "@prisma/client";
+import { Prisma, type FaucetClaim } from "@prisma/client";
 import type { Request } from "express";
 import prisma from "../../src/db/prisma.js";
 import { getBrazilCheckinDateKey } from "../../utils/checkinDate.js";
@@ -18,11 +18,30 @@ export const FAUCET_PARTNER_URL = String(process.env.FAUCET_PARTNER_URL || "http
 
 export async function getActiveReward(): Promise<FaucetRewardInfo | null> {
   const reward = await faucetRepository.findActiveFaucetReward();
-  if (!reward?.miner) return null;
+  
+  const now = new Date();
+  const fakeMiner = {
+    id: 999999,
+    name: "Faucet Boost 10 H/s",
+    baseHashRate: 10,
+    slotSize: 0,
+    imageUrl: "/machines/reward1.png",
+    isActive: true,
+    price: new Prisma.Decimal(0),
+    currency: "pol",
+    createdAt: now,
+    updatedAt: now,
+    sellPrice: new Prisma.Decimal(0),
+    requiredLevel: 1,
+    minWithdrawalOverride: null,
+    inventoryPermanent: false,
+    durationHours: 24,
+  } as any;
+
   return {
-    rewardId: reward.id,
-    cooldownMs: reward.cooldownMs || DEFAULT_FAUCET_COOLDOWN_MS,
-    miner: reward.miner,
+    rewardId: reward?.id || 1,
+    cooldownMs: reward?.cooldownMs || DEFAULT_FAUCET_COOLDOWN_MS,
+    miner: fakeMiner,
   };
 }
 
@@ -139,18 +158,43 @@ export async function claimForUser(userId: number, req: Request): Promise<Faucet
 
   const miner = reward.miner;
 
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await createInventoryWithOwnedMachineTx(tx, {
-      userId,
-      minerId: miner.id,
-      minerName: miner.name,
-      level: 1,
-      hashRate: miner.baseHashRate,
-      slotSize: miner.slotSize,
-      imageUrl: normalizePersistableMinerImageUrl(miner.imageUrl),
-      acquiredAt: now,
-      updatedAt: now,
+  async function getOrCreateFaucetGameId(tx: Prisma.TransactionClient): Promise<number> {
+    const slug = "faucet_power";
+    const existing = await tx.game.findUnique({ where: { slug } });
+    if (existing) return existing.id;
+    const g = await tx.game.create({
+      data: { name: "Faucet Temporary Boost", slug, isActive: true }
     });
+    return g.id;
+  }
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    if (miner.id === 999999) {
+      const gameId = await getOrCreateFaucetGameId(tx);
+      const playedAt = now;
+      const expiresAt = new Date(playedAt.getTime() + 24 * 60 * 60 * 1000);
+      await tx.userPowerGame.create({
+        data: {
+          userId,
+          gameId,
+          hashRate: miner.baseHashRate,
+          playedAt,
+          expiresAt
+        }
+      });
+    } else {
+      await createInventoryWithOwnedMachineTx(tx, {
+        userId,
+        minerId: miner.id,
+        minerName: miner.name,
+        level: 1,
+        hashRate: miner.baseHashRate,
+        slotSize: miner.slotSize,
+        imageUrl: normalizePersistableMinerImageUrl(miner.imageUrl),
+        acquiredAt: now,
+        updatedAt: now,
+      });
+    }
 
     await tx.faucetClaim.upsert({
       where: { userId },
@@ -158,6 +202,26 @@ export async function claimForUser(userId: number, req: Request): Promise<Faucet
       create: { userId, claimedAt: now, totalClaims: 1, dayKey: normalized.todayKey },
     });
   });
+
+  if (miner.id === 999999) {
+    faucetLogger.info("Faucet temporary power reward created", {
+      userId,
+      hashRate: miner.baseHashRate,
+      durationHours: 24,
+    });
+    logUserActivity("FAUCET_CLAIM_SUCCESS", req, {
+      userId,
+      rewardType: "TEMPORARY_POWER",
+      hashRate: miner.baseHashRate,
+      durationHours: 24,
+      dayKey: normalized.todayKey,
+    });
+    return {
+      ok: true,
+      message: `Sucesso! Poder de mineração temporário de ${miner.baseHashRate} H/s ativado por 24 horas.`,
+      nextAvailableAt: now.getTime() + reward.cooldownMs,
+    };
+  }
 
   faucetLogger.info("Faucet inventory reward created (permanent, no expiresAt)", {
     userId,
