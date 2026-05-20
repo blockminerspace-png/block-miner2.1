@@ -23,6 +23,12 @@ server/storage/logs/**/*.log
 
 # Legacy deploy snapshot (obsolete duplicate of monorepo; do not re-add)
 .deploy/blockminer-test-package/
+.deploy/out/
+.deploy/*ed25519*
+*.pem
+*.key
+*id_rsa*
+*id_ed25519*
 
 # Vite build output (regenerate with `npm run build` in client/ or Docker frontend stage)
 client/dist/

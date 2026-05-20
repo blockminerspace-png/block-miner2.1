@@ -48,12 +48,8 @@ module.exports = [
   {
     files: [
       "scripts/backup.js",
-      "scripts/check-db-tables.js",
-      "scripts/fix-inventory-gpu-image.js",
       "scripts/fixDuplicateMinerImageUrls.js",
-      "scripts/inspect-faucet-inventory.js",
-      "scripts/inspect-faucet.js",
-      "scripts/seed-rewards-data.js",
+      "docs/archive/scripts/**/*.js",
     ],
     languageOptions: {
       sourceType: "script",

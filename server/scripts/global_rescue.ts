@@ -1,6 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { Prisma } from "@prisma/client";
+import prisma from "../src/db/prisma.js";
 
 type OrphanRow = { amount: unknown };
 
@@ -20,10 +19,9 @@ async function runGlobalRescue() {
     const wallet = addr.toLowerCase();
 
     await prisma.$transaction(async (tx) => {
-      const orphans = (await tx.$queryRawUnsafe(
-        "DELETE FROM public.orphan_deposits WHERE LOWER(wallet_address) = $1 RETURNING amount",
-        wallet,
-      )) as OrphanRow[];
+      const orphans = await tx.$queryRaw<OrphanRow[]>(
+        Prisma.sql`DELETE FROM public.orphan_deposits WHERE LOWER(wallet_address) = ${wallet} RETURNING amount`,
+      );
 
       if (orphans && orphans.length > 0) {
         const total = orphans.reduce((sum, o) => sum + Number(o.amount), 0);
