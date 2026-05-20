@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { deriveDefaultNetworkCidr, normalizeIp } from "../utils/clientIp.js";
+import { isInfrastructureIp, deriveDefaultNetworkCidr, normalizeIp } from "../modules/ip-intelligence/ipAddress.js";
 import { getCachedIpIntelligence } from "./ipIntelligenceService.js";
 import { calculateMultiAccountRisk } from "./multiAccountRiskService.js";
 
@@ -132,9 +132,12 @@ function buildGroup({
   }
   const created = deduped.map((u) => new Date(u.createdAt).getTime()).filter(Number.isFinite).sort((a, b) => a - b);
   const shortCreationWindow = created.length >= 2 && created[created.length - 1] - created[0] <= 24 * 60 * 60 * 1000;
+  const storedIp = normalizeIp(key);
+  const infrastructureIp = Boolean(storedIp && isInfrastructureIp(storedIp));
   const risk = calculateMultiAccountRisk({
     signalType,
     fraudKind: kind,
+    key,
     userCount: deduped.length,
     users: deduped,
     ipIntelligence,
@@ -143,6 +146,13 @@ function buildGroup({
     similarIdentityCount: [...identityCounts.values()].filter((n) => n > 1).length,
     shortCreationWindow,
   });
+  const strongSignals = (risk.identityVectors || []).filter((v) =>
+    ["wallet", "fingerprint", "session_timing", "profile_pattern"].includes(String(v)),
+  );
+  const weakSignals = [
+    ...(risk.identityVectors || []).filter((v) => v === "asn_provider"),
+    ...(risk.reasons || []).filter((r) => /IP|ASN|rede|PTR|provedor|compartilh/i.test(String(r))),
+  ];
   return {
     id: `${signalType}:${key}`,
     kind,
@@ -150,6 +160,16 @@ function buildGroup({
     label: kind,
     value: key,
     key,
+    ipResolution: {
+      storedIp: storedIp || key,
+      isInfrastructure: infrastructureIp,
+      ignoredForFraudScore: infrastructureIp || risk.recommendedAction === "infrastructure_ignored",
+      note: infrastructureIp
+        ? "Infrastructure/proxy IP — excluded from end-user fraud scoring."
+        : null,
+    },
+    strongSignals,
+    weakSignals,
     userCount: deduped.length,
     users: deduped.slice(0, 25).map((u) => ({
       id: u.id,

@@ -57,6 +57,13 @@ type FraudSignalUser = {
 
 type FraudRiskLevel = keyof typeof riskClass;
 
+type FraudIpResolution = {
+  storedIp?: string | null;
+  isInfrastructure?: boolean;
+  ignoredForFraudScore?: boolean;
+  note?: string | null;
+};
+
 type FraudSignalRow = {
   id: string | number;
   kind: string;
@@ -68,6 +75,9 @@ type FraudSignalRow = {
   userCount: number;
   recommendedAction: string;
   ipIntelligence?: FraudIpIntel | null;
+  ipResolution?: FraudIpResolution | null;
+  strongSignals?: string[];
+  weakSignals?: string[];
   reasons?: string[];
   falsePositiveWarnings?: string[];
   users?: FraudSignalUser[];
@@ -132,9 +142,66 @@ function SignalValue({ sig }: { sig: FraudSignalRow }) {
   );
 }
 
+function IpResolutionBanner({ resolution }: { resolution: FraudIpResolution | null | undefined }) {
+  if (!resolution?.isInfrastructure && !resolution?.ignoredForFraudScore) return null;
+  return (
+    <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">
+      <p className="font-black uppercase text-[10px] text-sky-300 tracking-widest">Infrastructure / proxy</p>
+      <p className="mt-1 leading-relaxed">
+        {resolution.note ||
+          'This IP belongs to internal infrastructure or a trusted proxy hop and was excluded from fraud scoring.'}
+      </p>
+      {resolution.storedIp ? (
+        <p className="mt-1 font-mono text-sky-200/80 text-[11px]">Stored: {resolution.storedIp}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function SignalStrength({ strong, weak }: { strong?: string[]; weak?: string[] }) {
+  const hasStrong = Boolean(strong?.length);
+  const hasWeak = Boolean(weak?.length);
+  if (!hasStrong && !hasWeak) return null;
+  return (
+    <div className="space-y-2 text-xs">
+      {hasStrong ? (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Strong signals</p>
+          <ul className="mt-1 space-y-0.5 text-slate-200">
+            {strong!.map((s, i) => (
+              <li key={`s-${i}`} className="font-mono">
+                {s}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {hasWeak ? (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-400/90">Weak signals (IP/network)</p>
+          <ul className="mt-1 space-y-0.5 text-slate-400">
+            {weak!.map((s, i) => (
+              <li key={`w-${i}`}>{s}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function IpIntel({ intel }: { intel: FraudIpIntel | null | undefined }) {
   const { t } = useTranslation();
   if (!intel) return <span className="text-slate-600">-</span>;
+  if (intel.providerType === 'infrastructure') {
+    return (
+      <div className="text-xs text-sky-200 space-y-1 min-w-[260px]">
+        <p className="font-black uppercase text-[10px] text-sky-300">Provider</p>
+        <p>{intel.providerLabel || 'infrastructure/proxy'}</p>
+        <p className="text-slate-500">PTR/ASN lookups skipped for internal or proxy hops.</p>
+      </div>
+    );
+  }
   const proxyDetected = intel.proxyDetected === true;
   const proxyChecked = Boolean(intel.proxyCheckedAt);
   const proxyBadge = proxyDetected
@@ -462,6 +529,8 @@ export default function AdminFraudSignals() {
                 </div>
               </div>
 
+              <IpResolutionBanner resolution={sig.ipResolution} />
+
               <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.2fr_1fr] gap-4">
                 <div>
                   <div className="mb-2 flex items-center gap-2">
@@ -482,7 +551,9 @@ export default function AdminFraudSignals() {
                   <IpIntel intel={sig.ipIntelligence} />
                 </div>
                 <div>
-                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-600">{t('admin_fraud.reasons')}</p>
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-600">Signal strength</p>
+                  <SignalStrength strong={sig.strongSignals} weak={sig.weakSignals} />
+                  <p className="mb-2 mt-3 text-[10px] font-black uppercase tracking-widest text-slate-600">{t('admin_fraud.reasons')}</p>
                   <ul className="space-y-1 text-xs text-slate-300">
                     {(sig.reasons || []).map((reason: string, idx: number) => (
                       <li key={idx}>{reason}</li>

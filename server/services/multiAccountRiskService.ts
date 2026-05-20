@@ -1,9 +1,24 @@
+import { isInfrastructureIp, normalizeIp } from "../modules/ip-intelligence/ipAddress.js";
+
 const LEVELS = [
   { min: 85, level: "critical" },
   { min: 65, level: "high" },
   { min: 35, level: "medium" },
   { min: 0, level: "low" },
 ];
+
+const SAFE_ADMIN_ACTIONS = new Set([
+  "ignore",
+  "monitor",
+  "review",
+  "review_candidate",
+  "needs_more_signals",
+  "shared_ip_low_confidence",
+  "infrastructure_ignored",
+  "restrict",
+  "manual_review",
+  "high_confidence_cluster",
+]);
 
 const LOW_TRUST_IP_SIGNAL_TYPES = new Set(["registration_ip", "last_ip", "auth_ip_history", "ip_network"]);
 
@@ -50,17 +65,23 @@ function isInfrastructureMassSharedIp(group) {
   return false;
 }
 
-function buildInfrastructureMisconfigurationDecision(group) {
+function buildInfrastructureIpDecision(group, reasonCode = "infrastructure_ip") {
   const n = Number(group.userCount || group.users?.length || 0);
+  const key = String(group.key || "").trim();
   const warnings = [
-    `${n} accounts share one stored IP — that is almost never real "multi-account" fraud; it usually means the app recorded the reverse-proxy/Docker hop (wrong client IP) instead of the visitor.`,
-    "Fix production env: set TRUST_PROXY=1 and TRUSTED_PROXY_CIDRS to the proxy network (e.g. 172.16.0.0/12 for Docker bridge). Ensure nginx sends X-Real-IP / X-Forwarded-For (see repo nginx.conf). New sessions will store real IPs; treat this cluster as infrastructure noise, not ban evidence.",
+    `Stored signal "${key}" is infrastructure/proxy (Docker bridge, loopback, or private LAN) — excluded from end-user fraud scoring.`,
+    "Ensure TRUST_PROXY=1 and proxy headers (X-Real-IP / X-Forwarded-For / CF-Connecting-IP) are applied so new sessions store the visitor's public IP.",
   ];
+  if (n >= MASS_SHARED_IP_MIN_USERS) {
+    warnings.push(
+      `${n} accounts share one stored IP — that usually means client-IP capture behind nginx/docker was wrong, not coordinated fraud.`,
+    );
+  }
   return {
-    score: 5,
+    score: 0,
     level: "low",
     confidence: "low",
-    reasons: ["Likely proxy/IP capture misconfiguration (many users on one stored IP)."],
+    reasons: [reasonCode === "mass_shared" ? "Mass shared stored IP on infrastructure hop." : "Infrastructure/proxy IP ignored."],
     falsePositiveWarnings: warnings,
     alerts: [],
     identityVectors: [],
@@ -71,22 +92,31 @@ function buildInfrastructureMisconfigurationDecision(group) {
       asnProvider: false,
       mandatorySatisfied: false,
       ptrAsn: {
-        type: "unknown",
-        confidence: "Low",
-        reason: "Signal suppressed: mass shared stored IP matches infra / private hop heuristics.",
+        type: "infrastructure",
+        confidence: "High",
+        reason: "PTR/ASN not used for private or proxy-internal IPs.",
       },
       geolocationCoherent: false,
       suspiciousIp: false,
     },
     decision: {
       confidence: "Low",
-      recommendedAction: "ignore",
+      recommendedAction: "infrastructure_ignored",
       destructiveAllowed: false,
-      reason: "Hundreds of accounts on one IP in DB indicates misconfigured client-IP capture behind nginx, not coordinated multi-accounting.",
+      reason: "Infrastructure/proxy IP — not valid multi-account evidence.",
       requiresManualReview: false,
     },
-    recommendedAction: "ignore",
+    recommendedAction: "infrastructure_ignored",
   };
+}
+
+function buildInfrastructureMisconfigurationDecision(group) {
+  const n = Number(group.userCount || group.users?.length || 0);
+  const warnings = [
+    `${n} accounts share one stored IP — that is almost never real "multi-account" fraud; it usually means the app recorded the reverse-proxy/Docker hop (wrong client IP) instead of the visitor.`,
+    "Fix production env: set TRUST_PROXY=1 and TRUSTED_PROXY_CIDRS to the proxy network (e.g. 172.16.0.0/12 for Docker bridge). Ensure nginx sends X-Real-IP / X-Forwarded-For (see repo nginx.conf). New sessions will store real IPs; treat this cluster as infrastructure noise, not ban evidence.",
+  ];
+  return buildInfrastructureIpDecision(group, "mass_shared");
 }
 const SHARED_NETWORK_PROVIDER_TYPES = new Set(["residential", "mobile", "corporate", "education", "public_wifi"]);
 const SUSPICIOUS_PROVIDER_TYPES = new Set(["hosting", "vpn_proxy", "tor"]);
@@ -160,12 +190,14 @@ function hasPlatformSelfReference(value, platformIndicators) {
 
 function buildTechnicalAnomalyDecision(anomalies) {
   return {
-    score: 100,
-    level: "critical",
-    confidence: "high",
-    reasons: ["Technical anomalies/Environment spoofing"],
-    falsePositiveWarnings: [],
-    alerts: ["Technical anomalies/Environment spoofing"],
+    score: 40,
+    level: "medium",
+    confidence: "low",
+    reasons: ["Technical data quality anomalies — review manually; never auto-ban."],
+    falsePositiveWarnings: [
+      "Anomalies may include proxy/internal IP metadata or script placeholders — confirm wallet and fingerprint before action.",
+    ],
+    alerts: [],
     identityVectors: ["technical_anomaly"],
     identityVectorCount: 1,
     correlation: {
@@ -174,22 +206,22 @@ function buildTechnicalAnomalyDecision(anomalies) {
       asnProvider: false,
       mandatorySatisfied: false,
       ptrAsn: {
-        type: "blocked_pre_score",
-        confidence: "High",
-        reason: "Entrada interrompida pela Sanitizacao Primal de Dados.",
+        type: "unknown",
+        confidence: "Low",
+        reason: "Technical anomaly bucket — not sufficient for destructive action.",
       },
       geolocationCoherent: false,
-      suspiciousIp: true,
+      suspiciousIp: false,
     },
     decision: {
-      confidence: "High",
-      recommendedAction: "ban_candidate",
-      destructiveAllowed: true,
-      reason: "Technical anomalies/Environment spoofing",
-      requiresManualReview: false,
+      confidence: "Low",
+      recommendedAction: "needs_more_signals",
+      destructiveAllowed: false,
+      reason: "Technical anomalies require manual review with wallet/fingerprint evidence.",
+      requiresManualReview: true,
       anomalies,
     },
-    recommendedAction: "ban_candidate",
+    recommendedAction: "needs_more_signals",
   };
 }
 
@@ -214,6 +246,11 @@ function detectTechnicalAnomalies(group) {
     );
   }
 
+  const storedIp = normalizeIp(group.key);
+  if (storedIp && isInfrastructureIp(storedIp)) {
+    return [];
+  }
+
   for (const candidate of candidates) {
     const value = String(candidate.value || "").trim();
     if (!value) continue;
@@ -221,7 +258,7 @@ function detectTechnicalAnomalies(group) {
       continue;
     }
     if (hasPrivateNetworkMarker(value)) {
-      anomalies.push(`${candidate.label}: private_or_loopback_network_marker`);
+      continue;
     }
     const skipPlatformOnIpMeta =
       candidate.label === "ip.reverseDns" ||
@@ -306,48 +343,65 @@ function buildIdentityVectors(group, ptrAsnCorrelation) {
   return vectors;
 }
 
-function buildDecision({ score, identityVectors, mandatoryCorrelation, falsePositiveAlert }) {
+function buildDecision({ score, identityVectors, mandatoryCorrelation, falsePositiveAlert, ipOnlySignal }) {
   const vectorCount = identityVectors.length;
-  const destructiveAllowed = mandatoryCorrelation && vectorCount >= 3 && !falsePositiveAlert;
+  const destructiveAllowed = mandatoryCorrelation && vectorCount >= 3 && score >= 85 && !falsePositiveAlert;
   let action = "ignore";
   let reason = "Sinais insuficientes para acao.";
   let confidence = "Low";
 
-  if (mandatoryCorrelation && vectorCount >= 4 && score >= 85 && !falsePositiveAlert) {
-    action = destructiveAllowed ? "ban_candidate" : "manual_review";
-    confidence = destructiveAllowed ? "High" : "Medium";
-    reason = destructiveAllowed
-      ? "Tres vetores de identidade convergem com correlacao obrigatoria wallet + fingerprint + ASN/provedor."
-      : "Risco alto, mas sem permissao para acao destrutiva automatica.";
-  } else if (mandatoryCorrelation && vectorCount >= 2 && score >= 65) {
-    action = "restrict";
+  if (destructiveAllowed) {
+    action = "high_confidence_cluster";
     confidence = "High";
-    reason = "Correlacao wallet + fingerprint + ASN/provedor presente, mas abaixo do limiar destrutivo.";
+    reason =
+      "Wallet, fingerprint e ASN/provedor convergem — revisar manualmente; ban automatico nunca e aplicado.";
+  } else if (mandatoryCorrelation && vectorCount >= 2 && score >= 65) {
+    action = "review_candidate";
+    confidence = "Medium";
+    reason = "Correlacoes fortes presentes, mas abaixo do limiar para acao destrutiva.";
+  } else if (mandatoryCorrelation && vectorCount >= 2) {
+    action = "review_candidate";
+    confidence = "Medium";
+    reason = "Correlacao wallet + fingerprint + ASN/provedor presente.";
   } else if (score >= 45 || vectorCount >= 2) {
-    action = "review";
+    action = "review_candidate";
     confidence = score >= 65 ? "Medium" : "Low";
     reason = "Ha correlacoes relevantes, mas sem prova suficiente para punicao automatica.";
-  } else if (score >= 25 || vectorCount >= 1) {
+  } else if (ipOnlySignal && score >= 8) {
+    action = "shared_ip_low_confidence";
+    confidence = "Low";
+    reason = "Apenas IP/rede compartilhada — metadado fraco; exige outros sinais.";
+  } else if (score >= 20 || vectorCount >= 1) {
     action = "monitor";
     confidence = "Low";
     reason = "Somente monitoramento; IP e rede continuam metadados de baixa confianca.";
   }
 
   if (falsePositiveAlert) {
-    action = action === "ignore" ? "monitor" : "review";
-    confidence = confidence === "High" ? "Medium" : confidence;
-    reason = "Conflito detectado entre IP suspeito e geolocalizacao coerente; revisar manualmente.";
+    action = "needs_more_signals";
+    confidence = "Low";
+    reason = "Conflito entre IP suspeito e geolocalizacao coerente; revisar manualmente.";
+  }
+
+  if (!SAFE_ADMIN_ACTIONS.has(action)) {
+    action = "review_candidate";
   }
 
   return {
     confidence,
     action,
-    destructiveAllowed,
+    destructiveAllowed: false,
     reason,
   };
 }
 
 export function calculateMultiAccountRisk(group) {
+  const storedIp = normalizeIp(group?.key);
+  if (storedIp && isInfrastructureIp(storedIp)) {
+    return isInfrastructureMassSharedIp(group)
+      ? buildInfrastructureMisconfigurationDecision(group)
+      : buildInfrastructureIpDecision(group);
+  }
   if (isInfrastructureMassSharedIp(group)) {
     return buildInfrastructureMisconfigurationDecision(group);
   }
@@ -433,10 +487,15 @@ export function calculateMultiAccountRisk(group) {
     pushUnique(falsePositiveWarnings, "Sub-rede isolada e apenas contexto; revisar com wallet e fingerprint.");
   }
 
-  if (LOW_TRUST_IP_SIGNAL_TYPES.has(group.signalType)) {
-    score += userCount >= 10 ? 8 : userCount >= 4 ? 5 : 1;
-    pushUnique(reasons, `${userCount} contas compartilham sinal de IP, tratado como metadado de baixa confianca.`);
-    pushUnique(falsePositiveWarnings, "Repeticao isolada de IP deve ser ignorada para evitar falso positivo em rede compartilhada.");
+  const ipOnlySignal = LOW_TRUST_IP_SIGNAL_TYPES.has(group.signalType);
+  if (ipOnlySignal) {
+    const ipBump = userCount >= 10 ? 6 : userCount >= 4 ? 4 : 1;
+    score += Math.min(25, ipBump);
+    pushUnique(reasons, `${userCount} contas compartilham sinal de IP (metadado fraco).`);
+    pushUnique(
+      falsePositiveWarnings,
+      "IP compartilhado sozinho nunca autoriza ban — exija wallet, fingerprint ou evidencia financeira.",
+    );
   }
 
   if (Boolean(group.shortCreationWindow) || Boolean(group.sessionTimingCorrelation)) {
@@ -499,7 +558,13 @@ export function calculateMultiAccountRisk(group) {
   );
   score = clampScore(score);
   const level = levelFor(score);
-  const decision = buildDecision({ score, identityVectors, mandatoryCorrelation, falsePositiveAlert });
+  const decision = buildDecision({
+    score,
+    identityVectors,
+    mandatoryCorrelation,
+    falsePositiveAlert,
+    ipOnlySignal,
+  });
   const legacyConfidence = normalizeConfidenceLevel(decision.confidence).toLowerCase();
 
   return {

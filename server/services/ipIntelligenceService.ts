@@ -1,9 +1,45 @@
 import dns from "dns/promises";
 import net from "net";
 import type { IpIntelligenceCache, PrismaClient } from "@prisma/client";
-import { deriveDefaultNetworkCidr, normalizeIp } from "../utils/clientIp.js";
+import { deriveDefaultNetworkCidr, isInfrastructureIp, normalizeIp } from "../modules/ip-intelligence/ipAddress.js";
 
-const SUCCESS_TTL_DAYS = Number(process.env.IP_INTEL_SUCCESS_TTL_DAYS || 14);
+const CACHE_TTL_HOURS = Number(process.env.IP_INTEL_CACHE_TTL_HOURS || 0);
+const SUCCESS_TTL_DAYS =
+  CACHE_TTL_HOURS > 0 ? CACHE_TTL_HOURS / 24 : Number(process.env.IP_INTEL_SUCCESS_TTL_DAYS || 14);
+
+function reverseDnsEnabled() {
+  return /^(1|true|yes|on)$/i.test(String(process.env.IP_INTEL_REVERSE_DNS_ENABLED ?? "false").trim());
+}
+
+function infrastructureIntel(ip: string, checkedAt: Date) {
+  const expiresAt = addMs(checkedAt, SUCCESS_TTL_DAYS * 24 * 60 * 60 * 1000);
+  return {
+    ip,
+    ipVersion: net.isIP(ip),
+    normalizedIp: ip,
+    reverseDns: null,
+    reverseDnsForwardConfirmed: null,
+    asn: null,
+    asnOrg: null,
+    networkCidr: null,
+    providerLabel: "infrastructure/proxy",
+    providerType: "infrastructure",
+    confidence: "high",
+    source: "infrastructure",
+    error: null,
+    checkedAt,
+    expiresAt,
+    proxyDetected: null,
+    proxyType: null,
+    proxyRiskScore: null,
+    proxyProvider: null,
+    proxyLastSeenAt: null,
+    proxyCheckedAt: null,
+    proxyExpiresAt: null,
+    proxySource: null,
+    proxyError: null,
+  };
+}
 const ERROR_TTL_HOURS = Number(process.env.IP_INTEL_ERROR_TTL_HOURS || 12);
 const DNS_TIMEOUT_MS = Number(process.env.IP_INTEL_DNS_TIMEOUT_MS || 1200);
 const PROXYCHECK_TTL_HOURS = Number(process.env.PROXYCHECK_TTL_HOURS || 24);
@@ -267,11 +303,17 @@ export async function enrichIp(
     };
   }
 
-  const [reverseDns, asnData] = await Promise.all([
-    reverseDnsLookup(normalizedIp, deps.resolver),
-    lookupAsn(normalizedIp, deps),
-  ]);
-  const reverseDnsForwardConfirmed = await forwardConfirm(normalizedIp, reverseDns, deps.resolver);
+  if (isInfrastructureIp(normalizedIp)) {
+    return infrastructureIntel(normalizedIp, checkedAt);
+  }
+
+  const asnData = await lookupAsn(normalizedIp, deps);
+  let reverseDns: string | null = null;
+  let reverseDnsForwardConfirmed: boolean | null = null;
+  if (reverseDnsEnabled()) {
+    reverseDns = await reverseDnsLookup(normalizedIp, deps.resolver);
+    reverseDnsForwardConfirmed = await forwardConfirm(normalizedIp, reverseDns, deps.resolver);
+  }
   const asnOrg = "asnOrg" in asnData ? (asnData.asnOrg ?? null) : null;
   const asn = "asn" in asnData ? (asnData.asn ?? null) : null;
   const rawCidr = "networkCidr" in asnData ? asnData.networkCidr : null;
@@ -312,6 +354,9 @@ export async function getCachedIpIntelligence(
 ) {
   const ip = normalizeIp(ipInput);
   if (!ip) return cacheToResult(null);
+  if (isInfrastructureIp(ip) && !forceRefresh) {
+    return cacheToResult(infrastructureIntel(ip, new Date()));
+  }
   const now = new Date();
   const row = prisma?.ipIntelligenceCache?.findUnique
     ? await prisma.ipIntelligenceCache.findUnique({ where: { ip } }).catch(() => null)

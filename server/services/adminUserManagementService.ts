@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { normalizeIp } from "../utils/clientIp.js";
 import { excludeQaTestUsersWhere, isQaTestUserRecord } from "../utils/qaTestUser.js";
+import { isInfrastructureIp, normalizeIp } from "../modules/ip-intelligence/ipAddress.js";
 import { getCachedIpIntelligence } from "./ipIntelligenceService.js";
 
 const MAX_SEARCH = 140;
@@ -425,6 +425,7 @@ type ListUserOut = {
     hasWithdrawal: boolean;
     hasFaucetClaims: boolean;
     hasSharedIp: boolean;
+    ipRiskIgnored: boolean;
     possibleMultiAccount: boolean;
     isBanned: boolean;
     isQaTestAccount: boolean;
@@ -483,8 +484,11 @@ export async function listAdminUsers(prisma: PrismaClient, query: AdminQueryReco
 
   let users: ListUserOut[] = rows.map((u: ListUserRow) => {
     const machine = machineByUser.get(u.id);
-    const hasSharedIp = [u.ip, u.registrationIp].some((lip) => lip && (ipCounts.get(lip) || 0) > 1);
-    const lastIpIntel = u.ip ? ipIntel.get(u.ip) || null : null;
+    const hasSharedIp = [u.ip, u.registrationIp].some(
+      (lip) => lip && !isInfrastructureIp(lip) && (ipCounts.get(lip) || 0) > 1,
+    );
+    const lastIpIntel = u.ip ? ipIntel.get(normalizeIp(u.ip) || u.ip) || null : null;
+    const ipRiskIgnored = Boolean(u.ip && isInfrastructureIp(u.ip));
     return {
       id: u.id,
       name: u.name,
@@ -513,7 +517,10 @@ export async function listAdminUsers(prisma: PrismaClient, query: AdminQueryReco
         hasWithdrawal: (withdrawals.get(u.id) || 0) > 0,
         hasFaucetClaims: faucet.has(u.id),
         hasSharedIp,
-        possibleMultiAccount: hasSharedIp || Boolean(u.walletAddress && candidateIds.includes(u.id) && isWalletLike(parsed.q)),
+        ipRiskIgnored,
+        possibleMultiAccount:
+          !ipRiskIgnored &&
+          (hasSharedIp || Boolean(u.walletAddress && candidateIds.includes(u.id) && isWalletLike(parsed.q))),
         isBanned: u.isBanned,
         isQaTestAccount: isQaTestUserRecord({ username: u.username, email: u.email }),
       },
@@ -541,11 +548,40 @@ async function sharedIpCounts(prisma: PrismaClient, users: ListUserRow[]): Promi
   return map;
 }
 
+function infrastructureIntelDisplay(ip: string): IpIntelValue {
+  return {
+    normalizedIp: ip,
+    reverseDns: null,
+    reverseDnsForwardConfirmed: null,
+    asn: null,
+    asnOrg: null,
+    networkCidr: null,
+    providerLabel: "infrastructure/proxy",
+    providerType: "infrastructure",
+    confidence: "high",
+    proxyDetected: null,
+    proxyType: null,
+    proxyRiskScore: null,
+    proxyProvider: null,
+    proxyCheckedAt: null,
+    checkedAt: null,
+  };
+}
+
 async function cachedIpIntelMap(prisma: PrismaClient, ips: Array<string | null>): Promise<Map<string, IpIntelValue>> {
   const normalized = [...new Set(ips.map(normalizeIp).filter((x): x is string => Boolean(x)))];
   if (!normalized.length) return new Map();
-  const rows = await prisma.ipIntelligenceCache.findMany({ where: { ip: { in: normalized } } }).catch(() => []);
+  const publicIps = normalized.filter((ip) => !isInfrastructureIp(ip));
+  const rows = publicIps.length
+    ? await prisma.ipIntelligenceCache.findMany({ where: { ip: { in: publicIps } } }).catch(() => [])
+    : [];
   const intelMap = new Map<string, IpIntelValue>();
+  for (const ip of normalized) {
+    if (isInfrastructureIp(ip)) {
+      intelMap.set(ip, infrastructureIntelDisplay(ip));
+      continue;
+    }
+  }
   for (const row of rows) {
     intelMap.set(row.ip, {
       normalizedIp: row.ip,

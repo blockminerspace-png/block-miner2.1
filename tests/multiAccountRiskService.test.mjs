@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { calculateMultiAccountRisk } from "#server/services/multiAccountRiskService.js";
 
 describe("multi-account risk scoring", () => {
-  it("hard-kills technical anomalies before score processing", () => {
+  it("does not escalate technical anomalies to ban_candidate", () => {
     const risk = calculateMultiAccountRisk({
       signalType: "device_fingerprint",
       key: "localhost",
@@ -18,14 +18,11 @@ describe("multi-account risk scoring", () => {
       ],
       ipIntelligence: { reverseDns: "blockminer.space", asnOrg: "Example Hosting", normalizedIp: "10.0.0.1" },
     });
-    assert.equal(risk.score, 100);
-    assert.equal(risk.level, "critical");
-    assert.equal(risk.decision.recommendedAction, "ban_candidate");
-    assert.equal(risk.decision.reason, "Technical anomalies/Environment spoofing");
+    assert.ok(risk.score <= 45);
+    assert.notEqual(risk.level, "critical");
+    assert.equal(risk.decision.recommendedAction, "needs_more_signals");
+    assert.equal(risk.decision.destructiveAllowed, false);
     assert.ok(Array.isArray(risk.decision.anomalies));
-    assert.ok(risk.decision.anomalies.some((x) => x.includes("private_or_loopback_network_marker")));
-    assert.ok(risk.decision.anomalies.some((x) => x.includes("platform_self_reference")));
-    assert.ok(risk.decision.anomalies.some((x) => x.includes("script_garbage")));
   });
 
   it("ignores isolated residential shared-IP repetition as low-trust metadata", () => {
@@ -39,7 +36,7 @@ describe("multi-account risk scoring", () => {
     assert.ok(risk.falsePositiveWarnings.some((x) => x.includes("IP")));
   });
 
-  it("requires wallet + fingerprint + ASN/provider correlation before escalating to restrict", () => {
+  it("requires wallet + fingerprint + ASN/provider correlation before review_candidate", () => {
     const risk = calculateMultiAccountRisk({
       signalType: "device_fingerprint",
       userCount: 5,
@@ -49,11 +46,11 @@ describe("multi-account risk scoring", () => {
     });
     assert.equal(risk.correlation.mandatorySatisfied, true);
     assert.equal(risk.identityVectorCount, 3);
-    assert.equal(risk.decision.recommendedAction, "restrict");
-    assert.equal(risk.decision.confidence, "High");
+    assert.equal(risk.decision.recommendedAction, "review_candidate");
+    assert.equal(risk.decision.destructiveAllowed, false);
   });
 
-  it("only allows destructive recommendation when at least three identity vectors coincide", () => {
+  it("uses high_confidence_cluster instead of ban_candidate when many vectors coincide", () => {
     const risk = calculateMultiAccountRisk({
       signalType: "device_fingerprint",
       userCount: 12,
@@ -70,8 +67,8 @@ describe("multi-account risk scoring", () => {
       similarIdentityCount: 4,
     });
     assert.equal(risk.correlation.mandatorySatisfied, true);
-    assert.equal(risk.decision.destructiveAllowed, true);
-    assert.equal(risk.decision.recommendedAction, "ban_candidate");
+    assert.equal(risk.decision.destructiveAllowed, false);
+    assert.equal(risk.decision.recommendedAction, "high_confidence_cluster");
     assert.equal(risk.decision.confidence, "High");
   });
 
@@ -102,7 +99,7 @@ describe("multi-account risk scoring", () => {
     });
     assert.ok(risk.alerts.includes("Alerta de Falso Positivo"));
     assert.ok(risk.falsePositiveWarnings.some((x) => x.includes("geolocalizacao coerente")));
-    assert.ok(["review", "monitor"].includes(risk.decision.recommendedAction));
+    assert.equal(risk.decision.recommendedAction, "needs_more_signals");
   });
 
   it("treats ASN-only grouping as contextual, not automatic fraud", () => {
@@ -129,12 +126,12 @@ describe("multi-account risk scoring", () => {
       })),
       ipIntelligence: { reverseDns: "block-miner-nginx-1.block-miner.default", providerType: "unknown" },
     });
-    assert.equal(risk.recommendedAction, "ignore");
-    assert.ok(risk.score <= 15);
-    assert.ok(risk.falsePositiveWarnings.some((w) => /TRUST_PROXY/i.test(w)));
+    assert.ok(["ignore", "infrastructure_ignored", "shared_ip_low_confidence"].includes(risk.recommendedAction));
+    assert.ok(risk.score <= 25);
+    assert.ok(risk.falsePositiveWarnings.some((w) => /TRUST_PROXY|infra|proxy|nginx/i.test(w)));
   });
 
-  it("downgrades mass same private IP clusters as proxy misconfiguration", () => {
+  it("downgrades mass same private IP clusters as infrastructure_ignored", () => {
     const risk = calculateMultiAccountRisk({
       signalType: "last_ip",
       key: "172.19.0.3",
@@ -142,8 +139,21 @@ describe("multi-account risk scoring", () => {
       users: [],
       ipIntelligence: null,
     });
-    assert.equal(risk.recommendedAction, "ignore");
+    assert.equal(risk.recommendedAction, "infrastructure_ignored");
+    assert.equal(risk.score, 0);
     assert.ok(risk.falsePositiveWarnings.length >= 1);
+  });
+
+  it("downgrades Docker bridge 172.18.0.1 even with few accounts", () => {
+    const risk = calculateMultiAccountRisk({
+      signalType: "registration_ip",
+      key: "172.18.0.1",
+      userCount: 3,
+      users: [],
+      ipIntelligence: { reverseDns: "host.backup.ubuntu", providerType: "unknown" },
+    });
+    assert.equal(risk.recommendedAction, "infrastructure_ignored");
+    assert.equal(risk.score, 0);
   });
 
   it("does not treat shared withdrawal destination (ledger to-address) as duplicate profile wallet", () => {

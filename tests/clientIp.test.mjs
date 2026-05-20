@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { deriveDefaultNetworkCidr, getClientIp, isIpInCidr, normalizeIp } from "#server/utils/clientIp.js";
+import {
+  deriveDefaultNetworkCidr,
+  getClientIp,
+  isInfrastructureIp,
+  isIpInCidr,
+  normalizeIp,
+  resolveClientIp,
+} from "#server/utils/clientIp.js";
 
 const oldEnv = { ...process.env };
 
 afterEach(() => {
-  for (const key of ["TRUST_PROXY", "TRUSTED_PROXY_CIDRS", "IP_HEADER_PRIORITY"]) {
+  for (const key of ["TRUST_PROXY", "TRUSTED_PROXY_CIDRS", "IP_HEADER_PRIORITY", "TRUST_CLOUDFLARE"]) {
     if (oldEnv[key] === undefined) delete process.env[key];
     else process.env[key] = oldEnv[key];
   }
@@ -49,5 +56,30 @@ describe("secure client IP capture", () => {
   it("derives IPv6 /64 network keys without treating IPv4 as a shared subnet", () => {
     assert.equal(deriveDefaultNetworkCidr("2001:db8:abcd:0012::beef"), "2001:db8:abcd:12::/64");
     assert.equal(deriveDefaultNetworkCidr("203.0.113.7"), null);
+  });
+
+  it("marks Docker bridge and LAN as infrastructure", () => {
+    assert.equal(isInfrastructureIp("172.18.0.1"), true);
+    assert.equal(isInfrastructureIp("10.0.0.5"), true);
+    assert.equal(isInfrastructureIp("203.0.113.9"), false);
+  });
+
+  it("reads X-Real-IP from Docker bridge remote when TRUST_PROXY is enabled", () => {
+    process.env.TRUST_PROXY = "true";
+    delete process.env.TRUSTED_PROXY_CIDRS;
+    const resolved = resolveClientIp(req({ "x-real-ip": "198.51.100.44" }, "172.18.0.1"));
+    assert.equal(resolved.ip, "198.51.100.44");
+    assert.equal(resolved.source, "x-real-ip");
+    assert.equal(resolved.headersTrusted, true);
+  });
+
+  it("prefers CF-Connecting-IP when TRUST_CLOUDFLARE is enabled", () => {
+    process.env.TRUST_PROXY = "true";
+    process.env.TRUST_CLOUDFLARE = "true";
+    const resolved = resolveClientIp(
+      req({ "cf-connecting-ip": "198.51.100.55", "x-real-ip": "198.51.100.44" }, "172.18.0.1"),
+    );
+    assert.equal(resolved.ip, "198.51.100.55");
+    assert.equal(resolved.source, "cf-connecting-ip");
   });
 });
