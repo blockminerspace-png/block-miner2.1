@@ -11,13 +11,19 @@ export type CheckinCadenceDailySlice = {
 export type CheckinMilestoneRow = {
   id: number | string;
   dayThreshold: number;
+  milestoneDay?: number;
+  /** Legacy DB copy — UI must use i18n via rewardType, not this field. */
   displayTitle?: string | null;
+  /** Legacy DB copy — UI must use i18n via rewardType, not this field. */
   description?: string | null;
+  labelKey?: string | null;
   rewardType?: string;
   rewardValue?: string | number;
+  amount?: string | number;
   validityDays?: number | null;
   minerId?: number | null;
   itemCode?: string | null;
+  status?: string;
   state?: string;
 };
 
@@ -28,8 +34,15 @@ export type CheckinRecentRow = {
 
 export type CheckinUpcomingMilestone = {
   day: number;
+  milestoneDay?: number;
   rewardType: string;
-  label: string;
+  rewardValue?: number;
+  amount?: number;
+  itemCode?: string | null;
+  minerId?: number | null;
+  labelKey?: string;
+  /** @deprecated Use labelKey + i18n on the client. */
+  label?: string;
 };
 
 export type CheckinStatusPayload = {

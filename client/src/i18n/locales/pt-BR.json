@@ -1949,6 +1949,52 @@
     "milestone_locked": "Bloqueado",
     "milestone_eligible": "Desbloqueado — resgata no próximo check-in",
     "milestone_claimed": "Recebido",
+    "milestones": {
+      "title": "Marcos da sequência",
+      "description": "As recompensas são creditadas quando a sequência diária atinge cada marco após um check-in confirmado.",
+      "days_one": "{{count}} dia",
+      "days_other": "{{count}} dias",
+      "status": {
+        "blocked": "Bloqueado",
+        "claimed": "Resgatado",
+        "unlocked": "Desbloqueado",
+        "unlockedNextCheckin": "Desbloqueado — resgate no próximo check-in"
+      },
+      "reward": {
+        "pol": {
+          "title": "Bônus do dia {{day}}",
+          "description": "Bônus de boas-vindas em POL."
+        },
+        "item": {
+          "title": "Caixa de suprimentos do dia {{day}}",
+          "description": "Item de inventário recebido pela sequência de check-in."
+        },
+        "stelar": {
+          "title": "{{amount}} Estelar",
+          "description": "Bônus de Estelar pela sequência."
+        },
+        "zer": {
+          "title": "{{amount}} ZER",
+          "description": "Bônus de ZER pela sequência."
+        },
+        "machine": {
+          "title": "Máquina do dia {{day}}",
+          "description": "Recompensa de máquina recebida pela sequência."
+        },
+        "hashrate": {
+          "title": "Bônus de poder do dia {{day}}",
+          "description": "Bônus de HashRate pela sequência."
+        },
+        "none": {
+          "title": "Marco do dia {{day}}",
+          "description": "Recompensa especial de check-in."
+        },
+        "unknown": {
+          "title": "Recompensa do dia {{day}}",
+          "description": "Recompensa especial de check-in."
+        }
+      }
+    },
     "milestone_reward_pol": "{{value}} POL",
     "milestone_reward_hashrate": "+{{value}} H/s · {{days}}d",
     "milestone_reward_none": "Selo de marco",

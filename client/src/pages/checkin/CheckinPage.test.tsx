@@ -12,4 +12,11 @@ describe('CheckinPage module', () => {
     expect(src).toContain('./checkin.wallet');
     expect(src).toContain('./checkin.contract');
   });
+
+  it('renders milestone copy via i18n helpers, not DB displayTitle', () => {
+    const src = readFileSync(pagePath, 'utf8');
+    expect(src).toContain('getCheckinMilestoneTitle');
+    expect(src).not.toMatch(/displayTitle/);
+    expect(src).not.toMatch(/Day 1 bonus|supply crate|Basic miner reward|Advanced miner reward/);
+  });
 });

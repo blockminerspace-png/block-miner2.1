@@ -252,16 +252,18 @@ export async function buildMilestoneStatusForUser(userId: number, streak: number
     const rewardType = normalizeRewardType(m.rewardType);
     return {
       id: m.id,
+      milestoneDay: m.dayThreshold,
       dayThreshold: m.dayThreshold,
       rewardType,
       rewardValue: Number(m.rewardValue || 0),
+      amount: Number(m.rewardValue || 0),
       validityDays: m.validityDays,
-      displayTitle: m.displayTitle,
-      description: m.description,
-      sortOrder: m.sortOrder,
       minerId: m.minerId,
       itemCode: m.itemCode,
+      status: state,
       state,
+      labelKey: `checkin.milestones.reward.${rewardType}.title`,
+      sortOrder: m.sortOrder,
       claimedAt: claim?.createdAt?.toISOString() ?? null,
     };
   });
@@ -275,7 +277,12 @@ export function buildUpcomingMilestones(
     .slice(0, 8)
     .map((m) => ({
       day: m.dayThreshold,
+      milestoneDay: m.dayThreshold,
       rewardType: m.rewardType,
-      label: m.displayTitle || `${m.rewardType} +${m.rewardValue}`,
+      rewardValue: m.rewardValue,
+      amount: m.rewardValue,
+      itemCode: m.itemCode ?? null,
+      minerId: m.minerId ?? null,
+      labelKey: `checkin.milestones.reward.${m.rewardType}.title`,
     }));
 }

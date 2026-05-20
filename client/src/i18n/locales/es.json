@@ -1578,6 +1578,52 @@
     "milestone_locked": "Bloqueado",
     "milestone_eligible": "Desbloqueado — se cobra en el próximo check-in",
     "milestone_claimed": "Recogido",
+    "milestones": {
+      "title": "Hitos de racha",
+      "description": "Las recompensas se otorgan cuando tu racha diaria alcanza cada hito tras un check-in confirmado.",
+      "days_one": "{{count}} día",
+      "days_other": "{{count}} días",
+      "status": {
+        "blocked": "Bloqueado",
+        "claimed": "Recogido",
+        "unlocked": "Desbloqueado",
+        "unlockedNextCheckin": "Desbloqueado — cobra en el próximo check-in"
+      },
+      "reward": {
+        "pol": {
+          "title": "Bono del día {{day}}",
+          "description": "Bono de bienvenida en POL."
+        },
+        "item": {
+          "title": "Caja de suministros del día {{day}}",
+          "description": "Objeto de inventario por la racha de check-in."
+        },
+        "stelar": {
+          "title": "{{amount}} Estelar",
+          "description": "Bono de Estelar por la racha."
+        },
+        "zer": {
+          "title": "{{amount}} ZER",
+          "description": "Bono de ZER por la racha."
+        },
+        "machine": {
+          "title": "Rig del día {{day}}",
+          "description": "Recompensa de máquina por la racha."
+        },
+        "hashrate": {
+          "title": "Bono de poder del día {{day}}",
+          "description": "Bono de HashRate por la racha."
+        },
+        "none": {
+          "title": "Hito del día {{day}}",
+          "description": "Recompensa especial de check-in."
+        },
+        "unknown": {
+          "title": "Recompensa del día {{day}}",
+          "description": "Recompensa especial de check-in."
+        }
+      }
+    },
     "milestone_reward_pol": "{{value}} POL",
     "milestone_reward_hashrate": "+{{value}} H/s · {{days}}d",
     "milestone_reward_none": "Insignia",

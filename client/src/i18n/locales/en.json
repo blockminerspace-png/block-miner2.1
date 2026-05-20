@@ -1944,6 +1944,52 @@
     "milestone_locked": "Locked",
     "milestone_eligible": "Unlocked — claim on next check-in",
     "milestone_claimed": "Collected",
+    "milestones": {
+      "title": "Streak milestones",
+      "description": "Rewards are credited when your daily streak reaches each milestone after a confirmed check-in.",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "status": {
+        "blocked": "Blocked",
+        "claimed": "Claimed",
+        "unlocked": "Unlocked",
+        "unlockedNextCheckin": "Unlocked — redeem on your next check-in"
+      },
+      "reward": {
+        "pol": {
+          "title": "Day {{day}} bonus",
+          "description": "Small POL welcome bonus."
+        },
+        "item": {
+          "title": "Day {{day}} supply crate",
+          "description": "Inventory item from your check-in streak."
+        },
+        "stelar": {
+          "title": "{{amount}} Estelar",
+          "description": "Estelar streak bonus."
+        },
+        "zer": {
+          "title": "{{amount}} ZER",
+          "description": "ZER streak bonus."
+        },
+        "machine": {
+          "title": "Day {{day}} rig",
+          "description": "Miner reward from your check-in streak."
+        },
+        "hashrate": {
+          "title": "Day {{day}} power bonus",
+          "description": "HashRate streak bonus."
+        },
+        "none": {
+          "title": "Day {{day}} milestone",
+          "description": "Special check-in reward."
+        },
+        "unknown": {
+          "title": "Day {{day}} reward",
+          "description": "Special check-in reward."
+        }
+      }
+    },
     "milestone_reward_pol": "{{value}} POL",
     "milestone_reward_hashrate": "+{{value}} H/s · {{days}}d",
     "milestone_reward_none": "Milestone badge",

@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { Calendar, CheckCircle2, Trophy, Zap, Loader2, History, Gift, Lock, ExternalLink } from 'lucide-react';
 import type { AxiosError } from 'axios';
-import type { CheckinMilestoneRow, CheckinStatusPayload } from '../../types/checkin';
+import type { CheckinStatusPayload } from '../../types/checkin';
 import { fetchCheckinStatus, postCheckinBalanceDaily, postCheckinWalletDaily } from './checkin.api';
 import { sendCheckinTransaction, resolveCheckinPaymentTarget } from './checkin.contract';
 import { CheckinWalletError, hasInjectedWallet } from './checkin.wallet';
@@ -16,41 +15,20 @@ import {
   getDailySlice,
   isValidHistoryDateKey,
   mergeStatus,
-  sanitizeCheckinUiText,
   statusNeedsCheckinPoll,
 } from '../../shared/utils/checkinHelpers';
+import {
+  getCheckinMilestoneDayLabel,
+  getCheckinMilestoneDescription,
+  getCheckinMilestoneRewardLine,
+  getCheckinMilestoneStatusLabel,
+  getCheckinMilestoneTitle,
+} from './checkinMilestoneI18n';
 import {
   readAxiosHttpStatus,
   readAxiosResponseMessage,
   shouldStopApiPolling,
 } from '../../shared/utils/httpPollingGuard';
-
-function formatMilestoneReward(m: CheckinMilestoneRow, t: TFunction): string {
-  const rt = String(m.rewardType || '').toLowerCase();
-  if (m.displayTitle) return m.displayTitle;
-  if ((rt === 'pol' || rt === 'balance') && Number(m.rewardValue) > 0) {
-    return t('checkin.milestone_reward_pol', { value: String(m.rewardValue) });
-  }
-  if ((rt === 'stelar' || rt === 'zer') && Number(m.rewardValue) > 0) {
-    return t('checkin.milestone_reward_stelar', {
-      value: String(m.rewardValue),
-      defaultValue: `+${m.rewardValue} Estelar`,
-    });
-  }
-  if (rt === 'machine') {
-    return t('checkin.milestone_reward_machine', { defaultValue: 'Mining machine' });
-  }
-  if (rt === 'item' && m.itemCode) {
-    return t('checkin.milestone_reward_item', { code: m.itemCode, defaultValue: `Item ${m.itemCode}` });
-  }
-  if (rt === 'hashrate' && Number(m.rewardValue) > 0) {
-    return t('checkin.milestone_reward_hashrate', {
-      value: String(m.rewardValue),
-      days: m.validityDays ?? 7,
-    });
-  }
-  return t('checkin.milestone_reward_none');
-}
 
 function readApiErrorPayload(err: unknown): { code?: string; message?: string } | null {
   if (!err || typeof err !== 'object' || !('response' in err)) return null;
@@ -535,14 +513,14 @@ export default function Checkin() {
       {milestones.length > 0 && (
         <div className="space-y-4">
           <div className="text-center space-y-1">
-            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-[0.2em]">{t('checkin.milestones_title')}</h3>
-            <p className="text-xs text-slate-600 max-w-xl mx-auto">{t('checkin.milestones_sub')}</p>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-[0.2em]">{t('checkin.milestones.title')}</h3>
+            <p className="text-xs text-slate-600 max-w-xl mx-auto">{t('checkin.milestones.description')}</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {milestones.map((m) => {
-              const rawTitle =
-                (m.displayTitle && String(m.displayTitle).trim()) || `${m.dayThreshold} ${t('checkin.days')}`;
-              const title = sanitizeCheckinUiText(rawTitle, 120) || `${m.dayThreshold} ${t('checkin.days')}`;
+              const title = getCheckinMilestoneTitle(t, m);
+              const rewardLine = getCheckinMilestoneRewardLine(t, m);
+              const description = getCheckinMilestoneDescription(t, m);
               const state = m.state || 'locked';
               const border =
                 state === 'claimed'
@@ -556,7 +534,6 @@ export default function Checkin() {
                   : state === 'eligible'
                     ? 'bg-amber-500/15 text-amber-400'
                     : 'bg-slate-900 text-slate-600';
-              const safeDescription = m.description ? sanitizeCheckinUiText(m.description, 400) : '';
               return (
                 <div key={m.id} className={`bg-gray-800/30 border rounded-2xl p-5 flex items-start gap-4 ${border}`}>
                   <div className={`p-3 rounded-xl shrink-0 ${iconBg}`}>
@@ -564,19 +541,15 @@ export default function Checkin() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      {m.dayThreshold} {t('checkin.days').toUpperCase()}
+                      {getCheckinMilestoneDayLabel(t, m.dayThreshold).toUpperCase()}
                     </p>
                     <p className="text-sm font-bold text-white truncate">{title}</p>
-                    <p className="text-xs text-slate-400 mt-1">{formatMilestoneReward(m, t)}</p>
-                    {safeDescription ? (
-                      <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{safeDescription}</p>
+                    {rewardLine ? <p className="text-xs text-slate-400 mt-1">{rewardLine}</p> : null}
+                    {description ? (
+                      <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{description}</p>
                     ) : null}
                     <p className="text-[10px] font-bold uppercase tracking-wider mt-2 text-slate-500">
-                      {state === 'claimed'
-                        ? t('checkin.milestone_claimed')
-                        : state === 'eligible'
-                          ? t('checkin.milestone_eligible')
-                          : t('checkin.milestone_locked')}
+                      {getCheckinMilestoneStatusLabel(t, state)}
                     </p>
                   </div>
                   {state === 'claimed' && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-1" />}
