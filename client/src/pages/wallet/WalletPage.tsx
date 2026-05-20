@@ -38,6 +38,7 @@ import { BLOCK_MINER_DEPOSIT_ABI } from '../../web3/blockMinerDepositAbi';
 import { useSendTransaction } from 'wagmi';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../../shared/hooks/useWallet';
+import { useWalletLink } from './useWalletLink';
 import { useGameStore } from '../../store/game';
 import { canUseInjectedDepositChannel } from '../../shared/utils/depositChannel';
 import { getInjectedWalletProviders } from '../../shared/wallet/injectedWallet';
@@ -185,6 +186,19 @@ export default function Wallet() {
         connectWalletConnect,
     } = useWallet();
 
+    const {
+        savedWallet,
+        connectedWallet,
+        isLoadingSaved: isLoadingLinkedWallet,
+        isConnecting: isLinkConnecting,
+        isLinking,
+        connectWallet: connectLinkedWallet,
+        linkWallet,
+        unlinkWallet,
+        clearConnectedSession,
+        loadSavedWallet,
+    } = useWalletLink();
+
     const { mutateAsync: sendOnchainTx } = useSendTransaction();
 
     const showWalletSessionCancel =
@@ -245,10 +259,23 @@ export default function Wallet() {
     const initSocket = useGameStore(s => s.initSocket);
 
     const evmAccount = account as string | null | undefined;
+    const linkedWalletAddress = savedWallet.walletAddress;
+    const headerWalletShort = (addr: string) =>
+        addr.length >= 10 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : addr;
 
     useEffect(() => {
         initSocket();
     }, [initSocket]);
+
+    useEffect(() => {
+        if (linkedWalletAddress) {
+            setProfileWalletAddress(linkedWalletAddress);
+            setWithdrawForm((prev) => {
+                if (prev.address) return prev;
+                return { ...prev, address: linkedWalletAddress };
+            });
+        }
+    }, [linkedWalletAddress]);
 
     useEffect(() => {
         walletConnectedRef.current = isConnected;
@@ -917,22 +944,28 @@ export default function Wallet() {
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-                    {isConnected ? (
+                    {isLoadingLinkedWallet ? (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-slate-900/50 border border-slate-800 rounded-2xl">
+                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" aria-hidden />
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {t('wallet.web3_deposit.loading_wallet', { defaultValue: 'Loading wallet…' })}
+                            </span>
+                        </div>
+                    ) : linkedWalletAddress ? (
                         <>
-                            <div className="flex items-center gap-3 p-1.5 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-xl">
-                                <div className="flex items-center gap-2 pl-3 pr-4">
-                                    <div className={`w-2 h-2 rounded-full animate-pulse ${isCorrectNetwork ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                            <div className="flex items-center gap-3 p-1.5 bg-emerald-950/40 border border-emerald-800/50 rounded-2xl backdrop-blur-xl">
+                                <div className="flex items-center gap-2 pl-3 pr-2">
+                                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden />
+                                    <span className="text-[9px] font-black text-emerald-400/90 uppercase tracking-widest hidden sm:inline">
+                                        {t('wallet.web3_deposit.wallet_linked', { defaultValue: 'Linked' })}
+                                    </span>
                                     <span className="text-[10px] font-black text-slate-300 uppercase truncate max-w-[100px] font-mono">
-                                        {evmAccount && evmAccount.length >= 10
-                                            ? `${evmAccount.slice(0, 6)}...${evmAccount.slice(-4)}`
-                                            : ''}
+                                        {headerWalletShort(linkedWalletAddress)}
                                     </span>
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        if (evmAccount) copyToClipboard(evmAccount);
-                                    }}
+                                    onClick={() => copyToClipboard(linkedWalletAddress)}
                                     className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-500 hover:text-white"
                                 >
                                     <Copy className="w-4 h-4" />
@@ -940,59 +973,98 @@ export default function Wallet() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => void cancelWalletSession()}
-                                className="px-4 py-3 bg-slate-900/80 border border-slate-600 text-slate-200 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-800 hover:border-slate-500 transition-all flex items-center justify-center gap-2"
+                                onClick={() => {
+                                    clearConnectedSession();
+                                    void connectLinkedWallet();
+                                }}
+                                disabled={isLinkConnecting || isLinking}
+                                className="px-4 py-3 bg-slate-900/80 border border-slate-600 text-slate-200 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-800 transition-all disabled:opacity-50"
                             >
-                                <LogOut className="w-4 h-4" />
-                                {t('wallet.web3_deposit.disconnect')}
+                                {t('wallet.web3_deposit.change_wallet', { defaultValue: 'Change wallet' })}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const ok = await unlinkWallet();
+                                    if (ok) void fetchWalletData();
+                                }}
+                                disabled={isLinking}
+                                className="px-4 py-3 bg-transparent border border-slate-600 text-slate-300 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-800/80 transition-all disabled:opacity-50"
+                            >
+                                {t('wallet.web3_deposit.unlink_wallet', { defaultValue: 'Unlink' })}
+                            </button>
+                        </>
+                    ) : connectedWallet ? (
+                        <>
+                            <div className="flex items-center gap-3 p-1.5 bg-slate-900/50 border border-amber-800/40 rounded-2xl backdrop-blur-xl">
+                                <div className="flex items-center gap-2 pl-3 pr-4">
+                                    <div className="w-2 h-2 rounded-full animate-pulse bg-amber-400" />
+                                    <span className="text-[10px] font-black text-slate-300 uppercase truncate max-w-[100px] font-mono">
+                                        {headerWalletShort(connectedWallet.address)}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(connectedWallet.address)}
+                                    className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-500 hover:text-white"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const ok = await linkWallet();
+                                    if (ok) {
+                                        await loadSavedWallet();
+                                        void fetchWalletData();
+                                    }
+                                }}
+                                disabled={isLinking}
+                                className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 border border-emerald-400/30 disabled:opacity-50"
+                            >
+                                {isLinking ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                                        {t('wallet.web3_deposit.linking_wallet', { defaultValue: 'Linking…' })}
+                                    </>
+                                ) : (
+                                    <>
+                                        <ShieldCheck className="w-4 h-4" aria-hidden />
+                                        {t('wallet.web3_deposit.save_link_wallet', { defaultValue: 'Save / link wallet' })}
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={clearConnectedSession}
+                                disabled={isLinking}
+                                className="px-4 py-3 bg-transparent border border-slate-600 text-slate-300 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-800/80 transition-all disabled:opacity-50"
+                            >
+                                {t('wallet.web3_deposit.cancel_connection')}
                             </button>
                         </>
                     ) : (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const useWcOnly =
-                                        activeTab === 'deposit' &&
-                                        depositChannel === 'walletconnect' &&
-                                        walletConnectConfigured;
-                                    void (useWcOnly ? connect() : connect({ useBrowserExtension: true }));
-                                }}
-                                disabled={isConnecting}
-                                className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/30 shadow-lg shadow-indigo-900/20 disabled:opacity-50"
-                            >
-                                <span className="inline-flex min-h-4 items-center justify-center gap-2">
-                                    {activeTab === 'deposit' &&
-                                    depositChannel === 'walletconnect' &&
-                                    walletConnectConfigured ? (
-                                        <WalletConnectWordmark
-                                            className="h-3 sm:h-3.5 w-auto max-w-[5.5rem] sm:max-w-[6.5rem] object-contain object-left brightness-0 invert shrink-0"
-                                            alt={t('wallet.deposit_options.walletconnect_logo_alt')}
-                                        />
-                                    ) : (
-                                        <Smartphone className="h-4 w-4 shrink-0" aria-hidden />
-                                    )}
-                                    <span>
-                                        {isConnecting
-                                            ? t('wallet.web3_deposit.connecting')
-                                            : activeTab === 'deposit' &&
-                                                depositChannel === 'walletconnect' &&
-                                                walletConnectConfigured
-                                              ? t('wallet.web3_deposit.connect_wc')
-                                              : t('wallet.web3_deposit.connect_browser')}
-                                    </span>
-                                </span>
-                            </button>
-                            {showWalletSessionCancel ? (
-                                <button
-                                    type="button"
-                                    onClick={() => void cancelWalletSession()}
-                                    className="px-4 py-3 bg-transparent border border-slate-600 text-slate-300 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-800/80 transition-all"
-                                >
-                                    {t('wallet.web3_deposit.cancel_connection')}
-                                </button>
-                            ) : null}
-                        </>
+                        <button
+                            type="button"
+                            onClick={() => void connectLinkedWallet()}
+                            disabled={isLinkConnecting}
+                            className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/30 shadow-lg shadow-indigo-900/20 disabled:opacity-50"
+                        >
+                            {isLinkConnecting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                                    {t('wallet.web3_deposit.connecting')}
+                                </>
+                            ) : (
+                                <>
+                                    <Smartphone className="h-4 w-4 shrink-0" aria-hidden />
+                                    {t('wallet.web3_deposit.connect_browser_wallet', {
+                                        defaultValue: 'Connect wallet',
+                                    })}
+                                </>
+                            )}
+                        </button>
                     )}
 
                     <button

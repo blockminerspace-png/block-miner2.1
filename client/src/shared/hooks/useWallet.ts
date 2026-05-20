@@ -385,7 +385,9 @@ export function useWallet() {
         });
       }
 
-      await verifyWithServer(connection.address, injected);
+      setAccount(connection.address);
+      setIsConnected(true);
+      verifiedInjectedRef.current = injected;
       return true;
     } catch (error: unknown) {
       if (!isBenignInjectedWalletRpcError(error)) {
@@ -463,16 +465,10 @@ export function useWallet() {
         toast.info(t('wallet.web3_deposit.disconnect_to_switch'));
         return true;
       }
-      if (kitConnected && kitAddress && !isConnected) {
-        try {
-          await syncKitWalletWithServer(kitAddress, { forceRetry: true });
-          return true;
-        } catch (e: unknown) {
-          const meta = readWalletErrorMeta(e);
-          if (meta.code === 'CANCELLED') throw e;
-          /* other errors: toasts inside sync */
-        }
-        return false;
+      if (kitConnected && kitAddress) {
+        setAccount(kitAddress);
+        setIsConnected(true);
+        return true;
       }
       await openConnectModal();
       return false;
@@ -484,7 +480,6 @@ export function useWallet() {
       kitAddress,
       openConnectModal,
       connectInjectedAndVerify,
-      syncKitWalletWithServer,
       t,
     ],
   );
@@ -522,34 +517,15 @@ export function useWallet() {
   }, [walletConnectConfigured, kitConnected, disconnectAsync]);
 
   useEffect(() => {
-    if (!walletConnectConfigured || !kitConnected || !kitAddress) {
-      if (!kitAddress) linkingRef.current = null;
-      return;
-    }
-
-    if (isWalletSessionClearedByUser()) {
-      return;
-    }
-
+    if (!walletConnectConfigured || !kitConnected || !kitAddress) return;
+    if (isWalletSessionClearedByUser()) return;
+    setAccount(kitAddress);
+    setIsConnected(true);
     const n = normalizeChainNum(kitChainId);
     if (n != null && n !== POLYGON_NUM) {
       appKitSwitchNetwork().catch((e: unknown) => console.error('AppKit switch network', e));
-      return;
     }
-
-    const addr = kitAddress;
-    if (linkingRef.current === `done:${addr}`) return;
-    if (linkingRef.current === `rejected:${addr}`) return;
-
-    syncKitWalletWithServer(addr).catch(() => {});
-  }, [
-    walletConnectConfigured,
-    kitConnected,
-    kitAddress,
-    kitChainId,
-    appKitSwitchNetwork,
-    syncKitWalletWithServer,
-  ]);
+  }, [walletConnectConfigured, kitConnected, kitAddress, kitChainId, appKitSwitchNetwork]);
 
   const checkConnection = useCallback(async () => {
     if (isWalletSessionClearedByUser()) {

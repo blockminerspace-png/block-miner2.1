@@ -11,6 +11,8 @@ import {
   updateWalletAddressSchema,
   miningPayoutModeSchema,
   postDepositEstimateGasSchema,
+  walletLinkChallengeBodySchema,
+  walletLinkVerifyBodySchema,
 } from "./wallet.schemas.js";
 
 export const walletRouter = express.Router();
@@ -47,6 +49,7 @@ const blkConvertLimiter = createDistributedRateLimiter({
   secondaryKeyGenerator: (req) => (req.user?.id ? `uid:${req.user.id}` : null),
 });
 
+walletRouter.get("/me", requireAuth, walletReadLimiter, walletController.getWalletMe);
 walletRouter.get("/balance", requireAuth, walletReadLimiter, walletController.getBalance);
 walletRouter.get("/pol-usd", requireAuth, walletReadLimiter, walletController.getWalletPolUsdPrice);
 walletRouter.get("/transactions", requireAuth, walletReadLimiter, walletController.getTransactions);
@@ -64,6 +67,21 @@ walletRouter.get("/deposit/pending", requireAuth, walletReadLimiter, walletContr
 walletRouter.get("/deposit/hd-address", requireAuth, walletReadLimiter, walletController.getPolygonHdDepositAddress);
 walletRouter.post("/btcpay/invoice", requireAuth, walletLimiter, btcpayDepositController.postBtcpayInvoice);
 walletRouter.get("/btcpay/invoice/:invoiceId", requireAuth, walletReadLimiter, btcpayDepositController.getBtcpayInvoiceStatus);
+walletRouter.post(
+  "/link/challenge",
+  requireAuth,
+  walletLimiter,
+  validateBody(walletLinkChallengeBodySchema),
+  walletController.postWalletLinkChallenge,
+);
+walletRouter.post(
+  "/link/verify",
+  requireAuth,
+  walletLimiter,
+  validateBody(walletLinkVerifyBodySchema),
+  walletController.postWalletLinkVerify,
+);
+walletRouter.delete("/link", requireAuth, walletLimiter, walletController.deleteWalletLink);
 walletRouter.post(
   "/update-address",
   requireAuth,

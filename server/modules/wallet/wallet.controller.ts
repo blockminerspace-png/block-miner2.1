@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { verifyMessage } from "ethers";
 import walletModel from "../../models/walletModel.js";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
@@ -27,12 +26,25 @@ import {
   allocatePolygonHdAddress,
   allocatePolygonHdAddressRemote
 } from "../../services/polygonHdWallet.js";
-import { readErrorCode, readErrorMessage, requireSessionUser } from "../../controllers/controllerHttpStatusError.js";
+import {
+  readErrorCode,
+  readErrorMessage,
+  readHttpStatus,
+  requireSessionUser,
+} from "../../controllers/controllerHttpStatusError.js";
 import { WITHDRAW_PROCESSING_HOURS } from "./wallet.types.js";
 import { normalizeHexAddressEnv } from "./wallet.security.js";
 import { toWalletWithdrawalPublicDto } from "./wallet.dto.js";
 import * as walletRepo from "./wallet.repository.js";
-import { submitWithdrawalRequest } from "./wallet.service.js";
+import {
+  createWalletLinkChallengeForUser,
+  getWalletMeForUser,
+  submitWithdrawalRequest,
+  unlinkWalletForUser,
+  verifyAndLinkWalletForUser,
+  verifyLegacyWalletOwnership,
+} from "./wallet.service.js";
+import { WALLET_ERROR } from "./wallet.errors.js";
 import { withdrawRequestSchema } from "./wallet.schemas.js";
 
 const logger = loggerLib.child("WalletController");
@@ -179,21 +191,51 @@ export async function requestDeposit(req: Request, res: Response) {
   }
 }
 
-export async function updateAddress(req: Request, res: Response) {
+export async function getWalletMe(req: Request, res: Response) {
   try {
     const user = requireSessionUser(req, res);
     if (!user) return;
-    const { walletAddress, signature } = req.body as { walletAddress: string; signature: string };
+    const payload = await getWalletMeForUser(user.id);
+    res.json({ ok: true, ...payload });
+  } catch (error: unknown) {
+    logger.error("getWalletMe error", { error: readErrorMessage(error) });
+    res.status(500).json({ ok: false, message: "Unable to load wallet." });
+  }
+}
 
-    // Verify signature to prevent fraud/spoofing
-    const message = `Verify wallet ownership for Block Miner: ${walletAddress}`;
-    const recoveredAddress = verifyMessage(message, signature);
-
-    if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-      return res.status(401).json({ ok: false, message: "Invalid wallet signature. Ownership not verified." });
+export async function postWalletLinkChallenge(req: Request, res: Response) {
+  try {
+    const user = requireSessionUser(req, res);
+    if (!user) return;
+    const { address, chainId } = req.body as { address: string; chainId: number };
+    const { message } = await createWalletLinkChallengeForUser(user.id, address, chainId);
+    res.json({ ok: true, message });
+  } catch (error: unknown) {
+    const msg = readErrorMessage(error);
+    const http = readHttpStatus(error);
+    if (msg === WALLET_ERROR.INVALID_ADDRESS || http === 400) {
+      res.status(400).json({ ok: false, message: "Invalid wallet address." });
+      return;
     }
+    if (msg === WALLET_ERROR.INVALID_CHAIN) {
+      res.status(400).json({ ok: false, message: "Unsupported network." });
+      return;
+    }
+    logger.error("postWalletLinkChallenge error", { error: msg });
+    res.status(500).json({ ok: false, message: "Unable to start wallet link." });
+  }
+}
 
-    await walletModel.saveWalletAddress(user.id, walletAddress);
+export async function postWalletLinkVerify(req: Request, res: Response) {
+  try {
+    const user = requireSessionUser(req, res);
+    if (!user) return;
+    const { address, chainId, signature } = req.body as {
+      address: string;
+      chainId: number;
+      signature: string;
+    };
+    const { wallet } = await verifyAndLinkWalletForUser(user.id, address, chainId, signature);
     void createAuditLogBestEffort({
       userId: user.id,
       action: "WALLET_LINKED",
@@ -202,13 +244,71 @@ export async function updateAddress(req: Request, res: Response) {
       severity: "success",
       ip: getRequestIp(req),
       userAgent: req.headers?.["user-agent"] || null,
-      details: { walletAddress },
+      details: { walletAddress: wallet.address },
       relatedEntityType: "wallet",
-      relatedEntityId: walletAddress,
+      relatedEntityId: wallet.address,
+    });
+    res.json({ ok: true, wallet, message: "Wallet verified and linked successfully." });
+  } catch (error: unknown) {
+    const msg = readErrorMessage(error);
+    const http = readHttpStatus(error);
+    if (msg === WALLET_ERROR.INVALID_SIGNATURE || http === 401) {
+      res.status(401).json({ ok: false, message: "Invalid wallet signature. Ownership not verified." });
+      return;
+    }
+    if (msg === WALLET_ERROR.CHALLENGE_NOT_FOUND || msg === WALLET_ERROR.CHALLENGE_EXPIRED) {
+      res.status(400).json({ ok: false, message: "Wallet link challenge expired. Request a new one." });
+      return;
+    }
+    if (msg === WALLET_ERROR.INVALID_ADDRESS || http === 400) {
+      res.status(400).json({ ok: false, message: "Invalid wallet address." });
+      return;
+    }
+    logger.error("postWalletLinkVerify error", { error: msg });
+    res.status(500).json({ ok: false, message: "Unable to verify wallet address." });
+  }
+}
+
+export async function deleteWalletLink(req: Request, res: Response) {
+  try {
+    const user = requireSessionUser(req, res);
+    if (!user) return;
+    await unlinkWalletForUser(user.id);
+    res.json({ ok: true, message: "Wallet unlinked." });
+  } catch (error: unknown) {
+    logger.error("deleteWalletLink error", { error: readErrorMessage(error) });
+    res.status(500).json({ ok: false, message: "Unable to unlink wallet." });
+  }
+}
+
+/** Legacy shim — prefer POST /wallet/link/verify with challenge. */
+export async function updateAddress(req: Request, res: Response) {
+  try {
+    const user = requireSessionUser(req, res);
+    if (!user) return;
+    const { walletAddress, signature } = req.body as { walletAddress: string; signature: string };
+    const { wallet } = await verifyLegacyWalletOwnership(user.id, walletAddress, signature);
+    void createAuditLogBestEffort({
+      userId: user.id,
+      action: "WALLET_LINKED",
+      label: "Wallet linked",
+      source: "user",
+      severity: "success",
+      ip: getRequestIp(req),
+      userAgent: req.headers?.["user-agent"] || null,
+      details: { walletAddress: wallet.address },
+      relatedEntityType: "wallet",
+      relatedEntityId: wallet.address,
     });
     res.json({ ok: true, message: "Wallet verified and linked successfully." });
   } catch (error: unknown) {
-    logger.error("Error updating address", { error: readErrorMessage(error) });
+    const msg = readErrorMessage(error);
+    const http = readHttpStatus(error);
+    if (msg === WALLET_ERROR.INVALID_SIGNATURE || http === 401) {
+      res.status(401).json({ ok: false, message: "Invalid wallet signature. Ownership not verified." });
+      return;
+    }
+    logger.error("Error updating address", { error: msg });
     res.status(500).json({ ok: false, message: "Unable to verify wallet address." });
   }
 }

@@ -123,3 +123,39 @@ export type WalletDepositTicketPostResponse = {
   ok: boolean;
   message?: string;
 };
+
+export type SavedWalletState = {
+  walletAddress: `0x${string}` | null;
+  chainId: number | null;
+  verifiedAt: string | null;
+};
+
+export type ConnectedWalletState = {
+  address: `0x${string}`;
+  chainId: number;
+  providerName: string;
+} | null;
+
+export type WalletMeResponse = {
+  ok: boolean;
+  wallet: {
+    address: string;
+    chainId: number | null;
+    verifiedAt: string | null;
+  } | null;
+};
+
+export type WalletLinkChallengeResponse = {
+  ok: boolean;
+  message?: string;
+};
+
+export type WalletLinkVerifyResponse = {
+  ok: boolean;
+  message?: string;
+  wallet?: {
+    address: string;
+    chainId: number | null;
+    verifiedAt: string | null;
+  };
+};

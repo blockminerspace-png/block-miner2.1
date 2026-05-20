@@ -9,6 +9,9 @@ import type {
   WalletDepositTicketPostResponse,
   WalletDepositTicketsResponse,
   WalletHdAddressResponse,
+  WalletLinkChallengeResponse,
+  WalletLinkVerifyResponse,
+  WalletMeResponse,
   WalletPendingDepositsResponse,
   WalletPolUsdResponse,
   WalletTransactionsResponse,
@@ -19,6 +22,18 @@ import type {
 /** Cliente da Carteira — paths relativos a `/api` (axios `baseURL`). */
 export const walletApi = {
   getPolUsd: (): Promise<AxiosResponse<WalletPolUsdResponse>> => api.get('/wallet/pol-usd'),
+  getWalletMe: (): Promise<AxiosResponse<WalletMeResponse>> => api.get('/wallet/me'),
+  postWalletLinkChallenge: (body: {
+    address: string;
+    chainId: number;
+  }): Promise<AxiosResponse<WalletLinkChallengeResponse>> => api.post('/wallet/link/challenge', body),
+  postWalletLinkVerify: (body: {
+    address: string;
+    chainId: number;
+    signature: string;
+  }): Promise<AxiosResponse<WalletLinkVerifyResponse>> => api.post('/wallet/link/verify', body),
+  deleteWalletLink: (): Promise<AxiosResponse<{ ok: boolean; message?: string }>> =>
+    api.delete('/wallet/link'),
   getBalance: (): Promise<AxiosResponse<WalletBalanceResponse>> => api.get('/wallet/balance'),
   getTransactions: (): Promise<AxiosResponse<WalletTransactionsResponse>> => api.get('/wallet/transactions'),
   getDepositPending: (): Promise<AxiosResponse<WalletPendingDepositsResponse>> => api.get('/wallet/deposit/pending'),

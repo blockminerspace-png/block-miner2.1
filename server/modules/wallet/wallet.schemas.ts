@@ -19,6 +19,26 @@ export const updateWalletAddressSchema = z.object({
   signature: z.string().min(1),
 });
 
+const evmAddressSchema = z
+  .string()
+  .trim()
+  .refine((a) => EVM_ADDRESS_REGEX.test(a), { message: "Invalid wallet address format." });
+
+export const walletLinkChallengeBodySchema = z
+  .object({
+    address: evmAddressSchema,
+    chainId: z.coerce.number().int().positive(),
+  })
+  .strict();
+
+export const walletLinkVerifyBodySchema = z
+  .object({
+    address: evmAddressSchema,
+    chainId: z.coerce.number().int().positive(),
+    signature: z.string().min(1),
+  })
+  .strict();
+
 export const miningPayoutModeSchema = z.object({
   mode: z
     .string()
