@@ -10,8 +10,16 @@ const inventoryDto = readFileSync(
   new URL("../../server/modules/inventory/inventory.dto.ts", import.meta.url),
   "utf8",
 );
-const roomsController = readFileSync(
-  new URL("../../server/controllers/roomsController.ts", import.meta.url),
+const roomsService = readFileSync(
+  new URL("../../server/modules/rooms/rooms.service.ts", import.meta.url),
+  "utf8",
+);
+const roomsDto = readFileSync(
+  new URL("../../server/modules/rooms/rooms.dto.ts", import.meta.url),
+  "utf8",
+);
+const roomsRepository = readFileSync(
+  new URL("../../server/modules/rooms/rooms.repository.ts", import.meta.url),
   "utf8",
 );
 const shopController = readFileSync(
@@ -32,8 +40,13 @@ describe("inventory machine image wiring", () => {
   });
 
   it("rack list resolves miner image from snapshot helper", () => {
-    assert.match(roomsController, /resolveOwnedMachineImageUrl/);
-    assert.match(roomsController, /ownedMachine:\s*\{\s*select:\s*\{\s*imageUrl:\s*true,\s*minerName:\s*true\s*\}/);
+    assert.match(roomsDto, /resolveOwnedMachineImageUrl/);
+    assert.match(roomsDto, /imageSource/);
+    assert.match(
+      roomsRepository,
+      /ownedMachine:\s*\{\s*select:\s*\{\s*imageUrl:\s*true,\s*minerName:\s*true\s*\}/,
+    );
+    assert.doesNotMatch(roomsService, /DEFAULT_MINER_IMAGE_URL/);
   });
 
   it("shop purchase does not persist reward1 placeholder", () => {
