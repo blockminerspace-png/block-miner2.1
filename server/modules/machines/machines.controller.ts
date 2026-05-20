@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import type { Prisma } from "@prisma/client";
 import * as machineModel from "../../models/machineModel.js";
-import * as inventoryModel from "../../models/inventoryModel.js";
 import * as minersModel from "../../models/minersModel.js";
 import { getOrCreateMinerProfile, syncUserBaseHashRate } from "../../models/minerProfileModel.js";
 import { getMiningEngine } from "../../src/miningEngineInstance.js";

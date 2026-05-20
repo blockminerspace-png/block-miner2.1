@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const inventoryController = readFileSync(
-  new URL("../../server/controllers/inventoryController.ts", import.meta.url),
+const inventoryService = readFileSync(
+  new URL("../../server/modules/inventory/inventory.service.ts", import.meta.url),
+  "utf8",
+);
+const inventoryDto = readFileSync(
+  new URL("../../server/modules/inventory/inventory.dto.ts", import.meta.url),
   "utf8",
 );
 const roomsController = readFileSync(
@@ -21,9 +25,10 @@ const machineTs = readFileSync(
 
 describe("inventory machine image wiring", () => {
   it("getInventory maps imageUrl via ownedMachineImage helper", () => {
-    assert.match(inventoryController, /resolveOwnedMachineImageUrl/);
-    assert.match(inventoryController, /imageSource/);
-    assert.doesNotMatch(inventoryController, /DEFAULT_MINER_IMAGE_URL/);
+    assert.match(inventoryService, /resolveOwnedMachineImageUrl/);
+    assert.match(inventoryDto, /imageSource/);
+    assert.doesNotMatch(inventoryService, /DEFAULT_MINER_IMAGE_URL/);
+    assert.doesNotMatch(inventoryDto, /DEFAULT_MINER_IMAGE_URL/);
   });
 
   it("rack list resolves miner image from snapshot helper", () => {
