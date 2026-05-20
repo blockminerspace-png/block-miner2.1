@@ -27,8 +27,21 @@ import {
 
 function formatMilestoneReward(m: CheckinMilestoneRow, t: TFunction): string {
   const rt = String(m.rewardType || '').toLowerCase();
-  if (rt === 'pol' && Number(m.rewardValue) > 0) {
+  if (m.displayTitle) return m.displayTitle;
+  if ((rt === 'pol' || rt === 'balance') && Number(m.rewardValue) > 0) {
     return t('checkin.milestone_reward_pol', { value: String(m.rewardValue) });
+  }
+  if ((rt === 'stelar' || rt === 'zer') && Number(m.rewardValue) > 0) {
+    return t('checkin.milestone_reward_stelar', {
+      value: String(m.rewardValue),
+      defaultValue: `+${m.rewardValue} Estelar`,
+    });
+  }
+  if (rt === 'machine') {
+    return t('checkin.milestone_reward_machine', { defaultValue: 'Mining machine' });
+  }
+  if (rt === 'item' && m.itemCode) {
+    return t('checkin.milestone_reward_item', { code: m.itemCode, defaultValue: `Item ${m.itemCode}` });
   }
   if (rt === 'hashrate' && Number(m.rewardValue) > 0) {
     return t('checkin.milestone_reward_hashrate', {
@@ -222,6 +235,13 @@ export default function Checkin() {
         } else {
           toast.error(err.message);
         }
+        if (status?.allowsOffchainCheckin) {
+          toast.message(
+            t('checkin.wallet_failed_try_balance', {
+              defaultValue: 'You can complete check-in using in-game POL instead.',
+            }),
+          );
+        }
       } else {
         const e = err as { code?: number | string; message?: string };
         if (e?.code === 4001 || e?.code === '4001') {
@@ -282,8 +302,11 @@ export default function Checkin() {
   const rawRecent = Array.isArray(status.recentCheckins) ? status.recentCheckins : [];
   const recentCheckins = rawRecent.filter((row) => row && isValidHistoryDateKey(row.date));
   const milestones = Array.isArray(status.milestones) ? status.milestones : [];
-  const walletPaymentConfigured = Boolean(resolveCheckinPaymentTarget(status));
+  const allowsOffchain = status.allowsOffchainCheckin !== false;
+  const allowsWallet = status.allowsWalletCheckin !== false;
+  const walletPaymentConfigured = allowsWallet && Boolean(resolveCheckinPaymentTarget(status));
   const browserWalletAvailable = hasInjectedWallet();
+  const showWalletBlock = status.walletLinked || allowsOffchain;
   const balanceWeiStr = status.checkinBalanceAmountWei || '0';
   const polBal = Number(status.polBalance ?? 0);
   const balanceAffordable = balanceCoversWeiCost(polBal, balanceWeiStr);
@@ -315,6 +338,22 @@ export default function Checkin() {
                 </div>
                 <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">{t('checkin.streak_sub')}</p>
                 <p className="text-[10px] text-slate-600 mt-2 leading-relaxed">{t('checkin.streak_daily_note')}</p>
+                {status.graceEndsAt ? (
+                  <p className="text-[10px] text-amber-500/90 mt-1">
+                    {t('checkin.grace_until', {
+                      defaultValue: 'Grace period until {{time}}',
+                      time: new Date(status.graceEndsAt).toLocaleString(),
+                    })}
+                  </p>
+                ) : null}
+                {status.nextResetAt ? (
+                  <p className="text-[10px] text-slate-600 mt-1">
+                    {t('checkin.next_reset', {
+                      defaultValue: 'Next reset: {{time}}',
+                      time: new Date(status.nextResetAt).toLocaleString(),
+                    })}
+                  </p>
+                ) : null}
                 {totalConfirmed > 0 && (
                   <p className="text-[10px] text-slate-600 mt-2">
                     {t('checkin.total_days')}: <span className="text-slate-400 font-mono">{totalConfirmed}</span>
@@ -327,7 +366,7 @@ export default function Checkin() {
         </div>
 
         <div className="space-y-5">
-          {!status.walletLinked ? (
+          {!showWalletBlock ? (
             <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-10 shadow-xl text-center space-y-4">
               <p className="text-gray-400 text-sm">{t('checkin.link_wallet_hint')}</p>
               <Link
@@ -339,6 +378,13 @@ export default function Checkin() {
             </div>
           ) : (
             <div className="bg-surface border border-gray-800/50 rounded-[2rem] p-6 shadow-xl space-y-4">
+              {!status.walletLinked && allowsOffchain ? (
+                <p className="text-xs text-slate-500 text-center">
+                  {t('checkin.offchain_without_wallet_hint', {
+                    defaultValue: 'Wallet is optional. You can check in with in-game POL, or link a wallet for on-chain payment.',
+                  })}
+                </p>
+              ) : null}
               <div>
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em]">{t('checkin.cadence.daily')}</h3>
                 <p className="text-sm font-mono text-amber-500/90 mt-1">{cs.periodKey || '—'}</p>
@@ -403,6 +449,7 @@ export default function Checkin() {
                     </div>
                   )}
 
+                  {allowsWallet ? (
                   <button
                     type="button"
                     onClick={() => void handleWalletDaily()}
@@ -412,7 +459,8 @@ export default function Checkin() {
                       cs.pending ||
                       !walletPaymentConfigured ||
                       cs.checkedIn ||
-                      !browserWalletAvailable
+                      !browserWalletAvailable ||
+                      !status.walletLinked
                     }
                     aria-busy={paying}
                     className="flex w-full min-h-[3.75rem] flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 rounded-2xl bg-amber-500 px-4 py-3 text-slate-950 shadow-lg shadow-amber-500/15 hover:bg-amber-600 disabled:opacity-50"
@@ -429,7 +477,9 @@ export default function Checkin() {
                       <span className="text-xs sm:text-sm font-black tracking-wide normal-case">{t('checkin.cta_wallet_line2')}</span>
                     </span>
                   </button>
+                  ) : null}
 
+                  {allowsOffchain ? (
                   <button
                     type="button"
                     onClick={() => void handleBalanceDaily()}
@@ -449,8 +499,9 @@ export default function Checkin() {
                       <span className="text-xs sm:text-sm font-black tracking-wide normal-case">{t('checkin.cta_balance_line2')}</span>
                     </span>
                   </button>
+                  ) : null}
 
-                  {!browserWalletAvailable && (
+                  {allowsWallet && !browserWalletAvailable && (
                     <p className="text-center text-xs text-slate-500 leading-relaxed">{t('checkin.no_wallet')}</p>
                   )}
                 </div>

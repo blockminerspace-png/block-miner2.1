@@ -16,6 +16,8 @@ export type CheckinMilestoneRow = {
   rewardType?: string;
   rewardValue?: string | number;
   validityDays?: number | null;
+  minerId?: number | null;
+  itemCode?: string | null;
   state?: string;
 };
 
@@ -24,11 +26,19 @@ export type CheckinRecentRow = {
   confirmedAt?: string | null;
 };
 
+export type CheckinUpcomingMilestone = {
+  day: number;
+  rewardType: string;
+  label: string;
+};
+
 export type CheckinStatusPayload = {
   ok?: boolean;
   statusDegraded?: boolean;
   cadenceStatus?: { daily: CheckinCadenceDailySlice };
   checkedIn?: boolean;
+  todayCheckedIn?: boolean;
+  canCheckin?: boolean;
   pending?: boolean;
   failed?: boolean;
   status?: string | null;
@@ -37,6 +47,13 @@ export type CheckinStatusPayload = {
   totalConfirmed?: number;
   recentCheckins?: CheckinRecentRow[];
   walletLinked?: boolean;
+  savedWallet?: string | null;
+  checkinMode?: 'offchain' | 'onchain' | 'hybrid';
+  allowsWalletCheckin?: boolean;
+  allowsOffchainCheckin?: boolean;
+  nextResetAt?: string;
+  graceEndsAt?: string | null;
+  upcomingMilestones?: CheckinUpcomingMilestone[];
   paymentRequired?: boolean;
   checkinReceiver?: string | null;
   checkinContractAddress?: string | null;

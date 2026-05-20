@@ -3,11 +3,23 @@ import { Prisma } from "../src/db/prismaNamespace.js";
 import prisma from "../src/db/prisma.js";
 import {
   REWARD_HASHRATE,
+  REWARD_ITEM,
+  REWARD_MACHINE,
   REWARD_NONE,
   REWARD_POL,
+  REWARD_STELAR,
 } from "../services/checkinMilestoneService.js";
 
-const TYPES = new Set<string>([REWARD_POL, REWARD_HASHRATE, REWARD_NONE]);
+const TYPES = new Set<string>([
+  REWARD_POL,
+  REWARD_HASHRATE,
+  REWARD_NONE,
+  REWARD_STELAR,
+  REWARD_MACHINE,
+  REWARD_ITEM,
+  "balance",
+  "zer",
+]);
 
 function getPrismaCode(e: unknown): string | undefined {
   if (e !== null && typeof e === "object" && "code" in e) {
@@ -40,6 +52,9 @@ type MilestoneBody = {
   description?: unknown;
   active?: unknown;
   sortOrder?: unknown;
+  minerId?: unknown;
+  itemCode?: unknown;
+  metadataJson?: unknown;
 };
 
 type MilestoneInput = Parameters<(typeof prisma.checkinStreakMilestone)["create"]>[0]["data"];
@@ -65,6 +80,18 @@ function parseBody(body: unknown): MilestoneInput {
   const active = b.active !== false;
   const sortOrder = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 0;
 
+  const minerIdRaw = b.minerId;
+  const minerId =
+    minerIdRaw === undefined || minerIdRaw === null || minerIdRaw === ""
+      ? null
+      : Number(minerIdRaw);
+  if (minerId != null && (!Number.isInteger(minerId) || minerId < 1)) {
+    throw new Error("minerId must be a positive integer when provided.");
+  }
+  const itemCode = b.itemCode != null ? String(b.itemCode).trim() || null : null;
+  const metadataJson =
+    b.metadataJson != null && typeof b.metadataJson === "object" ? b.metadataJson : undefined;
+
   return {
     dayThreshold,
     rewardType,
@@ -74,6 +101,9 @@ function parseBody(body: unknown): MilestoneInput {
     description,
     active,
     sortOrder,
+    minerId,
+    itemCode,
+    ...(metadataJson !== undefined ? { metadataJson } : {}),
   };
 }
 

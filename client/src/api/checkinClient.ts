@@ -7,6 +7,12 @@ export async function fetchCheckinStatus(): Promise<CheckinStatusPayload> {
   return res.data;
 }
 
+/** POST /api/checkin/claim — offchain/balance path (hybrid/offchain modes). */
+export async function postCheckinClaimDaily(): Promise<CheckinPostPayload> {
+  const res = await api.post<CheckinPostPayload>('/checkin/claim', { cadence: 'daily', method: 'offchain' });
+  return res.data;
+}
+
 /** POST /api/checkin/balance — in-game POL debit path. */
 export async function postCheckinBalanceDaily(): Promise<CheckinPostPayload> {
   const res = await api.post<CheckinPostPayload>('/checkin/balance', { cadence: 'daily' });

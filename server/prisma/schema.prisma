@@ -408,6 +408,7 @@ model Miner {
   shortlinkRew  ShortlinkReward?
   miniPassLevelRewards MiniPassLevelReward[]
   dailyTaskRewardDefs DailyTaskDefinition[]
+  checkinStreakMilestones CheckinStreakMilestone[]
 
   @@index([isActive, showInShop])
   @@index([isArchived])
@@ -851,6 +852,8 @@ model DailyCheckin {
   chainId     Int       @map("chain_id")
   paymentMethod String  @default("wallet") @map("payment_method")
   streak      Int       @default(0) @map("streak")
+  usedGrace   Boolean   @default(false) @map("used_grace")
+  usedFreeze  Boolean   @default(false) @map("used_freeze")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -888,9 +891,13 @@ model CheckinStreakMilestone {
   description   String?  @db.Text
   active        Boolean  @default(true)
   sortOrder     Int      @default(0) @map("sort_order")
+  minerId       Int?     @map("miner_id")
+  itemCode      String?  @map("item_code")
+  metadataJson  Json?    @map("metadata_json")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  miner  Miner?                   @relation(fields: [minerId], references: [id], onDelete: SetNull)
   claims UserCheckinStreakReward[]
 
   @@unique([dayThreshold])

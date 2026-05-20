@@ -13,7 +13,10 @@ const confirmLimiter = createRateLimiter({ windowMs: 60_000, max: 25 });
 const checkinPath = sidebarRegistryPath(SIDEBAR_ITEM_REGISTRY.checkin.path, "checkin");
 
 checkinRouter.get("/status", requireAuth, requireVisibleSidebarPath(checkinPath), statusLimiter, checkinController.getStatus);
+checkinRouter.get("/rewards", requireAuth, requireVisibleSidebarPath(checkinPath), statusLimiter, checkinController.getCheckinRewards);
+checkinRouter.get("/history", requireAuth, requireVisibleSidebarPath(checkinPath), statusLimiter, checkinController.getCheckinHistory);
 checkinRouter.post("/claim", requireAuth, requireVisibleSidebarPath(checkinPath), confirmLimiter, checkinController.claimCheckin);
+checkinRouter.post("/claim/onchain", requireAuth, requireVisibleSidebarPath(checkinPath), confirmLimiter, checkinController.claimCheckinOnchain);
 checkinRouter.post("/confirm", requireAuth, requireVisibleSidebarPath(checkinPath), confirmLimiter, checkinController.confirmCheckin);
 checkinRouter.post("/wallet", requireAuth, requireVisibleSidebarPath(checkinPath), confirmLimiter, checkinController.checkinWallet);
 checkinRouter.post("/balance", requireAuth, requireVisibleSidebarPath(checkinPath), confirmLimiter, checkinController.checkinBalance);

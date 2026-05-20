@@ -4,8 +4,28 @@ import prisma from "../../src/db/prisma.js";
 import { Prisma } from "@prisma/client";
 import type { DailyCheckin } from "@prisma/client";
 import { applyUserBalanceDelta } from "../../src/runtime/miningRuntime.js";
-import { getBrazilCheckinDateKey, getBrazilDateKeyAliases, normalizeBrazilDateKey } from "../../utils/checkinDate.js";
-import { computeCheckinStreak } from "../../utils/checkinStreak.js";
+import {
+  addDaysToBrazilDateKey,
+  getBrazilCheckinDateKey,
+  getBrazilDateKeyAliases,
+  normalizeBrazilDateKey,
+} from "../../utils/checkinDate.js";
+import { computeCheckinStreak, computeStreakAfterCheckin } from "../../utils/checkinStreak.js";
+import { getCheckinPeriodKey, getGraceEndsAt, getNextResetAt } from "../../utils/checkinPeriod.js";
+import {
+  allowsOffchainCheckin,
+  allowsWalletCheckin,
+  getCheckinGraceHours,
+  getCheckinMaxFreezeUsesPerMonth,
+  getCheckinMaxGraceUsesPerMonth,
+  getCheckinMode,
+  isCheckinStreakFreezeEnabled,
+  requiresWalletForOffchainCheckin,
+} from "./checkin.config.js";
+import {
+  countFreezeUsesInMonth,
+  countGraceUsesInMonth,
+} from "./checkin.repository.js";
 import {
   assertValidTxHash,
   normalizeAddr,
@@ -23,8 +43,9 @@ import { advisoryXactTryLockOrThrow } from "../../services/distributedLockServic
 import { lockUserRowForUpdate } from "../../utils/transactionLocks.js";
 import {
   applyStreakMilestoneRewards,
-  buildMilestoneStatusForUser
-} from "../../services/checkinMilestoneService.js";
+  buildMilestoneStatusForUser,
+  buildUpcomingMilestones,
+} from "./checkin.rewards.js";
 import { notifyMiniPassLoginDay } from "../../services/miniPass/miniPassMissionHookService.js";
 import { notifyDailyTaskLoginDay } from "../../services/dailyTasks/dailyTaskHookService.js";
 import { getMiningEngine } from "../../src/miningEngineInstance.js";
@@ -115,7 +136,20 @@ function parseCadenceFromBody(body: unknown): "daily" | null {
 }
 
 function periodKeyForCadence(_cadence: "daily", now: Date = new Date()): string {
-  return getBrazilCheckinDateKey(now);
+  return getCheckinPeriodKey(now);
+}
+
+async function resolveStreakFlags(userId: number, periodKey: string) {
+  return computeStreakAfterCheckin(
+    { userId, periodKey },
+    {
+      countGraceUsesInMonth: countGraceUsesInMonth,
+      countFreezeUsesInMonth: countFreezeUsesInMonth,
+      maxGracePerMonth: getCheckinMaxGraceUsesPerMonth(),
+      maxFreezePerMonth: getCheckinMaxFreezeUsesPerMonth(),
+      freezeEnabled: isCheckinStreakFreezeEnabled(),
+    },
+  );
 }
 
 function buildDailyCheckinDayWhere(userId: number, dateOrKey: Date | string = new Date()) {
@@ -426,12 +460,22 @@ export async function getStatus(req: Request, res: Response) {
 
     const dailyFromBundle = cadenceStatus?.daily;
 
+    const todayCheckedIn = statusDegraded ? false : dailyFromBundle?.checkedIn ?? false;
+    const todayPending = statusDegraded ? false : dailyFromBundle?.pending ?? false;
+    const yesterdayKey = addDaysToBrazilDateKey(periodKeyForCadence("daily"), -1);
+    const graceEndsAt =
+      !statusDegraded && getCheckinGraceHours() > 0 && !todayCheckedIn
+        ? getGraceEndsAt(yesterdayKey).toISOString()
+        : null;
+
     res.json({
       ok: true,
       statusDegraded,
       cadenceStatus: statusDegraded ? null : cadenceStatus,
-      checkedIn: statusDegraded ? false : dailyFromBundle?.checkedIn ?? false,
-      pending: statusDegraded ? false : dailyFromBundle?.pending ?? false,
+      checkedIn: todayCheckedIn,
+      todayCheckedIn,
+      canCheckin: !todayCheckedIn && !todayPending,
+      pending: todayPending,
       failed: statusDegraded ? false : dailyFromBundle?.failed ?? false,
       status: statusDegraded ? null : dailyFromBundle?.status ?? null,
       txHash: statusDegraded ? null : dailyFromBundle?.txHash ?? null,
@@ -441,7 +485,13 @@ export async function getStatus(req: Request, res: Response) {
       recentWeekly: [],
       recentMonthly: [],
       walletLinked: Boolean(wallet),
-      paymentRequired: true,
+      savedWallet: wallet,
+      paymentRequired: isCheckinPaymentRequired(),
+      checkinMode: getCheckinMode(),
+      allowsWalletCheckin: allowsWalletCheckin(),
+      allowsOffchainCheckin: allowsOffchainCheckin(),
+      nextResetAt: getNextResetAt().toISOString(),
+      graceEndsAt,
       checkinReceiver: getReceiver() || null,
       checkinContractAddress: resolveCheckinContractAddress() || null,
       checkinAmountWei: walletWei.toString(),
@@ -451,7 +501,8 @@ export async function getStatus(req: Request, res: Response) {
       rpcConfigured:
         treasuryOk && Boolean(process.env.AETHER_RPC_URL?.trim() || process.env.POLYGON_RPC_URL?.trim()),
       milestones: statusDegraded ? [] : milestones,
-      polBalance: statusDegraded ? 0 : polBalance
+      upcomingMilestones: statusDegraded ? [] : buildUpcomingMilestones(milestones),
+      polBalance: statusDegraded ? 0 : polBalance,
     });
   } catch (e: unknown) {
     if (e instanceof Error && e.message === "UNAUTHENTICATED") {
@@ -475,17 +526,52 @@ export async function claimCheckin(req: Request, res: Response) {
     if (!userId) {
       return jsonCheckinError(res, 401, "UNAUTHORIZED", "Authentication required.");
     }
-
-    logSecurityWarn("checkin_claim_rejected_wallet_only", { userId, path: req.path }, req);
-    return jsonCheckinError(
-      res,
-      400,
-      "PAYMENT_REQUIRED",
-      "Daily check-in requires payment: 0.01 POL from your linked wallet on Polygon (verified on-chain) or 0.03 POL debited from your in-game POL balance. Use the Check-in page."
-    );
+    if (!allowsOffchainCheckin()) {
+      return jsonCheckinError(
+        res,
+        400,
+        "ONCHAIN_ONLY",
+        "Check-in is on-chain only. Use wallet payment with a valid transaction hash.",
+      );
+    }
+    return checkinBalance(req, res);
   } catch (e: unknown) {
     checkinLog.error("claimCheckin", prismaSafeErrorMeta(e));
     return res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to complete check-in." });
+  }
+}
+
+/** POST /api/checkin/claim/onchain — alias for wallet tx confirmation. */
+export async function claimCheckinOnchain(req: Request, res: Response) {
+  return confirmCheckin(req, res);
+}
+
+export async function getCheckinRewards(req: Request, res: Response) {
+  try {
+    const userId = requireUserId(req);
+    const streak = await computeCheckinStreak(userId);
+    const milestones = await buildMilestoneStatusForUser(userId, streak);
+    res.json({ ok: true, streak, milestones, upcomingMilestones: buildUpcomingMilestones(milestones) });
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === "UNAUTHENTICATED") {
+      return jsonCheckinError(res, 401, "UNAUTHENTICATED", "Sessão expirada ou ausente.");
+    }
+    checkinLog.error("getCheckinRewards", prismaSafeErrorMeta(e));
+    return res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to load rewards." });
+  }
+}
+
+export async function getCheckinHistory(req: Request, res: Response) {
+  try {
+    const userId = requireUserId(req);
+    const history = await loadRecentHistory(userId, 60);
+    res.json({ ok: true, history });
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === "UNAUTHENTICATED") {
+      return jsonCheckinError(res, 401, "UNAUTHENTICATED", "Sessão expirada ou ausente.");
+    }
+    checkinLog.error("getCheckinHistory", prismaSafeErrorMeta(e));
+    return res.status(500).json({ ok: false, code: "CHECKIN_SERVER_ERROR", message: "Unable to load history." });
   }
 }
 
@@ -557,8 +643,16 @@ async function findConflictingCheckinTxHash(
 }
 
 async function confirmDailyCheckin(req: Request, res: Response) {
+  if (!allowsWalletCheckin()) {
+    return jsonCheckinError(
+      res,
+      400,
+      "OFFCHAIN_ONLY",
+      "Wallet check-in is disabled. Use in-game balance check-in instead.",
+    );
+  }
   const userId = requireUserId(req);
-  const today = getBrazilCheckinDateKey();
+  const today = getCheckinPeriodKey();
   const body = parseTxHashFromBody(req.body);
   if ("error" in body && body.error) {
     return jsonCheckinError(res, 400, body.error.code, body.error.message);
@@ -693,10 +787,14 @@ async function confirmDailyCheckin(req: Request, res: Response) {
         } as ConfirmTxOutcome;
       }
 
+      const streakFlags = await resolveStreakFlags(userId, today);
       await writeDailyCheckinForBrazilDay(tx, userId, today, existing, {
         ...baseRow,
         status: "confirmed",
-        confirmedAt: new Date()
+        confirmedAt: new Date(),
+        streak: streakFlags.streakAfter,
+        usedGrace: streakFlags.usedGrace,
+        usedFreeze: streakFlags.usedFreeze,
       });
       return { type: "confirmed" } as ConfirmTxOutcome;
     });
@@ -806,7 +904,7 @@ export async function checkinBalance(req: Request, res: Response) {
       'Only daily check-in is available. Send cadence: "daily".'
     );
   }
-  const today = getBrazilCheckinDateKey();
+  const today = getCheckinPeriodKey();
   const balanceWei = getBalanceCheckinWei();
   const cost = polDecimalFromWei(balanceWei);
   const synthTx = balanceCheckinSyntheticTxHash(userId, today);
@@ -823,7 +921,7 @@ export async function checkinBalance(req: Request, res: Response) {
       if (!user || user.isBanned) {
         throw new CheckinHttpError("FORBIDDEN", "forbidden");
       }
-      if (!user.walletAddress?.trim()) {
+      if (requiresWalletForOffchainCheckin() && !user.walletAddress?.trim()) {
         throw new CheckinHttpError("WALLET_REQUIRED", "wallet");
       }
 
@@ -850,13 +948,17 @@ export async function checkinBalance(req: Request, res: Response) {
         select: { polBalance: true }
       });
 
+      const streakFlags = await resolveStreakFlags(userId, today);
       await writeDailyCheckinForBrazilDay(tx, userId, today, existing, {
         txHash: synthTx,
         status: "confirmed",
         confirmedAt: new Date(),
         amount: Number(balanceWei) / 1e18,
         chainId: CHAIN_INTERNAL_CHECKIN,
-        paymentMethod: "balance"
+        paymentMethod: "balance",
+        streak: streakFlags.streakAfter,
+        usedGrace: streakFlags.usedGrace,
+        usedFreeze: streakFlags.usedFreeze,
       });
 
       return { kind: "ok", polBalance: Number(updatedUser?.polBalance ?? 0), debit: Number(cost) };
