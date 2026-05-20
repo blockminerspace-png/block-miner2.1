@@ -174,14 +174,114 @@ Confirmado por preservação literal de:
 
 ---
 
-## 18. Testes existentes
+## 18. Testes existentes (primeira validação)
 
 | Teste | Resultado |
 |-------|-----------|
 | `tests/inventory/inventoryMachineImages.test.mjs` | **4/4 pass** — lê `rooms.dto.ts`, `rooms.repository.ts`, `rooms.service.ts` |
-| `tests/rooms.test.js` | Não executado nesta sessão (requer DB/fixtures); shim `roomsController` mantém exports para imports existentes |
+| `tests/rooms.test.js` | Pendente na migração inicial — ver secção **Validação da suíte existente rooms.test.js** abaixo |
 
 Nenhum teste novo criado. Nenhum teste apagado.
+
+---
+
+## Validação da suíte existente `rooms.test.js`
+
+**Data:** 2026-05-20
+
+### 1. Comando usado
+
+```bash
+npm run build:server
+NODE_ENV=test JWT_SECRET=testsecret node --test tests/rooms.test.js
+```
+
+Equivalente ao fluxo do projeto após `pretest` (build gera `dist/server` para imports `#server/*`). O runner global `npm test` usa `node scripts/run-node-tests.mjs` (todos os `tests/**/*.test.{js,mjs}`); para este fecho foi usado ficheiro isolado.
+
+Também validado:
+
+```bash
+node --test tests/inventory/inventoryMachineImages.test.mjs
+```
+
+### 2. Ambiente
+
+- Imagem: `node:20-bookworm-slim` (Docker, volume montado no repo)
+- `openssl` + `npm ci` + `npx prisma generate --schema=server/prisma/schema.prisma`
+- **Sem** PostgreSQL real — testes fazem **mock** de `prisma.*` in-process
+
+### 3. DB / fixtures
+
+- **DB real:** não necessário; `DATABASE_URL` default no ficheiro de teste não é contactado quando mocks estão ativos
+- **Fixtures:** dados inline nos mocks (`userRoom.findMany`, `userRack.findFirst`, `prisma.$transaction` fakeTx, etc.)
+- **Shim:** `import * as roomsController from "#server/controllers/roomsController.js"` → compila para módulo `server/modules/rooms/rooms.controller.js`
+
+### 4. Resultado inicial
+
+**17/20 pass**, **3 fail**:
+
+| Teste | Esperado | Obtido |
+|-------|----------|--------|
+| uninstallMiner RACK_EMPTY | 400 | 500 |
+| uninstallMiner rack não encontrado | 404 | 500 |
+| installMiner inventário inexistente | 404 | 500 |
+
+### 5. Erro / causa real
+
+Após migração, validações de rack/inventário (404/400) corriam **depois** de `resolveCriticalMutation`. Os casos de teste chamam o controller **sem** `req.criticalIdempotency` (sem middleware Express), logo `resolveCriticalMutation` respondia **500** (`Idempotency middleware is not configured`).
+
+No controller legado, essas validações ocorriam **antes** da idempotência.
+
+### 6. Correção aplicada
+
+Em `server/modules/rooms/` (sem alterar economia nem payloads):
+
+- `rooms.service.ts`: `preflightInstallMiner` / `preflightUninstallMiner` + `resolveInstallMinerContext` partilhado
+- `rooms.controller.ts`: chama preflight **antes** de `resolveCriticalMutation` em install/uninstall
+
+Shims inalterados. **Nenhum** teste novo; **nenhum** skip.
+
+### 7. Resultado final `tests/rooms.test.js`
+
+**20/20 pass** (0 fail)
+
+### 8. Resultado `inventoryMachineImages`
+
+**4/4 pass** (inalterado)
+
+### 9. Typecheck / build
+
+| Comando | Resultado |
+|---------|-----------|
+| `npm run typecheck:server` (Docker + prisma generate) | **OK** |
+| `npm run build:server` | **OK** |
+| `npm run build:backend` | **OK** |
+| `cd client && npm run typecheck` | **OK** |
+| `cd client && npm run build` | **OK** |
+
+### 10. Docker build
+
+```bash
+docker compose build --no-cache app worker
+```
+
+**OK** (2026-05-20)
+
+### 11. Shims mínimos
+
+- `server/controllers/roomsController.ts` — só reexport
+- `server/routes/rooms.ts` — só reexport `roomsRouter`
+
+### 12. Prisma no módulo
+
+- Leituras: `rooms.repository.ts`
+- Transações: `rooms.service.ts` (`$transaction` + `tx.*` em batch uninstall)
+- Controller / shims: **0** Prisma
+- `$queryRawUnsafe`: **0**; `new PrismaClient` no módulo: **0**
+
+### 13. Pendências restantes
+
+Nenhuma bloqueante para rooms. Opcional futuro: unificar validação Zod no controller; extrair helpers `tx` para repository (padrão já usado noutros módulos).
 
 ---
 
@@ -199,7 +299,7 @@ Sem alterações. Chamadas existentes em `client/src/pages/machines/machines.api
 
 ## 21. Pendências honestas
 
-1. `tests/rooms.test.js` — validar em ambiente com PostgreSQL + `npm run pretest` quando disponível localmente.
+1. ~~`tests/rooms.test.js`~~ — **fechado** (20/20 com mocks; ver secção de validação).
 2. Schemas Zod criados mas validação principal de body ainda espelha o legado no controller (pode unificar numa fase futura **sem** mudar mensagens).
 3. Transações Prisma no service (não no repository) — consistente com outros módulos já migrados; opcional extrair `rooms.repository.tx*` mais tarde.
 
@@ -217,5 +317,6 @@ Sem alterações. Chamadas existentes em `client/src/pages/machines/machines.api
 | Imagens via helpers partilhados | ✓ |
 | Sem testes novos | ✓ |
 | Teste inventory/rooms wiring passa | ✓ |
+| `tests/rooms.test.js` 20/20 | ✓ |
 | Docker build app/worker | ✓ |
 | Relatório criado | ✓ |

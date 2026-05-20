@@ -71,6 +71,14 @@ export async function installMiner(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const installPreflight = await roomsService.preflightInstallMiner(user.id, rackId, inventoryId);
+    if (installPreflight) {
+      const body: Record<string, unknown> = { ok: false, message: installPreflight.message };
+      if (installPreflight.code) body.code = installPreflight.code;
+      res.status(installPreflight.status).json(body);
+      return;
+    }
+
     const idem = await resolveCriticalMutation(req, res);
     if (!idem) return;
     const { lease, ci } = idem;
@@ -112,6 +120,14 @@ export async function uninstallMiner(req: Request, res: Response): Promise<void>
     if (!Number.isInteger(rackId) || rackId <= 0) {
       logger.warn("uninstallMiner: invalid rackId", { userId: user.id, rackId });
       res.status(400).json({ ok: false, message: "rackId inválido." });
+      return;
+    }
+
+    const uninstallPreflight = await roomsService.preflightUninstallMiner(user.id, rackId);
+    if (uninstallPreflight) {
+      const body: Record<string, unknown> = { ok: false, message: uninstallPreflight.message };
+      if (uninstallPreflight.code) body.code = uninstallPreflight.code;
+      res.status(uninstallPreflight.status).json(body);
       return;
     }
 

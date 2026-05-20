@@ -187,13 +187,18 @@ export type InstallMinerFailure = {
   message: string;
 };
 
-export async function installMinerForUser(
+type InstallMinerContext = {
+  rack: NonNullable<Awaited<ReturnType<typeof roomsRepo.findRackWithRoomForUser>>>;
+  inventoryItem: NonNullable<Awaited<ReturnType<typeof roomsRepo.findInventoryItemForUser>>>;
+  adjacentRack: UserRack | null;
+  slotIndex: number;
+};
+
+async function resolveInstallMinerContext(
   userId: number,
   rackId: number,
   inventoryId: number,
-): Promise<{ inventoryItem: { minerName: string } } | InstallMinerFailure> {
-  logger.info("installMiner attempt", { userId, rackId, inventoryId });
-
+): Promise<InstallMinerFailure | InstallMinerContext> {
   const rack = await roomsRepo.findRackWithRoomForUser(rackId, userId);
   if (!rack) {
     logger.warn("installMiner: rack not found", { userId, rackId });
@@ -245,7 +250,58 @@ export async function installMinerForUser(
     }
   }
 
-  const slotIndex = rackSlotIndex(rack.room.roomNumber, rack.position);
+  return {
+    rack,
+    inventoryItem,
+    adjacentRack,
+    slotIndex: rackSlotIndex(rack.room.roomNumber, rack.position),
+  };
+}
+
+/** Read-only checks before idempotency lease (matches legacy controller order). */
+export async function preflightInstallMiner(
+  userId: number,
+  rackId: number,
+  inventoryId: number,
+): Promise<InstallMinerFailure | null> {
+  const resolved = await resolveInstallMinerContext(userId, rackId, inventoryId);
+  return "status" in resolved ? resolved : null;
+}
+
+export type UninstallMinerFailure = {
+  status: number;
+  code?: string;
+  message: string;
+};
+
+/** Read-only checks before idempotency lease (matches legacy controller order). */
+export async function preflightUninstallMiner(
+  userId: number,
+  rackId: number,
+): Promise<UninstallMinerFailure | null> {
+  const rack = await roomsRepo.findRackWithMinerForUser(rackId, userId);
+  if (!rack) {
+    logger.warn("uninstallMiner: rack not found", { userId, rackId });
+    return { status: 404, message: "Rack não encontrado." };
+  }
+  if (!rack.userMiner) {
+    logger.warn("uninstallMiner: rack empty", { userId, rackId });
+    return { status: 400, code: "RACK_EMPTY", message: "Este rack não tem máquina instalada." };
+  }
+  return null;
+}
+
+export async function installMinerForUser(
+  userId: number,
+  rackId: number,
+  inventoryId: number,
+): Promise<{ inventoryItem: { minerName: string } } | InstallMinerFailure> {
+  logger.info("installMiner attempt", { userId, rackId, inventoryId });
+
+  const resolved = await resolveInstallMinerContext(userId, rackId, inventoryId);
+  if ("status" in resolved) return resolved;
+  const { rack, inventoryItem, adjacentRack, slotIndex } = resolved;
+  const slotSize = inventoryItem.slotSize || 1;
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await advisoryXactTryLockOrThrow(tx, `user_ops:${userId}`);
@@ -311,14 +367,14 @@ export async function installMinerForUser(
 export async function uninstallMinerForUser(userId: number, rackId: number): Promise<void> {
   logger.info("uninstallMiner attempt", { userId, rackId });
 
-  const rack = await roomsRepo.findRackWithMinerForUser(rackId, userId);
-  if (!rack) {
-    logger.warn("uninstallMiner: rack not found", { userId, rackId });
-    throw new HttpStatusError(404, "Rack não encontrado.");
+  const preflight = await preflightUninstallMiner(userId, rackId);
+  if (preflight) {
+    throw new HttpStatusError(preflight.status, preflight.message, { code: preflight.code });
   }
-  if (!rack.userMiner) {
-    logger.warn("uninstallMiner: rack empty", { userId, rackId });
-    throw new HttpStatusError(400, "RACK_EMPTY", { code: "RACK_EMPTY" });
+
+  const rack = await roomsRepo.findRackWithMinerForUser(rackId, userId);
+  if (!rack?.userMiner) {
+    throw new HttpStatusError(404, "Rack não encontrado.");
   }
 
   const miner = rack.userMiner;
