@@ -14,7 +14,7 @@ import * as faucetRepository from "./faucet.repository.js";
 const faucetLogger = loggerLib.child("Faucet");
 export const DEFAULT_FAUCET_COOLDOWN_MS = 60 * 60 * 1000;
 export const FAUCET_PARTNER_WAIT_MS = 10_000;
-export const FAUCET_PARTNER_URL = String(process.env.FAUCET_PARTNER_URL || "https://faucetpay.io/").trim();
+export const FAUCET_PARTNER_URL = "https://ad.a-ads.com/2436936";
 
 export async function getActiveReward(): Promise<FaucetRewardInfo | null> {
   const reward = await faucetRepository.findActiveFaucetReward();
