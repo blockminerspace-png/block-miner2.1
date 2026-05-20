@@ -56,30 +56,35 @@ Script `scripts/audit-and-clean-invalid-checkin-milestones.mjs`:
 - Apply (`CHECKIN_MILESTONE_CLEANUP_CONFIRM=YES`): sets `active=false` on invalid rules; optional `--migrate-hashrate` renames `hashrate` → `temporary_power`
 - Does not delete user grants
 
-## 10. Dry-run
+## 10. Dry-run (VM production, 2026-05-19)
 
-Run on server with DB access:
-
-```bash
-node scripts/audit-and-clean-invalid-checkin-milestones.mjs
+```json
+{
+  "mode": "dry_run",
+  "total": 6,
+  "invalid_count": 2,
+  "invalid": [
+    { "id": 5, "dayThreshold": 3, "rewardType": "item", "grantCount": 0 },
+    { "id": 1, "dayThreshold": 7, "rewardType": "stelar", "grantCount": 95 }
+  ]
+}
 ```
 
-## 11. Apply cleanup
+## 11. Apply cleanup (VM production)
 
-```bash
-CHECKIN_MILESTONE_CLEANUP_CONFIRM=YES node scripts/audit-and-clean-invalid-checkin-milestones.mjs
-# optional: CHECKIN_MILESTONE_CLEANUP_CONFIRM=YES node scripts/audit-and-clean-invalid-checkin-milestones.mjs --migrate-hashrate
-```
+`CHECKIN_MILESTONE_CLEANUP_CONFIRM=YES` — deactivated 2 invalid milestones (`item` day 3, `stelar` day 7). **95 historical grants on stelar were not deleted.**
+
+Script fix: uses shared `#server/src/db/prisma.js` (Prisma 7 adapter) instead of bare `new PrismaClient()`.
 
 ## 12. Builds
 
 | Step | Result |
 |------|--------|
-| `tsc -p tsconfig.server.json` | OK |
+| `tsc -p tsconfig.server.json` | OK (prior session) |
 
 ## 13. Docker
 
-Deploy via `scripts/vm-deploy-local-over-ssh.py` with rebuild.
+Deploy `scripts/vm-deploy-local-over-ssh.py` with `BLOCKMINER_DOCKER_BUILD_NO_CACHE=1` — **OK** (5 containers, no pending migrations).
 
 ## 14. Manual test
 

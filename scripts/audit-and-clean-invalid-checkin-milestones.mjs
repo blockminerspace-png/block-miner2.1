@@ -3,9 +3,8 @@
  * Audits check-in streak milestones with disallowed reward types.
  * Default: dry-run. Apply deactivation with CHECKIN_MILESTONE_CLEANUP_CONFIRM=YES
  */
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import "dotenv/config";
+import prisma from "#server/src/db/prisma.js";
 
 const DISALLOWED = new Set(["item", "stelar", "zer", "none", "ticket"]);
 const MIGRATE_HASHRATE = process.argv.includes("--migrate-hashrate");
