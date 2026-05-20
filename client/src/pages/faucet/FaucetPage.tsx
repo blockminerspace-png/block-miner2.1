@@ -203,8 +203,8 @@ export default function Faucet() {
                         <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-8">{t('faucet.avail_prize')}</h3>
                         
                         <div className="flex flex-col items-center text-center space-y-8">
-                            <div className="w-48 h-48 bg-gray-900/50 rounded-3xl p-8 border border-gray-800 group-hover:border-primary/30 transition-all duration-500 group-hover:scale-105 shadow-inner">
-                                <img src={reward?.imageUrl || '/machines/reward1.png'} alt={reward?.name ?? undefined} className="w-full h-full object-contain" />
+                            <div className="w-48 h-48 bg-gray-900/50 rounded-3xl p-8 border border-gray-800 group-hover:border-primary/30 transition-all duration-500 group-hover:scale-105 shadow-inner flex items-center justify-center">
+                                <Zap className="w-24 h-24 text-primary animate-pulse drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">{reward?.name || 'Pulse Mini v1'}</h2>
