@@ -23,7 +23,13 @@ export function getCheckinMode(env: NodeJS.ProcessEnv = process.env): CheckinMod
   return "hybrid";
 }
 
-/** Hour (0–23) in America/Sao_Paulo when the daily period rolls (default 21). */
+/** IANA timezone for check-in period boundaries (default America/Sao_Paulo). */
+export function getCheckinTimezone(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = String(env.CHECKIN_TIMEZONE ?? "America/Sao_Paulo").trim();
+  return raw || "America/Sao_Paulo";
+}
+
+/** Hour (0–23) in check-in timezone when the daily period rolls (default 21). */
 export function getCheckinResetHour(env: NodeJS.ProcessEnv = process.env): number {
   return readIntEnv("CHECKIN_RESET_HOUR", 21, 0, 23);
 }

@@ -14,7 +14,7 @@ import {
   parseBoard,
   spawnRandomTile
 } from "./game2048Engine.js";
-import { getBrazilDateKeyAliases } from "../utils/checkinDate.js";
+import { getCheckinPeriodKey, getCheckinPeriodLookupKeys } from "../utils/checkinPeriod.js";
 import {
   GAME2048_GAME_SLUG,
   game2048CooldownMs,
@@ -80,11 +80,12 @@ async function lockUserFor2048(tx, userId) {
  * @param {Date} now
  */
 async function userHasConfirmedCheckinBrazilToday(tx, userId, now) {
+  const periodKey = getCheckinPeriodKey(now);
   const row = await tx.dailyCheckin.findFirst({
     where: {
       userId,
       status: "confirmed",
-      checkinDate: { in: getBrazilDateKeyAliases(now) }
+      checkinDate: { in: getCheckinPeriodLookupKeys(periodKey) },
     },
     select: { id: true },
     orderBy: [{ confirmedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]

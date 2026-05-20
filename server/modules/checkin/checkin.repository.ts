@@ -2,10 +2,9 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
 import {
   addDaysToBrazilDateKey,
-  getBrazilDateKeyAliases,
   normalizeBrazilDateKey,
 } from "../../utils/checkinDate.js";
-import { getCheckinPeriodKey } from "../../utils/checkinPeriod.js";
+import { getCheckinPeriodKey, getCheckinPeriodLookupKeys, isSameCheckinPeriod } from "../../utils/checkinPeriod.js";
 
 export { prisma };
 
@@ -14,10 +13,14 @@ export function todayPeriodKey(now: Date = new Date()): string {
 }
 
 export function buildDailyCheckinDayWhere(userId: number, dateOrKey: Date | string = new Date()) {
+  const periodEndKey =
+    typeof dateOrKey === "string"
+      ? normalizeBrazilDateKey(dateOrKey) || getCheckinPeriodKey()
+      : getCheckinPeriodKey(dateOrKey);
   return {
     userId,
     checkinDate: {
-      in: getBrazilDateKeyAliases(dateOrKey),
+      in: getCheckinPeriodLookupKeys(periodEndKey),
     },
   };
 }
@@ -120,7 +123,7 @@ export async function findConflictingCheckinTxHash(
   if (!row) return null;
   if (row.userId !== userId) return "TX_ALREADY_USED";
   const day = normalizeBrazilDateKey(row.checkinDate);
-  if (row.status === "confirmed" && day && day !== todayKey) {
+  if (row.status === "confirmed" && day && !isSameCheckinPeriod(day, todayKey)) {
     return "TX_ALREADY_USED";
   }
   return null;

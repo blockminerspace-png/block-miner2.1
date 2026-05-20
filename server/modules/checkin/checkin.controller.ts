@@ -4,14 +4,16 @@ import prisma from "../../src/db/prisma.js";
 import { Prisma } from "@prisma/client";
 import type { DailyCheckin } from "@prisma/client";
 import { applyUserBalanceDelta } from "../../src/runtime/miningRuntime.js";
-import {
-  addDaysToBrazilDateKey,
-  getBrazilCheckinDateKey,
-  getBrazilDateKeyAliases,
-  normalizeBrazilDateKey,
-} from "../../utils/checkinDate.js";
+import { addDaysToBrazilDateKey, normalizeBrazilDateKey } from "../../utils/checkinDate.js";
 import { computeCheckinStreak, computeStreakAfterCheckin } from "../../utils/checkinStreak.js";
-import { getCheckinPeriodKey, getGraceEndsAt, getNextResetAt } from "../../utils/checkinPeriod.js";
+import {
+  getCheckinPeriodKey,
+  getCheckinPeriodLookupKeys,
+  getCurrentCheckinPeriod,
+  getGraceEndsAt,
+  getNextResetAt,
+  isSameCheckinPeriod,
+} from "../../utils/checkinPeriod.js";
 import {
   allowsOffchainCheckin,
   allowsWalletCheckin,
@@ -153,11 +155,15 @@ async function resolveStreakFlags(userId: number, periodKey: string) {
 }
 
 function buildDailyCheckinDayWhere(userId: number, dateOrKey: Date | string = new Date()) {
+  const periodEndKey =
+    typeof dateOrKey === "string"
+      ? normalizeBrazilDateKey(dateOrKey) || getCheckinPeriodKey()
+      : getCheckinPeriodKey(dateOrKey);
   return {
     userId,
     checkinDate: {
-      in: getBrazilDateKeyAliases(dateOrKey)
-    }
+      in: getCheckinPeriodLookupKeys(periodEndKey),
+    },
   };
 }
 
@@ -206,7 +212,14 @@ async function writeDailyCheckinForBrazilDay(
 }
 
 async function getDailyRowForToday(userId: number) {
-  return findDailyCheckinForBrazilDay(prisma, userId);
+  const period = getCurrentCheckinPeriod();
+  return prisma.dailyCheckin.findFirst({
+    where: {
+      userId,
+      checkinDate: { in: getCheckinPeriodLookupKeys(period.dateKey) },
+    },
+    orderBy: [{ confirmedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+  });
 }
 
 async function loadRecentHistory(userId: number, take = 21) {
@@ -393,26 +406,40 @@ export async function processStalePendingCheckins({ batchSize = 40 }: { batchSiz
 }
 
 async function buildCadenceStatusBundle(userId: number, wallet: string | null, treasuryOk: boolean) {
-  const todayKey = periodKeyForCadence("daily");
+  const currentPeriod = getCurrentCheckinPeriod();
+  const todayKey = currentPeriod.dateKey;
   let dailyRow: DailyCheckin | null = null;
 
   if (treasuryOk) {
     await tryFinalizeTodayCheckin(userId, wallet);
   }
 
-  dailyRow = await prisma.dailyCheckin.findUnique({
-    where: { userId_checkinDate: { userId, checkinDate: todayKey } }
+  dailyRow = await prisma.dailyCheckin.findFirst({
+    where: {
+      userId,
+      checkinDate: { in: getCheckinPeriodLookupKeys(todayKey) },
+    },
+    orderBy: [{ confirmedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
   });
 
   const dailySlice = {
     ...rowToCadenceSlice(dailyRow),
-    periodKey: todayKey
+    periodKey: todayKey,
+    currentPeriod: {
+      dateKey: currentPeriod.dateKey,
+      startsAt: currentPeriod.startsAt.toISOString(),
+      endsAt: currentPeriod.endsAt.toISOString(),
+      nextResetAt: currentPeriod.nextResetAt.toISOString(),
+      timezone: currentPeriod.timezone,
+      resetHour: currentPeriod.resetHour,
+    },
   };
 
   return {
     cadenceStatus: {
-      daily: dailySlice
-    }
+      daily: dailySlice,
+    },
+    currentPeriod,
   };
 }
 
@@ -459,19 +486,34 @@ export async function getStatus(req: Request, res: Response) {
     }
 
     const dailyFromBundle = cadenceStatus?.daily;
+    const currentPeriod = dailyFromBundle?.currentPeriod ?? null;
 
     const todayCheckedIn = statusDegraded ? false : dailyFromBundle?.checkedIn ?? false;
     const todayPending = statusDegraded ? false : dailyFromBundle?.pending ?? false;
-    const yesterdayKey = addDaysToBrazilDateKey(periodKeyForCadence("daily"), -1);
+    const missedPeriodEndKey = addDaysToBrazilDateKey(periodKeyForCadence("daily"), -1);
     const graceEndsAt =
       !statusDegraded && getCheckinGraceHours() > 0 && !todayCheckedIn
-        ? getGraceEndsAt(yesterdayKey).toISOString()
+        ? getGraceEndsAt(missedPeriodEndKey).toISOString()
+        : null;
+
+    const lastHistory = statusDegraded ? null : recentCheckins[0] ?? null;
+    const lastCheckin =
+      lastHistory && lastHistory.date
+        ? {
+            dateKey: lastHistory.date,
+            confirmedAt: lastHistory.confirmedAt ?? null,
+            isCurrentPeriod: currentPeriod
+              ? isSameCheckinPeriod(lastHistory.date, currentPeriod.dateKey)
+              : false,
+          }
         : null;
 
     res.json({
       ok: true,
       statusDegraded,
       cadenceStatus: statusDegraded ? null : cadenceStatus,
+      currentPeriod: statusDegraded ? null : currentPeriod,
+      lastCheckin: statusDegraded ? null : lastCheckin,
       checkedIn: todayCheckedIn,
       todayCheckedIn,
       canCheckin: !todayCheckedIn && !todayPending,
@@ -636,7 +678,7 @@ async function findConflictingCheckinTxHash(
   if (!row) return null;
   if (row.userId !== userId) return "TX_ALREADY_USED";
   const day = normalizeBrazilDateKey(row.checkinDate);
-  if (row.status === "confirmed" && day && day !== todayKey) {
+  if (row.status === "confirmed" && day && !isSameCheckinPeriod(day, todayKey)) {
     return "TX_ALREADY_USED";
   }
   return null;

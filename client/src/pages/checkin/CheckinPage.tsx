@@ -18,6 +18,11 @@ import {
   statusNeedsCheckinPoll,
 } from '../../shared/utils/checkinHelpers';
 import {
+  formatCheckinAvailableUntil,
+  formatCheckinNextReset,
+  formatCheckinPeriodRange,
+} from './checkinPeriodDisplay';
+import {
   getCheckinMilestoneDayLabel,
   getCheckinMilestoneDescription,
   getCheckinMilestoneRewardLine,
@@ -289,6 +294,7 @@ export default function Checkin() {
   const polBal = Number(status.polBalance ?? 0);
   const balanceAffordable = balanceCoversWeiCost(polBal, balanceWeiStr);
   const cs = getDailySlice(status);
+  const currentPeriod = status.currentPeriod ?? cs.currentPeriod ?? null;
   const explorerDaily = buildPolygonscanTxUrl(cs.txHash);
 
   return (
@@ -324,7 +330,9 @@ export default function Checkin() {
                     })}
                   </p>
                 ) : null}
-                {status.nextResetAt ? (
+                {currentPeriod ? (
+                  <p className="text-[10px] text-slate-600 mt-1">{formatCheckinNextReset(t, currentPeriod)}</p>
+                ) : status.nextResetAt ? (
                   <p className="text-[10px] text-slate-600 mt-1">
                     {t('checkin.next_reset', {
                       defaultValue: 'Next reset: {{time}}',
@@ -364,9 +372,21 @@ export default function Checkin() {
                 </p>
               ) : null}
               <div>
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em]">{t('checkin.cadence.daily')}</h3>
-                <p className="text-sm font-mono text-amber-500/90 mt-1">{cs.periodKey || '—'}</p>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em]">
+                  {t('checkin.period.current_title', { defaultValue: 'Período atual' })}
+                </h3>
+                <p className="text-sm text-amber-500/90 mt-1 font-medium">
+                  {formatCheckinPeriodRange(t, currentPeriod)}
+                </p>
                 <p className="text-[11px] text-slate-600 mt-1">{t('checkin.daily_pay_hint')}</p>
+                {status.lastCheckin && !status.lastCheckin.isCurrentPeriod ? (
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {t('checkin.period.last_confirmed', {
+                      dateKey: status.lastCheckin.dateKey,
+                      defaultValue: 'Último check-in confirmado: {{dateKey}}',
+                    })}
+                  </p>
+                ) : null}
               </div>
 
               {cs.checkedIn ? (
@@ -376,10 +396,26 @@ export default function Checkin() {
                       <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                     </div>
                   </div>
-                  <p className="text-lg font-black text-white">{t('checkin.claimed')}</p>
-                  <p className="text-xs text-gray-500 font-medium">{t('checkin.come_back')}</p>
+                  <p className="text-lg font-black text-white">
+                    {t('checkin.claimed_period', { defaultValue: 'Já resgatado neste período' })}
+                  </p>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {currentPeriod
+                      ? formatCheckinNextReset(t, currentPeriod)
+                      : t('checkin.come_back')}
+                  </p>
                 </div>
               ) : (
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-center">
+                  <p className="text-sm font-bold text-emerald-400">
+                    {t('checkin.available', { defaultValue: 'Check-in disponível' })}
+                  </p>
+                  {currentPeriod ? (
+                    <p className="text-[11px] text-slate-500 mt-1">{formatCheckinAvailableUntil(t, currentPeriod)}</p>
+                  ) : null}
+                </div>
+              )}
+              {cs.checkedIn ? null : (
                 <div className="space-y-3">
                   {!walletPaymentConfigured ? (
                     <p className="text-center text-xs text-amber-400/90 leading-relaxed px-1">

@@ -1,6 +1,22 @@
+export type CheckinPeriodInfo = {
+  dateKey: string;
+  startsAt: string;
+  endsAt: string;
+  nextResetAt: string;
+  timezone: string;
+  resetHour: number;
+};
+
+export type CheckinLastCheckinInfo = {
+  dateKey: string;
+  confirmedAt: string | null;
+  isCurrentPeriod: boolean;
+};
+
 /** Server shape for `GET /api/checkin/status` when `ok: true`. */
 export type CheckinCadenceDailySlice = {
   periodKey: string;
+  currentPeriod?: CheckinPeriodInfo | null;
   checkedIn: boolean;
   pending: boolean;
   failed: boolean;
@@ -53,6 +69,8 @@ export type CheckinStatusPayload = {
   ok?: boolean;
   statusDegraded?: boolean;
   cadenceStatus?: { daily: CheckinCadenceDailySlice };
+  currentPeriod?: CheckinPeriodInfo | null;
+  lastCheckin?: CheckinLastCheckinInfo | null;
   checkedIn?: boolean;
   todayCheckedIn?: boolean;
   canCheckin?: boolean;
