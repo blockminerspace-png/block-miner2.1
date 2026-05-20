@@ -5,13 +5,29 @@ import { syncUserBaseHashRate } from "../../models/minerProfileModel.js";
 import { getMiningEngine } from "../../src/miningEngineInstance.js";
 import { createInventoryWithOwnedMachineTx } from "../../services/userOwnedMachineService.js";
 import { normalizePersistableMinerImageUrl } from "../../utils/ownedMachineImage.js";
+import {
+  isAllowedMilestoneRewardType,
+  isInvalidLegacyMilestoneRewardType,
+  LEGACY_REWARD_HASHRATE,
+  normalizeMilestoneRewardType,
+  readDurationHours,
+  REWARD_MACHINE,
+  REWARD_POL,
+  REWARD_TEMPORARY_POWER,
+} from "./checkin.milestoneRules.js";
 
-export const REWARD_POL = "pol";
+export {
+  REWARD_POL,
+  REWARD_TEMPORARY_POWER,
+  REWARD_MACHINE,
+  LEGACY_REWARD_HASHRATE,
+} from "./checkin.milestoneRules.js";
+
+/** @deprecated Use REWARD_TEMPORARY_POWER */
+export const REWARD_HASHRATE = LEGACY_REWARD_HASHRATE;
 export const REWARD_BALANCE = "balance";
 export const REWARD_STELAR = "stelar";
 export const REWARD_ZER = "zer";
-export const REWARD_HASHRATE = "hashrate";
-export const REWARD_MACHINE = "machine";
 export const REWARD_ITEM = "item";
 export const REWARD_TICKET = "ticket";
 export const REWARD_NONE = "none";
@@ -24,8 +40,6 @@ type MilestoneRow = {
   rewardType: string;
   rewardValue: Prisma.Decimal;
   validityDays: number;
-  displayTitle: string | null;
-  description: string | null;
   minerId: number | null;
   itemCode: string | null;
   metadataJson: Prisma.JsonValue | null;
@@ -46,11 +60,8 @@ async function getOrCreateCheckinBonusGameId(
   return g.id;
 }
 
-function normalizeRewardType(raw: string): string {
-  const t = String(raw || REWARD_NONE).toLowerCase();
-  if (t === REWARD_BALANCE) return REWARD_POL;
-  if (t === REWARD_ZER) return REWARD_STELAR;
-  return t;
+export function normalizeRewardType(raw: string): string {
+  return normalizeMilestoneRewardType(raw);
 }
 
 async function grantMachineMilestone(
@@ -64,6 +75,15 @@ async function grantMachineMilestone(
   }
   const miner = await tx.miner.findFirst({
     where: { id: minerId, isActive: true, isArchived: false },
+    select: {
+      id: true,
+      name: true,
+      baseHashRate: true,
+      imageUrl: true,
+      slug: true,
+      price: true,
+      slotSize: true,
+    },
   });
   if (!miner) {
     throw new Error("MACHINE_REWARD_MINER_NOT_FOUND");
@@ -83,30 +103,25 @@ async function grantMachineMilestone(
   });
 }
 
-async function grantItemMilestone(
+async function grantTemporaryPowerMilestone(
   tx: Prisma.TransactionClient,
   userId: number,
   milestone: MilestoneRow,
 ): Promise<void> {
-  const code = String(milestone.itemCode ?? "").trim();
-  if (!code) throw new Error("ITEM_REWARD_MISSING_CODE");
-  const meta =
-    milestone.metadataJson && typeof milestone.metadataJson === "object"
-      ? (milestone.metadataJson as Record<string, unknown>)
-      : {};
-  const qty = Number(meta.quantity ?? milestone.rewardValue ?? 1);
-  const amount = Number.isFinite(qty) && qty > 0 ? qty : 1;
-  const hashRate = Number(meta.hashRate ?? 0);
-  const minerName = String(meta.minerName ?? code);
-  await createInventoryWithOwnedMachineTx(tx, {
-    userId,
-    minerId: typeof meta.minerId === "number" ? meta.minerId : null,
-    minerName,
-    level: 1,
-    hashRate: Number.isFinite(hashRate) ? hashRate : 0,
-    slotSize: Number(meta.slotSize ?? 1),
-    imageUrl: typeof meta.imageUrl === "string" ? meta.imageUrl : null,
-    acquisitionSource: `checkin_item:${code}`,
+  const value = Number(milestone.rewardValue || 0);
+  if (!(value > 0)) throw new Error("TEMPORARY_POWER_REWARD_INVALID_AMOUNT");
+  const gameId = await getOrCreateCheckinBonusGameId(tx);
+  const durationMs = readDurationHours(milestone.validityDays, milestone.metadataJson) * 60 * 60 * 1000;
+  const playedAt = new Date();
+  const expiresAt = new Date(playedAt.getTime() + durationMs);
+  await tx.userPowerGame.create({
+    data: {
+      userId,
+      gameId,
+      hashRate: value,
+      playedAt,
+      expiresAt,
+    },
   });
 }
 
@@ -115,10 +130,15 @@ async function applyMilestoneRewardInTx(
   userId: number,
   milestone: MilestoneRow,
 ): Promise<boolean> {
-  const rewardType = normalizeRewardType(milestone.rewardType);
+  const rewardType = normalizeMilestoneRewardType(milestone.rewardType);
+  if (!isAllowedMilestoneRewardType(rewardType)) {
+    throw new Error(`MILESTONE_REWARD_TYPE_NOT_ALLOWED:${milestone.rewardType}`);
+  }
+
   const value = Number(milestone.rewardValue || 0);
 
-  if (rewardType === REWARD_POL && value > 0) {
+  if (rewardType === REWARD_POL) {
+    if (!(value > 0)) throw new Error("POL_REWARD_INVALID_AMOUNT");
     await tx.user.update({
       where: { id: userId },
       data: { polBalance: { increment: new Prisma.Decimal(String(value)) } },
@@ -126,38 +146,13 @@ async function applyMilestoneRewardInTx(
     return false;
   }
 
-  if ((rewardType === REWARD_STELAR || rewardType === REWARD_ZER) && value > 0) {
-    await tx.user.update({
-      where: { id: userId },
-      data: { zerBalance: { increment: new Prisma.Decimal(String(value)) } },
-    });
-    return false;
-  }
-
-  if (rewardType === REWARD_HASHRATE && value > 0) {
-    const gameId = await getOrCreateCheckinBonusGameId(tx);
-    const days = Math.max(1, Number(milestone.validityDays || 7));
-    const playedAt = new Date();
-    const expiresAt = new Date(playedAt.getTime() + days * 24 * 60 * 60 * 1000);
-    await tx.userPowerGame.create({
-      data: {
-        userId,
-        gameId,
-        hashRate: value,
-        playedAt,
-        expiresAt,
-      },
-    });
+  if (rewardType === REWARD_TEMPORARY_POWER) {
+    await grantTemporaryPowerMilestone(tx, userId, milestone);
     return true;
   }
 
   if (rewardType === REWARD_MACHINE) {
     await grantMachineMilestone(tx, userId, milestone);
-    return true;
-  }
-
-  if (rewardType === REWARD_ITEM) {
-    await grantItemMilestone(tx, userId, milestone);
     return true;
   }
 
@@ -189,10 +184,16 @@ export async function applyStreakMilestoneRewards(userId: number) {
   let needsEngineReload = false;
 
   for (const m of milestones) {
+    if (isInvalidLegacyMilestoneRewardType(m.rewardType)) {
+      continue;
+    }
+    if (!isAllowedMilestoneRewardType(m.rewardType)) {
+      continue;
+    }
     if (streak < m.dayThreshold) continue;
     if (claimed.has(m.id)) continue;
 
-    const rewardType = normalizeRewardType(m.rewardType);
+    const rewardType = normalizeMilestoneRewardType(m.rewardType);
     const value = Number(m.rewardValue || 0);
 
     try {
@@ -234,6 +235,9 @@ export async function buildMilestoneStatusForUser(userId: number, streak: number
   const milestones = await prisma.checkinStreakMilestone.findMany({
     where: { active: true },
     orderBy: [{ sortOrder: "asc" }, { dayThreshold: "asc" }],
+    include: {
+      miner: { select: { id: true, name: true, baseHashRate: true, imageUrl: true } },
+    },
   });
   const claims = await prisma.userCheckinStreakReward.findMany({
     where: { userId },
@@ -241,7 +245,36 @@ export async function buildMilestoneStatusForUser(userId: number, streak: number
   });
   const claimByMilestone = new Map(claims.map((c) => [c.milestoneId, c]));
 
-  return milestones.map((m) => {
+  const out: Array<Record<string, unknown>> = [];
+
+  for (const m of milestones) {
+    const legacyInvalid = isInvalidLegacyMilestoneRewardType(m.rewardType);
+    const rewardType = normalizeMilestoneRewardType(m.rewardType);
+    const allowed = isAllowedMilestoneRewardType(rewardType);
+
+    if (legacyInvalid || !allowed) {
+      out.push({
+        id: m.id,
+        milestoneDay: m.dayThreshold,
+        dayThreshold: m.dayThreshold,
+        rewardType: "unavailable",
+        rewardValue: 0,
+        amount: 0,
+        validityDays: m.validityDays,
+        durationHours: null,
+        minerId: null,
+        minerName: null,
+        itemCode: null,
+        status: "unavailable",
+        state: "unavailable",
+        legacyInvalid: true,
+        labelKey: "checkin.milestones.reward.unavailable.title",
+        sortOrder: m.sortOrder,
+        claimedAt: null,
+      });
+      continue;
+    }
+
     const claim = claimByMilestone.get(m.id);
     const claimed = Boolean(claim);
     const reached = streak >= m.dayThreshold;
@@ -249,40 +282,48 @@ export async function buildMilestoneStatusForUser(userId: number, streak: number
     if (claimed) state = "claimed";
     else if (reached) state = "eligible";
 
-    const rewardType = normalizeRewardType(m.rewardType);
-    return {
+    const durationHours = readDurationHours(m.validityDays, m.metadataJson);
+
+    out.push({
       id: m.id,
       milestoneDay: m.dayThreshold,
       dayThreshold: m.dayThreshold,
       rewardType,
       rewardValue: Number(m.rewardValue || 0),
       amount: Number(m.rewardValue || 0),
+      powerAmount: rewardType === REWARD_TEMPORARY_POWER ? Number(m.rewardValue || 0) : null,
+      durationHours: rewardType === REWARD_TEMPORARY_POWER ? durationHours : null,
       validityDays: m.validityDays,
       minerId: m.minerId,
-      itemCode: m.itemCode,
+      minerName: m.miner?.name ?? null,
+      itemCode: null,
       status: state,
       state,
+      legacyInvalid: false,
       labelKey: `checkin.milestones.reward.${rewardType}.title`,
       sortOrder: m.sortOrder,
       claimedAt: claim?.createdAt?.toISOString() ?? null,
-    };
-  });
+    });
+  }
+
+  return out;
 }
 
 export function buildUpcomingMilestones(
   milestones: Awaited<ReturnType<typeof buildMilestoneStatusForUser>>,
 ) {
   return milestones
-    .filter((m) => m.state !== "claimed")
+    .filter((m) => m.state !== "claimed" && m.state !== "unavailable" && m.rewardType !== "unavailable")
     .slice(0, 8)
     .map((m) => ({
-      day: m.dayThreshold,
-      milestoneDay: m.dayThreshold,
-      rewardType: m.rewardType,
-      rewardValue: m.rewardValue,
-      amount: m.rewardValue,
-      itemCode: m.itemCode ?? null,
-      minerId: m.minerId ?? null,
-      labelKey: `checkin.milestones.reward.${m.rewardType}.title`,
+      day: m.dayThreshold as number,
+      milestoneDay: m.dayThreshold as number,
+      rewardType: String(m.rewardType),
+      rewardValue: m.rewardValue as number,
+      amount: m.amount as number,
+      durationHours: m.durationHours ?? null,
+      minerId: (m.minerId as number | null) ?? null,
+      minerName: (m.minerName as string | null) ?? null,
+      labelKey: String(m.labelKey),
     }));
 }

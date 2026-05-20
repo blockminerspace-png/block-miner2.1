@@ -1587,36 +1587,28 @@
         "blocked": "Bloqueado",
         "claimed": "Recogido",
         "unlocked": "Desbloqueado",
-        "unlockedNextCheckin": "Desbloqueado — cobra en el próximo check-in"
+        "unlockedNextCheckin": "Desbloqueado — cobra en el próximo check-in",
+        "unavailable": "Recompensa no disponible (regla antigua)"
       },
+      "durationHours": "{{count}} h",
+      "durationDays": "{{count}} días",
       "reward": {
         "pol": {
-          "title": "Bono del día {{day}}",
-          "description": "Bono de bienvenida en POL."
+          "title": "{{amount}} POL — día {{day}}",
+          "description": "Bono en POL por la racha de check-in."
         },
-        "item": {
-          "title": "Caja de suministros del día {{day}}",
-          "description": "Objeto de inventario por la racha de check-in."
-        },
-        "stelar": {
-          "title": "{{amount}} Estelar",
-          "description": "Bono de Estelar por la racha."
-        },
-        "zer": {
-          "title": "{{amount}} ZER",
-          "description": "Bono de ZER por la racha."
+        "temporaryPower": {
+          "title": "+{{power}} H/s temporal — día {{day}}",
+          "description": "Poder temporal por {{duration}}.",
+          "line": "+{{power}} H/s · {{duration}}"
         },
         "machine": {
-          "title": "Rig del día {{day}}",
-          "description": "Recompensa de máquina por la racha."
+          "title": "Máquina: {{name}}",
+          "description": "Máquina del catálogo por la racha (día {{day}})."
         },
-        "hashrate": {
-          "title": "Bono de poder del día {{day}}",
-          "description": "Bono de HashRate por la racha."
-        },
-        "none": {
-          "title": "Hito del día {{day}}",
-          "description": "Recompensa especial de check-in."
+        "unavailable": {
+          "title": "Recompensa no disponible",
+          "description": "Este hito usa un tipo antiguo y fue desactivado."
         },
         "unknown": {
           "title": "Recompensa del día {{day}}",
@@ -2040,11 +2032,49 @@
     "overview": "Visión General"
   },
   "adminCheckinMilestones": {
+    "title": "Check-in — Hitos de racha",
+    "subtitle": "Recompensas por días consecutivos; el servidor las aplica tras un check-in confirmado.",
+    "new": "Nuevo hito",
+    "edit": "Editar hito",
+    "save": "Guardar",
+    "loading": "Cargando…",
+    "empty": "Sin hitos.",
+    "col_day": "Día",
+    "col_type": "Tipo",
+    "col_summary": "Resumen",
+    "col_active": "Activo",
+    "col_actions": "Acciones",
+    "yes": "Sí",
+    "no": "No",
+    "invalid_type": "Tipo inválido",
+    "rewardTypes": {
+      "pol": "POL",
+      "temporaryPower": "Poder temporal",
+      "machine": "Máquina del catálogo"
+    },
+    "fields": {
+      "dayThreshold": "Día (umbral)",
+      "rewardType": "Tipo de recompensa",
+      "polAmount": "Cantidad POL",
+      "powerAmount": "Poder (H/s)",
+      "durationHours": "Duración (horas)",
+      "machine": "Máquina",
+      "selectMachine": "Selecciona una máquina del catálogo",
+      "sortOrder": "Orden",
+      "active": "Activo"
+    },
+    "summary": {
+      "pol": "Día {{day}} — POL — {{amount}} POL",
+      "temporaryPower": "Día {{day}} — Poder temporal — +{{power}} H/s · {{hours}}h",
+      "machine": "Día {{day}} — Máquina — {{name}}",
+      "invalid": "Día {{day}} — inválido ({{type}})"
+    },
     "toast_created": "Hito creado.",
     "toast_updated": "Hito actualizado.",
     "toast_deleted": "Eliminado.",
     "toast_save_error": "No se pudo guardar.",
     "toast_load_error": "No se pudieron cargar los hitos.",
+    "toast_miners_error": "No se pudo cargar el catálogo.",
     "toast_migration_pending": "Faltan migraciones en la base de datos del servidor. Ejecuta Prisma migrate deploy e inténtalo de nuevo.",
     "confirm_delete": "¿Eliminar este hito? Las recompensas ya otorgadas siguen registradas."
   },

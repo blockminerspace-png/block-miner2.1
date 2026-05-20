@@ -58,7 +58,8 @@ describe("locale bundles (pt-BR / es parity)", () => {
 
     expect(en.checkin.milestones.reward.pol.title).toContain('{{day}}');
     expect(pt.checkin.milestones.reward.pol.title).toContain('{{day}}');
-    expect(es.checkin.milestones.reward.machine.title).toContain('{{day}}');
+    expect(pt.checkin.milestones.reward.temporaryPower.title).toContain('{{power}}');
+    expect(es.checkin.milestones.reward.machine.title).toContain('{{name}}');
     expect(pt.checkin.milestones.status.unlockedNextCheckin).toBeTruthy();
     expect(en.checkin.milestones.status.blocked).toBe('Blocked');
     expect(en.checkin.anti_bot_note).toBeTruthy();

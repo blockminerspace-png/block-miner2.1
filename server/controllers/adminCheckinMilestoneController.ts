@@ -2,24 +2,10 @@ import type { Request, Response } from "express";
 import { Prisma } from "../src/db/prismaNamespace.js";
 import prisma from "../src/db/prisma.js";
 import {
-  REWARD_HASHRATE,
-  REWARD_ITEM,
+  assertMinerExistsForMilestone,
+  parseMilestoneBody,
   REWARD_MACHINE,
-  REWARD_NONE,
-  REWARD_POL,
-  REWARD_STELAR,
-} from "../services/checkinMilestoneService.js";
-
-const TYPES = new Set<string>([
-  REWARD_POL,
-  REWARD_HASHRATE,
-  REWARD_NONE,
-  REWARD_STELAR,
-  REWARD_MACHINE,
-  REWARD_ITEM,
-  "balance",
-  "zer",
-]);
+} from "../modules/checkin/checkin.milestoneRules.js";
 
 function getPrismaCode(e: unknown): string | undefined {
   if (e !== null && typeof e === "object" && "code" in e) {
@@ -39,84 +25,36 @@ function isMissingMilestoneTablesError(e: unknown): boolean {
         ? String((e as { message: string }).message)
         : "";
   return /checkin_streak_milestones|user_checkin_streak_rewards|does not exist|relation.*does not exist/i.test(
-    msg
+    msg,
   );
 }
 
-type MilestoneBody = {
-  dayThreshold?: unknown;
-  rewardType?: unknown;
-  rewardValue?: unknown;
-  validityDays?: unknown;
-  displayTitle?: unknown;
-  description?: unknown;
-  active?: unknown;
-  sortOrder?: unknown;
-  minerId?: unknown;
-  itemCode?: unknown;
-  metadataJson?: unknown;
-};
+type MilestoneBody = Record<string, unknown>;
 
 type MilestoneInput = Parameters<(typeof prisma.checkinStreakMilestone)["create"]>[0]["data"];
 
-function parseBody(body: unknown): MilestoneInput {
-  const b = typeof body === "object" && body !== null ? (body as MilestoneBody) : {};
-  const dayThreshold = Number(b.dayThreshold);
-  if (!Number.isInteger(dayThreshold) || dayThreshold < 1) {
-    throw new Error("dayThreshold must be a positive integer.");
+async function parseAndValidateBody(body: unknown): Promise<MilestoneInput> {
+  const parsed = parseMilestoneBody(body);
+  if (parsed.rewardType === REWARD_MACHINE && parsed.minerId) {
+    await assertMinerExistsForMilestone(prisma, parsed.minerId);
   }
-  const rewardType = String(b.rewardType ?? REWARD_NONE).toLowerCase();
-  if (!TYPES.has(rewardType)) {
-    throw new Error(`rewardType must be one of: ${[...TYPES].join(", ")}`);
-  }
-  const rewardValue = Number(b.rewardValue ?? 0);
-  if (!(rewardValue >= 0) || !Number.isFinite(rewardValue)) {
-    throw new Error("rewardValue must be a non-negative number.");
-  }
-  const validityDays = Math.max(1, Number(b.validityDays ?? 7));
-  const displayTitle =
-    b.displayTitle != null ? String(b.displayTitle).trim() || null : null;
-  const description = b.description != null ? String(b.description).trim() || null : null;
-  const active = b.active !== false;
-  const sortOrder = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 0;
-
-  const minerIdRaw = b.minerId;
-  const minerId =
-    minerIdRaw === undefined || minerIdRaw === null || minerIdRaw === ""
-      ? null
-      : Number(minerIdRaw);
-  if (minerId != null && (!Number.isInteger(minerId) || minerId < 1)) {
-    throw new Error("minerId must be a positive integer when provided.");
-  }
-  const itemCode = b.itemCode != null ? String(b.itemCode).trim() || null : null;
-  const metadataJson =
-    b.metadataJson != null && typeof b.metadataJson === "object" ? b.metadataJson : undefined;
-
-  return {
-    dayThreshold,
-    rewardType,
-    rewardValue: new Prisma.Decimal(String(rewardValue)),
-    validityDays,
-    displayTitle,
-    description,
-    active,
-    sortOrder,
-    minerId,
-    itemCode,
-    ...(metadataJson !== undefined ? { metadataJson } : {}),
-  };
+  return parsed;
 }
 
 export async function listCheckinMilestones(_req: Request, res: Response): Promise<void> {
   try {
     const rows = await prisma.checkinStreakMilestone.findMany({
       orderBy: [{ sortOrder: "asc" }, { dayThreshold: "asc" }],
+      include: {
+        miner: { select: { id: true, name: true, baseHashRate: true, isActive: true, isArchived: true } },
+      },
     });
     res.json({
       ok: true,
       milestones: rows.map((m) => ({
         ...m,
         rewardValue: Number(m.rewardValue),
+        minerName: m.miner?.name ?? null,
       })),
     });
   } catch (e: unknown) {
@@ -136,10 +74,10 @@ export async function listCheckinMilestones(_req: Request, res: Response): Promi
 
 export async function createCheckinMilestone(
   req: Request<unknown, unknown, MilestoneBody>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   try {
-    const data = parseBody(req.body);
+    const data = await parseAndValidateBody(req.body);
     const row = await prisma.checkinStreakMilestone.create({ data });
     res.json({ ok: true, milestone: { ...row, rewardValue: Number(row.rewardValue) } });
   } catch (e: unknown) {
@@ -176,7 +114,7 @@ type IdParams = { id?: string };
 
 export async function updateCheckinMilestone(
   req: Request<IdParams, unknown, MilestoneBody>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   try {
     const id = Number(req.params.id);
@@ -184,7 +122,7 @@ export async function updateCheckinMilestone(
       res.status(400).json({ ok: false, message: "Invalid id." });
       return;
     }
-    const data = parseBody(req.body);
+    const data = await parseAndValidateBody(req.body);
     const row = await prisma.checkinStreakMilestone.update({
       where: { id },
       data,

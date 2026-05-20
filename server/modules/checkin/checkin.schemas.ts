@@ -1,2 +1,10 @@
-/** Request validation for check-in routes (body schemas live in middleware when added). */
-export {};
+export {
+  ALLOWED_MILESTONE_REWARD_TYPES,
+  REWARD_POL,
+  REWARD_TEMPORARY_POWER,
+  REWARD_MACHINE,
+  parseMilestoneBody,
+  assertMinerExistsForMilestone,
+  isAllowedMilestoneRewardType,
+  isInvalidLegacyMilestoneRewardType,
+} from "./checkin.milestoneRules.js";

@@ -26,13 +26,15 @@ describe('checkinMilestoneI18n', () => {
     const title = getCheckinMilestoneTitle(t, {
       id: 1,
       dayThreshold: 7,
-      rewardType: 'stelar',
-      rewardValue: 5,
-      displayTitle: 'Day 7 Estelar',
+      rewardType: 'temporary_power',
+      rewardValue: 50,
+      powerAmount: 50,
+      durationHours: 24,
+      displayTitle: 'Day 7 power',
       description: 'Should be ignored',
     });
-    expect(title).toBe('checkin.milestones.reward.stelar.title');
-    expect(title).not.toContain('Day 7 Estelar');
+    expect(title).toBe('checkin.milestones.reward.temporaryPower.title');
+    expect(title).not.toContain('Day 7 power');
     expect(getCheckinMilestoneStatusLabel(t, 'eligible')).toBe(
       'checkin.milestones.status.unlockedNextCheckin',
     );

@@ -154,32 +154,39 @@ async function main() {
       dayThreshold: 7,
       rewardType: 'pol',
       rewardValue: new Prisma.Decimal('0.05'),
-      validityDays: 7,
-      displayTitle: 'Week warrior',
-      description: 'Small POL bonus for 7-day streak',
+      validityDays: 1,
+      displayTitle: null,
+      description: null,
       active: true,
-      sortOrder: 10
+      sortOrder: 10,
+      minerId: null,
+      itemCode: null,
     },
     {
       dayThreshold: 15,
-      rewardType: 'hashrate',
+      rewardType: 'temporary_power',
       rewardValue: new Prisma.Decimal('75'),
-      validityDays: 7,
-      displayTitle: 'Two weeks strong',
-      description: 'Temporary hashrate boost',
+      validityDays: 1,
+      displayTitle: null,
+      description: null,
       active: true,
-      sortOrder: 20
+      sortOrder: 20,
+      minerId: null,
+      itemCode: null,
+      metadataJson: { durationHours: 168 },
     },
     {
       dayThreshold: 30,
       rewardType: 'pol',
       rewardValue: new Prisma.Decimal('0.25'),
-      validityDays: 7,
-      displayTitle: 'Monthly legend',
-      description: 'Larger POL bonus',
+      validityDays: 1,
+      displayTitle: null,
+      description: null,
       active: true,
-      sortOrder: 30
-    }
+      sortOrder: 30,
+      minerId: null,
+      itemCode: null,
+    },
   ];
   for (const m of defaultMilestones) {
     await prisma.checkinStreakMilestone.upsert({
@@ -192,8 +199,11 @@ async function main() {
         displayTitle: m.displayTitle,
         description: m.description,
         active: m.active,
-        sortOrder: m.sortOrder
-      }
+        sortOrder: m.sortOrder,
+        minerId: m.minerId,
+        itemCode: m.itemCode,
+        ...(m.metadataJson != null ? { metadataJson: m.metadataJson } : {}),
+      },
     });
   }
   console.log('Seed: check-in streak milestones OK');

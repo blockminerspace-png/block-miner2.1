@@ -20,9 +20,13 @@ export type CheckinMilestoneRow = {
   rewardType?: string;
   rewardValue?: string | number;
   amount?: string | number;
+  powerAmount?: number | null;
+  durationHours?: number | null;
   validityDays?: number | null;
   minerId?: number | null;
+  minerName?: string | null;
   itemCode?: string | null;
+  legacyInvalid?: boolean;
   status?: string;
   state?: string;
 };

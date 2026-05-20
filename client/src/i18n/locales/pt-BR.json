@@ -1958,36 +1958,28 @@
         "blocked": "Bloqueado",
         "claimed": "Resgatado",
         "unlocked": "Desbloqueado",
-        "unlockedNextCheckin": "Desbloqueado — resgate no próximo check-in"
+        "unlockedNextCheckin": "Desbloqueado — resgate no próximo check-in",
+        "unavailable": "Recompensa indisponível (regra antiga)"
       },
+      "durationHours": "{{count}} h",
+      "durationDays": "{{count}} dias",
       "reward": {
         "pol": {
-          "title": "Bônus do dia {{day}}",
-          "description": "Bônus de boas-vindas em POL."
+          "title": "{{amount}} POL — dia {{day}}",
+          "description": "Bônus em POL creditado na sequência de check-in."
         },
-        "item": {
-          "title": "Caixa de suprimentos do dia {{day}}",
-          "description": "Item de inventário recebido pela sequência de check-in."
-        },
-        "stelar": {
-          "title": "{{amount}} Estelar",
-          "description": "Bônus de Estelar pela sequência."
-        },
-        "zer": {
-          "title": "{{amount}} ZER",
-          "description": "Bônus de ZER pela sequência."
+        "temporaryPower": {
+          "title": "+{{power}} H/s temporário — dia {{day}}",
+          "description": "Poder temporário por {{duration}}.",
+          "line": "+{{power}} H/s · {{duration}}"
         },
         "machine": {
-          "title": "Máquina do dia {{day}}",
-          "description": "Recompensa de máquina recebida pela sequência."
+          "title": "Máquina: {{name}}",
+          "description": "Máquina cadastrada recebida pela sequência de check-in (dia {{day}})."
         },
-        "hashrate": {
-          "title": "Bônus de poder do dia {{day}}",
-          "description": "Bônus de HashRate pela sequência."
-        },
-        "none": {
-          "title": "Marco do dia {{day}}",
-          "description": "Recompensa especial de check-in."
+        "unavailable": {
+          "title": "Recompensa indisponível",
+          "description": "Este marco usa um tipo antigo e foi desativado. Contacta o suporte se já tinhas direito à recompensa."
         },
         "unknown": {
           "title": "Recompensa do dia {{day}}",
@@ -2561,11 +2553,49 @@
     }
   },
   "adminCheckinMilestones": {
+    "title": "Check-in — Marcos de sequência",
+    "subtitle": "Recompensas por dias consecutivos; o servidor aplica após check-in confirmado (uma vez por marco).",
+    "new": "Novo marco",
+    "edit": "Editar marco",
+    "save": "Guardar",
+    "loading": "A carregar…",
+    "empty": "Sem marcos. Cria um ou corre o seed da base de dados.",
+    "col_day": "Dia",
+    "col_type": "Tipo",
+    "col_summary": "Resumo",
+    "col_active": "Ativo",
+    "col_actions": "Ações",
+    "yes": "Sim",
+    "no": "Não",
+    "invalid_type": "Tipo inválido (desativar)",
+    "rewardTypes": {
+      "pol": "POL",
+      "temporaryPower": "Poder temporário",
+      "machine": "Máquina cadastrada"
+    },
+    "fields": {
+      "dayThreshold": "Dia (limiar)",
+      "rewardType": "Tipo de recompensa",
+      "polAmount": "Valor em POL",
+      "powerAmount": "Valor do poder (H/s)",
+      "durationHours": "Duração (horas)",
+      "machine": "Máquina",
+      "selectMachine": "Selecione uma máquina cadastrada",
+      "sortOrder": "Ordem",
+      "active": "Ativo"
+    },
+    "summary": {
+      "pol": "Dia {{day}} — POL — {{amount}} POL",
+      "temporaryPower": "Dia {{day}} — Poder temporário — +{{power}} H/s · {{hours}}h",
+      "machine": "Dia {{day}} — Máquina — {{name}}",
+      "invalid": "Dia {{day}} — inválido ({{type}})"
+    },
     "toast_created": "Marco criado.",
     "toast_updated": "Marco atualizado.",
     "toast_deleted": "Removido.",
     "toast_save_error": "Não foi possível guardar.",
     "toast_load_error": "Não foi possível carregar os marcos.",
+    "toast_miners_error": "Não foi possível carregar o catálogo de máquinas.",
     "toast_migration_pending": "Faltam migrações na base de dados do servidor. Executa Prisma migrate deploy e tenta de novo.",
     "confirm_delete": "Eliminar este marco? Recompensas já atribuídas mantêm-se registadas."
   },

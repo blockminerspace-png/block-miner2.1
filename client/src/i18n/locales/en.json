@@ -1953,36 +1953,28 @@
         "blocked": "Blocked",
         "claimed": "Claimed",
         "unlocked": "Unlocked",
-        "unlockedNextCheckin": "Unlocked — redeem on your next check-in"
+        "unlockedNextCheckin": "Unlocked — redeem on your next check-in",
+        "unavailable": "Reward unavailable (legacy rule)"
       },
+      "durationHours": "{{count}} h",
+      "durationDays": "{{count}} days",
       "reward": {
         "pol": {
-          "title": "Day {{day}} bonus",
-          "description": "Small POL welcome bonus."
+          "title": "{{amount}} POL — day {{day}}",
+          "description": "POL bonus credited from your check-in streak."
         },
-        "item": {
-          "title": "Day {{day}} supply crate",
-          "description": "Inventory item from your check-in streak."
-        },
-        "stelar": {
-          "title": "{{amount}} Estelar",
-          "description": "Estelar streak bonus."
-        },
-        "zer": {
-          "title": "{{amount}} ZER",
-          "description": "ZER streak bonus."
+        "temporaryPower": {
+          "title": "+{{power}} H/s temporary — day {{day}}",
+          "description": "Temporary power for {{duration}}.",
+          "line": "+{{power}} H/s · {{duration}}"
         },
         "machine": {
-          "title": "Day {{day}} rig",
-          "description": "Miner reward from your check-in streak."
+          "title": "Machine: {{name}}",
+          "description": "Catalog machine granted from your check-in streak (day {{day}})."
         },
-        "hashrate": {
-          "title": "Day {{day}} power bonus",
-          "description": "HashRate streak bonus."
-        },
-        "none": {
-          "title": "Day {{day}} milestone",
-          "description": "Special check-in reward."
+        "unavailable": {
+          "title": "Reward unavailable",
+          "description": "This milestone uses a legacy type and was disabled."
         },
         "unknown": {
           "title": "Day {{day}} reward",
@@ -2556,11 +2548,49 @@
     }
   },
   "adminCheckinMilestones": {
+    "title": "Check-in — Streak milestones",
+    "subtitle": "Rewards for consecutive days; the server applies them after a confirmed check-in (once per milestone).",
+    "new": "New milestone",
+    "edit": "Edit milestone",
+    "save": "Save",
+    "loading": "Loading…",
+    "empty": "No milestones. Create one or run the database seed.",
+    "col_day": "Day",
+    "col_type": "Type",
+    "col_summary": "Summary",
+    "col_active": "Active",
+    "col_actions": "Actions",
+    "yes": "Yes",
+    "no": "No",
+    "invalid_type": "Invalid type (disable)",
+    "rewardTypes": {
+      "pol": "POL",
+      "temporaryPower": "Temporary power",
+      "machine": "Catalog machine"
+    },
+    "fields": {
+      "dayThreshold": "Day (threshold)",
+      "rewardType": "Reward type",
+      "polAmount": "POL amount",
+      "powerAmount": "Power amount (H/s)",
+      "durationHours": "Duration (hours)",
+      "machine": "Machine",
+      "selectMachine": "Select a catalog machine",
+      "sortOrder": "Sort order",
+      "active": "Active"
+    },
+    "summary": {
+      "pol": "Day {{day}} — POL — {{amount}} POL",
+      "temporaryPower": "Day {{day}} — Temporary power — +{{power}} H/s · {{hours}}h",
+      "machine": "Day {{day}} — Machine — {{name}}",
+      "invalid": "Day {{day}} — invalid ({{type}})"
+    },
     "toast_created": "Milestone created.",
     "toast_updated": "Milestone updated.",
     "toast_deleted": "Removed.",
     "toast_save_error": "Could not save.",
     "toast_load_error": "Could not load milestones.",
+    "toast_miners_error": "Could not load machine catalog.",
     "toast_migration_pending": "Database migrations are pending on the server. Run Prisma migrate deploy, then try again.",
     "confirm_delete": "Delete this milestone? Already granted rewards stay recorded."
   },
