@@ -33,7 +33,7 @@ describe("inventory machine image wiring", () => {
 
   it("rack list resolves miner image from snapshot helper", () => {
     assert.match(roomsController, /resolveOwnedMachineImageUrl/);
-    assert.match(roomsController, /ownedMachine:\s*\{\s*select:\s*\{\s*imageUrl:\s*true\s*\}/);
+    assert.match(roomsController, /ownedMachine:\s*\{\s*select:\s*\{\s*imageUrl:\s*true,\s*minerName:\s*true\s*\}/);
   });
 
   it("shop purchase does not persist reward1 placeholder", () => {
