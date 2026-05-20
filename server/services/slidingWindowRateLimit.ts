@@ -12,6 +12,35 @@ import { useMemoryRateLimitStore } from "../utils/securityStoreMode.js";
 /** @type {Map<string, number[]>} */
 const memHits = new Map<string, number[]>();
 
+/**
+ * Prune all timestamps older than `maxAgeMs` from every key in the in-memory
+ * store and delete entries that become empty. Called on a slow interval to
+ * prevent unbounded memory growth in long-running servers.
+ */
+function pruneMemHits(maxAgeMs: number, now: number): void {
+  const cutoff = now - maxAgeMs;
+  for (const [k, arr] of memHits) {
+    const pruned = arr.filter((t) => t > cutoff);
+    if (pruned.length === 0) {
+      memHits.delete(k);
+    } else {
+      memHits.set(k, pruned);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes using a 10-minute TTL (generous: the longest
+// possible window in production is 60 s, so 10 min ensures no active window
+// is ever pruned prematurely).
+const MEM_HITS_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const MEM_HITS_MAX_AGE_MS = 10 * 60 * 1000;
+
+let _memHitsCleanupInterval: ReturnType<typeof setInterval> | null = setInterval(() => {
+  pruneMemHits(MEM_HITS_MAX_AGE_MS, Date.now());
+}, MEM_HITS_CLEANUP_INTERVAL_MS);
+// Allow Node to exit even if the interval is still pending.
+if (_memHitsCleanupInterval?.unref) _memHitsCleanupInterval.unref();
+
 function pruneMemoryTimestamps(timestamps: number[], windowMs: number, now: number): number[] {
   const cutoff = now - windowMs;
   return timestamps.filter((t) => t > cutoff);
@@ -116,4 +145,8 @@ export async function slidingWindowAllow(opts: {
 /** @internal */
 export function __resetSlidingWindowMemoryForTests() {
   memHits.clear();
+  if (_memHitsCleanupInterval !== null) {
+    clearInterval(_memHitsCleanupInterval);
+    _memHitsCleanupInterval = null;
+  }
 }

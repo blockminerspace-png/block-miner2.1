@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import loggerLib from "../../../utils/logger.js";
 import prisma from "../../../src/db/prisma.js";
 
 const WELCOME_MINER_SLUG = "welcome-10ghs";
@@ -57,34 +58,31 @@ export async function ensureWelcomeMiner() {
   return miner;
 }
 
+const repositoryLogger = loggerLib.child("AuthRepository");
+
 export async function findUserByIdentifier(identifier: unknown) {
-  const normalizedIdentifier = normalizeIdentifier(identifier);
   const normalizedEmail = normalizeEmail(identifier);
 
-  let user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: { equals: normalizedEmail, mode: "insensitive" } },
-        { username: { equals: normalizedIdentifier, mode: "insensitive" } },
-        { name: { equals: normalizedIdentifier, mode: "insensitive" } },
-      ],
-    },
+  // Login accepts email only. Username lookup was removed to prevent ambiguous
+  // matches (non-unique display names, similar email suffixes, etc.).
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: normalizedEmail, mode: "insensitive" } },
   });
 
   if (user) return user;
 
   // Legacy fallback for historically concatenated/corrupted emails.
-  if (normalizedIdentifier.includes("@")) {
-    user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: { endsWith: normalizedEmail, mode: "insensitive" } },
-          { email: { contains: normalizedEmail, mode: "insensitive" } },
-        ],
-      },
-      orderBy: { id: "desc" },
+  // Uses `endsWith` only (not `contains`) to avoid `ana@x.com` matching
+  // `mariana@x.com` and returning the wrong user.
+  const legacyUser = await prisma.user.findFirst({
+    where: { email: { endsWith: normalizedEmail, mode: "insensitive" } },
+    orderBy: { id: "desc" },
+  });
+  if (legacyUser) {
+    repositoryLogger.warn("findUserByIdentifier: legacy email endsWith fallback matched", {
+      identifierSuffix: normalizedEmail.slice(-8),
+      userId: legacyUser.id,
     });
   }
-
-  return user;
+  return legacyUser ?? null;
 }

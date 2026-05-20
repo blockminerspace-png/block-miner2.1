@@ -1,19 +1,20 @@
 import { z } from "zod";
 
-/** Aligned with client `authInputGuards` + bcrypt 72-byte cap. */
+/** Aligned with client email input + bcrypt 72-byte cap. */
 export const LOGIN_BODY_IDENTIFIER_MAX = 254;
 export const LOGIN_BODY_PASSWORD_MAX = 72;
 
 export const loginSchema = z.object({
   identifier: z
     .string()
-    .max(LOGIN_BODY_IDENTIFIER_MAX, "Login muito longo.")
+    .max(LOGIN_BODY_IDENTIFIER_MAX, "Email muito longo.")
     .transform((s) =>
       String(s ?? "")
         .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
-        .trim(),
+        .trim()
+        .toLowerCase(),
     )
-    .pipe(z.string().min(1, "Email ou username é obrigatório")),
+    .pipe(z.string().min(1, "Email é obrigatório.")),
   password: z
     .string()
     .max(LOGIN_BODY_PASSWORD_MAX, "Senha muito longa.")

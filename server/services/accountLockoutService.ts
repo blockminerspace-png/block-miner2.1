@@ -75,19 +75,28 @@ export async function getAuthLockStatus(p) {
   }
 
   const checkRow = async (meta) => {
-    return prisma.$transaction(
-      async (tx) => {
-        await advisoryXactTryLockOrThrow(tx, meta.resource);
-        const row = await tx.callbackQueue.findFirst({
-          where: { callbackType: "SEC_LOCK", callbackHash: meta.h },
-        });
-        const d: Record<string, unknown> = isPlainRecord(row?.data) ? row.data : {};
-        const lockUntil = Number(d.lockUntilMs ?? 0);
-        if (lockUntil > now) return { locked: true, until: lockUntil };
-        return { locked: false };
-      },
-      { timeout: 8000 },
-    );
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await advisoryXactTryLockOrThrow(tx, meta.resource);
+          const row = await tx.callbackQueue.findFirst({
+            where: { callbackType: "SEC_LOCK", callbackHash: meta.h },
+          });
+          const d: Record<string, unknown> = isPlainRecord(row?.data) ? row.data : {};
+          const lockUntil = Number(d.lockUntilMs ?? 0);
+          if (lockUntil > now) return { locked: true, until: lockUntil };
+          return { locked: false };
+        },
+        { timeout: 8000 },
+      );
+    } catch (err: unknown) {
+      // Advisory lock contention or DB timeout: fail-open so legitimate users
+      // are never blocked by infrastructure issues. A warning is sufficient —
+      // the IP-level distributed rate limiter still provides protection.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[AccountLockout] checkRow advisory lock failed (fail-open): ${msg}`);
+      return { locked: false };
+    }
   };
 
   const ipS = await checkRow(ipHashKey(p.ip));
@@ -144,42 +153,50 @@ export async function recordAuthLoginFailure(p) {
   }
 
   const bumpDb = async (meta) => {
-    await prisma.$transaction(
-      async (tx) => {
-        await advisoryXactTryLockOrThrow(tx, meta.resource);
-        const row = await tx.callbackQueue.findFirst({
-          where: { callbackType: "SEC_LOCK", callbackHash: meta.h },
-        });
-        const prev: Record<string, unknown> = isPlainRecord(row?.data) ? row.data : {};
-        let failCount = Number(prev.failCount ?? 0);
-        if (Number(prev.lockUntilMs ?? 0) > now) {
-          return;
-        }
-        failCount += 1;
-        let lockUntilMs = 0;
-        if (failCount >= TIER_SECOND) lockUntilMs = now + LOCK_MS_SECOND;
-        else if (failCount >= TIER_FIRST) lockUntilMs = now + LOCK_MS_FIRST;
-        const payload = { v: 1, failCount, lockUntilMs, lastFailAtMs: now };
-        if (row?.id) {
-          await tx.callbackQueue.update({
-            where: { id: row.id },
-            data: { data: payload, processedAt: new Date() },
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          await advisoryXactTryLockOrThrow(tx, meta.resource);
+          const row = await tx.callbackQueue.findFirst({
+            where: { callbackType: "SEC_LOCK", callbackHash: meta.h },
           });
-        } else {
-          await tx.callbackQueue.create({
-            data: {
-              callbackType: "SEC_LOCK",
-              callbackHash: meta.h,
-              userId: p.userId != null && Number.isFinite(p.userId) ? p.userId : null,
-              data: payload,
-              status: "processed",
-              processedAt: new Date(),
-            },
-          });
-        }
-      },
-      { timeout: 8000 },
-    );
+          const prev: Record<string, unknown> = isPlainRecord(row?.data) ? row.data : {};
+          let failCount = Number(prev.failCount ?? 0);
+          if (Number(prev.lockUntilMs ?? 0) > now) {
+            return;
+          }
+          failCount += 1;
+          let lockUntilMs = 0;
+          if (failCount >= TIER_SECOND) lockUntilMs = now + LOCK_MS_SECOND;
+          else if (failCount >= TIER_FIRST) lockUntilMs = now + LOCK_MS_FIRST;
+          const payload = { v: 1, failCount, lockUntilMs, lastFailAtMs: now };
+          if (row?.id) {
+            await tx.callbackQueue.update({
+              where: { id: row.id },
+              data: { data: payload, processedAt: new Date() },
+            });
+          } else {
+            await tx.callbackQueue.create({
+              data: {
+                callbackType: "SEC_LOCK",
+                callbackHash: meta.h,
+                userId: p.userId != null && Number.isFinite(p.userId) ? p.userId : null,
+                data: payload,
+                status: "processed",
+                processedAt: new Date(),
+              },
+            });
+          }
+        },
+        { timeout: 8000 },
+      );
+    } catch (err: unknown) {
+      // Advisory lock contention or DB timeout during failure recording.
+      // Log and continue — losing a single failure count is acceptable;
+      // propagating the error and returning 500 to the client is not.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[AccountLockout] bumpDb advisory lock failed (skipping bump): ${msg}`);
+    }
   };
 
   await bumpDb(ipHashKey(p.ip));

@@ -1,6 +1,5 @@
 import crypto from "crypto";
 import type { Request, Response } from "express";
-import type { Prisma } from "@prisma/client";
 import prisma from "../../../src/db/prisma.js";
 import { signAccessToken, createRefreshToken } from "../../../utils/authTokens.js";
 import { createRefreshTokenRecord } from "../../../models/refreshTokenModel.js";
@@ -22,7 +21,7 @@ import { toAuthPublicUserDto } from "../auth.dto.js";
 import { AUTH_LOGIN_MESSAGES, buildAuthFailureJson } from "../auth.errors.js";
 import { findUserByIdentifier } from "../shared/auth.repository.js";
 import { buildAccessCookie, buildRefreshCookie } from "../shared/auth.security.js";
-import { comparePassword } from "../shared/auth.service.js";
+import { comparePassword, compareDummyPassword } from "../shared/auth.service.js";
 import { getAuthTwoFactorEnvConfig, shouldRequireEmailTwoFactorForLogin } from "./login.twoFactor.js";
 
 const logger = loggerLib.child("LoginController");
@@ -57,9 +56,37 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const identifierStr = String(identifier ?? "");
+
+    // 1. Intercept legacy usernames before hitting the DB.
+    // If the input doesn't look like an email, we reject it explicitly
+    // instead of returning "invalid credentials", guiding the user to use email.
+    if (!identifierStr.includes("@")) {
+      await compareDummyPassword(String(password ?? "")); // timing attack mitigation
+      await recordAuthLoginFailure({ ip: clientIp, userId: null });
+      logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "USERNAME_NOT_SUPPORTED" });
+      void enqueueAuditEventBestEffort({
+        prismaOrTx: prisma,
+        event: buildAuditEventFromHttpRequest({
+          req,
+          event: {
+            eventType: AuditEventType.AUTH_LOGIN_FAILURE,
+            status: AuditEventStatus.FAILED,
+            resultCode: "USERNAME_NOT_SUPPORTED",
+            payload: { identifier },
+          },
+        }),
+      });
+      res
+        .status(400)
+        .json(buildAuthFailureJson("USERNAME_NOT_SUPPORTED", AUTH_LOGIN_MESSAGES.USERNAME_NOT_SUPPORTED));
+      return;
+    }
+
     const user = await findUserByIdentifier(identifier);
 
     if (!user) {
+      await compareDummyPassword(String(password ?? "")); // timing attack mitigation
       await recordAuthLoginFailure({ ip: clientIp, userId: null });
       logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "IDENTIFIER_NOT_FOUND" });
       void enqueueAuditEventBestEffort({
@@ -223,8 +250,12 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
         userId: user.id,
       });
       if (!twoFactorResult.ok) {
-        await recordAuthLoginFailure({ ip: clientIp, userId: user.id });
-        logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "INVALID_2FA", userId: user.id });
+        // Only count as a brute-force attempt if the code was wrong, NOT if
+        // the challenge token merely expired (user took too long).
+        if (twoFactorResult.reason !== "EXPIRED") {
+          await recordAuthLoginFailure({ ip: clientIp, userId: user.id });
+        }
+        logUserActivity("AUTH_LOGIN_FAILURE", req, { reason: "INVALID_2FA", userId: user.id, twoFactorReason: twoFactorResult.reason });
         void enqueueAuditEventBestEffort({
           prismaOrTx: prisma,
           event: buildAuditEventFromHttpRequest({
@@ -243,11 +274,15 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
           action: "AUTH_2FA_FAILURE",
           ip: clientIp,
           userAgent: req.headers["user-agent"] || null,
-          details: { reason: "INVALID_2FA" },
+          details: { reason: twoFactorResult.reason },
         });
+        const failMsg = twoFactorResult.reason === "EXPIRED"
+          ? AUTH_LOGIN_MESSAGES.TWO_FACTOR_EXPIRED
+          : AUTH_LOGIN_MESSAGES.INVALID_2FA;
+        const failCode = twoFactorResult.reason === "EXPIRED" ? "TWO_FACTOR_EXPIRED" : "INVALID_TWO_FACTOR_CODE";
         res
           .status(401)
-          .json(buildAuthFailureJson("INVALID_TWO_FACTOR_CODE", AUTH_LOGIN_MESSAGES.INVALID_2FA));
+          .json(buildAuthFailureJson(failCode, failMsg));
         return;
       }
     }
@@ -261,29 +296,29 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
         }
       : ipContext;
 
-    await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            ip: clientIp,
-            lastLoginAt: new Date(),
-            userAgent: req.headers["user-agent"],
-          },
-        });
-        await recordUserIpLog(tx, {
-          userId: user.id,
-          ip: clientIp,
-          networkCidr: authIpContext.networkCidr,
-          asn: authIpContext.asn,
-          providerType: authIpContext.providerType,
-          deviceFingerprint,
-          userAgent: req.headers["user-agent"] || null,
-          eventType: "login",
-        });
+    // Update user login metadata (non-critical: never block successful login).
+    // recordUserIpLog is best-effort: a failure there must not cause a 503.
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        ip: clientIp,
+        lastLoginAt: new Date(),
+        userAgent: req.headers["user-agent"],
       },
-      { timeout: 20_000, maxWait: 15_000 },
-    );
+    });
+    void recordUserIpLog(prisma, {
+      userId: user.id,
+      ip: clientIp,
+      networkCidr: authIpContext.networkCidr,
+      asn: authIpContext.asn,
+      providerType: authIpContext.providerType,
+      deviceFingerprint,
+      userAgent: req.headers["user-agent"] || null,
+      eventType: "login",
+    }).catch((ipLogErr: unknown) => {
+      const msg = ipLogErr instanceof Error ? ipLogErr.message : String(ipLogErr);
+      logger.warn("auth.login.ip_log_failed", { userId: user.id, message: msg });
+    });
 
     void enqueueAuditEventBestEffort({
       prismaOrTx: prisma,
@@ -315,12 +350,16 @@ export async function loginPost(req: Request, res: Response): Promise<void> {
       details: { email: user.email },
     });
 
-    const newCsrf = crypto.randomBytes(24).toString("base64url");
-    res.locals.csrfToken = newCsrf;
+    // Reuse the CSRF token that the CSRF middleware already issued for this
+    // request. Generating a brand-new token here and setting it in a cookie
+    // would race against the browser's cookie store: if the client reads the
+    // old cookie before the new Set-Cookie lands, the very next mutation
+    // request gets a 403 INVALID_CSRF_TOKEN.
+    const activeCsrf = String(res.locals.csrfToken || crypto.randomBytes(24).toString("base64url"));
     res.setHeader("Set-Cookie", [
       buildAccessCookie(accessToken),
       buildRefreshCookie(refreshToken.token, refreshToken.expiresAt),
-      buildCsrfCookie(newCsrf),
+      buildCsrfCookie(activeCsrf),
     ]);
     res.json({ ok: true, user: toAuthPublicUserDto(user) });
   } catch (error: unknown) {

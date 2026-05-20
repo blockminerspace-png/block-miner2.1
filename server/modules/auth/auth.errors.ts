@@ -6,6 +6,7 @@
 export const AUTH_LOGIN_MESSAGES = {
   INVALID_CREDENTIALS: "Credenciais inválidas.",
   INVALID_2FA: "Código 2FA inválido ou expirado.",
+  TWO_FACTOR_EXPIRED: "Código expirado. Solicite um novo código de verificação.",
   ACCOUNT_DISABLED: "Conta bloqueada.",
   TWO_FACTOR_CHALLENGE_REQUIRED: "Sessão de verificação incompleta. Volte e solicite um novo código.",
   TWO_FACTOR_CODE_REQUIRED: "Informe o código de verificação enviado ao seu e-mail.",
@@ -14,6 +15,7 @@ export const AUTH_LOGIN_MESSAGES = {
   SERVICE_UNAVAILABLE:
     "O servidor está ocupado no momento. Aguarde alguns segundos e tente entrar novamente.",
   INTERNAL: "Não foi possível concluir o login. Tente novamente.",
+  USERNAME_NOT_SUPPORTED: "O login com nome de usuário foi desativado. Utilize seu endereço de e-mail.",
 } as const;
 
 export type AuthFailureJson = {

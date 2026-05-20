@@ -107,7 +107,12 @@ export function verifyEmailTwoFactorChallenge({ challengeToken, code, userId }) 
       return { ok: false, reason: "INVALID_CODE" };
     }
     return { ok: true };
-  } catch {
+  } catch (err: unknown) {
+    // Distinguish expired tokens from genuinely invalid ones so callers can
+    // skip the lockout counter when the user simply took too long to submit.
+    if (err instanceof jwt.JsonWebTokenError && err.name === "TokenExpiredError") {
+      return { ok: false, reason: "EXPIRED" };
+    }
     return { ok: false, reason: "INVALID_OR_EXPIRED" };
   }
 }

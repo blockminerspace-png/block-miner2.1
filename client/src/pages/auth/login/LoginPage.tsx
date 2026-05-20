@@ -113,6 +113,10 @@ export default function Login() {
         setLocalError(t('auth.login.validation.identifier_invalid_chars'));
         return;
       }
+      if (idErr === 'invalid_email') {
+        setLocalError(t('auth.login.validation.identifier_invalid_email'));
+        return;
+      }
       const pwErr = validateLoginPasswordForSubmit(pw);
       if (pwErr === 'empty') {
         setLocalError(t('auth.login.validation.password_empty'));
@@ -223,6 +227,7 @@ export default function Login() {
           RATE_LIMIT_EXCEEDED: t('errors.security.RATE_LIMIT_EXCEEDED'),
           CAPTCHA_REQUIRED: t('errors.security.CAPTCHA_REQUIRED'),
           CAPTCHA_FAILED: t('errors.security.CAPTCHA_FAILED'),
+          USERNAME_NOT_SUPPORTED: t('auth.login.errors.username_not_supported'),
         };
 
         const fromApi = safeInlineMessage(readAuthErrorMessage(err, ''));
@@ -397,11 +402,11 @@ export default function Login() {
                     </div>
                     <input
                       id="identifier"
-                      type="text"
+                      type="email"
                       name="identifier"
                       required
                       maxLength={LOGIN_IDENTIFIER_MAX_LEN}
-                      autoComplete="username"
+                      autoComplete="email"
                       value={identifier}
                       onChange={(e) => setIdentifier(clampLoginIdentifier(e.target.value))}
                       className="block w-full pl-12 pr-4 py-4 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"

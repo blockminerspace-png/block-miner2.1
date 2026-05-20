@@ -34,7 +34,7 @@ export function normalizeTwoFactorInput(raw: string): string {
 }
 
 export type LoginFieldErrors = {
-  identifier?: 'empty' | 'too_long' | 'invalid_chars';
+  identifier?: 'empty' | 'too_long' | 'invalid_chars' | 'invalid_email';
   password?: 'empty' | 'too_long';
   twoFactor?: 'incomplete' | 'invalid';
 };
@@ -43,8 +43,13 @@ export function validateLoginIdentifierForSubmit(clamped: string): LoginFieldErr
   if (!clamped) return 'empty';
   if (clamped.length > LOGIN_IDENTIFIER_MAX_LEN) return 'too_long';
   if (/[\u0000-\u001F\u007F]/.test(clamped)) return 'invalid_chars';
+  // Require a valid email address
+  if (!clamped.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clamped)) return 'invalid_email';
   return null;
 }
+
+/** Alias kept for readability at call sites. */
+export const validateLoginEmailForSubmit = validateLoginIdentifierForSubmit;
 
 export function validateLoginPasswordForSubmit(clamped: string): LoginFieldErrors['password'] | null {
   if (!clamped) return 'empty';
