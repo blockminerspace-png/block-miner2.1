@@ -99,7 +99,7 @@ export function attachClientDistStatic(app: Express, distPath: string, indexExis
           return;
         }
         if (/\.(png|jpe?g|webp|gif|ico|svg)$/i.test(filePath)) {
-          res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
           return;
         }
         res.setHeader("Cache-Control", "public, max-age=3600");
