@@ -493,6 +493,31 @@ adminRouter.post("/users/:id/unban", async (req, res) => {
     }
 });
 
+adminRouter.post("/users/:id/unlock", async (req, res) => {
+    try {
+        const userId = parseStrictPositiveUserId(req.params.id);
+        if (!userId) return res.status(400).json({ ok: false, message: "ID de usuário inválido." });
+
+        // Remove lockout records tied directly to this userId in callbackQueue.
+        const { count } = await prisma.callbackQueue.deleteMany({
+            where: { callbackType: "SEC_LOCK", userId },
+        });
+
+        void createAuditLogBestEffort({
+            userId,
+            action: "ADMIN_UNLOCK_ACCOUNT",
+            ip: getClientIp(req),
+            userAgent: req.headers["user-agent"] || null,
+            details: { rowsDeleted: count },
+        });
+
+        res.json({ ok: true, message: `Bloqueio removido (${count} registro(s) apagado(s)).` });
+    } catch (error) {
+        loggerLib.child("AdminUsers").error("admin.unlock.error", { message: adminErrMessage(error) });
+        res.status(500).json({ ok: false, message: "Erro ao desbloquear conta." });
+    }
+});
+
 adminRouter.post("/users/:id/reset-password", createRateLimiter({ windowMs: 60_000, max: 10 }), async (req, res) => {
     try {
         const userId = parseStrictPositiveUserId(req.params.id);

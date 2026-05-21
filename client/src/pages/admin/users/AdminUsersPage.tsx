@@ -416,6 +416,20 @@ export default function AdminUsers() {
     setResetPasswordUserId(selectedUser.user.id);
   };
 
+  const handleUnlock = async () => {
+    if (!selectedUser) return;
+    try {
+      const res = await api.post<{ ok: boolean; message?: string }>(`/admin/users/${selectedUser.user.id}/unlock`);
+      if (res.data.ok) {
+        toast.success(res.data.message || 'Conta desbloqueada!');
+      } else {
+        toast.error(res.data.message || 'Erro ao desbloquear.');
+      }
+    } catch (err: unknown) {
+      toast.error(readAxiosResponseMessage(err) || 'Erro ao desbloquear conta.');
+    }
+  };
+
   const handleSendMiner = async () => {
     if (isSending || !sendMinerId || !selectedUser) return;
     if (!confirm(`Enviar ${sendQty}x máquina para ${selectedUser.user.username || selectedUser.user.email}?`)) return;
@@ -724,7 +738,7 @@ export default function AdminUsers() {
                     ))}
                   </div>
                   <div className="space-y-8 p-6 pb-20">
-                    {detailsTab === 'perfil' ? <ProfileTab selectedUser={selectedUser} onBan={() => void handleBanToggle(selectedUser.user)} onResetPassword={() => void handleResetPassword()} /> : null}
+                    {detailsTab === 'perfil' ? <ProfileTab selectedUser={selectedUser} onBan={() => void handleBanToggle(selectedUser.user)} onResetPassword={() => void handleResetPassword()} onUnlock={() => void handleUnlock()} /> : null}
                     {detailsTab === 'transações' ? <TransactionsTab state={tabState['transações']} onLoad={(o) => void loadTab('transações', o)} /> : null}
                     {detailsTab === 'logs' ? <LogsTab state={tabState.logs} onLoad={(o) => void loadTab('logs', o)} /> : null}
                     {detailsTab === 'tickets' ? <TicketsTab state={tabState.tickets} onLoad={(o) => void loadTab('tickets', o)} /> : null}
@@ -877,7 +891,7 @@ function DetailCard({
   );
 }
 
-function ProfileTab({ selectedUser, onBan, onResetPassword }: { selectedUser: AdminUserDetailsPayload; onBan: () => void; onResetPassword: () => void }) {
+function ProfileTab({ selectedUser, onBan, onResetPassword, onUnlock }: { selectedUser: AdminUserDetailsPayload; onBan: () => void; onResetPassword: () => void; onUnlock: () => void }) {
   const { user, metrics } = selectedUser;
   const intel = user.lastIpIntelligence;
   return (
@@ -955,10 +969,17 @@ function ProfileTab({ selectedUser, onBan, onResetPassword }: { selectedUser: Ad
         </button>
         <button
           type="button"
+          onClick={onUnlock}
+          className="flex-1 rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
+        >
+          Desbloquear conta
+        </button>
+        <button
+          type="button"
           onClick={onResetPassword}
           className="flex-1 rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
         >
-          Redefinir senha + enviar e-mail
+          Redefinir senha
         </button>
       </div>
     </div>
