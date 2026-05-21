@@ -27,9 +27,18 @@ export function timingSafeAdminSecretEqual(supplied: unknown, expectedFromEnv: s
   return crypto.timingSafeEqual(left, right);
 }
 
+function authCookieSameSite(): "Lax" | "Strict" | "None" {
+  const raw = String(process.env.AUTH_COOKIE_SAMESITE || "").trim().toLowerCase();
+  if (raw === "lax") return "Lax";
+  if (raw === "strict") return "Strict";
+  if (raw === "none") return "None";
+  return "Lax";
+}
+
 export function buildCookie(name: string, value: string, maxAgeSeconds: number): string {
-  const parts = [`${name}=${encodeURIComponent(value)}`, `Max-Age=${maxAgeSeconds}`, "Path=/", "HttpOnly", "SameSite=Lax"];
-  if (process.env.NODE_ENV === "production") parts.push("Secure");
+  const sameSite = authCookieSameSite();
+  const parts = [`${name}=${encodeURIComponent(value)}`, `Max-Age=${maxAgeSeconds}`, "Path=/", "HttpOnly", `SameSite=${sameSite}`];
+  if (process.env.NODE_ENV === "production" || sameSite === "None") parts.push("Secure");
   return parts.join("; ");
 }
 

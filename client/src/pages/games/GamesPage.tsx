@@ -1003,41 +1003,50 @@ export default function Games() {
     const now = performance.now();
     const hit = state.hit;
     const serverRoadSpeed = Number(state.roadSpeed) || 0.48;
-    const roadPixelsPerSecond = 220 + serverRoadSpeed * 230;
+    const roadPixelsPerSecond = 110 + serverRoadSpeed * 90;
     state.roadOffset = ((Number(state.roadOffset) || 0) + roadPixelsPerSecond * deltaSeconds) % CART_LOGICAL_WIDTH;
     const scroll = state.roadOffset;
     const missionProgress = Math.max(0, Math.min(1, (Number(state.score) || 0) / Math.max(1, Number(state.targetScore) || CART_TARGET_SCORE)));
 
     const CAR_WIDTH = 110;
     const CAR_HEIGHT = 50;
-    const BTC_SIZE = 22;
+    const BTC_SIZE = 28;
 
     ctx.save();
     
-    // 1. Realistic Night Sky Background
+    // 1. Daytime Sky Background
     const skyGrad = ctx.createLinearGradient(0, 0, 0, 180);
-    skyGrad.addColorStop(0, '#090d16');
-    skyGrad.addColorStop(1, '#1b2336');
+    skyGrad.addColorStop(0, '#38bdf8');
+    skyGrad.addColorStop(1, '#bae6fd');
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, 180);
-    
-    // Draw realistic glowing Moon
+
+    // Draw Sun
     ctx.save();
-    ctx.shadowColor = 'rgba(255, 253, 230, 0.35)';
-    ctx.shadowBlur = 25;
-    ctx.fillStyle = '#fffae6';
+    ctx.fillStyle = '#fde68a';
     ctx.beginPath();
-    ctx.arc(620, 75, 26, 0, Math.PI * 2);
+    ctx.arc(80, 55, 30, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0; // reset
-    // Moon craters
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.fillStyle = 'rgba(253, 224, 71, 0.35)';
     ctx.beginPath();
-    ctx.arc(610, 68, 6, 0, Math.PI * 2);
-    ctx.arc(632, 82, 8, 0, Math.PI * 2);
-    ctx.arc(615, 85, 4, 0, Math.PI * 2);
+    ctx.arc(80, 55, 44, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+
+    // Clouds
+    const drawCloud = (cx: number, cy: number, scale: number) => {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.88)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 40 * scale, 20 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 28 * scale, cy + 5 * scale, 30 * scale, 16 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx - 25 * scale, cy + 5 * scale, 26 * scale, 14 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    drawCloud(260, 48, 0.8);
+    drawCloud(480, 35, 1.0);
+    drawCloud(680, 55, 0.75);
 
     // 2. Parallax Scenery (Mountains, Trees, Poles)
     if (sceneryRef.current) {
@@ -1051,10 +1060,10 @@ export default function Games() {
 
         ctx.save();
         if (item.type === 'mountain') {
-          // Far mountains silhouette
+          // Bright green rolling hills
           const mountainGrad = ctx.createLinearGradient(item.x, item.y - item.size, item.x, item.y);
-          mountainGrad.addColorStop(0, '#1c2536');
-          mountainGrad.addColorStop(1, '#0e131d');
+          mountainGrad.addColorStop(0, '#86efac');
+          mountainGrad.addColorStop(1, '#4ade80');
           ctx.fillStyle = mountainGrad;
           ctx.beginPath();
           ctx.moveTo(item.x - item.size, item.y);
@@ -1066,10 +1075,10 @@ export default function Games() {
           // Pine tree
           ctx.translate(item.x, item.y);
           // Trunk
-          ctx.fillStyle = '#3d2516';
+          ctx.fillStyle = '#92400e';
           ctx.fillRect(-3, 0, 6, 12);
           // Leaves (layers of green triangles)
-          ctx.fillStyle = '#1e3f20';
+          ctx.fillStyle = '#16a34a';
           ctx.beginPath();
           ctx.moveTo(0, -item.size);
           ctx.lineTo(-item.size * 0.5, -item.size * 0.4);
@@ -1077,7 +1086,7 @@ export default function Games() {
           ctx.closePath();
           ctx.fill();
 
-          ctx.fillStyle = '#163518';
+          ctx.fillStyle = '#15803d';
           ctx.beginPath();
           ctx.moveTo(0, -item.size * 0.6);
           ctx.lineTo(-item.size * 0.65, 0);
@@ -1109,16 +1118,16 @@ export default function Games() {
       });
     }
 
-    // 3. Ground Shoulders (natural soil/dark grass)
+    // 3. Ground Shoulders (bright grass)
     const topShoulderGrad = ctx.createLinearGradient(0, 130, 0, 180);
-    topShoulderGrad.addColorStop(0, '#101614');
-    topShoulderGrad.addColorStop(1, '#1b2c21'); // grass green towards road
+    topShoulderGrad.addColorStop(0, '#4ade80');
+    topShoulderGrad.addColorStop(1, '#22c55e');
     ctx.fillStyle = topShoulderGrad;
     ctx.fillRect(0, 130, CART_LOGICAL_WIDTH, 50);
 
     const bottomShoulderGrad = ctx.createLinearGradient(0, 360, 0, CART_LOGICAL_HEIGHT);
-    bottomShoulderGrad.addColorStop(0, '#1b2c21');
-    bottomShoulderGrad.addColorStop(1, '#0e120f');
+    bottomShoulderGrad.addColorStop(0, '#22c55e');
+    bottomShoulderGrad.addColorStop(1, '#16a34a');
     ctx.fillStyle = bottomShoulderGrad;
     ctx.fillRect(0, 360, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT - 360);
 
@@ -1150,11 +1159,11 @@ export default function Games() {
     drawGuardrail(170, true);
     drawGuardrail(362, false);
 
-    // 4. Road Surface (textured dark asphalt)
+    // 4. Road Surface (visible medium grey asphalt)
     const roadGrad = ctx.createLinearGradient(0, roadY, 0, roadY + roadH);
-    roadGrad.addColorStop(0, '#262626');
-    roadGrad.addColorStop(0.5, '#1e1e1e');
-    roadGrad.addColorStop(1, '#262626');
+    roadGrad.addColorStop(0, '#6b7280');
+    roadGrad.addColorStop(0.5, '#5a6271');
+    roadGrad.addColorStop(1, '#6b7280');
     ctx.fillStyle = roadGrad;
     ctx.fillRect(roadX, roadY, roadW, roadH);
 
@@ -1168,8 +1177,8 @@ export default function Games() {
     ctx.lineTo(CART_LOGICAL_WIDTH, roadY + roadH);
     ctx.stroke();
 
-    // Lane Dividers (faded yellow dashes)
-    ctx.strokeStyle = 'rgba(233, 196, 106, 0.4)';
+    // Lane Dividers (bright white dashes)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
     ctx.setLineDash([40, 60]);
     ctx.lineDashOffset = -scroll;
     ctx.lineWidth = 2.5;
@@ -1186,49 +1195,49 @@ export default function Games() {
     const drawCone = (cx: number, cy: number) => {
       ctx.save();
       ctx.translate(cx, cy);
-      
+
       // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
       ctx.beginPath();
-      ctx.ellipse(0, 14, 18, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 18, 24, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Black rubber base
-      ctx.fillStyle = '#1c1c1f';
+      ctx.fillStyle = '#374151';
       ctx.beginPath();
-      ctx.roundRect(-16, 9, 32, 5, 1);
+      ctx.roundRect(-20, 12, 40, 6, 2);
       ctx.fill();
 
-      // Cone Body (Orange)
-      ctx.fillStyle = '#d35400';
+      // Cone Body (bright orange)
+      ctx.fillStyle = '#f97316';
       ctx.beginPath();
-      ctx.moveTo(-11, 9);
-      ctx.lineTo(-3, -16);
-      ctx.lineTo(3, -16);
-      ctx.lineTo(11, 9);
+      ctx.moveTo(-16, 12);
+      ctx.lineTo(-4, -22);
+      ctx.lineTo(4, -22);
+      ctx.lineTo(16, 12);
       ctx.closePath();
       ctx.fill();
 
       // Shaded left edge (3D depth)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
       ctx.beginPath();
-      ctx.moveTo(-11, 9);
-      ctx.lineTo(-3, -16);
-      ctx.lineTo(0, -16);
-      ctx.lineTo(0, 9);
+      ctx.moveTo(-16, 12);
+      ctx.lineTo(-4, -22);
+      ctx.lineTo(0, -22);
+      ctx.lineTo(0, 12);
       ctx.closePath();
       ctx.fill();
 
       // Reflective white stripe
-      ctx.fillStyle = '#f3f4f6';
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.moveTo(-7, -1);
-      ctx.lineTo(-5, -7);
-      ctx.lineTo(5, -7);
-      ctx.lineTo(7, -1);
+      ctx.moveTo(-10, -1);
+      ctx.lineTo(-7, -10);
+      ctx.lineTo(7, -10);
+      ctx.lineTo(10, -1);
       ctx.closePath();
       ctx.fill();
-      
+
       ctx.restore();
     };
 
@@ -1294,43 +1303,43 @@ export default function Games() {
       ctx.save();
       ctx.translate(cx, cy);
 
-      // Cragged deep dark cavity
-      ctx.fillStyle = '#111827';
+      // Dark cavity (clearly visible on grey road)
+      ctx.fillStyle = '#1f2937';
       ctx.beginPath();
-      ctx.ellipse(0, 0, 28, 12, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 42, 18, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Inner puddle water reflecting deep blue sky
-      ctx.fillStyle = '#1e293b';
+      // Inner puddle reflecting sky blue
+      ctx.fillStyle = '#0ea5e9';
       ctx.beginPath();
-      ctx.ellipse(-2, 1, 22, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(-2, 1, 32, 12, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Puddle sheen / reflection (moonlit highlight)
-      const sheenGrad = ctx.createLinearGradient(-15, -4, 15, 4);
-      sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
-      sheenGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.18)');
+      // Puddle sheen highlight
+      const sheenGrad = ctx.createLinearGradient(-20, -6, 20, 6);
+      sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
+      sheenGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
       sheenGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = sheenGrad;
       ctx.beginPath();
-      ctx.ellipse(-2, 1, 20, 7, 0.1, 0, Math.PI * 2);
+      ctx.ellipse(-2, 0, 28, 10, 0.1, 0, Math.PI * 2);
       ctx.fill();
 
-      // Jagged asphalt crack outlines around edge
-      ctx.strokeStyle = '#374151';
-      ctx.lineWidth = 2;
+      // Jagged crack outline (bright contrast)
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 28, 12, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 42, 18, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // Outer fracture lines
-      ctx.strokeStyle = '#4b5563';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#374151';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(-28, 0); ctx.lineTo(-36, -3); ctx.lineTo(-40, -1);
-      ctx.moveTo(28, 0); ctx.lineTo(36, 4);
-      ctx.moveTo(0, -12); ctx.lineTo(3, -18);
-      ctx.moveTo(-8, 11); ctx.lineTo(-12, 16);
+      ctx.moveTo(-42, 0); ctx.lineTo(-52, -4);
+      ctx.moveTo(42, 0); ctx.lineTo(52, 5);
+      ctx.moveTo(0, -18); ctx.lineTo(4, -26);
+      ctx.moveTo(-10, 16); ctx.lineTo(-15, 22);
       ctx.stroke();
 
       ctx.restore();
@@ -1591,22 +1600,16 @@ export default function Games() {
       }
     }
 
-    // Spring-Damper Physics calculation for continuous player lane changing
+    // Smooth lerp lane transition (no overshoot/bounce)
     const carLane = clampCartLane(Number(state.lane) || 0, lanes);
     if (state.physX === undefined) {
       state.physX = carLane;
       state.physVx = 0;
     }
-    const diff = carLane - state.physX;
-    const stiffness = 170;
-    const damping = 19;
-    const accel = diff * stiffness - (state.physVx || 0) * damping;
-    state.physVx = (state.physVx || 0) + accel * deltaSeconds;
-    
-    // limit physical speed
-    const maxSpeed = 7.0;
-    state.physVx = Math.max(-maxSpeed, Math.min(maxSpeed, state.physVx));
-    state.physX = (state.physX || 0) + state.physVx * deltaSeconds;
+    const prevPhysX = state.physX;
+    const laneSpeed = 8;
+    state.physX = prevPhysX + (carLane - prevPhysX) * Math.min(1, laneSpeed * deltaSeconds);
+    state.physVx = (state.physX - prevPhysX) / Math.max(deltaSeconds, 0.001);
     state.renderLane = state.physX;
 
     const carX = roadX + 160;
@@ -1651,13 +1654,6 @@ export default function Games() {
     drawPlayerCar(carX, carY, tilt, hit ? (now % 200 < 100 ? 0.45 : 1) : 1);
 
     if (hit) ctx.restore();
-
-    // Dark screen border vignette
-    const v = ctx.createRadialGradient(CART_LOGICAL_WIDTH/2, CART_LOGICAL_HEIGHT/2, CART_LOGICAL_WIDTH/3, CART_LOGICAL_WIDTH/2, CART_LOGICAL_HEIGHT/2, CART_LOGICAL_WIDTH/1.2);
-    v.addColorStop(0, 'rgba(0,0,0,0)');
-    v.addColorStop(1, 'rgba(0,0,0,0.55)');
-    ctx.fillStyle = v;
-    ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
 
     ctx.restore();
 
@@ -1974,6 +1970,7 @@ export default function Games() {
       const nextLane = getCartLaneFromPointer(y, lanes, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
       if (nextLane === current.lane) return;
       if (!socketEmitGuardRef.current.tryEmitLane()) return;
+      lastLaneActionTimeRef.current = performance.now();
       cartStateRef.current = {
         ...current,
         lane: nextLane,
@@ -1992,6 +1989,7 @@ export default function Games() {
       const nextLane = clampCartLane(current.lane + step, lanes);
       if (nextLane === current.lane) return;
       if (!socketEmitGuardRef.current.tryEmitLane()) return;
+      lastLaneActionTimeRef.current = performance.now();
       cartStateRef.current = {
         ...current,
         lane: nextLane,
