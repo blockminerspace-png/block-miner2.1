@@ -5,6 +5,13 @@
 -- 1. blocked_by_miner_id — used to track which miner occupies an adjacent slot (2-slot machines)
 ALTER TABLE "user_racks" ADD COLUMN IF NOT EXISTS "blocked_by_miner_id" INTEGER;
 
+-- 1a. Null out any orphaned blocked_by_miner_id values before adding the FK constraint.
+--     These can exist when miners were deleted but the rack reference was not cleaned up.
+UPDATE "user_racks"
+SET "blocked_by_miner_id" = NULL
+WHERE "blocked_by_miner_id" IS NOT NULL
+  AND "blocked_by_miner_id" NOT IN (SELECT id FROM "user_miners");
+
 DO $$ BEGIN
     ALTER TABLE "user_racks" ADD CONSTRAINT "user_racks_blocked_by_miner_id_fkey"
       FOREIGN KEY ("blocked_by_miner_id") REFERENCES "user_miners"("id")
