@@ -533,6 +533,7 @@ export default function AdminReadEarn() {
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-800 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-900 text-slate-500 text-left text-xs uppercase tracking-wider">
               <tr>
@@ -583,6 +584,7 @@ export default function AdminReadEarn() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

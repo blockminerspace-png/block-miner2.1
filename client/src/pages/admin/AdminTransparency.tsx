@@ -1204,6 +1204,7 @@ export default function AdminTransparency() {
         </div>
       ) : (
         <div className="rounded-2xl border border-white/8 overflow-hidden" data-testid="entries-table">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/8 bg-white/2">
@@ -1324,6 +1325,7 @@ export default function AdminTransparency() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

@@ -907,7 +907,7 @@ export default function AdminFinance() {
                                     ))}
                                 </div>
                             )}
-                            <div className="max-h-[480px] overflow-y-auto rounded-2xl border border-slate-800">
+                            <div className="max-h-[480px] overflow-y-auto overflow-x-auto rounded-2xl border border-slate-800">
                                 <table className="w-full text-left text-xs">
                                     <thead className="bg-slate-950 text-[9px] uppercase tracking-widest text-slate-500">
                                         <tr>

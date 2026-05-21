@@ -264,6 +264,7 @@ export default function AdminCreators() {
             <p className="text-sm font-bold">Nenhum criador credenciado ainda.</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-800/50 text-[10px] uppercase tracking-widest font-black text-slate-500">
               <tr>
@@ -363,6 +364,7 @@ export default function AdminCreators() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

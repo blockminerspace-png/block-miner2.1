@@ -395,6 +395,7 @@ export default function AdminCheckinMilestones() {
         ) : rows.length === 0 ? (
           <p className="p-8 text-center text-slate-500">{t('adminCheckinMilestones.empty')}</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800 text-left text-[10px] uppercase tracking-widest text-slate-500">
@@ -445,6 +446,7 @@ export default function AdminCheckinMilestones() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
