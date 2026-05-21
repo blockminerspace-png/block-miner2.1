@@ -39,6 +39,9 @@ async function main() {
   let migratedCount = 0;
   let deletedCount = 0;
 
+  const toDelete = [];
+  const toUpdate = [];
+
   for (const [userId, userMap] of grouped.entries()) {
     for (const [correctKey, rows] of userMap.entries()) {
       // Sort rows to pick the best one:
@@ -58,21 +61,31 @@ async function main() {
       
       // Update the best row to correctKey if it isn't already
       if (bestRow.checkinDate !== correctKey) {
-        await prisma.dailyCheckin.update({
-          where: { id: bestRow.id },
-          data: { checkinDate: correctKey }
-        });
-        migratedCount++;
+        toUpdate.push({ id: bestRow.id, correctKey });
       }
 
       // Delete the other duplicate rows
       for (let i = 1; i < rows.length; i++) {
-        await prisma.dailyCheckin.delete({
-          where: { id: rows[i].id }
-        });
-        deletedCount++;
+        toDelete.push(rows[i].id);
       }
     }
+  }
+
+  // 1. Delete all duplicates first
+  for (const id of toDelete) {
+    await prisma.dailyCheckin.delete({
+      where: { id }
+    });
+    deletedCount++;
+  }
+
+  // 2. Update keys for the best rows
+  for (const { id, correctKey } of toUpdate) {
+    await prisma.dailyCheckin.update({
+      where: { id },
+      data: { checkinDate: correctKey }
+    });
+    migratedCount++;
   }
 
   console.log(`Phase 1 Complete: Migrated/updated ${migratedCount} rows. Deleted ${deletedCount} duplicate/legacy rows.`);
