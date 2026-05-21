@@ -1,10 +1,12 @@
 import prisma from "#server/src/db/prisma.js";
 import {
   getCheckinPeriodEndKey,
-  addDaysToBrazilDateKey,
   getDefaultCheckinConfig,
   getPeriodResetAt
 } from "#server/modules/checkin/checkin.calendar.js";
+import {
+  addDaysToBrazilDateKey
+} from "#server/utils/checkinDate.js";
 import crypto from "node:crypto";
 
 async function main() {
