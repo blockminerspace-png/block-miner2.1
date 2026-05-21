@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ComponentType } from 'react';
+import { useState, useEffect, useCallback, type ComponentType } from "react";
 import {
   TrendingUp,
   Users,
@@ -11,29 +11,29 @@ import {
   Award,
   Loader2,
   Clock,
-  type LucideProps,
-} from 'lucide-react';
-import { api } from '../../store/auth';
-import { toast } from 'sonner';
+  type LucideProps
+} from "lucide-react";
+import { api } from "../../store/auth";
+import { toast } from "sonner";
 
 type LucideIcon = ComponentType<LucideProps>;
 
-type StatColor = 'amber' | 'emerald' | 'blue' | 'violet' | 'rose';
+type StatColor = "amber" | "emerald" | "blue" | "violet" | "rose";
 
 const icnMap: Record<StatColor, string> = {
-  amber: 'text-amber-500',
-  emerald: 'text-emerald-400',
-  blue: 'text-blue-400',
-  violet: 'text-violet-400',
-  rose: 'text-rose-400',
+  amber: "text-amber-500",
+  emerald: "text-emerald-400",
+  blue: "text-blue-400",
+  violet: "text-violet-400",
+  rose: "text-rose-400"
 };
 
 const bgMap: Record<StatColor, string> = {
-  amber: 'bg-amber-500/10',
-  emerald: 'bg-emerald-500/10',
-  blue: 'bg-blue-500/10',
-  violet: 'bg-violet-500/10',
-  rose: 'bg-rose-500/10',
+  amber: "bg-amber-500/10",
+  emerald: "bg-emerald-500/10",
+  blue: "bg-blue-500/10",
+  violet: "bg-violet-500/10",
+  rose: "bg-rose-500/10"
 };
 
 function fmtPol(v: unknown, dec = 4): string {
@@ -57,7 +57,7 @@ type StatCardProps = {
   color?: StatColor;
 };
 
-function StatCard({ label, polValue, usdValue, sub, icon: Icon, color = 'amber' }: StatCardProps) {
+function StatCard({ label, polValue, usdValue, sub, icon: Icon, color = "amber" }: StatCardProps) {
   const fg = icnMap[color];
   const bg = bgMap[color];
   return (
@@ -120,17 +120,21 @@ function ForecastCard({ label, pol, usdVal, highlight = false }: ForecastCardPro
   return (
     <div
       className={`flex flex-col gap-1 p-4 rounded-2xl border transition-colors ${
-        highlight ? 'bg-amber-500/10 border-amber-500/25' : 'bg-slate-800/40 border-slate-700/40 hover:bg-slate-800/70'
+        highlight ? "bg-amber-500/10 border-amber-500/25" : "bg-slate-800/40 border-slate-700/40 hover:bg-slate-800/70"
       }`}
     >
-      <p className={`text-[9px] font-black uppercase tracking-widest ${highlight ? 'text-amber-400' : 'text-slate-500'}`}>{label}</p>
-      <p className={`text-sm font-black ${highlight ? 'text-amber-300' : 'text-white'}`}>{pol}</p>
+      <p
+        className={`text-[9px] font-black uppercase tracking-widest ${highlight ? "text-amber-400" : "text-slate-500"}`}
+      >
+        {label}
+      </p>
+      <p className={`text-sm font-black ${highlight ? "text-amber-300" : "text-white"}`}>{pol}</p>
       {usdVal ? <p className="text-[10px] text-slate-500 font-bold">{usdVal}</p> : null}
     </div>
   );
 }
 
-type PeriodKey = 'week' | 'month' | 'year';
+type PeriodKey = "week" | "month" | "year";
 
 type AnalyticsUserRef = {
   id: number;
@@ -200,17 +204,17 @@ type PeriodSummaryRow = {
 };
 
 const PERIOD_LABELS: Record<PeriodKey, string> = {
-  week: '7 dias',
-  month: '30 dias',
-  year: '12 meses',
+  week: "7 dias",
+  month: "30 dias",
+  year: "12 meses"
 };
 
 export default function AdminAnalytics() {
-  const [period, setPeriod] = useState<PeriodKey>('month');
+  const [period, setPeriod] = useState<PeriodKey>("month");
   const [data, setData] = useState<AdminAnalyticsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [userSearch, setUserSearch] = useState('');
-  const [userQuery, setUserQuery] = useState('');
+  const [userSearch, setUserSearch] = useState("");
+  const [userQuery, setUserQuery] = useState("");
   const [userResults, setUserResults] = useState<AnalyticsUserRef[]>([]);
   const [selectedUser, setSelectedUser] = useState<AnalyticsUserRef | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -219,11 +223,11 @@ export default function AdminAnalytics() {
     try {
       setIsLoading(true);
       const params = new URLSearchParams({ period });
-      if (selectedUser) params.set('userId', String(selectedUser.id));
+      if (selectedUser) params.set("userId", String(selectedUser.id));
       const res = await api.get<AdminAnalyticsResponse>(`/admin/analytics?${params}`);
       if (res.data.ok) setData(res.data);
     } catch {
-      toast.error('Erro ao carregar analytics.');
+      toast.error("Erro ao carregar analytics.");
     } finally {
       setIsLoading(false);
     }
@@ -275,16 +279,16 @@ export default function AdminAnalytics() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(['week', 'month', 'year'] as const).map((p) => (
+          {(["week", "month", "year"] as const).map((p) => (
             <button
               key={p}
               type="button"
               onClick={() => setPeriod(p)}
               className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                period === p ? 'bg-amber-500 text-black' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                period === p ? "bg-amber-500 text-black" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
               }`}
             >
-              {p === 'week' ? '7D' : p === 'month' ? '30D' : '12M'}
+              {p === "week" ? "7D" : p === "month" ? "30D" : "12M"}
             </button>
           ))}
           <button
@@ -293,7 +297,7 @@ export default function AdminAnalytics() {
             disabled={isLoading}
             className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white transition-all"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
@@ -314,7 +318,9 @@ export default function AdminAnalytics() {
               placeholder="Buscar por nome, e-mail, ID ou carteira..."
               className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500/50 transition-all"
             />
-            {isSearching ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 animate-spin" /> : null}
+            {isSearching ? (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 animate-spin" />
+            ) : null}
             {userResults.length > 0 ? (
               <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden">
                 {userResults.map((u) => (
@@ -323,7 +329,7 @@ export default function AdminAnalytics() {
                     type="button"
                     onClick={() => {
                       setSelectedUser(u);
-                      setUserSearch(u.username || u.email || '');
+                      setUserSearch(u.username || u.email || "");
                       setUserResults([]);
                     }}
                     className="w-full text-left px-4 py-3 hover:bg-slate-700 transition-colors flex items-center justify-between gap-3"
@@ -343,8 +349,8 @@ export default function AdminAnalytics() {
               type="button"
               onClick={() => {
                 setSelectedUser(null);
-                setUserSearch('');
-                setUserQuery('');
+                setUserSearch("");
+                setUserQuery("");
               }}
               className="px-4 py-2.5 bg-slate-800 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl text-xs font-black uppercase transition-all"
             >
@@ -355,8 +361,8 @@ export default function AdminAnalytics() {
         {selectedUser ? (
           <p className="text-[10px] text-amber-500 font-black mt-2 uppercase tracking-widest">
             Exibindo: {selectedUser.username || selectedUser.email} (#{selectedUser.id})
-            {summary?.userHashRate != null ? ` - ${Number(summary.userHashRate).toFixed(2)} H/s` : ''}
-            {forecast?.sharePercent != null ? ` - ${Number(forecast.sharePercent).toFixed(3)}% da rede` : ''}
+            {summary?.userHashRate != null ? ` - ${Number(summary.userHashRate).toFixed(2)} H/s` : ""}
+            {forecast?.sharePercent != null ? ` - ${Number(forecast.sharePercent).toFixed(3)}% da rede` : ""}
           </p>
         ) : null}
       </div>
@@ -398,9 +404,9 @@ export default function AdminAnalytics() {
               label={`Usuarios ativos (${periodLabel})`}
               icon={Users}
               color="blue"
-              polValue={`${summary?.activeUsers ?? '--'} usuarios`}
+              polValue={`${summary?.activeUsers ?? "--"} usuários`}
               usdValue={null}
-              sub={`${summary?.blockCount ?? '--'} blocos - ${summary?.totalBlocksEver ?? '--'} total`}
+              sub={`${summary?.blockCount ?? "--"} blocos - ${summary?.totalBlocksEver ?? "--"} total`}
             />
           ) : (
             <StatCard
@@ -421,7 +427,7 @@ export default function AdminAnalytics() {
           <div>
             <p className="text-xs font-black text-white uppercase tracking-widest">
               Previsao de Rendimento
-              {selectedUser ? ` -- ${selectedUser.username || selectedUser.email}` : ' -- Rede Total'}
+              {selectedUser ? ` -- ${selectedUser.username || selectedUser.email}` : " -- Rede Total"}
             </p>
             <p className="text-[10px] text-slate-500 mt-0.5">
               {selectedUser
@@ -472,7 +478,7 @@ export default function AdminAnalytics() {
           <div>
             <p className="text-xs font-black text-white uppercase tracking-widest">Distribuicao de Recompensas</p>
             <p className="text-[10px] text-slate-500 mt-0.5">
-              POL distribuido por {period === 'year' ? 'mes' : 'dia'} -- ultimos {periodLabel}
+              POL distribuido por {period === "year" ? "mes" : "dia"} -- ultimos {periodLabel}
             </p>
           </div>
           <Calendar className="w-4 h-4 text-slate-600" />
@@ -505,7 +511,7 @@ export default function AdminAnalytics() {
                 ))}
               </div>
             ) : !topEarners || topEarners.length === 0 ? (
-              <p className="text-slate-600 text-xs text-center py-8">Sem dados de mineracao</p>
+              <p className="text-slate-600 text-xs text-center py-8">Sem dados de mineração</p>
             ) : (
               <div className="space-y-1.5">
                 {topEarners.map((e, i) => (
@@ -516,7 +522,13 @@ export default function AdminAnalytics() {
                     <div className="flex items-center gap-3">
                       <span
                         className={`text-[10px] font-black w-5 text-center ${
-                          i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-orange-600' : 'text-slate-600'
+                          i === 0
+                            ? "text-amber-400"
+                            : i === 1
+                              ? "text-slate-300"
+                              : i === 2
+                                ? "text-orange-600"
+                                : "text-slate-600"
                         }`}
                       >
                         #{i + 1}
@@ -528,7 +540,9 @@ export default function AdminAnalytics() {
                     </div>
                     <div className="text-right">
                       <p className="text-amber-400 font-black text-xs">{Number(e.total).toFixed(4)} POL</p>
-                      {polPrice > 0 ? <p className="text-slate-500 text-[9px]">${(Number(e.total) * polPrice).toFixed(2)}</p> : null}
+                      {polPrice > 0 ? (
+                        <p className="text-slate-500 text-[9px]">${(Number(e.total) * polPrice).toFixed(2)}</p>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -537,10 +551,10 @@ export default function AdminAnalytics() {
           </div>
         ) : null}
 
-        <div className={`bg-slate-900 border border-slate-800 rounded-2xl p-6 ${!selectedUser ? '' : 'md:col-span-2'}`}>
+        <div className={`bg-slate-900 border border-slate-800 rounded-2xl p-6 ${!selectedUser ? "" : "md:col-span-2"}`}>
           <p className="text-xs font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
             <Zap className="w-4 h-4 text-emerald-400" />
-            {selectedUser ? `Ultimos 50 blocos -- ${selectedUser.username || selectedUser.email}` : 'Resumo do Periodo'}
+            {selectedUser ? `Ultimos 50 blocos -- ${selectedUser.username || selectedUser.email}` : "Resumo do Periodo"}
           </p>
           {isLoading ? (
             <div className="space-y-2">
@@ -567,15 +581,15 @@ export default function AdminAnalytics() {
                         <td className="py-2 px-2 font-mono text-slate-400">#{r.block?.blockNumber ?? r.blockId}</td>
                         <td className="py-2 px-2 font-black text-amber-400">{Number(r.rewardAmount).toFixed(8)}</td>
                         <td className="py-2 px-2 text-slate-400">
-                          {polPrice > 0 ? `$${(Number(r.rewardAmount) * polPrice).toFixed(6)}` : '--'}
+                          {polPrice > 0 ? `$${(Number(r.rewardAmount) * polPrice).toFixed(6)}` : "--"}
                         </td>
                         <td className="py-2 px-2 text-slate-400">{Number(r.percentage).toFixed(2)}%</td>
                         <td className="py-2 px-2 text-right text-slate-600">
-                          {new Date(r.createdAt).toLocaleString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
+                          {new Date(r.createdAt).toLocaleString("pt-BR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit"
                           })}
                         </td>
                       </tr>
@@ -584,32 +598,49 @@ export default function AdminAnalytics() {
                 </table>
               </div>
             ) : (
-              <p className="text-slate-600 text-xs text-center py-8">Nenhum bloco encontrado para este usuario</p>
+              <p className="text-slate-600 text-xs text-center py-8">Nenhum bloco encontrado para este usuário</p>
             )
           ) : (
             <div className="space-y-2">
               {(
                 [
-                  { label: 'Distribuido no periodo', pol: summary?.periodDistributed, clr: 'text-amber-400' },
-                  { label: 'Saques no periodo', pol: summary?.periodWithdrawals, clr: 'text-violet-400' },
-                  { label: 'Usuarios mineradores', val: `${summary?.activeUsers ?? '--'} usuarios`, clr: 'text-blue-400' },
-                  { label: 'Blocos distribuidos', val: `${summary?.blockCount ?? '--'} blocos`, clr: 'text-emerald-400' },
+                  { label: "Distribuído no período", pol: summary?.periodDistributed, clr: "text-amber-400" },
+                  { label: "Saques no período", pol: summary?.periodWithdrawals, clr: "text-violet-400" },
                   {
-                    label: 'Media por bloco',
-                    pol: summary?.blockCount ? Number(summary.periodDistributed) / Number(summary.blockCount) : null,
-                    clr: 'text-amber-400',
+                    label: "Usuários mineradores",
+                    val: `${summary?.activeUsers ?? "--"} usuários`,
+                    clr: "text-blue-400"
                   },
-                  { label: 'Total de blocos (historico)', val: `${summary?.totalBlocksEver ?? '--'} blocos`, clr: 'text-slate-400' },
+                  {
+                    label: "Blocos distribuídos",
+                    val: `${summary?.blockCount ?? "--"} blocos`,
+                    clr: "text-emerald-400"
+                  },
+                  {
+                    label: "Media por bloco",
+                    pol: summary?.blockCount ? Number(summary.periodDistributed) / Number(summary.blockCount) : null,
+                    clr: "text-amber-400"
+                  },
+                  {
+                    label: "Total de blocos (historico)",
+                    val: `${summary?.totalBlocksEver ?? "--"} blocos`,
+                    clr: "text-slate-400"
+                  }
                 ] satisfies PeriodSummaryRow[]
               ).map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-slate-800/30 hover:bg-slate-800/50 rounded-xl transition-colors">
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-3 bg-slate-800/30 hover:bg-slate-800/50 rounded-xl transition-colors"
+                >
                   <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wide">{item.label}</span>
                   <div className="text-right">
                     {item.val ? <span className={`text-xs font-black ${item.clr}`}>{item.val}</span> : null}
                     {item.pol != null ? (
                       <>
                         <p className={`text-xs font-black ${item.clr}`}>{Number(item.pol).toFixed(6)} POL</p>
-                        {polPrice > 0 ? <p className="text-[9px] text-slate-500">${(Number(item.pol) * polPrice).toFixed(4)}</p> : null}
+                        {polPrice > 0 ? (
+                          <p className="text-[9px] text-slate-500">${(Number(item.pol) * polPrice).toFixed(4)}</p>
+                        ) : null}
                       </>
                     ) : null}
                   </div>

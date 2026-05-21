@@ -1,44 +1,44 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import type { AxiosError } from 'axios';
-import { api } from '../../../store/auth';
-import BrandLogo from '../../../shared/components/BrandLogo';
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+import type { AxiosError } from "axios";
+import { api } from "../../../store/auth";
+import BrandLogo from "../../../shared/components/BrandLogo";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const tokenFromUrl = searchParams.get('token') || '';
-  const [email, setEmail] = useState('');
+  const tokenFromUrl = searchParams.get("token") || "";
+  const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [resetToken, setResetToken] = useState(tokenFromUrl);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
       setIsSubmitting(true);
-      const res = await api.post('/auth/forgot-password', { email });
+      const res = await api.post("/auth/forgot-password", { email });
       const token = res.data?.resetToken;
 
       if (token) {
         setResetToken(token);
         setDone(false);
-        toast.success('Conta localizada. Defina sua nova senha agora.');
+        toast.success("Conta localizada. Defina sua nova senha agora.");
       } else {
         setDone(true);
-        toast.success('Se o e-mail existir, enviamos um link de redefinicao.');
+        toast.success("Se o e-mail existir, enviamos um link de redefinição.");
       }
     } catch (err: unknown) {
       const ax = err as AxiosError<{ message?: string }>;
-      const message = ax.response?.data?.message || 'Nao foi possivel processar agora.';
+      const message = ax.response?.data?.message || "Não foi possível processar agora.";
       setError(message);
       toast.error(message);
     } finally {
@@ -48,17 +48,17 @@ export default function ForgotPassword() {
 
   const handleResetPassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (newPassword.length < 8) {
-      const message = 'A nova senha precisa ter pelo menos 8 caracteres.';
+      const message = "A nova senha precisa ter pelo menos 8 caracteres.";
       setError(message);
       toast.error(message);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      const message = 'As senhas nao coincidem.';
+      const message = "As senhas não coincidem.";
       setError(message);
       toast.error(message);
       return;
@@ -66,15 +66,15 @@ export default function ForgotPassword() {
 
     try {
       setIsSubmitting(true);
-      const res = await api.post('/auth/legacy-password-reset', {
+      const res = await api.post("/auth/legacy-password-reset", {
         resetToken,
         newPassword
       });
-      toast.success(res.data?.message || 'Senha redefinida com sucesso.');
-      navigate('/login');
+      toast.success(res.data?.message || "Senha redefinida com sucesso.");
+      navigate("/login");
     } catch (err: unknown) {
       const ax = err as AxiosError<{ message?: string }>;
-      const message = ax.response?.data?.message || 'Falha ao redefinir senha.';
+      const message = ax.response?.data?.message || "Falha ao redefinir senha.";
       setError(message);
       toast.error(message);
     } finally {
@@ -93,7 +93,7 @@ export default function ForgotPassword() {
             <BrandLogo variant="auth" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Recuperar senha</h1>
-          <p className="text-gray-500 font-medium mt-1">Digite seu e-mail para iniciar a redefinicao.</p>
+          <p className="text-gray-500 font-medium mt-1">Digite seu e-mail para iniciar a redefinição.</p>
         </div>
 
         <div className="bg-surface/50 backdrop-blur-xl border border-gray-800/50 rounded-[2.5rem] p-10 shadow-2xl animate-in fade-in zoom-in-95 duration-700 delay-200">
@@ -121,7 +121,7 @@ export default function ForgotPassword() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-12 pr-4 py-4 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
-                    placeholder="voce@email.com"
+                    placeholder="você@email.com"
                   />
                 </div>
               </div>
@@ -135,7 +135,7 @@ export default function ForgotPassword() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    Enviar solicitacao
+                    Enviar solicitação
                     <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -146,7 +146,10 @@ export default function ForgotPassword() {
           {resetToken ? (
             <form onSubmit={handleResetPassword} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="new-password">
+                <label
+                  className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1"
+                  htmlFor="new-password"
+                >
                   Nova senha
                 </label>
                 <input
@@ -157,12 +160,15 @@ export default function ForgotPassword() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="block w-full px-4 py-4 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
-                  placeholder="Minimo de 8 caracteres"
+                  placeholder="Mínimo de 8 caracteres"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="confirm-password">
+                <label
+                  className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1"
+                  htmlFor="confirm-password"
+                >
                   Confirmar nova senha
                 </label>
                 <input
@@ -198,7 +204,7 @@ export default function ForgotPassword() {
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5 flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
               <p className="text-emerald-300 text-xs font-bold leading-relaxed">
-                Solicitacao registrada. Se o e-mail existir na base, continue o reset usando o login.
+                Solicitação registrada. Se o e-mail existir na base, continue o reset usando o login.
               </p>
             </div>
           ) : null}
@@ -206,7 +212,7 @@ export default function ForgotPassword() {
           <div className="mt-8 text-center">
             <button
               type="button"
-              onClick={() => navigate('/login')}
+              onClick={() => navigate("/login")}
               className="text-primary hover:text-white font-black text-xs uppercase tracking-widest transition-colors"
             >
               Voltar para login
@@ -215,7 +221,10 @@ export default function ForgotPassword() {
         </div>
 
         <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">
-          <Link to="/" className="text-gray-600 hover:text-gray-400 text-xs font-bold uppercase tracking-[0.2em] transition-colors">
+          <Link
+            to="/"
+            className="text-gray-600 hover:text-gray-400 text-xs font-bold uppercase tracking-[0.2em] transition-colors"
+          >
             Voltar
           </Link>
         </div>

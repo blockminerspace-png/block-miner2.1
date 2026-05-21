@@ -1,7 +1,7 @@
-import { useState, useEffect, type ChangeEvent, type SyntheticEvent } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Eye, EyeOff, Megaphone } from 'lucide-react';
-import { api } from '../../store/auth';
-import { toast } from 'sonner';
+import { useState, useEffect, type ChangeEvent, type SyntheticEvent } from "react";
+import { Plus, Trash2, Edit2, Check, X, Eye, EyeOff, Megaphone } from "lucide-react";
+import { api } from "../../store/auth";
+import { toast } from "sonner";
 
 type AdminBroadcastForm = {
   title: string;
@@ -10,7 +10,7 @@ type AdminBroadcastForm = {
   isActive: boolean;
 };
 
-const EMPTY: AdminBroadcastForm = { title: '', content: '', imageUrl: '', isActive: false };
+const EMPTY: AdminBroadcastForm = { title: "", content: "", imageUrl: "", isActive: false };
 
 type AdminBroadcastMessage = {
   id: number;
@@ -35,10 +35,10 @@ export default function AdminBroadcast() {
   const load = async () => {
     try {
       setIsLoading(true);
-      const res = await api.get<AdminBroadcastListResponse>('/admin/broadcast');
+      const res = await api.get<AdminBroadcastListResponse>("/admin/broadcast");
       if (res.data.ok) setMessages(res.data.messages);
     } catch {
-      toast.error('Erro ao carregar.');
+      toast.error("Erro ao carregar.");
     } finally {
       setIsLoading(false);
     }
@@ -57,9 +57,9 @@ export default function AdminBroadcast() {
     setEditId(m.id);
     setForm({
       title: m.title,
-      content: m.content || '',
-      imageUrl: m.imageUrl || '',
-      isActive: m.isActive,
+      content: m.content || "",
+      imageUrl: m.imageUrl || "",
+      isActive: m.isActive
     });
     setShowForm(true);
   };
@@ -70,22 +70,22 @@ export default function AdminBroadcast() {
 
   const save = async () => {
     if (!form.title.trim()) {
-      toast.error('Titulo obrigatorio.');
+      toast.error("Titulo obrigatorio.");
       return;
     }
     setSaving(true);
     try {
       if (editId != null) {
         await api.patch(`/admin/broadcast/${editId}`, form);
-        toast.success('Atualizado.');
+        toast.success("Atualizado.");
       } else {
-        await api.post('/admin/broadcast', form);
-        toast.success('Criado.');
+        await api.post("/admin/broadcast", form);
+        toast.success("Criado.");
       }
       cancelForm();
       await load();
     } catch {
-      toast.error('Erro ao salvar.');
+      toast.error("Erro ao salvar.");
     } finally {
       setSaving(false);
     }
@@ -94,21 +94,21 @@ export default function AdminBroadcast() {
   const toggleActive = async (m: AdminBroadcastMessage) => {
     try {
       await api.patch(`/admin/broadcast/${m.id}`, { isActive: !m.isActive });
-      toast.success(m.isActive ? 'Desativado.' : 'Ativado.');
+      toast.success(m.isActive ? "Desativado." : "Ativado.");
       await load();
     } catch {
-      toast.error('Erro.');
+      toast.error("Erro.");
     }
   };
 
   const remove = async (id: number) => {
-    if (!confirm('Deletar esta notificacao?')) return;
+    if (!confirm("Deletar esta notificação?")) return;
     try {
       await api.delete(`/admin/broadcast/${id}`);
-      toast.success('Deletado.');
+      toast.success("Deletado.");
       await load();
     } catch {
-      toast.error('Erro.');
+      toast.error("Erro.");
     }
   };
 
@@ -116,8 +116,8 @@ export default function AdminBroadcast() {
     <div className="space-y-6 animate-in fade-in duration-700">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-white">Notificacoes Broadcast</h2>
-          <p className="text-slate-500 text-sm mt-1">Popup exibido 1x para cada usuario apos login.</p>
+          <h2 className="text-2xl font-black text-white">Notificações Broadcast</h2>
+          <p className="text-slate-500 text-sm mt-1">Popup exibido 1x para cada usuário após login.</p>
         </div>
         <button
           type="button"
@@ -131,31 +131,37 @@ export default function AdminBroadcast() {
       {showForm && (
         <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 space-y-4">
           <p className="text-xs font-black text-amber-400 uppercase tracking-widest">
-            {editId != null ? 'Editar Notificacao' : 'Nova Notificacao'}
+            {editId != null ? "Editar Notificação" : "Nova Notificação"}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Titulo *</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                Titulo *
+              </label>
               <input
                 value={form.title}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="Ex: Atualizacao importante!"
+                placeholder="Ex: Atualização importante!"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500/50 transition-all"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Mensagem (opcional)</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                Mensagem (opcional)
+              </label>
               <textarea
                 value={form.content}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, content: e.target.value }))}
-                placeholder="Texto da notificacao..."
+                placeholder="Texto da notificação..."
                 rows={3}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500/50 transition-all resize-none"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">URL da Imagem (opcional)</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                URL da Imagem (opcional)
+              </label>
               <input
                 value={form.imageUrl}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
@@ -168,7 +174,7 @@ export default function AdminBroadcast() {
                   alt="preview"
                   className="mt-2 max-h-32 rounded-xl object-cover border border-slate-700"
                   onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.style.display = "none";
                   }}
                 />
               ) : null}
@@ -178,11 +184,13 @@ export default function AdminBroadcast() {
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${
-                  form.isActive ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+                  form.isActive
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                    : "bg-slate-800 border-slate-700 text-slate-400"
                 }`}
               >
                 {form.isActive ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {form.isActive ? 'Ativo' : 'Inativo'}
+                {form.isActive ? "Ativo" : "Inativo"}
               </button>
               <span className="text-[10px] text-slate-600">Ativar desativa todos os outros</span>
             </div>
@@ -195,7 +203,7 @@ export default function AdminBroadcast() {
               disabled={saving}
               className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl uppercase tracking-widest transition-all disabled:opacity-50"
             >
-              <Check className="w-3 h-3" /> {saving ? 'Salvando...' : 'Salvar'}
+              <Check className="w-3 h-3" /> {saving ? "Salvando..." : "Salvar"}
             </button>
             <button
               type="button"
@@ -217,7 +225,7 @@ export default function AdminBroadcast() {
       ) : messages.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 flex flex-col items-center gap-3">
           <Megaphone className="w-8 h-8 text-slate-600" />
-          <p className="text-slate-600 text-sm font-bold">Nenhuma notificacao criada ainda.</p>
+          <p className="text-slate-600 text-sm font-bold">Nenhuma notificação criada ainda.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -225,7 +233,7 @@ export default function AdminBroadcast() {
             <div
               key={m.id}
               className={`bg-slate-900 border rounded-2xl p-5 flex items-start gap-4 transition-all ${
-                m.isActive ? 'border-emerald-500/30' : 'border-slate-800'
+                m.isActive ? "border-emerald-500/30" : "border-slate-800"
               }`}
             >
               {m.imageUrl ? (
@@ -234,7 +242,7 @@ export default function AdminBroadcast() {
                   alt=""
                   className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-700"
                   onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.style.display = "none";
                   }}
                 />
               ) : null}
@@ -249,13 +257,13 @@ export default function AdminBroadcast() {
                 </div>
                 {m.content ? <p className="text-slate-500 text-xs mt-1 line-clamp-2">{m.content}</p> : null}
                 <p className="text-slate-600 text-[10px] mt-1.5">
-                  {m._count?.views ?? 0} visualizacoes &middot; criado em{' '}
-                  {new Date(m.createdAt).toLocaleString('pt-BR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
+                  {m._count?.views ?? 0} visualizações &middot; criado em{" "}
+                  {new Date(m.createdAt).toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit"
                   })}
                 </p>
               </div>
@@ -265,10 +273,10 @@ export default function AdminBroadcast() {
                   onClick={() => void toggleActive(m)}
                   className={`p-2 rounded-xl transition-all text-xs ${
                     m.isActive
-                      ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                      : 'bg-slate-800 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10'
+                      ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                      : "bg-slate-800 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10"
                   }`}
-                  title={m.isActive ? 'Desativar' : 'Ativar'}
+                  title={m.isActive ? "Desativar" : "Ativar"}
                 >
                   {m.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>

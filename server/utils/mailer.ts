@@ -41,7 +41,7 @@ export async function sendPasswordResetEmail({
   to,
   name,
   resetUrl,
-  ttlMinutes,
+  ttlMinutes
 }: {
   to: string;
   name?: string | null;
@@ -59,33 +59,33 @@ export async function sendPasswordResetEmail({
   const html = `
   <div style="font-family:Arial,Helvetica,sans-serif;background:#020617;color:#e2e8f0;padding:24px;">
     <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:24px;">
-      <h2 style="margin:0 0 8px 0;color:#60a5fa;">BlockMiner - Redefinicao de Senha</h2>
-      <p style="margin:0 0 16px 0;color:#cbd5e1;">Ola, ${safeName}.</p>
-      <p style="margin:0 0 16px 0;color:#cbd5e1;">Recebemos uma solicitacao para redefinir sua senha.</p>
+      <h2 style="margin:0 0 8px 0;color:#60a5fa;">BlockMiner - Redefinição de Senha</h2>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Olá, ${safeName}.</p>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Recebemos uma solicitação para redefinir sua senha.</p>
       <p style="margin:0 0 20px 0;">
         <a href="${resetUrl}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Redefinir senha agora</a>
       </p>
       <p style="margin:0 0 6px 0;color:#94a3b8;">Este link expira em ${safeTtl} minutos.</p>
-      <p style="margin:0;color:#64748b;font-size:12px;">Se voce nao solicitou, ignore este e-mail.</p>
+      <p style="margin:0;color:#64748b;font-size:12px;">Se você não solicitou, ignore este e-mail.</p>
     </div>
   </div>`;
 
   const text = [
-    "BlockMiner - Redefinicao de Senha",
+    "BlockMiner - Redefinição de Senha",
     "",
-    `Ola, ${safeName}.`,
-    "Recebemos uma solicitacao para redefinir sua senha.",
+    `Olá, ${safeName}.`,
+    "Recebemos uma solicitação para redefinir sua senha.",
     "",
     `Abra este link: ${resetUrl}`,
     "",
     `Este link expira em ${safeTtl} minutos.`,
-    "Se voce nao solicitou, ignore este e-mail."
+    "Se você não solicitou, ignore este e-mail."
   ].join("\n");
 
   await tx.sendMail({
     from: SMTP_FROM,
     to,
-    subject: "BlockMiner - Redefinicao de Senha",
+    subject: "BlockMiner - Redefinição de Senha",
     text,
     html
   });
@@ -97,7 +97,7 @@ export async function sendLoginTwoFactorCodeEmail({
   to,
   name,
   code,
-  ttlMinutes,
+  ttlMinutes
 }: {
   to: string;
   name?: string | null;
@@ -133,7 +133,7 @@ export async function sendLoginTwoFactorCodeEmail({
     safeCode,
     "",
     `This code expires in ${safeTtl} minutes.`,
-    "If this was not you, ignore this email and change your password.",
+    "If this was not you, ignore this email and change your password."
   ].join("\n");
 
   await tx.sendMail({
@@ -141,7 +141,7 @@ export async function sendLoginTwoFactorCodeEmail({
     to,
     subject: "BlockMiner - Login verification code",
     text,
-    html,
+    html
   });
 
   logger.info("Login 2FA email sent", { to });
@@ -182,7 +182,7 @@ export async function sendWelcomeEmail({ to, name }: { to: string; name?: string
     "",
     `Dashboard: ${dashboardUrl}`,
     "",
-    "If you did not create this account, ignore this email.",
+    "If you did not create this account, ignore this email."
   ].join("\n");
 
   await tx.sendMail({
@@ -190,7 +190,7 @@ export async function sendWelcomeEmail({ to, name }: { to: string; name?: string
     to,
     subject: "Welcome to BlockMiner",
     text,
-    html,
+    html
   });
 
   logger.info("Welcome email sent", { to });

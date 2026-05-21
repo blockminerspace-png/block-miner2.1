@@ -1,36 +1,28 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-  useLayoutEffect,
-  memo,
-} from 'react';
-import type { MutableRefObject } from 'react';
-import { io, type Socket } from 'socket.io-client';
-import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
-import type { LucideIcon } from 'lucide-react';
-import { useAuthStore, api } from '../../store/auth';
-import { formatHashrate } from '../../shared/utils/machine';
-import { Link } from 'react-router-dom';
-import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car } from 'lucide-react';
-import { toast } from 'sonner';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, memo } from "react";
+import type { MutableRefObject } from "react";
+import { io, type Socket } from "socket.io-client";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import type { LucideIcon } from "lucide-react";
+import { useAuthStore, api } from "../../store/auth";
+import { formatHashrate } from "../../shared/utils/machine";
+import { Link } from "react-router-dom";
+import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car } from "lucide-react";
+import { toast } from "sonner";
 import {
   MINER_GAMES_LOGICAL_SIZE,
   getMemoryGridLayout,
   hitTestMemoryCardIndex,
   getMatch3GridLayout,
-  hitTestMatch3Cell,
-} from '../../games/minerGamesLayout';
+  hitTestMatch3Cell
+} from "../../games/minerGamesLayout";
 import {
   translateGameSocketError,
   translateGameFinishedFailure,
-  translateGameReward,
-} from '../../games/minerGamesSocketMessages';
-import { createMinerGamesSocketGuard } from '../../games/minerGamesSocketGuards';
-import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from '../../games/cryptoGameIcons';
+  translateGameReward
+} from "../../games/minerGamesSocketMessages";
+import { createMinerGamesSocketGuard } from "../../games/minerGamesSocketGuards";
+import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from "../../games/cryptoGameIcons";
 
 type CryptoIconKey = keyof typeof CRYPTO_ICONS;
 
@@ -38,7 +30,7 @@ type CryptoIconKey = keyof typeof CRYPTO_ICONS;
 const ICON_IMAGES_MAP = ICON_IMAGES as Record<CryptoIconKey, HTMLImageElement>;
 
 /** UI route keys — map to server slugs on `game:start`. */
-type ActiveGame = 'memory' | 'match-3' | 'cart' | null;
+type ActiveGame = "memory" | "match-3" | "cart" | null;
 
 type MemoryBoardCard = {
   id: number;
@@ -88,7 +80,7 @@ type SceneryItem = {
   y: number;
   speedFactor: number;
   size: number;
-  type: 'tree' | 'pole' | 'mountain';
+  type: "tree" | "pole" | "mountain";
 };
 
 type CartStateRef = {
@@ -127,19 +119,19 @@ type Particle = {
 type CardFlipAnim = { startTime: number; duration: number; opening: boolean };
 
 type GameStartedMemory = {
-  game: 'crypto-memory';
+  game: "crypto-memory";
   board: Array<{ id: number; isFlipped?: boolean; isMatched?: boolean; symbol?: string }>;
   score?: number;
 };
 
 type GameStartedMatch3 = {
-  game: 'crypto-match-3';
+  game: "crypto-match-3";
   board: string[][];
   score?: number;
 };
 
 type GameStartedCart = {
-  game: 'cart-rush';
+  game: "cart-rush";
   lane?: number;
   lanes?: number;
   health?: number;
@@ -156,12 +148,12 @@ type GameStartedPayload = GameStartedMemory | GameStartedMatch3 | GameStartedCar
 type MemoryGridLayout = ReturnType<typeof getMemoryGridLayout>;
 type Match3GridLayout = ReturnType<typeof getMatch3GridLayout>;
 
-const SOCKET_URL = '/';
+const SOCKET_URL = "/";
 const LOGICAL = MINER_GAMES_LOGICAL_SIZE;
 const CART_LOGICAL_WIDTH = 750;
 const CART_LOGICAL_HEIGHT = 500;
 const CART_TOUCH_SWIPE_THRESHOLD = 26;
-const CART_TARGET_SCORE = 750;
+const CART_TARGET_SCORE = 250;
 const CART_TIME_LIMIT_SECONDS = 120;
 
 /** Must match server MEMORY_FLIP_OPEN_SETTLE_MS (~client open animation). */
@@ -170,7 +162,7 @@ const MEMORY_CARD_CLOSE_ANIM_MS = 500;
 
 /** Defer React state updates out of the canvas rAF callback stack. */
 function scheduleUiUpdate(fn: () => void) {
-  if (typeof queueMicrotask === 'function') queueMicrotask(fn);
+  if (typeof queueMicrotask === "function") queueMicrotask(fn);
   else void Promise.resolve().then(fn);
 }
 
@@ -184,34 +176,30 @@ function clampCartLane(value: number, lanes: number) {
 }
 
 function getCanvasLogicalSize(activeGame: ActiveGame) {
-  return activeGame === 'cart'
+  return activeGame === "cart"
     ? { width: CART_LOGICAL_WIDTH, height: CART_LOGICAL_HEIGHT }
     : { width: LOGICAL, height: LOGICAL };
 }
 
 function getCanvasViewportStyle(activeGame: ActiveGame): React.CSSProperties {
-  if (activeGame === 'cart') {
+  if (activeGame === "cart") {
     return {
-      width: 'min(96vw, 1600px)',
+      width: "min(96vw, 1600px)",
       aspectRatio: `${CART_LOGICAL_WIDTH} / ${CART_LOGICAL_HEIGHT}`,
-      maxWidth: '1600px',
-      maxHeight: 'calc(100dvh - 220px)',
+      maxWidth: "1600px",
+      maxHeight: "calc(100dvh - 220px)"
     };
   }
 
   return {
-    width: 'min(calc(100vw - 16px), calc(100dvh - 52px), 500px)',
-    aspectRatio: '1 / 1',
-    maxWidth: '500px',
-    maxHeight: 'calc(100dvh - 52px)',
+    width: "min(calc(100vw - 16px), calc(100dvh - 52px), 500px)",
+    aspectRatio: "1 / 1",
+    maxWidth: "500px",
+    maxHeight: "calc(100dvh - 52px)"
   };
 }
 
-function getCartTrackLayout(
-  lanes: number,
-  logicalWidth = CART_LOGICAL_WIDTH,
-  logicalHeight = CART_LOGICAL_HEIGHT,
-) {
+function getCartTrackLayout(lanes: number, logicalWidth = CART_LOGICAL_WIDTH, logicalHeight = CART_LOGICAL_HEIGHT) {
   const roadX = 0;
   const roadY = 50;
   const roadW = logicalWidth;
@@ -224,17 +212,18 @@ function getCartLaneFromPointer(
   y: number,
   lanes: number,
   logicalWidth = CART_LOGICAL_WIDTH,
-  logicalHeight = CART_LOGICAL_HEIGHT,
+  logicalHeight = CART_LOGICAL_HEIGHT
 ) {
   const { roadY, roadH, laneH } = getCartTrackLayout(lanes, logicalWidth, logicalHeight);
   const boundedY = Math.max(roadY, Math.min(roadY + roadH - 1, y));
   return clampCartLane(Math.floor((boundedY - roadY) / laneH), lanes);
 }
 
-function pointerClientXY(
-  e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
-): { clientX: number; clientY: number } {
-  if ('touches' in e && e.touches.length > 0) {
+function pointerClientXY(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): {
+  clientX: number;
+  clientY: number;
+} {
+  if ("touches" in e && e.touches.length > 0) {
     return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
   }
   const m = e as React.MouseEvent<HTMLCanvasElement>;
@@ -271,7 +260,7 @@ export default function Games() {
   const visualBoard = useRef<Match3Piece[][]>([]);
   const pointer = useRef({ x: 250, y: 250, isDown: false });
   const isTouchDevice = useRef(
-    typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0),
+    typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0)
   );
   const selectedCell = useRef<Match3Cell | null>(null);
   const swapAnim = useRef<SwapAnim>(null);
@@ -292,7 +281,7 @@ export default function Games() {
     roadOffset: 0,
     lastServerUpdateAt: 0,
     lastFrameAt: 0,
-    difficulty: 0,
+    difficulty: 0
   });
   const cartTouchRef = useRef({ active: false, y: 0 });
   /** Canvas HUD must not close over `timeLeft` state — that changes every 1s and would recreate drawCart + restart rAF. */
@@ -317,7 +306,7 @@ export default function Games() {
         y: 135 + Math.random() * 25, // Horizon height is ~180, so mountains are drawn above it
         speedFactor: 0.12 + Math.random() * 0.08,
         size: 70 + Math.random() * 60, // Width base
-        type: 'mountain',
+        type: "mountain"
       });
     }
     // Trees and utility poles on both sides of the road (road is y: 180 to 360)
@@ -328,45 +317,51 @@ export default function Games() {
         y: isTop ? 120 + Math.random() * 30 : 385 + Math.random() * 30,
         speedFactor: 0.95 + Math.random() * 0.08,
         size: 20 + Math.random() * 15,
-        type: Math.random() < 0.5 ? 'tree' : 'pole',
+        type: Math.random() < 0.5 ? "tree" : "pole"
       });
     }
     // Sort items by speedFactor for proper depth layering
     sceneryRef.current = items.sort((a, b) => a.speedFactor - b.speedFactor);
   }, []);
 
-  const emitLaneChange = useCallback((lane: number) => {
-    if (!socket) return;
-    const now = performance.now();
-    const minInterval = 50; // ms
-    
-    const doEmit = (targetLane: number) => {
-      socket.emit('game:action', { type: 'lane', lane: targetLane });
-      lastEmittedLaneRef.current = targetLane;
-      lastEmitTimeRef.current = performance.now();
+  const emitLaneChange = useCallback(
+    (lane: number) => {
+      if (!socket) return;
+      const now = performance.now();
+      const minInterval = 50; // ms
+
+      const doEmit = (targetLane: number) => {
+        socket.emit("game:action", { type: "lane", lane: targetLane });
+        lastEmittedLaneRef.current = targetLane;
+        lastEmitTimeRef.current = performance.now();
+        if (emitTimeoutRef.current) {
+          clearTimeout(emitTimeoutRef.current);
+          emitTimeoutRef.current = null;
+        }
+      };
+
       if (emitTimeoutRef.current) {
         clearTimeout(emitTimeoutRef.current);
-        emitTimeoutRef.current = null;
+        emitTimeoutRef.current = setTimeout(
+          () => {
+            doEmit(lane);
+          },
+          Math.max(0, minInterval - (now - lastEmitTimeRef.current))
+        );
+        return;
       }
-    };
 
-    if (emitTimeoutRef.current) {
-      clearTimeout(emitTimeoutRef.current);
-      emitTimeoutRef.current = setTimeout(() => {
+      const elapsed = now - lastEmitTimeRef.current;
+      if (elapsed >= minInterval) {
         doEmit(lane);
-      }, Math.max(0, minInterval - (now - lastEmitTimeRef.current)));
-      return;
-    }
-
-    const elapsed = now - lastEmitTimeRef.current;
-    if (elapsed >= minInterval) {
-      doEmit(lane);
-    } else {
-      emitTimeoutRef.current = setTimeout(() => {
-        doEmit(lane);
-      }, minInterval - elapsed);
-    }
-  }, [socket]);
+      } else {
+        emitTimeoutRef.current = setTimeout(() => {
+          doEmit(lane);
+        }, minInterval - elapsed);
+      }
+    },
+    [socket]
+  );
 
   const [totalGamePower, setTotalGamePower] = useState(0);
   const [powerLoading, setPowerLoading] = useState(true);
@@ -381,14 +376,14 @@ export default function Games() {
     try {
       if (!silent) setPowerLoading(true);
       setPowerError(null);
-      const res = await api.get('/games/active-powers');
+      const res = await api.get("/games/active-powers");
       if (res.data?.ok) {
         setTotalGamePower(Number(res.data.totalHashRate) || 0);
       } else {
-        setPowerError('load_failed');
+        setPowerError("load_failed");
       }
     } catch {
-      setPowerError('load_failed');
+      setPowerError("load_failed");
     } finally {
       if (!silent) setPowerLoading(false);
     }
@@ -400,10 +395,10 @@ export default function Games() {
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === 'visible') void fetchActiveGamePowers({ silent: true });
+      if (document.visibilityState === "visible") void fetchActiveGamePowers({ silent: true });
     };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [fetchActiveGamePowers]);
 
   useEffect(() => {
@@ -413,7 +408,7 @@ export default function Games() {
 
   const fetchChain2048Arena = useCallback(async () => {
     try {
-      const res = await api.get('/games/2048/status');
+      const res = await api.get("/games/2048/status");
       if (res.data?.ok) {
         setChain2048CdSec(Math.max(0, Number(res.data.cooldownSecondsRemaining) || 0));
         setChain2048AllowStart(Boolean(res.data.allowNewStart));
@@ -431,8 +426,7 @@ export default function Games() {
     return () => clearInterval(id);
   }, [fetchChain2048Arena, activeGame]);
 
-  const chain2048CardBlocked =
-    chain2048CdSec > 0 || (!chain2048AllowStart && !chain2048HasActiveSession);
+  const chain2048CardBlocked = chain2048CdSec > 0 || (!chain2048AllowStart && !chain2048HasActiveSession);
 
   const chain2048CdActive = chain2048CdSec > 0;
   useEffect(() => {
@@ -461,8 +455,8 @@ export default function Games() {
         vx: (Math.random() - 0.5) * 8,
         vy: (Math.random() - 0.5) * 8,
         life: 1.0,
-        color: '#3b82f6',
-        size: Math.random() * 4 + 1.5,
+        color: "#3b82f6",
+        size: Math.random() * 4 + 1.5
       });
     }
   }, []);
@@ -471,7 +465,7 @@ export default function Games() {
     const guard = socketEmitGuardRef.current;
     const newSocket = io(SOCKET_URL, { auth: { token }, withCredentials: true });
 
-    newSocket.on('game:error', (msg: unknown) => {
+    newSocket.on("game:error", (msg: unknown) => {
       guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
       toast.error(translateGameSocketError(t, msg));
@@ -481,7 +475,7 @@ export default function Games() {
       memoryBoardRef.current = null;
     });
 
-    newSocket.on('game:started', (raw: unknown) => {
+    newSocket.on("game:started", (raw: unknown) => {
       const data = raw as GameStartedPayload;
       guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
@@ -492,20 +486,20 @@ export default function Games() {
       particles.current = [];
       cardFlipAnims.current.clear();
 
-      if (data.game === 'crypto-memory' && data.board) {
+      if (data.game === "crypto-memory" && data.board) {
         memoryBoardRef.current = data.board.map((c) => ({ ...c }));
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
-      } else if (data.game === 'crypto-match-3' && data.board) {
+      } else if (data.game === "crypto-match-3" && data.board) {
         memoryBoardRef.current = null;
         selectedCell.current = null;
         swapAnim.current = null;
         visualBoard.current = data.board.map((row, y) =>
-          row.map((s, x) => ({ symbol: s, x, y, visualX: x, visualY: y, scale: 1.0 })),
+          row.map((s, x) => ({ symbol: s, x, y, visualX: x, visualY: y, scale: 1.0 }))
         );
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
-      } else if (data.game === 'cart-rush') {
+      } else if (data.game === "cart-rush") {
         const serverNow = performance.now();
         memoryBoardRef.current = null;
         selectedCell.current = null;
@@ -526,7 +520,7 @@ export default function Games() {
           roadOffset: 0,
           lastServerUpdateAt: serverNow,
           lastFrameAt: serverNow,
-          difficulty: 0,
+          difficulty: 0
         };
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
@@ -535,19 +529,19 @@ export default function Games() {
       }
 
       setTimeLeft(
-        data.game === 'crypto-memory'
+        data.game === "crypto-memory"
           ? 70
-          : data.game === 'cart-rush'
+          : data.game === "cart-rush"
             ? Number(data.timeLimitSeconds) || CART_TIME_LIMIT_SECONDS
-            : 180,
+            : 180
       );
     });
 
-    newSocket.on('game:card_flipped', (data: { id: number; symbol: string }) => {
+    newSocket.on("game:card_flipped", (data: { id: number; symbol: string }) => {
       cardFlipAnims.current.set(data.id, {
         startTime: performance.now(),
         duration: MEMORY_CARD_OPEN_ANIM_MS,
-        opening: true,
+        opening: true
       });
       const board = memoryBoardRef.current;
       if (!board) return;
@@ -558,7 +552,7 @@ export default function Games() {
       }
     });
 
-    newSocket.on('game:match', (data: { ids: number[]; score: number }) => {
+    newSocket.on("game:match", (data: { ids: number[]; score: number }) => {
       const board = memoryBoardRef.current;
       if (board) {
         data.ids.forEach((id) => {
@@ -570,14 +564,14 @@ export default function Games() {
       createExplosion(250, 250);
     });
 
-    newSocket.on('game:mismatch', (data: { ids: number[] }) => {
+    newSocket.on("game:mismatch", (data: { ids: number[] }) => {
       setIsProcessing(true);
       const now = performance.now();
       data.ids.forEach((id) => {
         cardFlipAnims.current.set(id, {
           startTime: now,
           duration: MEMORY_CARD_CLOSE_ANIM_MS,
-          opening: false,
+          opening: false
         });
       });
       const t1 = setTimeout(() => {
@@ -595,7 +589,7 @@ export default function Games() {
       pendingTimeoutsRef.current.push(t1, t2);
     });
 
-    newSocket.on('game:board_update', (data: { board?: string[][]; score: number }) => {
+    newSocket.on("game:board_update", (data: { board?: string[][]; score: number }) => {
       if (!data.board) return;
       swapAnim.current = null;
       selectedCell.current = null;
@@ -607,7 +601,7 @@ export default function Games() {
               return { symbol, x, y, visualX: x, visualY: y - 3, scale: 1.0 };
             }
             return { ...currentVisual, x, y, scale: 1.0 };
-          }),
+          })
         );
       }
       setHudScore(data.score);
@@ -615,7 +609,7 @@ export default function Games() {
       setIsProcessing(false);
     });
 
-    newSocket.on('game:invalid_swap', () => {
+    newSocket.on("game:invalid_swap", () => {
       if (swapAnim.current) {
         const sa = swapAnim.current;
         swapAnim.current = {
@@ -624,30 +618,30 @@ export default function Games() {
           rfx: sa.tx,
           rfy: sa.ty,
           startTime: performance.now(),
-          duration: 100,
+          duration: 100
         };
       }
       selectedCell.current = null;
     });
 
-    newSocket.on('game:cart_lane', (data: { lane?: number }) => {
+    newSocket.on("game:cart_lane", (data: { lane?: number }) => {
       const nextLane = Number(data.lane) || 0;
       const serverNow = performance.now();
       const current = cartStateRef.current;
-      const ignoreServerLane = lastLaneActionTimeRef.current && (serverNow - lastLaneActionTimeRef.current < 800);
+      const ignoreServerLane = lastLaneActionTimeRef.current && serverNow - lastLaneActionTimeRef.current < 800;
       const laneToUse = ignoreServerLane ? current.lane : nextLane;
       cartStateRef.current = {
         ...current,
         lane: laneToUse,
-        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : laneToUse,
+        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : laneToUse
       };
     });
 
-    newSocket.on('game:cart_update', (data: Record<string, unknown>) => {
+    newSocket.on("game:cart_update", (data: Record<string, unknown>) => {
       const nextLane = Number(data.lane) || 0;
       const serverNow = performance.now();
       const current = cartStateRef.current;
-      const ignoreServerLane = lastLaneActionTimeRef.current && (serverNow - lastLaneActionTimeRef.current < 800);
+      const ignoreServerLane = lastLaneActionTimeRef.current && serverNow - lastLaneActionTimeRef.current < 800;
       const laneToUse = ignoreServerLane ? current.lane : nextLane;
       cartStateRef.current = {
         ...current,
@@ -662,35 +656,32 @@ export default function Games() {
           ? (data.events as CartServerEvent[]).map((event) => ({
               ...event,
               progress: Number(event.progress) || 0,
-              speed:
-                Number(event.speed) ||
-                Number(data.roadSpeed) ||
-                current.roadSpeed ||
-                0.48,
+              speed: Number(event.speed) || Number(data.roadSpeed) || current.roadSpeed || 0.48
             }))
           : [],
         hit: (data.hit as CartServerEvent | null | undefined) ?? null,
         roadSpeed: Number(data.roadSpeed) || current.roadSpeed || 0.48,
         difficulty: Number(data.difficulty) || 0,
-        lastServerUpdateAt: serverNow,
+        lastServerUpdateAt: serverNow
       };
       const hitPayload = data.hit as CartServerEvent | null | undefined;
-      if (hitPayload?.kind === 'enemy-car') {
+      if (hitPayload?.kind === "enemy-car") {
         const lanes = Math.max(3, Number(cartStateRef.current.lanes) || 3);
-        const { roadX, roadY, roadW, roadH, laneH } = getCartTrackLayout(lanes, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
-        createExplosion(
-          roadX + Math.min(roadW * 0.26, 172),
-          roadY + laneH * cartStateRef.current.lane + laneH / 2,
+        const { roadX, roadY, roadW, roadH, laneH } = getCartTrackLayout(
+          lanes,
+          CART_LOGICAL_WIDTH,
+          CART_LOGICAL_HEIGHT
         );
+        createExplosion(roadX + Math.min(roadW * 0.26, 172), roadY + laneH * cartStateRef.current.lane + laneH / 2);
       }
     });
 
-    newSocket.on('game:score_update', (data: { score: number }) => {
+    newSocket.on("game:score_update", (data: { score: number }) => {
       setHudScore(data.score);
     });
 
     newSocket.on(
-      'game:finished',
+      "game:finished",
       (data: {
         cooldownSeconds?: number;
         success?: boolean;
@@ -700,21 +691,22 @@ export default function Games() {
         rewardParams?: Record<string, unknown>;
         reward?: string;
       }) => {
-      clearTimeoutList(pendingTimeoutsRef);
-      setIsGameOver(true);
-      const cd = data.cooldownSeconds || 180;
-      if (activeGameRef.current === 'memory') setMemoryCooldown(cd);
-      else if (activeGameRef.current === 'match-3') setMatch3Cooldown(cd);
-      else if (activeGameRef.current === 'cart') setCartCooldown(cd);
-      if (data.success) {
-        const rewardText = translateGameReward(t, data);
-        setRewardMessage(rewardText);
-        toast.success(rewardText);
-        void fetchActiveGamePowers({ silent: true });
-      } else {
-        toast.error(translateGameFinishedFailure(t, data));
+        clearTimeoutList(pendingTimeoutsRef);
+        setIsGameOver(true);
+        const cd = data.cooldownSeconds || 180;
+        if (activeGameRef.current === "memory") setMemoryCooldown(cd);
+        else if (activeGameRef.current === "match-3") setMatch3Cooldown(cd);
+        else if (activeGameRef.current === "cart") setCartCooldown(cd);
+        if (data.success) {
+          const rewardText = translateGameReward(t, data);
+          setRewardMessage(rewardText);
+          toast.success(rewardText);
+          void fetchActiveGamePowers({ silent: true });
+        } else {
+          toast.error(translateGameFinishedFailure(t, data));
+        }
       }
-    });
+    );
 
     setSocket(newSocket);
     return () => {
@@ -735,7 +727,7 @@ export default function Games() {
         if (prev <= 1) {
           clearInterval(timer);
           setIsGameOver(true);
-          if (socket) socket.emit('game:end');
+          if (socket) socket.emit("game:end");
           return 0;
         }
         return prev - 1;
@@ -775,27 +767,26 @@ export default function Games() {
       const { width: logicalWidth, height: logicalHeight } = getCanvasLogicalSize(activeGame);
       const raw = window.devicePixelRatio || 1;
       /** Cart-rush: lower DPR cap on canvas = far less fill-rate work on phones (still sharp enough at 750×500 logical). */
-      const dpr =
-        activeGame === 'cart' ? Math.min(1.5, raw) : Math.min(2, raw);
+      const dpr = activeGame === "cart" ? Math.min(1.5, raw) : Math.min(2, raw);
       c.width = Math.round(logicalWidth * dpr);
       c.height = Math.round(logicalHeight * dpr);
-      const ctx = c.getContext('2d');
+      const ctx = c.getContext("2d");
       if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     applyDpr();
-    window.addEventListener('resize', applyDpr);
-    return () => window.removeEventListener('resize', applyDpr);
+    window.addEventListener("resize", applyDpr);
+    return () => window.removeEventListener("resize", applyDpr);
   }, [activeGame, isGameOver, sessionReady]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !activeGame || !sessionReady || isGameOver) return;
     const noDefault = (e: Event) => e.preventDefault();
-    canvas.addEventListener('touchstart', noDefault, { passive: false });
-    canvas.addEventListener('touchmove', noDefault, { passive: false });
+    canvas.addEventListener("touchstart", noDefault, { passive: false });
+    canvas.addEventListener("touchmove", noDefault, { passive: false });
     return () => {
-      canvas.removeEventListener('touchstart', noDefault);
-      canvas.removeEventListener('touchmove', noDefault);
+      canvas.removeEventListener("touchstart", noDefault);
+      canvas.removeEventListener("touchmove", noDefault);
     };
   }, [activeGame, isGameOver, sessionReady]);
 
@@ -830,16 +821,16 @@ export default function Games() {
         ctx.translate(x + size / 2, y + size / 2);
         ctx.scale(scaleX, 1);
 
-        ctx.fillStyle = card.isMatched ? '#0f2d1f' : showFront ? '#0d1f3a' : '#0f172a';
+        ctx.fillStyle = card.isMatched ? "#0f2d1f" : showFront ? "#0d1f3a" : "#0f172a";
         ctx.beginPath();
         ctx.roundRect(-r, -r, size, size, 16);
         ctx.fill();
 
         ctx.strokeStyle = card.isMatched
-          ? 'rgba(16,185,129,0.5)'
+          ? "rgba(16,185,129,0.5)"
           : showFront
-            ? 'rgba(59,130,246,0.5)'
-            : 'rgba(51,65,85,0.7)';
+            ? "rgba(59,130,246,0.5)"
+            : "rgba(51,65,85,0.7)";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.roundRect(-r, -r, size, size, 16);
@@ -847,8 +838,8 @@ export default function Games() {
 
         if (showFront && !card.isMatched) {
           const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-          grad.addColorStop(0, 'rgba(59,130,246,0.08)');
-          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          grad.addColorStop(0, "rgba(59,130,246,0.08)");
+          grad.addColorStop(1, "rgba(0,0,0,0)");
           ctx.fillStyle = grad;
           ctx.beginPath();
           ctx.roundRect(-r, -r, size, size, 16);
@@ -857,15 +848,13 @@ export default function Games() {
 
         if (showFront || card.isMatched) {
           const img =
-            card.symbol && card.symbol in ICON_IMAGES_MAP
-              ? ICON_IMAGES_MAP[card.symbol as CryptoIconKey]
-              : undefined;
+            card.symbol && card.symbol in ICON_IMAGES_MAP ? ICON_IMAGES_MAP[card.symbol as CryptoIconKey] : undefined;
           if (img?.complete && img.naturalWidth > 0) {
             const is = size * 0.68;
             ctx.drawImage(img, -is / 2, -is / 2, is, is);
           }
         } else {
-          ctx.strokeStyle = 'rgba(51,65,85,0.4)';
+          ctx.strokeStyle = "rgba(51,65,85,0.4)";
           ctx.lineWidth = 1;
           const hs = r * 0.6;
           for (let d = -hs; d <= hs; d += 14) {
@@ -882,7 +871,7 @@ export default function Games() {
         ctx.restore();
       });
     },
-    [memoryLayout],
+    [memoryLayout]
   );
 
   const drawMatch3 = useCallback(
@@ -935,8 +924,7 @@ export default function Games() {
             }
           }
 
-          const col =
-            piece.symbol in COIN_COLORS ? COIN_COLORS[piece.symbol as CryptoIconKey] : undefined;
+          const col = piece.symbol in COIN_COLORS ? COIN_COLORS[piece.symbol as CryptoIconKey] : undefined;
           const cx2 = drawX + s / 2;
           const cy2 = drawY + s / 2;
           ctx.save();
@@ -945,8 +933,8 @@ export default function Games() {
             const pulseT = performance.now() / 700;
             const pulse = 0.5 + 0.5 * Math.sin(pulseT * Math.PI * 2);
             ctx.shadowBlur = 18 + 8 * pulse;
-            ctx.shadowColor = col ? col.glow : 'rgba(99,179,237,0.9)';
-            ctx.strokeStyle = col ? col.border : 'rgba(99,179,237,0.9)';
+            ctx.shadowColor = col ? col.glow : "rgba(99,179,237,0.9)";
+            ctx.strokeStyle = col ? col.border : "rgba(99,179,237,0.9)";
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.roundRect(drawX - 2, drawY - 2, s + 4, s + 4, 14);
@@ -957,26 +945,23 @@ export default function Games() {
           const bgGrad = ctx.createRadialGradient(cx2, cy2, 2, cx2, cy2, s * 0.75);
           if (col) {
             bgGrad.addColorStop(0, col.bg);
-            bgGrad.addColorStop(1, 'rgba(15,23,42,0.92)');
+            bgGrad.addColorStop(1, "rgba(15,23,42,0.92)");
           } else {
-            bgGrad.addColorStop(0, 'rgba(30,41,59,0.8)');
-            bgGrad.addColorStop(1, 'rgba(15,23,42,0.92)');
+            bgGrad.addColorStop(0, "rgba(30,41,59,0.8)");
+            bgGrad.addColorStop(1, "rgba(15,23,42,0.92)");
           }
           ctx.fillStyle = bgGrad;
           ctx.beginPath();
           ctx.roundRect(drawX, drawY, s, s, 12);
           ctx.fill();
 
-          ctx.strokeStyle = col ? col.border.replace('0.5', '0.3') : 'rgba(51,65,85,0.5)';
+          ctx.strokeStyle = col ? col.border.replace("0.5", "0.3") : "rgba(51,65,85,0.5)";
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.roundRect(drawX, drawY, s, s, 12);
           ctx.stroke();
 
-          const img =
-            piece.symbol in ICON_IMAGES_MAP
-              ? ICON_IMAGES_MAP[piece.symbol as CryptoIconKey]
-              : undefined;
+          const img = piece.symbol in ICON_IMAGES_MAP ? ICON_IMAGES_MAP[piece.symbol as CryptoIconKey] : undefined;
           if (img?.complete && img.naturalWidth > 0) {
             const sc = piece.scale ?? 1.0;
             ctx.translate(cx2, cy2);
@@ -993,7 +978,7 @@ export default function Games() {
         });
       });
     },
-    [match3Layout],
+    [match3Layout]
   );
 
   const drawCart = useCallback((ctx: CanvasRenderingContext2D, deltaSeconds: number) => {
@@ -1006,28 +991,31 @@ export default function Games() {
     const roadPixelsPerSecond = 110 + serverRoadSpeed * 90;
     state.roadOffset = ((Number(state.roadOffset) || 0) + roadPixelsPerSecond * deltaSeconds) % CART_LOGICAL_WIDTH;
     const scroll = state.roadOffset;
-    const missionProgress = Math.max(0, Math.min(1, (Number(state.score) || 0) / Math.max(1, Number(state.targetScore) || CART_TARGET_SCORE)));
+    const missionProgress = Math.max(
+      0,
+      Math.min(1, (Number(state.score) || 0) / Math.max(1, Number(state.targetScore) || CART_TARGET_SCORE))
+    );
 
     const CAR_WIDTH = 110;
     const CAR_HEIGHT = 50;
     const BTC_SIZE = 28;
 
     ctx.save();
-    
+
     // 1. Daytime Sky Background
     const skyGrad = ctx.createLinearGradient(0, 0, 0, 180);
-    skyGrad.addColorStop(0, '#38bdf8');
-    skyGrad.addColorStop(1, '#bae6fd');
+    skyGrad.addColorStop(0, "#38bdf8");
+    skyGrad.addColorStop(1, "#bae6fd");
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, 180);
 
     // Draw Sun
     ctx.save();
-    ctx.fillStyle = '#fde68a';
+    ctx.fillStyle = "#fde68a";
     ctx.beginPath();
     ctx.arc(80, 55, 30, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(253, 224, 71, 0.35)';
+    ctx.fillStyle = "rgba(253, 224, 71, 0.35)";
     ctx.beginPath();
     ctx.arc(80, 55, 44, 0, Math.PI * 2);
     ctx.fill();
@@ -1036,7 +1024,7 @@ export default function Games() {
     // Clouds
     const drawCloud = (cx: number, cy: number, scale: number) => {
       ctx.save();
-      ctx.fillStyle = 'rgba(255,255,255,0.88)';
+      ctx.fillStyle = "rgba(255,255,255,0.88)";
       ctx.beginPath();
       ctx.ellipse(cx, cy, 40 * scale, 20 * scale, 0, 0, Math.PI * 2);
       ctx.ellipse(cx + 28 * scale, cy + 5 * scale, 30 * scale, 16 * scale, 0, 0, Math.PI * 2);
@@ -1059,11 +1047,11 @@ export default function Games() {
         }
 
         ctx.save();
-        if (item.type === 'mountain') {
+        if (item.type === "mountain") {
           // Bright green rolling hills
           const mountainGrad = ctx.createLinearGradient(item.x, item.y - item.size, item.x, item.y);
-          mountainGrad.addColorStop(0, '#86efac');
-          mountainGrad.addColorStop(1, '#4ade80');
+          mountainGrad.addColorStop(0, "#86efac");
+          mountainGrad.addColorStop(1, "#4ade80");
           ctx.fillStyle = mountainGrad;
           ctx.beginPath();
           ctx.moveTo(item.x - item.size, item.y);
@@ -1071,14 +1059,14 @@ export default function Games() {
           ctx.lineTo(item.x + item.size, item.y);
           ctx.closePath();
           ctx.fill();
-        } else if (item.type === 'tree') {
+        } else if (item.type === "tree") {
           // Pine tree
           ctx.translate(item.x, item.y);
           // Trunk
-          ctx.fillStyle = '#92400e';
+          ctx.fillStyle = "#92400e";
           ctx.fillRect(-3, 0, 6, 12);
           // Leaves (layers of green triangles)
-          ctx.fillStyle = '#16a34a';
+          ctx.fillStyle = "#16a34a";
           ctx.beginPath();
           ctx.moveTo(0, -item.size);
           ctx.lineTo(-item.size * 0.5, -item.size * 0.4);
@@ -1086,17 +1074,17 @@ export default function Games() {
           ctx.closePath();
           ctx.fill();
 
-          ctx.fillStyle = '#15803d';
+          ctx.fillStyle = "#15803d";
           ctx.beginPath();
           ctx.moveTo(0, -item.size * 0.6);
           ctx.lineTo(-item.size * 0.65, 0);
           ctx.lineTo(item.size * 0.65, 0);
           ctx.closePath();
           ctx.fill();
-        } else if (item.type === 'pole') {
+        } else if (item.type === "pole") {
           // Utility pole
           ctx.translate(item.x, item.y);
-          ctx.strokeStyle = '#4a3525';
+          ctx.strokeStyle = "#4a3525";
           ctx.lineWidth = 4;
           // Main post
           ctx.beginPath();
@@ -1110,7 +1098,7 @@ export default function Games() {
           ctx.lineTo(12, -item.size + 4);
           ctx.stroke();
           // Small white insulators
-          ctx.fillStyle = '#eeeeee';
+          ctx.fillStyle = "#eeeeee";
           ctx.fillRect(-11, -item.size + 1, 2, 3);
           ctx.fillRect(9, -item.size + 1, 2, 3);
         }
@@ -1120,14 +1108,14 @@ export default function Games() {
 
     // 3. Ground Shoulders (bright grass)
     const topShoulderGrad = ctx.createLinearGradient(0, 130, 0, 180);
-    topShoulderGrad.addColorStop(0, '#4ade80');
-    topShoulderGrad.addColorStop(1, '#22c55e');
+    topShoulderGrad.addColorStop(0, "#4ade80");
+    topShoulderGrad.addColorStop(1, "#22c55e");
     ctx.fillStyle = topShoulderGrad;
     ctx.fillRect(0, 130, CART_LOGICAL_WIDTH, 50);
 
     const bottomShoulderGrad = ctx.createLinearGradient(0, 360, 0, CART_LOGICAL_HEIGHT);
-    bottomShoulderGrad.addColorStop(0, '#22c55e');
-    bottomShoulderGrad.addColorStop(1, '#16a34a');
+    bottomShoulderGrad.addColorStop(0, "#22c55e");
+    bottomShoulderGrad.addColorStop(1, "#16a34a");
     ctx.fillStyle = bottomShoulderGrad;
     ctx.fillRect(0, 360, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT - 360);
 
@@ -1136,14 +1124,14 @@ export default function Games() {
       ctx.save();
       // Metallic rail gradient
       const railGrad = ctx.createLinearGradient(0, y, 0, y + 8);
-      railGrad.addColorStop(0, '#757e8a');
-      railGrad.addColorStop(0.5, '#bdc3c7');
-      railGrad.addColorStop(1, '#5d6874');
+      railGrad.addColorStop(0, "#757e8a");
+      railGrad.addColorStop(0.5, "#bdc3c7");
+      railGrad.addColorStop(1, "#5d6874");
       ctx.fillStyle = railGrad;
       ctx.fillRect(0, y, CART_LOGICAL_WIDTH, 8);
 
       // Support posts periodically scrolling
-      ctx.fillStyle = '#3a4149';
+      ctx.fillStyle = "#3a4149";
       const postSpacing = 160;
       const postOffset = scroll % postSpacing;
       for (let px = -postSpacing; px < CART_LOGICAL_WIDTH + postSpacing; px += postSpacing) {
@@ -1161,14 +1149,14 @@ export default function Games() {
 
     // 4. Road Surface (visible medium grey asphalt)
     const roadGrad = ctx.createLinearGradient(0, roadY, 0, roadY + roadH);
-    roadGrad.addColorStop(0, '#6b7280');
-    roadGrad.addColorStop(0.5, '#5a6271');
-    roadGrad.addColorStop(1, '#6b7280');
+    roadGrad.addColorStop(0, "#6b7280");
+    roadGrad.addColorStop(0.5, "#5a6271");
+    roadGrad.addColorStop(1, "#6b7280");
     ctx.fillStyle = roadGrad;
     ctx.fillRect(roadX, roadY, roadW, roadH);
 
     // Draw solid white shoulder lines
-    ctx.strokeStyle = '#d2d6d9';
+    ctx.strokeStyle = "#d2d6d9";
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, roadY);
@@ -1178,7 +1166,7 @@ export default function Games() {
     ctx.stroke();
 
     // Lane Dividers (bright white dashes)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
     ctx.setLineDash([40, 60]);
     ctx.lineDashOffset = -scroll;
     ctx.lineWidth = 2.5;
@@ -1197,19 +1185,19 @@ export default function Games() {
       ctx.translate(cx, cy);
 
       // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
       ctx.beginPath();
       ctx.ellipse(0, 18, 24, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Black rubber base
-      ctx.fillStyle = '#374151';
+      ctx.fillStyle = "#374151";
       ctx.beginPath();
       ctx.roundRect(-20, 12, 40, 6, 2);
       ctx.fill();
 
       // Cone Body (bright orange)
-      ctx.fillStyle = '#f97316';
+      ctx.fillStyle = "#f97316";
       ctx.beginPath();
       ctx.moveTo(-16, 12);
       ctx.lineTo(-4, -22);
@@ -1219,7 +1207,7 @@ export default function Games() {
       ctx.fill();
 
       // Shaded left edge (3D depth)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
       ctx.beginPath();
       ctx.moveTo(-16, 12);
       ctx.lineTo(-4, -22);
@@ -1229,7 +1217,7 @@ export default function Games() {
       ctx.fill();
 
       // Reflective white stripe
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.moveTo(-10, -1);
       ctx.lineTo(-7, -10);
@@ -1246,13 +1234,13 @@ export default function Games() {
       ctx.translate(cx, cy);
 
       // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
+      ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
       ctx.beginPath();
       ctx.ellipse(0, 16, 26, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Support legs (iron A-frame)
-      ctx.strokeStyle = '#374151';
+      ctx.strokeStyle = "#374151";
       ctx.lineWidth = 4.5;
       ctx.beginPath();
       ctx.moveTo(-18, 16);
@@ -1264,23 +1252,23 @@ export default function Games() {
       ctx.stroke();
 
       // Heavy Concrete Board
-      ctx.fillStyle = '#9ca3af'; // Grey concrete
+      ctx.fillStyle = "#9ca3af"; // Grey concrete
       ctx.beginPath();
       ctx.roundRect(-26, -6, 52, 13, 1);
       ctx.fill();
 
       // Diagonal hazard safety markings (yellow/black paint stripes)
-      ctx.strokeStyle = '#1f2937'; // black stripes
+      ctx.strokeStyle = "#1f2937"; // black stripes
       ctx.lineWidth = 5;
       ctx.save();
       ctx.beginPath();
       ctx.rect(-26, -6, 52, 13);
       ctx.clip();
-      
+
       // Paint yellow background first
-      ctx.fillStyle = '#f59e0b';
+      ctx.fillStyle = "#f59e0b";
       ctx.fillRect(-26, -6, 52, 13);
-      
+
       ctx.beginPath();
       for (let ox = -40; ox < 40; ox += 14) {
         ctx.moveTo(ox, -8);
@@ -1290,7 +1278,7 @@ export default function Games() {
       ctx.restore();
 
       // Small amber warning reflectors on top
-      ctx.fillStyle = '#d97706';
+      ctx.fillStyle = "#d97706";
       ctx.beginPath();
       ctx.arc(-20, -10, 3, 0, Math.PI * 2);
       ctx.arc(20, -10, 3, 0, Math.PI * 2);
@@ -1304,42 +1292,46 @@ export default function Games() {
       ctx.translate(cx, cy);
 
       // Dark cavity (clearly visible on grey road)
-      ctx.fillStyle = '#1f2937';
+      ctx.fillStyle = "#1f2937";
       ctx.beginPath();
       ctx.ellipse(0, 0, 42, 18, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Inner puddle reflecting sky blue
-      ctx.fillStyle = '#0ea5e9';
+      ctx.fillStyle = "#0ea5e9";
       ctx.beginPath();
       ctx.ellipse(-2, 1, 32, 12, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Puddle sheen highlight
       const sheenGrad = ctx.createLinearGradient(-20, -6, 20, 6);
-      sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-      sheenGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
-      sheenGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      sheenGrad.addColorStop(0, "rgba(255, 255, 255, 0.08)");
+      sheenGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.3)");
+      sheenGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
       ctx.fillStyle = sheenGrad;
       ctx.beginPath();
       ctx.ellipse(-2, 0, 28, 10, 0.1, 0, Math.PI * 2);
       ctx.fill();
 
       // Jagged crack outline (bright contrast)
-      ctx.strokeStyle = '#111827';
+      ctx.strokeStyle = "#111827";
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.ellipse(0, 0, 42, 18, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // Outer fracture lines
-      ctx.strokeStyle = '#374151';
+      ctx.strokeStyle = "#374151";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(-42, 0); ctx.lineTo(-52, -4);
-      ctx.moveTo(42, 0); ctx.lineTo(52, 5);
-      ctx.moveTo(0, -18); ctx.lineTo(4, -26);
-      ctx.moveTo(-10, 16); ctx.lineTo(-15, 22);
+      ctx.moveTo(-42, 0);
+      ctx.lineTo(-52, -4);
+      ctx.moveTo(42, 0);
+      ctx.lineTo(52, 5);
+      ctx.moveTo(0, -18);
+      ctx.lineTo(4, -26);
+      ctx.moveTo(-10, 16);
+      ctx.lineTo(-15, 22);
       ctx.stroke();
 
       ctx.restore();
@@ -1354,61 +1346,66 @@ export default function Games() {
       // Realistic Headlights casting soft light cone on asphalt
       if (alpha === 1) {
         ctx.save();
-        const lightGrad = ctx.createLinearGradient(CAR_WIDTH/2 - 10, 0, CAR_WIDTH/2 + 200, 0);
-        lightGrad.addColorStop(0, 'rgba(255, 248, 220, 0.16)'); // Soft warm white
-        lightGrad.addColorStop(1, 'rgba(255, 248, 220, 0)');
+        const lightGrad = ctx.createLinearGradient(CAR_WIDTH / 2 - 10, 0, CAR_WIDTH / 2 + 200, 0);
+        lightGrad.addColorStop(0, "rgba(255, 248, 220, 0.16)"); // Soft warm white
+        lightGrad.addColorStop(1, "rgba(255, 248, 220, 0)");
         ctx.fillStyle = lightGrad;
         ctx.beginPath();
-        ctx.moveTo(CAR_WIDTH/2 - 10, -14);
-        ctx.lineTo(CAR_WIDTH/2 + 190, -40);
-        ctx.lineTo(CAR_WIDTH/2 + 190, 5);
+        ctx.moveTo(CAR_WIDTH / 2 - 10, -14);
+        ctx.lineTo(CAR_WIDTH / 2 + 190, -40);
+        ctx.lineTo(CAR_WIDTH / 2 + 190, 5);
         ctx.fill();
         ctx.beginPath();
-        ctx.moveTo(CAR_WIDTH/2 - 10, 14);
-        ctx.lineTo(CAR_WIDTH/2 + 190, 40);
-        ctx.lineTo(CAR_WIDTH/2 + 190, -5);
+        ctx.moveTo(CAR_WIDTH / 2 - 10, 14);
+        ctx.lineTo(CAR_WIDTH / 2 + 190, 40);
+        ctx.lineTo(CAR_WIDTH / 2 + 190, -5);
         ctx.fill();
         ctx.restore();
       }
 
       // Cast body shadow underneath
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
       ctx.beginPath();
-      ctx.ellipse(2, 4, CAR_WIDTH/2 + 2, CAR_HEIGHT/2 + 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(2, 4, CAR_WIDTH / 2 + 2, CAR_HEIGHT / 2 + 2, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Rubber tires with metal hubcaps
-      ctx.fillStyle = '#1f2937'; // dark grey rubber
-      [[-33, -26], [16, -26], [-33, 16], [16, 16]].forEach(p => {
+      ctx.fillStyle = "#1f2937"; // dark grey rubber
+      [
+        [-33, -26],
+        [16, -26],
+        [-33, 16],
+        [16, 16]
+      ].forEach((p) => {
         ctx.fillRect(p[0], p[1], 22, 10);
         // Hubcap
-        ctx.fillStyle = '#9ca3af';
+        ctx.fillStyle = "#9ca3af";
         ctx.fillRect(p[0] + 6, p[1] + 2, 10, 6);
-        ctx.fillStyle = '#1f2937';
+        ctx.fillStyle = "#1f2937";
       });
 
       // Car Body (Metallic Chrome Crimson Sportscar)
-      const bodyGrad = ctx.createLinearGradient(-CAR_WIDTH/2, 0, CAR_WIDTH/2, 0);
-      bodyGrad.addColorStop(0, '#7f1d1d'); // deep red rear
-      bodyGrad.addColorStop(0.5, '#b91c1c'); // bright crimson body
-      bodyGrad.addColorStop(1, '#dc2626'); // chrome red nose
+      const bodyGrad = ctx.createLinearGradient(-CAR_WIDTH / 2, 0, CAR_WIDTH / 2, 0);
+      bodyGrad.addColorStop(0, "#7f1d1d"); // deep red rear
+      bodyGrad.addColorStop(0.5, "#b91c1c"); // bright crimson body
+      bodyGrad.addColorStop(1, "#dc2626"); // chrome red nose
       ctx.fillStyle = bodyGrad;
       ctx.beginPath();
-      ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 10);
+      ctx.roundRect(-CAR_WIDTH / 2, -CAR_HEIGHT / 2, CAR_WIDTH, CAR_HEIGHT, 10);
       ctx.fill();
 
       // Carbon Fiber Spoiler / Rear Wing
-      ctx.fillStyle = '#111827';
-      ctx.fillRect(-CAR_WIDTH/2 - 2, -CAR_HEIGHT/2 - 2, 8, CAR_HEIGHT + 4);
-      
+      ctx.fillStyle = "#111827";
+      ctx.fillRect(-CAR_WIDTH / 2 - 2, -CAR_HEIGHT / 2 - 2, 8, CAR_HEIGHT + 4);
+
       // Windshield & Cabin Glass (Realistic grey tinted window with reflections)
-      ctx.fillStyle = '#111827';
+      ctx.fillStyle = "#111827";
       ctx.beginPath();
       ctx.roundRect(-8, -16, 36, 32, 5);
       ctx.fill();
-      
+
       // White glare reflection stripe on glass
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(10, -14);
@@ -1416,14 +1413,14 @@ export default function Games() {
       ctx.stroke();
 
       // Exhaust tailpipes
-      ctx.fillStyle = '#4b5563';
-      ctx.fillRect(-CAR_WIDTH/2 - 4, -12, 4, 3);
-      ctx.fillRect(-CAR_WIDTH/2 - 4, 9, 4, 3);
+      ctx.fillStyle = "#4b5563";
+      ctx.fillRect(-CAR_WIDTH / 2 - 4, -12, 4, 3);
+      ctx.fillRect(-CAR_WIDTH / 2 - 4, 9, 4, 3);
 
       // Tail lights
-      ctx.fillStyle = '#dc2626';
-      ctx.fillRect(-CAR_WIDTH/2, -18, 3, 6);
-      ctx.fillRect(-CAR_WIDTH/2, 12, 3, 6);
+      ctx.fillStyle = "#dc2626";
+      ctx.fillRect(-CAR_WIDTH / 2, -18, 3, 6);
+      ctx.fillRect(-CAR_WIDTH / 2, 12, 3, 6);
 
       ctx.restore();
     };
@@ -1434,54 +1431,59 @@ export default function Games() {
 
       // Oncoming Headlight Beams (pointing left)
       ctx.save();
-      const lightGrad = ctx.createLinearGradient(-CAR_WIDTH/2, 0, -CAR_WIDTH/2 - 140, 0);
-      lightGrad.addColorStop(0, 'rgba(255, 253, 240, 0.12)'); // soft white
-      lightGrad.addColorStop(1, 'rgba(255, 253, 240, 0)');
+      const lightGrad = ctx.createLinearGradient(-CAR_WIDTH / 2, 0, -CAR_WIDTH / 2 - 140, 0);
+      lightGrad.addColorStop(0, "rgba(255, 253, 240, 0.12)"); // soft white
+      lightGrad.addColorStop(1, "rgba(255, 253, 240, 0)");
       ctx.fillStyle = lightGrad;
       ctx.beginPath();
-      ctx.moveTo(-CAR_WIDTH/2 + 5, -12);
-      ctx.lineTo(-CAR_WIDTH/2 - 130, -30);
-      ctx.lineTo(-CAR_WIDTH/2 - 130, 10);
-      ctx.lineTo(-CAR_WIDTH/2 + 5, 0);
+      ctx.moveTo(-CAR_WIDTH / 2 + 5, -12);
+      ctx.lineTo(-CAR_WIDTH / 2 - 130, -30);
+      ctx.lineTo(-CAR_WIDTH / 2 - 130, 10);
+      ctx.lineTo(-CAR_WIDTH / 2 + 5, 0);
       ctx.fill();
       ctx.restore();
 
       // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
+      ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
       ctx.beginPath();
-      ctx.ellipse(0, 4, CAR_WIDTH/2 + 2, CAR_HEIGHT/2 + 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 4, CAR_WIDTH / 2 + 2, CAR_HEIGHT / 2 + 2, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Wheels
-      ctx.fillStyle = '#111827';
-      [[-31, -26], [21, -26], [-31, 16], [21, 16]].forEach(p => {
+      ctx.fillStyle = "#111827";
+      [
+        [-31, -26],
+        [21, -26],
+        [-31, 16],
+        [21, 16]
+      ].forEach((p) => {
         ctx.fillRect(p[0], p[1], 18, 9);
       });
 
       // Muted metallic passenger car body
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 7);
+      ctx.roundRect(-CAR_WIDTH / 2, -CAR_HEIGHT / 2, CAR_WIDTH, CAR_HEIGHT, 7);
       ctx.fill();
 
       // Glass panels
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = "#1e293b";
       ctx.beginPath();
       ctx.roundRect(-15, -15, 32, 30, 4);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
       ctx.lineWidth = 1;
       ctx.stroke();
 
       // Yellow oncoming headlights
-      ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(-CAR_WIDTH/2, -14, 2, 5);
-      ctx.fillRect(-CAR_WIDTH/2, 9, 2, 5);
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillRect(-CAR_WIDTH / 2, -14, 2, 5);
+      ctx.fillRect(-CAR_WIDTH / 2, 9, 2, 5);
 
       // Red tail lights on rear
-      ctx.fillStyle = '#b91c1c';
-      ctx.fillRect(CAR_WIDTH/2 - 2, -14, 2, 5);
-      ctx.fillRect(CAR_WIDTH/2 - 2, 9, 2, 5);
+      ctx.fillStyle = "#b91c1c";
+      ctx.fillRect(CAR_WIDTH / 2 - 2, -14, 2, 5);
+      ctx.fillRect(CAR_WIDTH / 2 - 2, 9, 2, 5);
 
       ctx.restore();
     };
@@ -1490,48 +1492,48 @@ export default function Games() {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(Math.cos(rot), 1);
-      
+
       // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
       ctx.beginPath();
       ctx.arc(0, 4, BTC_SIZE, 0, Math.PI * 2);
       ctx.fill();
 
       // Radial Gold Gradient
       const goldGrad = ctx.createRadialGradient(-3, -3, 2, 0, 0, BTC_SIZE);
-      goldGrad.addColorStop(0, '#fbbf24'); // shiny gold
-      goldGrad.addColorStop(0.7, '#d97706'); // darker amber gold
-      goldGrad.addColorStop(1, '#92400e'); // bronze gold rim
+      goldGrad.addColorStop(0, "#fbbf24"); // shiny gold
+      goldGrad.addColorStop(0.7, "#d97706"); // darker amber gold
+      goldGrad.addColorStop(1, "#92400e"); // bronze gold rim
       ctx.fillStyle = goldGrad;
       ctx.beginPath();
       ctx.arc(0, 0, BTC_SIZE, 0, Math.PI * 2);
       ctx.fill();
-      
+
       // Embossed Gold Rim Bevel
-      ctx.strokeStyle = '#fef08a';
+      ctx.strokeStyle = "#fef08a";
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.arc(0, 0, BTC_SIZE - 2, 0, Math.PI * 2);
       ctx.stroke();
-      
+
       // Embossed physical Bitcoin ₿ emblem
-      ctx.fillStyle = '#fef08a';
-      ctx.font = 'bold 22px Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('₿', 0, 1);
-      
+      ctx.fillStyle = "#fef08a";
+      ctx.font = "bold 22px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("₿", 0, 1);
+
       ctx.restore();
     };
 
     // 6. Visual updates and Spring physics
     if (!state.localEvents) state.localEvents = [];
-    
+
     if (state.lastProcessedUpdate !== state.lastServerUpdateAt) {
       state.lastProcessedUpdate = state.lastServerUpdateAt;
       const localMap = new Map(state.localEvents.map((e) => [e.id, e]));
       const newLocalEvents: CartServerEvent[] = [];
-      
+
       for (const s_evt of state.events || []) {
         if (!s_evt.id) {
           newLocalEvents.push({ ...s_evt });
@@ -1541,7 +1543,7 @@ export default function Games() {
         if (l_evt) {
           const diff = Number(s_evt.progress) - Number(l_evt.progress);
           if (Math.abs(diff) > 0.4) {
-             l_evt.progress = s_evt.progress; // snap if massive desync
+            l_evt.progress = s_evt.progress; // snap if massive desync
           }
           // Update properties from server authority
           (l_evt as any).serverProgress = s_evt.progress;
@@ -1555,13 +1557,13 @@ export default function Games() {
           newLocalEvents.push({
             ...s_evt,
             serverProgress: s_evt.progress,
-            progress: startProgress,
+            progress: startProgress
           } as any);
         }
       }
       state.localEvents = newLocalEvents;
     }
-    
+
     // Smoothly lerp visual progress of obstacles
     const elapsedSinceUpdate = (now - state.lastServerUpdateAt) / 1000;
     state.localEvents.forEach((e: any) => {
@@ -1581,21 +1583,21 @@ export default function Games() {
       const x = roadX + roadW - progress * (roadW + 180) + 60;
 
       switch (event.kind) {
-        case 'coin':
+        case "coin":
           drawBTC(x, y, btcRotation);
           break;
-        case 'cone':
+        case "cone":
           drawCone(x, y);
           break;
-        case 'barrier':
+        case "barrier":
           drawBarrier(x, y);
           break;
-        case 'pothole':
+        case "pothole":
           drawPothole(x, y);
           break;
-        case 'enemy-car':
+        case "enemy-car":
         default:
-          drawEnemyCar(x, y, event.variant?.body || '#4b5563');
+          drawEnemyCar(x, y, event.variant?.body || "#4b5563");
           break;
       }
     }
@@ -1619,7 +1621,7 @@ export default function Games() {
 
     // Spawn dispersing smoke exhaust particles
     if (!isGameOver && Math.random() < 0.65) {
-      const rx = carX - CAR_WIDTH/2 + 2;
+      const rx = carX - CAR_WIDTH / 2 + 2;
       const ry1 = carY - 12;
       const ry2 = carY + 9;
 
@@ -1630,8 +1632,8 @@ export default function Games() {
         vx: -6 - Math.random() * 4,
         vy: (Math.random() - 0.5) * 1.0,
         life: 0.6 + Math.random() * 0.3,
-        color: 'rgba(209, 213, 219, 0.22)',
-        size: Math.random() * 3 + 2,
+        color: "rgba(209, 213, 219, 0.22)",
+        size: Math.random() * 3 + 2
       });
 
       particles.current.push({
@@ -1640,8 +1642,8 @@ export default function Games() {
         vx: -6 - Math.random() * 4,
         vy: (Math.random() - 0.5) * 1.0,
         life: 0.6 + Math.random() * 0.3,
-        color: 'rgba(209, 213, 219, 0.22)',
-        size: Math.random() * 3 + 2,
+        color: "rgba(209, 213, 219, 0.22)",
+        size: Math.random() * 3 + 2
       });
     }
 
@@ -1659,7 +1661,7 @@ export default function Games() {
 
     // 7. Brushed-Steel / Dark Metallic Dashboard HUD (No Neon)
     ctx.save();
-    
+
     // Circular Speedometer gauge drawing helper
     const drawSpeedometer = (x: number, y: number, r: number, currentSpeed: number) => {
       ctx.save();
@@ -1667,20 +1669,20 @@ export default function Games() {
 
       // Gauge face (dark metallic dial)
       const dialGrad = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
-      dialGrad.addColorStop(0, '#1e293b');
-      dialGrad.addColorStop(1, '#0f172a');
+      dialGrad.addColorStop(0, "#1e293b");
+      dialGrad.addColorStop(1, "#0f172a");
       ctx.fillStyle = dialGrad;
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
 
       // Beveled rim
-      ctx.strokeStyle = '#475569';
+      ctx.strokeStyle = "#475569";
       ctx.lineWidth = 3;
       ctx.stroke();
 
       // Dial ticks (from -135deg to +135deg)
-      ctx.strokeStyle = '#64748b';
+      ctx.strokeStyle = "#64748b";
       ctx.lineWidth = 1.5;
       for (let i = 0; i <= 10; i++) {
         const angle = -Math.PI * 1.25 + (Math.PI * 1.5 * i) / 10;
@@ -1694,7 +1696,7 @@ export default function Games() {
       const maxKmh = 180;
       const kmh = currentSpeed * 175;
       const angle = -Math.PI * 1.25 + (Math.PI * 1.5 * Math.min(kmh, maxKmh)) / maxKmh;
-      ctx.strokeStyle = '#ea580c';
+      ctx.strokeStyle = "#ea580c";
       ctx.lineWidth = 3.5;
       ctx.beginPath();
       ctx.moveTo(0, 0);
@@ -1702,19 +1704,19 @@ export default function Games() {
       ctx.stroke();
 
       // Center peg
-      ctx.fillStyle = '#cbd5e1';
+      ctx.fillStyle = "#cbd5e1";
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fill();
 
       // Numeric speed text
-      ctx.fillStyle = '#f8fafc';
+      ctx.fillStyle = "#f8fafc";
       ctx.font = 'bold 15px "Outfit", "Inter", sans-serif';
-      ctx.textAlign = 'center';
+      ctx.textAlign = "center";
       ctx.fillText(`${Math.floor(kmh)}`, 0, r * 0.5);
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = "#64748b";
       ctx.font = '900 8px "Outfit", "Inter", sans-serif';
-      ctx.fillText('KM/H', 0, r * 0.72);
+      ctx.fillText("KM/H", 0, r * 0.72);
 
       ctx.restore();
     };
@@ -1726,36 +1728,41 @@ export default function Games() {
       h: number,
       label: string,
       value: string,
-      valColor = '#ffffff',
+      valColor = "#ffffff"
     ) => {
       // Brushed carbon-metal backing
       const backGrad = ctx.createLinearGradient(x, y, x, y + h);
-      backGrad.addColorStop(0, '#1e293b');
-      backGrad.addColorStop(1, '#0f172a');
+      backGrad.addColorStop(0, "#1e293b");
+      backGrad.addColorStop(1, "#0f172a");
       ctx.fillStyle = backGrad;
       ctx.beginPath();
       ctx.roundRect(x, y, w, h, 6);
       ctx.fill();
-      
+
       // Steel border outline
-      ctx.strokeStyle = '#334155';
+      ctx.strokeStyle = "#334155";
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      
+
       // Accent metal rivets
-      ctx.fillStyle = '#475569';
-      [ [x + 5, y + 5], [x + w - 5, y + 5], [x + 5, y + h - 5], [x + w - 5, y + h - 5] ].forEach(rv => {
+      ctx.fillStyle = "#475569";
+      [
+        [x + 5, y + 5],
+        [x + w - 5, y + 5],
+        [x + 5, y + h - 5],
+        [x + w - 5, y + h - 5]
+      ].forEach((rv) => {
         ctx.beginPath();
         ctx.arc(rv[0], rv[1], 1.5, 0, Math.PI * 2);
         ctx.fill();
       });
 
       // Label Text
-      ctx.fillStyle = '#94a3b8';
+      ctx.fillStyle = "#94a3b8";
       ctx.font = '900 9px "Outfit", "Inter", sans-serif';
-      ctx.textAlign = 'left';
+      ctx.textAlign = "left";
       ctx.fillText(label, x + 14, y + 17);
-      
+
       // Value Text
       ctx.fillStyle = valColor;
       ctx.font = '900 20px "Outfit", "Inter", sans-serif';
@@ -1763,9 +1770,9 @@ export default function Games() {
     };
 
     // Draw dashboard items
-    drawHudBox(20, 20, 115, 54, 'TEMPO', `${cartHudTimeRef.current}s`, '#cbd5e1');
-    drawHudBox(148, 20, 115, 54, 'PONTOS', `${Number(state.score) || 0}`, '#f59e0b');
-    
+    drawHudBox(20, 20, 115, 54, "TEMPO", `${cartHudTimeRef.current}s`, "#cbd5e1");
+    drawHudBox(148, 20, 115, 54, "PONTOS", `${Number(state.score) || 0}`, "#f59e0b");
+
     // Draw Speedometer in center-left dashboard
     drawSpeedometer(315, 47, 36, serverRoadSpeed);
 
@@ -1773,18 +1780,18 @@ export default function Games() {
     const renderFuelCell = (x: number, y: number, w: number, h: number, hp: number) => {
       ctx.save();
       // Backing
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = "#1e293b";
       ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = '#334155';
+      ctx.strokeStyle = "#334155";
       ctx.lineWidth = 1;
       ctx.strokeRect(x, y, w, h);
       // Fills
       for (let i = 0; i < 3; i++) {
         if (i < hp) {
-          ctx.fillStyle = hp === 1 ? '#ef4444' : '#10b981'; // Green cells, Red if critical
+          ctx.fillStyle = hp === 1 ? "#ef4444" : "#10b981"; // Green cells, Red if critical
           ctx.fillRect(x + 3 + i * 11, y + 3, 8, h - 6);
         } else {
-          ctx.fillStyle = '#334155';
+          ctx.fillStyle = "#334155";
           ctx.fillRect(x + 3 + i * 11, y + 3, 8, h - 6);
         }
       }
@@ -1793,35 +1800,43 @@ export default function Games() {
 
     // HUD Box for Fuel/Health
     const healthX = CART_LOGICAL_WIDTH - 275;
-    drawHudBox(healthX, 20, 115, 54, 'INTEGRIDADE', '', '#ffffff');
+    drawHudBox(healthX, 20, 115, 54, "INTEGRIDADE", "", "#ffffff");
     renderFuelCell(healthX + 14, 38, 38, 24, Math.max(0, Number(state.health) || 0));
 
-    drawHudBox(CART_LOGICAL_WIDTH - 145, 20, 125, 54, 'DISTÂNCIA', `${Math.floor(Number(state.distance) || 0)}m`, '#f8fafc');
+    drawHudBox(
+      CART_LOGICAL_WIDTH - 145,
+      20,
+      125,
+      54,
+      "DISTÂNCIA",
+      `${Math.floor(Number(state.distance) || 0)}m`,
+      "#f8fafc"
+    );
 
     // Progress bar container (Clean metallic groove)
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = "#1e293b";
     ctx.beginPath();
     ctx.roundRect(CART_LOGICAL_WIDTH / 2 - 150, CART_LOGICAL_HEIGHT - 22, 300, 6, 2);
     ctx.fill();
-    ctx.strokeStyle = '#334155';
+    ctx.strokeStyle = "#334155";
     ctx.lineWidth = 1.0;
     ctx.stroke();
 
     // Progress bar fill (Amber orange steel bar)
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = "#f59e0b";
     ctx.beginPath();
     ctx.roundRect(CART_LOGICAL_WIDTH / 2 - 150, CART_LOGICAL_HEIGHT - 22, 300 * missionProgress, 6, 2);
     ctx.fill();
 
     // Mission description text (Modern HUD look)
-    ctx.fillStyle = '#f8fafc';
-    ctx.textAlign = 'center';
+    ctx.fillStyle = "#f8fafc";
+    ctx.textAlign = "center";
     ctx.font = '900 22px "Outfit", "Inter", sans-serif';
-    ctx.fillText('MISSION: 750', CART_LOGICAL_WIDTH / 2, 50);
+    ctx.fillText("MISSION: 750", CART_LOGICAL_WIDTH / 2, 50);
     ctx.font = '700 11px "Outfit", "Inter", sans-serif';
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = "#94a3b8";
     ctx.fillText(`1 BTC = 50 pontos  •  10 metros = 1 ponto  •  Meta ${state.targetScore}`, CART_LOGICAL_WIDTH / 2, 70);
-    
+
     ctx.restore();
   }, []);
 
@@ -1834,14 +1849,14 @@ export default function Games() {
         gameLoopRef.current = requestAnimationFrame(render);
         return;
       }
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) {
         gameLoopRef.current = requestAnimationFrame(render);
         return;
       }
       const cartState = cartStateRef.current;
       let deltaSeconds = 1 / 60;
-      if (activeGame === 'cart') {
+      if (activeGame === "cart") {
         const lastFrameAt = Number(cartState.lastFrameAt) || frameTime;
         deltaSeconds = Math.max(0.001, Math.min(0.05, (frameTime - lastFrameAt) / 1000 || 1 / 60));
         cartState.lastFrameAt = frameTime;
@@ -1849,7 +1864,7 @@ export default function Games() {
 
       ctx.clearRect(0, 0, logicalSize.width, logicalSize.height);
 
-      if (activeGame === 'cart') {
+      if (activeGame === "cart") {
         drawCart(ctx, deltaSeconds);
         if (particles.current.length > 0) {
           particles.current = particles.current.filter((p) => p.life > 0);
@@ -1874,14 +1889,14 @@ export default function Games() {
           60,
           logicalSize.width / 2,
           logicalSize.height / 2,
-          Math.max(logicalSize.width, logicalSize.height) * 0.72,
+          Math.max(logicalSize.width, logicalSize.height) * 0.72
         );
-        bgGrad.addColorStop(0, '#0d1526');
-        bgGrad.addColorStop(1, '#020617');
+        bgGrad.addColorStop(0, "#0d1526");
+        bgGrad.addColorStop(1, "#020617");
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, logicalSize.width, logicalSize.height);
 
-        ctx.strokeStyle = 'rgba(30,58,138,0.18)';
+        ctx.strokeStyle = "rgba(30,58,138,0.18)";
         ctx.lineWidth = 1;
         for (let i = 0; i <= Math.max(logicalSize.width, logicalSize.height); i += 50) {
           ctx.beginPath();
@@ -1894,8 +1909,8 @@ export default function Games() {
           ctx.stroke();
         }
 
-        if (activeGame === 'memory') drawMemory(ctx);
-        if (activeGame === 'match-3') drawMatch3(ctx);
+        if (activeGame === "memory") drawMemory(ctx);
+        if (activeGame === "match-3") drawMatch3(ctx);
 
         particles.current = particles.current.filter((p) => p.life > 0);
         particles.current.forEach((p) => {
@@ -1913,10 +1928,10 @@ export default function Games() {
         ctx.globalAlpha = 1.0;
       }
 
-      if (!isTouchDevice.current && activeGame !== 'cart') {
+      if (!isTouchDevice.current && activeGame !== "cart") {
         const mx = pointer.current.x;
         const my = pointer.current.y;
-        ctx.strokeStyle = pointer.current.isDown ? '#ef4444' : '#3b82f6';
+        ctx.strokeStyle = pointer.current.isDown ? "#ef4444" : "#3b82f6";
         ctx.lineWidth = 2;
         ctx.shadowBlur = 10;
         ctx.shadowColor = ctx.strokeStyle;
@@ -1948,19 +1963,19 @@ export default function Games() {
 
   const syncMouse = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: pointer.current.x, y: pointer.current.y };
-    const rect = canvas.getBoundingClientRect();
-    const logicalSize = getCanvasLogicalSize(activeGame);
-    const { clientX, clientY } = pointerClientXY(e);
-    const x = ((clientX - rect.left) / rect.width) * logicalSize.width;
-    const y = ((clientY - rect.top) / rect.height) * logicalSize.height;
-    pointer.current.x = x;
-    pointer.current.y = y;
-    return { x, y };
-  },
-  [activeGame],
-);
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: pointer.current.x, y: pointer.current.y };
+      const rect = canvas.getBoundingClientRect();
+      const logicalSize = getCanvasLogicalSize(activeGame);
+      const { clientX, clientY } = pointerClientXY(e);
+      const x = ((clientX - rect.left) / rect.width) * logicalSize.width;
+      const y = ((clientY - rect.top) / rect.height) * logicalSize.height;
+      pointer.current.x = x;
+      pointer.current.y = y;
+      return { x, y };
+    },
+    [activeGame]
+  );
 
   const moveCartToPointerLane = useCallback(
     (y: number) => {
@@ -1974,11 +1989,11 @@ export default function Games() {
       cartStateRef.current = {
         ...current,
         lane: nextLane,
-        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : current.lane,
+        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : current.lane
       };
-      socket.emit('game:action', { type: 'lane', lane: nextLane });
+      socket.emit("game:action", { type: "lane", lane: nextLane });
     },
-    [socket],
+    [socket]
   );
 
   const moveCartByStep = useCallback(
@@ -1993,25 +2008,25 @@ export default function Games() {
       cartStateRef.current = {
         ...current,
         lane: nextLane,
-        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : current.lane,
+        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : current.lane
       };
-      socket.emit('game:action', { type: 'lane', lane: nextLane });
+      socket.emit("game:action", { type: "lane", lane: nextLane });
     },
-    [socket],
+    [socket]
   );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-      if (e.type === 'mousedown' && isTouchDevice.current) return;
+      if (e.type === "mousedown" && isTouchDevice.current) return;
       if (isGameOver || isProcessing) return;
       pointer.current.isDown = true;
       const { x, y } = syncMouse(e);
       if (!socket) return;
 
-      if (activeGame === 'memory') {
+      if (activeGame === "memory") {
         const cardId = hitTestMemoryCardIndex(x, y, memoryLayout);
-        if (cardId !== null) socket.emit('game:action', { type: 'flip', cardId });
-      } else if (activeGame === 'match-3') {
+        if (cardId !== null) socket.emit("game:action", { type: "flip", cardId });
+      } else if (activeGame === "match-3") {
         const cell = hitTestMatch3Cell(x, y, match3Layout);
         if (!cell) return;
         const { cx, cy } = cell;
@@ -2031,12 +2046,12 @@ export default function Games() {
                 tx: cx,
                 ty: cy,
                 startTime: performance.now(),
-                duration: 120,
+                duration: 120
               };
-              socket.emit('game:action', {
-                type: 'swap',
+              socket.emit("game:action", {
+                type: "swap",
                 from: { x: sel.cx, y: sel.cy },
-                to: { x: cx, y: cy },
+                to: { x: cx, y: cy }
               });
               selectedCell.current = null;
               setIsProcessing(true);
@@ -2045,8 +2060,8 @@ export default function Games() {
             selectedCell.current = { cx, cy };
           }
         }
-      } else if (activeGame === 'cart') {
-        if ('touches' in e && e.touches.length > 0) {
+      } else if (activeGame === "cart") {
+        if ("touches" in e && e.touches.length > 0) {
           cartTouchRef.current = { active: true, y };
           moveCartToPointerLane(y);
           return;
@@ -2054,14 +2069,14 @@ export default function Games() {
         moveCartToPointerLane(y);
       }
     },
-    [activeGame, isGameOver, isProcessing, socket, syncMouse, memoryLayout, match3Layout, moveCartToPointerLane],
+    [activeGame, isGameOver, isProcessing, socket, syncMouse, memoryLayout, match3Layout, moveCartToPointerLane]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
       const { y } = syncMouse(e);
-      if (activeGame === 'cart' && pointer.current.isDown && !isGameOver && !isProcessing) {
-        if ('touches' in e && e.touches.length > 0 && cartTouchRef.current.active) {
+      if (activeGame === "cart" && pointer.current.isDown && !isGameOver && !isProcessing) {
+        if ("touches" in e && e.touches.length > 0 && cartTouchRef.current.active) {
           const delta = y - cartTouchRef.current.y;
           if (Math.abs(delta) >= CART_TOUCH_SWIPE_THRESHOLD) {
             moveCartByStep(delta > 0 ? 1 : -1);
@@ -2072,7 +2087,7 @@ export default function Games() {
         moveCartToPointerLane(y);
       }
     },
-    [activeGame, isGameOver, isProcessing, syncMouse, moveCartToPointerLane, moveCartByStep],
+    [activeGame, isGameOver, isProcessing, syncMouse, moveCartToPointerLane, moveCartByStep]
   );
 
   const handleMouseUp = useCallback(
@@ -2081,12 +2096,12 @@ export default function Games() {
       cartTouchRef.current.active = false;
       syncMouse(e);
     },
-    [syncMouse],
+    [syncMouse]
   );
 
   const exitSession = useCallback(() => {
     clearTimeoutList(pendingTimeoutsRef);
-    if (socket) socket.emit('game:end');
+    if (socket) socket.emit("game:end");
     setActiveGame(null);
     setSessionReady(false);
     memoryBoardRef.current = null;
@@ -2095,28 +2110,28 @@ export default function Games() {
   const startMemory = useCallback(() => {
     if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
-    setActiveGame('memory');
-    activeGameRef.current = 'memory';
+    setActiveGame("memory");
+    activeGameRef.current = "memory";
     setSessionReady(false);
     memoryBoardRef.current = null;
-    socket.emit('game:start', 'crypto-memory');
+    socket.emit("game:start", "crypto-memory");
   }, [socket]);
 
   const startMatch3 = useCallback(() => {
     if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
-    setActiveGame('match-3');
-    activeGameRef.current = 'match-3';
+    setActiveGame("match-3");
+    activeGameRef.current = "match-3";
     setSessionReady(false);
     memoryBoardRef.current = null;
-    socket.emit('game:start', 'crypto-match-3');
+    socket.emit("game:start", "crypto-match-3");
   }, [socket]);
 
   const startCart = useCallback(() => {
     if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
-    setActiveGame('cart');
-    activeGameRef.current = 'cart';
+    setActiveGame("cart");
+    activeGameRef.current = "cart";
     setSessionReady(false);
     memoryBoardRef.current = null;
     initScenery();
@@ -2136,54 +2151,56 @@ export default function Games() {
       roadOffset: 0,
       lastServerUpdateAt: performance.now(),
       lastFrameAt: performance.now(),
-      difficulty: 0,
+      difficulty: 0
     };
-    socket.emit('game:start', 'cart-rush');
+    socket.emit("game:start", "cart-rush");
   }, [socket, initScenery]);
 
   useEffect(() => {
-    if (activeGame !== 'cart' || isGameOver || !socket) return undefined;
+    if (activeGame !== "cart" || isGameOver || !socket) return undefined;
     const onKey = (e: KeyboardEvent) => {
-      const key = String(e.key || '').toLowerCase();
-      const moveUp = e.key === 'ArrowUp' || key === 'w' || e.key === 'ArrowLeft' || key === 'a';
-      const moveDown = e.key === 'ArrowDown' || key === 's' || e.key === 'ArrowRight' || key === 'd';
+      const key = String(e.key || "").toLowerCase();
+      const moveUp = e.key === "ArrowUp" || key === "w" || e.key === "ArrowLeft" || key === "a";
+      const moveDown = e.key === "ArrowDown" || key === "s" || e.key === "ArrowRight" || key === "d";
       if (!moveUp && !moveDown) return;
       e.preventDefault();
       moveCartByStep(moveUp ? -1 : 1);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [activeGame, isGameOver, socket, moveCartByStep]);
 
   return (
     <>
       {activeGame && sessionReady && !isGameOver && (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-[#020617]" style={{ direction: 'ltr' }}>
+        <div className="fixed inset-0 z-[100] flex flex-col bg-[#020617]" style={{ direction: "ltr" }}>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-black/70 px-2 py-2 sm:px-4">
             <div className="flex min-w-0 flex-col">
               <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">
-                {t('minerGames.hash_score_label')}
+                {t("minerGames.hash_score_label")}
               </span>
-              <span className="max-w-[6rem] truncate text-lg font-black leading-none text-white sm:max-w-none sm:text-xl">{hudScore}</span>
+              <span className="max-w-[6rem] truncate text-lg font-black leading-none text-white sm:max-w-none sm:text-xl">
+                {hudScore}
+              </span>
             </div>
             <h1 className="min-w-0 flex-1 text-center text-xs font-black uppercase italic tracking-tight text-white sm:text-sm">
-              {t('minerGames.brand_prefix')}
-              <span className="text-primary">{t('minerGames.brand_suffix')}</span>
+              {t("minerGames.brand_prefix")}
+              <span className="text-primary">{t("minerGames.brand_suffix")}</span>
             </h1>
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <div className="flex flex-col items-end">
                 <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">
-                  {t('minerGames.time_sync_label')}
+                  {t("minerGames.time_sync_label")}
                 </span>
                 <div className="flex items-center gap-1 text-lg font-black leading-none text-primary sm:text-xl">
                   <Clock className="h-3.5 w-3.5" aria-hidden />
-                  <span>{t('minerGames.time_value_seconds', { seconds: timeLeft })}</span>
+                  <span>{t("minerGames.time_value_seconds", { seconds: timeLeft })}</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={exitSession}
-                aria-label={t('minerGames.exit_session_aria')}
+                aria-label={t("minerGames.exit_session_aria")}
                 className="rounded-lg border border-red-500/30 bg-red-500/20 p-2 text-red-400 transition-all hover:bg-red-500/40"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden />
@@ -2196,10 +2213,10 @@ export default function Games() {
               style={getCanvasViewportStyle(activeGame)}
             >
               {/* Scanline overlay: skip for cart-rush (full-speed canvas + layered gradients = heavy compositing on mobile). */}
-              {activeGame !== 'cart' ? (
+              {activeGame !== "cart" ? (
                 <div className="pointer-events-none absolute inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,3px_100%] opacity-20" />
               ) : null}
-              
+
               <canvas
                 ref={canvasRef}
                 width={getCanvasLogicalSize(activeGame).width}
@@ -2211,18 +2228,18 @@ export default function Games() {
                 onTouchMove={handleMouseMove}
                 onTouchEnd={handleMouseUp}
                 className="block h-full w-full"
-                style={{ cursor: isTouchDevice.current ? 'default' : 'none', touchAction: 'none' }}
+                style={{ cursor: isTouchDevice.current ? "default" : "none", touchAction: "none" }}
               />
             </div>
           </div>
         </div>
       )}
 
-      <div className="animate-in fade-in space-y-8 duration-1000" style={{ direction: 'ltr' }}>
+      <div className="animate-in fade-in space-y-8 duration-1000" style={{ direction: "ltr" }}>
         <div className="flex flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-900/50 p-4 shadow-xl sm:p-6 lg:flex-row lg:items-stretch lg:justify-between">
           <h1 className="min-w-0 shrink-0 text-3xl font-black uppercase italic leading-none tracking-tight text-white sm:text-4xl">
-            {t('minerGames.brand_prefix')}
-            <span className="text-primary">{t('minerGames.brand_suffix')}</span>
+            {t("minerGames.brand_prefix")}
+            <span className="text-primary">{t("minerGames.brand_suffix")}</span>
           </h1>
           <TemporaryPowerSummary
             t={t}
@@ -2237,46 +2254,44 @@ export default function Games() {
         {!activeGame ? (
           <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
             <GameCard
-              title={t('minerGames.memory_sync_title')}
-              description={t('minerGames.memory_sync_desc')}
+              title={t("minerGames.memory_sync_title")}
+              description={t("minerGames.memory_sync_desc")}
               icon={Brain}
               color="from-blue-600 to-indigo-700"
               onClick={startMemory}
               disabled={memoryCooldown > 0}
-              ctaStart={t('minerGames.cta_start')}
-              cooldownLabel={t('minerGames.cooldown_label', { seconds: memoryCooldown })}
+              ctaStart={t("minerGames.cta_start")}
+              cooldownLabel={t("minerGames.cooldown_label", { seconds: memoryCooldown })}
             />
             <GameCard
-              title={t('minerGames.power_match_title')}
-              description={t('minerGames.power_match_desc')}
+              title={t("minerGames.power_match_title")}
+              description={t("minerGames.power_match_desc")}
               icon={LayoutGrid}
               color="from-primary to-orange-700"
               onClick={startMatch3}
               disabled={match3Cooldown > 0}
-              ctaStart={t('minerGames.cta_start')}
-              cooldownLabel={t('minerGames.cooldown_label', { seconds: match3Cooldown })}
+              ctaStart={t("minerGames.cta_start")}
+              cooldownLabel={t("minerGames.cooldown_label", { seconds: match3Cooldown })}
             />
             <GameCard
-              title={t('minerGames.cart_rush_title')}
-              description={t('minerGames.cart_rush_desc')}
+              title={t("minerGames.cart_rush_title")}
+              description={t("minerGames.cart_rush_desc")}
               icon={Car}
               color="from-sky-500 to-blue-700"
               onClick={startCart}
               disabled={cartCooldown > 0}
-              ctaStart={t('minerGames.cta_start')}
-              cooldownLabel={t('minerGames.cooldown_label', { seconds: cartCooldown })}
+              ctaStart={t("minerGames.cta_start")}
+              cooldownLabel={t("minerGames.cooldown_label", { seconds: cartCooldown })}
             />
             <GameCardLink
               to="/games/2048"
-              title={t('game2048.title')}
-              description={t('game2048.card_desc')}
+              title={t("game2048.title")}
+              description={t("game2048.card_desc")}
               icon={Grid3X3}
               color="from-emerald-600 to-teal-800"
-              ctaLabel={t('game2048.open_game')}
+              ctaLabel={t("game2048.open_game")}
               disabled={chain2048CardBlocked}
-              cooldownMinutes={
-                chain2048CdSec > 0 ? Math.max(1, Math.ceil(chain2048CdSec / 60)) : 0
-              }
+              cooldownMinutes={chain2048CdSec > 0 ? Math.max(1, Math.ceil(chain2048CdSec / 60)) : 0}
             />
           </div>
         ) : (
@@ -2286,45 +2301,71 @@ export default function Games() {
                 <div className="relative z-10 mx-auto flex min-h-[360px] w-full max-w-[500px] flex-col items-center justify-center space-y-6 py-8 text-center animate-in zoom-in duration-500 sm:space-y-10 sm:py-10">
                   <Trophy className="h-16 w-16 animate-bounce text-primary sm:h-24 sm:w-24" aria-hidden />
                   <h2 className="text-4xl font-black uppercase italic leading-none tracking-tight text-white sm:text-6xl lg:text-7xl">
-                    {t('minerGames.final_report_title')}
+                    {t("minerGames.final_report_title")}
                   </h2>
                   {rewardMessage ? (
                     <div className="w-full rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5 shadow-2xl backdrop-blur-md sm:rounded-[3rem] sm:p-10 lg:p-12">
                       <p className="text-2xl font-black uppercase text-emerald-400 sm:text-4xl">
-                        {t('minerGames.bonus_granted_title')}
+                        {t("minerGames.bonus_granted_title")}
                       </p>
-                      <p className="mt-2 break-words text-base font-bold uppercase text-emerald-400/70 sm:text-xl">{rewardMessage}</p>
+                      <p className="mt-2 break-words text-base font-bold uppercase text-emerald-400/70 sm:text-xl">
+                        {rewardMessage}
+                      </p>
                     </div>
                   ) : (
                     <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-6 sm:p-10">
                       <p className="text-xl font-black uppercase tracking-wide text-red-400 sm:text-2xl sm:tracking-widest">
-                        {t('minerGames.mission_failed_title')}
+                        {t("minerGames.mission_failed_title")}
                       </p>
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => {
-                      const slug = activeGame === 'memory' ? 'crypto-memory' : activeGame === 'cart' ? 'cart-rush' : 'crypto-match-3';
+                      const slug =
+                        activeGame === "memory"
+                          ? "crypto-memory"
+                          : activeGame === "cart"
+                            ? "cart-rush"
+                            : "crypto-match-3";
                       if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
                       clearTimeoutList(pendingTimeoutsRef);
                       setIsGameOver(false);
                       setSessionReady(false);
                       memoryBoardRef.current = null;
-                      socket.emit('game:start', slug);
+                      socket.emit("game:start", slug);
                     }}
-                    disabled={(activeGame === 'memory' ? memoryCooldown : activeGame === 'cart' ? cartCooldown : match3Cooldown) > 0}
+                    disabled={
+                      (activeGame === "memory"
+                        ? memoryCooldown
+                        : activeGame === "cart"
+                          ? cartCooldown
+                          : match3Cooldown) > 0
+                    }
                     className={`w-full max-w-sm rounded-2xl bg-primary px-5 py-4 text-sm font-black uppercase italic tracking-wide text-white shadow-glow transition-all hover:scale-105 sm:px-12 sm:py-6 sm:text-lg lg:px-20 lg:py-7 lg:text-xl ${
-                      (activeGame === 'memory' ? memoryCooldown : activeGame === 'cart' ? cartCooldown : match3Cooldown) > 0
-                        ? 'cursor-not-allowed opacity-50'
-                        : ''
+                      (activeGame === "memory"
+                        ? memoryCooldown
+                        : activeGame === "cart"
+                          ? cartCooldown
+                          : match3Cooldown) > 0
+                        ? "cursor-not-allowed opacity-50"
+                        : ""
                     }`}
                   >
-                    {(activeGame === 'memory' ? memoryCooldown : activeGame === 'cart' ? cartCooldown : match3Cooldown) > 0
-                      ? t('minerGames.wait_seconds', {
-                          seconds: activeGame === 'memory' ? memoryCooldown : activeGame === 'cart' ? cartCooldown : match3Cooldown,
+                    {(activeGame === "memory"
+                      ? memoryCooldown
+                      : activeGame === "cart"
+                        ? cartCooldown
+                        : match3Cooldown) > 0
+                      ? t("minerGames.wait_seconds", {
+                          seconds:
+                            activeGame === "memory"
+                              ? memoryCooldown
+                              : activeGame === "cart"
+                                ? cartCooldown
+                                : match3Cooldown
                         })
-                      : t('minerGames.restart_link')}
+                      : t("minerGames.restart_link")}
                   </button>
                   <button
                     type="button"
@@ -2336,14 +2377,14 @@ export default function Games() {
                     }}
                     className="text-xs font-bold uppercase tracking-wide text-slate-500 transition-colors hover:text-white sm:tracking-[0.3em]"
                   >
-                    {t('minerGames.back_to_terminal')}
+                    {t("minerGames.back_to_terminal")}
                   </button>
                 </div>
               ) : (
                 <div className="flex min-h-[380px] w-full flex-col items-center justify-center gap-6">
                   <div className="h-24 w-24 animate-spin rounded-full border-8 border-primary border-t-transparent shadow-glow" />
                   <p className="animate-pulse text-center text-sm font-black uppercase tracking-[0.25em] text-white sm:tracking-[0.6em]">
-                    {t('minerGames.syncing')}
+                    {t("minerGames.syncing")}
                   </p>
                 </div>
               )}
@@ -2364,18 +2405,11 @@ type TemporaryPowerSummaryProps = {
   onRetry: () => void;
 };
 
-function TemporaryPowerSummary({
-  t,
-  totalGamePower,
-  loading,
-  errorKey,
-  flash,
-  onRetry,
-}: TemporaryPowerSummaryProps) {
-  const tooltip = t('minerGames.temporary_power_tooltip');
+function TemporaryPowerSummary({ t, totalGamePower, loading, errorKey, flash, onRetry }: TemporaryPowerSummaryProps) {
+  const tooltip = t("minerGames.temporary_power_tooltip");
   return (
     <div
-      className={`min-w-0 flex-1 overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-br from-amber-500/15 via-amber-600/5 to-slate-900/40 px-3 py-3 shadow-lg transition-all duration-300 sm:max-w-md sm:px-4 lg:max-w-lg ${flash ? 'ring-2 ring-amber-400/70 sm:scale-[1.01]' : ''}`}
+      className={`min-w-0 flex-1 overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-br from-amber-500/15 via-amber-600/5 to-slate-900/40 px-3 py-3 shadow-lg transition-all duration-300 sm:max-w-md sm:px-4 lg:max-w-lg ${flash ? "ring-2 ring-amber-400/70 sm:scale-[1.01]" : ""}`}
       title={tooltip}
     >
       <div className="flex items-start gap-3">
@@ -2387,17 +2421,17 @@ function TemporaryPowerSummary({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[9px] font-black uppercase tracking-wide text-amber-200/90 sm:tracking-[0.2em]">
-            {t('games.temporary_power_label')}
+            {t("games.temporary_power_label")}
           </p>
           {errorKey ? (
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-red-400">{t('minerGames.power_error')}</span>
+              <span className="text-sm text-red-400">{t("minerGames.power_error")}</span>
               <button
                 type="button"
                 onClick={onRetry}
                 className="touch-manipulation rounded px-1 text-xs font-bold uppercase tracking-wider text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
               >
-                {t('minerGames.retry')}
+                {t("minerGames.retry")}
               </button>
             </div>
           ) : (
@@ -2405,12 +2439,12 @@ function TemporaryPowerSummary({
               <p
                 className="mt-0.5 text-xl font-black tabular-nums tracking-tight text-white sm:text-2xl"
                 aria-live="polite"
-                aria-label={`${t('games.temporary_power_label')}: ${loading ? t('minerGames.loading_power') : formatHashrate(totalGamePower)}`}
+                aria-label={`${t("games.temporary_power_label")}: ${loading ? t("minerGames.loading_power") : formatHashrate(totalGamePower)}`}
               >
-                {loading ? t('minerGames.loading_power') : formatHashrate(totalGamePower)}
+                {loading ? t("minerGames.loading_power") : formatHashrate(totalGamePower)}
               </p>
               {!loading && totalGamePower <= 0 && (
-                <p className="text-[10px] font-medium text-slate-500">{t('minerGames.no_active_bonus')}</p>
+                <p className="text-[10px] font-medium text-slate-500">{t("minerGames.no_active_bonus")}</p>
               )}
             </>
           )}
@@ -2439,36 +2473,41 @@ const GameCardLink = memo(function GameCardLink({
   color,
   ctaLabel,
   disabled = false,
-  cooldownMinutes = 0,
+  cooldownMinutes = 0
 }: GameCardLinkProps) {
   const { t } = useTranslation();
   const base =
-    'group relative block overflow-hidden rounded-3xl border p-6 text-left shadow-2xl transition-all duration-500 sm:rounded-[3rem] sm:p-8 lg:rounded-[4rem] lg:p-12';
+    "group relative block overflow-hidden rounded-3xl border p-6 text-left shadow-2xl transition-all duration-500 sm:rounded-[3rem] sm:p-8 lg:rounded-[4rem] lg:p-12";
   const activeCls = `${base} border-slate-800 bg-slate-900 hover:-translate-y-4 hover:border-primary`;
   const disabledCls = `${base} cursor-not-allowed border-slate-800/80 bg-slate-950 opacity-[0.42] grayscale`;
 
   const inner = (
     <>
       <div
-        className={`absolute -right-12 -top-12 h-48 w-48 bg-gradient-to-br ${color} blur-[70px] transition-all duration-700 sm:h-72 sm:w-72 sm:blur-[90px] ${disabled ? 'opacity-5' : 'opacity-10 group-hover:opacity-30'}`}
+        className={`absolute -right-12 -top-12 h-48 w-48 bg-gradient-to-br ${color} blur-[70px] transition-all duration-700 sm:h-72 sm:w-72 sm:blur-[90px] ${disabled ? "opacity-5" : "opacity-10 group-hover:opacity-30"}`}
       />
       <div
-        className={`mb-8 flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br ${color} shadow-2xl transition-transform duration-500 sm:mb-10 sm:h-24 sm:w-24 sm:rounded-[2rem] lg:mb-12 lg:h-28 lg:w-28 lg:rounded-[3rem] ${disabled ? '' : 'group-hover:rotate-12'}`}
+        className={`mb-8 flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br ${color} shadow-2xl transition-transform duration-500 sm:mb-10 sm:h-24 sm:w-24 sm:rounded-[2rem] lg:mb-12 lg:h-28 lg:w-28 lg:rounded-[3rem] ${disabled ? "" : "group-hover:rotate-12"}`}
       >
-        {React.createElement(icon, { className: 'h-10 w-10 text-white sm:h-12 sm:w-12 lg:h-14 lg:w-14', 'aria-hidden': true })}
+        {React.createElement(icon, {
+          className: "h-10 w-10 text-white sm:h-12 sm:w-12 lg:h-14 lg:w-14",
+          "aria-hidden": true
+        })}
       </div>
-      <h3 className="mb-4 break-words text-2xl font-black uppercase italic leading-none tracking-tight text-white sm:mb-6 sm:text-3xl lg:text-4xl">{title}</h3>
+      <h3 className="mb-4 break-words text-2xl font-black uppercase italic leading-none tracking-tight text-white sm:mb-6 sm:text-3xl lg:text-4xl">
+        {title}
+      </h3>
       <p className="mb-6 text-sm font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200">
         {description}
       </p>
       {disabled && cooldownMinutes > 0 ? (
         <p className="mb-6 text-sm font-black uppercase tracking-wide text-amber-400/90">
-          {t('game2048.arena_cooldown_minutes', { minutes: cooldownMinutes })}
+          {t("game2048.arena_cooldown_minutes", { minutes: cooldownMinutes })}
         </p>
       ) : null}
       {disabled ? (
         <div className="text-xs font-black uppercase tracking-wide text-slate-500 sm:tracking-[0.35em]">
-          {t('game2048.arena_unavailable')}
+          {t("game2048.arena_unavailable")}
         </div>
       ) : (
         <div className="flex items-center gap-3 text-xs font-black uppercase tracking-wide text-primary transition-all duration-500 sm:gap-5 sm:tracking-[0.4em] md:translate-y-6 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
@@ -2511,27 +2550,32 @@ const GameCard = memo(function GameCard({
   onClick,
   disabled,
   ctaStart,
-  cooldownLabel,
+  cooldownLabel
 }: GameCardProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`group relative overflow-hidden rounded-3xl border-2 border-slate-800 bg-slate-900/40 p-6 text-left shadow-2xl transition-all duration-500 backdrop-blur-sm sm:rounded-[3rem] sm:p-8 lg:rounded-[4rem] lg:p-12 ${disabled ? 'cursor-not-allowed opacity-40 grayscale' : 'hover:-translate-y-4 hover:border-primary hover:shadow-primary/20'}`}
+      className={`group relative overflow-hidden rounded-3xl border-2 border-slate-800 bg-slate-900/40 p-6 text-left shadow-2xl transition-all duration-500 backdrop-blur-sm sm:rounded-[3rem] sm:p-8 lg:rounded-[4rem] lg:p-12 ${disabled ? "cursor-not-allowed opacity-40 grayscale" : "hover:-translate-y-4 hover:border-primary hover:shadow-primary/20"}`}
     >
       {/* Decorative Corner */}
       <div className="absolute left-0 top-0 h-12 w-12 border-l-2 border-t-2 border-white/10 transition-colors group-hover:border-primary/50" />
-      
+
       <div
-        className={`absolute -right-12 -top-12 h-48 w-48 bg-gradient-to-br ${color} blur-[70px] transition-all duration-700 sm:h-72 sm:w-72 sm:blur-[90px] ${disabled ? 'opacity-10' : 'opacity-10 group-hover:opacity-40'}`}
+        className={`absolute -right-12 -top-12 h-48 w-48 bg-gradient-to-br ${color} blur-[70px] transition-all duration-700 sm:h-72 sm:w-72 sm:blur-[90px] ${disabled ? "opacity-10" : "opacity-10 group-hover:opacity-40"}`}
       />
       <div
-        className={`mb-8 flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-white/10 bg-gradient-to-br ${color} shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all duration-500 sm:mb-10 sm:h-24 sm:w-24 sm:rounded-[2.5rem] lg:mb-12 lg:h-32 lg:w-32 lg:rounded-[3.5rem] ${!disabled && 'group-hover:rotate-[10deg] group-hover:scale-110'}`}
+        className={`mb-8 flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-white/10 bg-gradient-to-br ${color} shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all duration-500 sm:mb-10 sm:h-24 sm:w-24 sm:rounded-[2.5rem] lg:mb-12 lg:h-32 lg:w-32 lg:rounded-[3.5rem] ${!disabled && "group-hover:rotate-[10deg] group-hover:scale-110"}`}
       >
-        {React.createElement(icon, { className: 'h-10 w-10 text-white drop-shadow-lg sm:h-12 sm:w-12 lg:h-16 lg:w-16', 'aria-hidden': true })}
+        {React.createElement(icon, {
+          className: "h-10 w-10 text-white drop-shadow-lg sm:h-12 sm:w-12 lg:h-16 lg:w-16",
+          "aria-hidden": true
+        })}
       </div>
-      <h3 className="mb-4 break-words text-2xl font-black uppercase italic leading-none tracking-tighter text-white sm:mb-6 sm:text-3xl lg:text-5xl">{title}</h3>
+      <h3 className="mb-4 break-words text-2xl font-black uppercase italic leading-none tracking-tighter text-white sm:mb-6 sm:text-3xl lg:text-5xl">
+        {title}
+      </h3>
       <p className="mb-8 text-sm font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200 sm:mb-10 lg:mb-12">
         {description}
       </p>
@@ -2545,6 +2589,5 @@ const GameCard = memo(function GameCard({
         )}
       </div>
     </button>
-
   );
 });
