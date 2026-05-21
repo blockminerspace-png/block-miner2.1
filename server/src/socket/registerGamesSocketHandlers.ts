@@ -34,6 +34,7 @@ type CartRushCartEvent = {
   progress: number;
   speed: number;
   variant?: unknown;
+  checked?: boolean;
 };
 
 type CartRushState = GameSessionState & {
@@ -82,7 +83,7 @@ const CART_TICK_MS = 200;
 const CART_TARGET_SCORE = 250;
 const CART_TIME_LIMIT_SECONDS = 120;
 const CART_MAX_HEALTH = 3;
-const CART_COLLISION_PROGRESS = 0.9;
+const CART_COLLISION_PROGRESS = 0.70;
 const CART_DESPAWN_PROGRESS = 1.18;
 const CART_DIFFICULTY_RAMP_MS = 90000;
 const CART_BASE_SPEED = 0.35;
@@ -484,14 +485,17 @@ function tickCartRush(socket: Socket, state: GameSessionState, engine: MiningEng
   const survivors: CartRushCartEvent[] = [];
   for (const event of s.events) {
     if (Number(event.progress || 0) >= CART_COLLISION_PROGRESS) {
-      if (event.lane === s.lane) {
-        if (event.kind === "coin") {
-          s.btcCount = (Number(s.btcCount) || 0) + 1;
-        } else {
-          hit = event;
-          s.health -= 1;
+      if (!event.checked) {
+        event.checked = true;
+        if (event.lane === s.lane) {
+          if (event.kind === "coin") {
+            s.btcCount = (Number(s.btcCount) || 0) + 1;
+          } else {
+            hit = event;
+            s.health -= 1;
+          }
+          continue;
         }
-        continue;
       }
     }
     survivors.push(event);

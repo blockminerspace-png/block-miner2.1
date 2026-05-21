@@ -765,13 +765,16 @@ export default function Games() {
       const c = canvasRef.current;
       if (!c) return;
       const { width: logicalWidth, height: logicalHeight } = getCanvasLogicalSize(activeGame);
-      const raw = window.devicePixelRatio || 1;
-      /** Cart-rush: lower DPR cap on canvas = far less fill-rate work on phones (still sharp enough at 750×500 logical). */
-      const dpr = activeGame === "cart" ? Math.min(1.5, raw) : Math.min(2, raw);
-      c.width = Math.round(logicalWidth * dpr);
-      c.height = Math.round(logicalHeight * dpr);
+      const rect = c.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const displayWidth = rect.width > 0 ? rect.width : logicalWidth;
+      const displayHeight = rect.height > 0 ? rect.height : logicalHeight;
+      c.width = Math.round(displayWidth * dpr);
+      c.height = Math.round(displayHeight * dpr);
       const ctx = c.getContext("2d");
-      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (ctx) {
+        ctx.setTransform(c.width / logicalWidth, 0, 0, c.height / logicalHeight, 0, 0);
+      }
     };
     applyDpr();
     window.addEventListener("resize", applyDpr);
