@@ -501,31 +501,28 @@ adminRouter.post("/users/:id/reset-password", createRateLimiter({ windowMs: 60_0
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } });
         if (!user) return res.status(404).json({ ok: false, message: "Usuário não encontrado." });
 
-        const charset = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$";
-        const newPassword = Array.from(crypto.randomBytes(14))
-            .map((b) => charset[b % charset.length])
-            .join("");
+        const manualPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword.trim() : "";
+        if (manualPassword && manualPassword.length < 6) {
+            return res.status(400).json({ ok: false, message: "A senha deve ter pelo menos 6 caracteres." });
+        }
+
+        const newPassword = manualPassword || (() => {
+            const charset = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$";
+            return Array.from(crypto.randomBytes(14)).map((b) => charset[b % charset.length]).join("");
+        })();
 
         const passwordHash = await hashPassword(newPassword);
         await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
-
-        let emailSent = false;
-        try {
-            await sendAdminPasswordResetEmail({ to: user.email, name: user.name, newPassword });
-            emailSent = true;
-        } catch (mailErr) {
-            loggerLib.child("AdminUsers").warn("admin.reset-password.email_failed", { userId, message: adminErrMessage(mailErr) });
-        }
 
         void createAuditLogBestEffort({
             userId,
             action: "ADMIN_PASSWORD_RESET",
             ip: getClientIp(req),
             userAgent: req.headers["user-agent"] || null,
-            details: { emailSent, resetBy: "admin" },
+            details: { manual: Boolean(manualPassword), resetBy: "admin" },
         });
 
-        res.json({ ok: true, emailSent, newPassword, message: emailSent ? "Senha redefinida e e-mail enviado." : "Senha redefinida. E-mail não pôde ser enviado — anote a senha abaixo." });
+        res.json({ ok: true, message: "Senha redefinida com sucesso." });
     } catch (error) {
         loggerLib.child("AdminUsers").error("admin.reset-password.error", { message: adminErrMessage(error) });
         res.status(500).json({ ok: false, message: "Erro ao redefinir senha." });

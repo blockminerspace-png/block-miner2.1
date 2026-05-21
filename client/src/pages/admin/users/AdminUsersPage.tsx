@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type Dispatch, type FormEvent, type ReactNode, type SetStateAction, type ComponentType } from 'react';
+import { useState, useEffect, useCallback, useRef, type Dispatch, type FormEvent, type ReactNode, type SetStateAction, type ComponentType } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
@@ -10,7 +10,9 @@ import {
   Cpu,
   ExternalLink,
   Eye,
+  EyeOff,
   Fingerprint,
+  KeyRound,
   Loader2,
   Minus,
   Package,
@@ -304,6 +306,7 @@ export default function AdminUsers() {
   const [sendQty, setSendQty] = useState(1);
   const [isSending, setIsSending] = useState(false);
   const [tabState, setTabState] = useState<TabStateMap>({});
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<number | null>(null);
   const limit = 25;
 
   const fetchUsers = useCallback(async () => {
@@ -408,24 +411,9 @@ export default function AdminUsers() {
     }
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = () => {
     if (!selectedUser) return;
-    const displayName = selectedUser.user.username || selectedUser.user.email || `#${selectedUser.user.id}`;
-    if (!confirm(`Redefinir a senha de ${displayName}?\n\nUma nova senha aleatória será gerada e enviada por e-mail para ${selectedUser.user.email}.\nA senha atual deixará de funcionar imediatamente.`)) return;
-    try {
-      const res = await api.post<{ ok: boolean; emailSent: boolean; newPassword: string; message?: string }>(`/admin/users/${selectedUser.user.id}/reset-password`);
-      if (res.data.ok) {
-        if (res.data.emailSent) {
-          toast.success(`Senha redefinida! E-mail enviado para ${selectedUser.user.email}.`);
-        } else {
-          toast.warning(`Senha redefinida (e-mail falhou). Nova senha: ${res.data.newPassword}`, { duration: 30000 });
-        }
-      } else {
-        toast.error(res.data.message || 'Erro ao redefinir senha.');
-      }
-    } catch (err: unknown) {
-      toast.error(readAxiosResponseMessage(err) || 'Erro ao redefinir senha.');
-    }
+    setResetPasswordUserId(selectedUser.user.id);
   };
 
   const handleSendMiner = async () => {
@@ -693,6 +681,15 @@ export default function AdminUsers() {
         </div>
       </div>
 
+      {resetPasswordUserId !== null &&
+        createPortal(
+          <ResetPasswordModal
+            userId={resetPasswordUserId}
+            onClose={() => setResetPasswordUserId(null)}
+          />,
+          document.body
+        )}
+
       {selectedUser &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/80 backdrop-blur-sm">
@@ -753,6 +750,86 @@ export default function AdminUsers() {
           </div>,
           document.body
         )}
+    </div>
+  );
+}
+
+function ResetPasswordModal({ userId, onClose }: { userId: number; onClose: () => void }) {
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (password.trim().length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    try {
+      setSaving(true);
+      const res = await api.post<{ ok: boolean; message?: string }>(`/admin/users/${userId}/reset-password`, { newPassword: password.trim() });
+      if (res.data.ok) {
+        toast.success('Senha redefinida com sucesso!');
+        onClose();
+      } else {
+        toast.error(res.data.message || 'Erro ao redefinir senha.');
+      }
+    } catch (err: unknown) {
+      toast.error(readAxiosResponseMessage(err) || 'Erro ao redefinir senha.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm rounded-2xl border border-amber-500/20 bg-slate-900 p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-amber-400" />
+            <h3 className="text-sm font-black text-white uppercase tracking-widest">Redefinir senha</h3>
+          </div>
+          <button type="button" onClick={onClose} className="p-1 text-slate-500 hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Nova senha (mín. 6 caracteres)"
+              autoComplete="new-password"
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 pr-10 text-sm text-white placeholder-slate-500 focus:border-amber-500/50 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+            >
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-500">A senha atual do usuário deixará de funcionar imediatamente.</p>
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={saving || password.trim().length < 6}
+              className="flex-1 rounded-xl py-3 text-sm font-black uppercase tracking-widest bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-40"
+            >
+              {saving ? 'Salvando...' : 'Salvar senha'}
+            </button>
+            <button type="button" onClick={onClose} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-500 hover:text-white bg-slate-800">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
