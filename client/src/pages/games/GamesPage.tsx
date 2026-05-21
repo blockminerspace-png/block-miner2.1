@@ -291,6 +291,59 @@ export default function Games() {
   const pendingTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const socketEmitGuardRef = useRef(createMinerGamesSocketGuard());
 
+  // Throttling and input authority refs for Cart Rush
+  const lastEmittedLaneRef = useRef<number | null>(null);
+  const lastEmitTimeRef = useRef<number>(0);
+  const emitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLaneActionTimeRef = useRef<number>(0);
+  const starsRef = useRef<Array<{ x: number; y: number; speed: number; size: number }>>([]);
+
+  const initStars = useCallback(() => {
+    const stars = [];
+    for (let i = 0; i < 40; i++) {
+      stars.push({
+        x: Math.random() * CART_LOGICAL_WIDTH,
+        y: Math.random() * CART_LOGICAL_HEIGHT,
+        speed: Math.random() * 80 + 30,
+        size: Math.random() * 1.8 + 0.6,
+      });
+    }
+    starsRef.current = stars;
+  }, []);
+
+  const emitLaneChange = useCallback((lane: number) => {
+    if (!socket) return;
+    const now = performance.now();
+    const minInterval = 50; // ms
+    
+    const doEmit = (targetLane: number) => {
+      socket.emit('game:action', { type: 'lane', lane: targetLane });
+      lastEmittedLaneRef.current = targetLane;
+      lastEmitTimeRef.current = performance.now();
+      if (emitTimeoutRef.current) {
+        clearTimeout(emitTimeoutRef.current);
+        emitTimeoutRef.current = null;
+      }
+    };
+
+    if (emitTimeoutRef.current) {
+      clearTimeout(emitTimeoutRef.current);
+      emitTimeoutRef.current = setTimeout(() => {
+        doEmit(lane);
+      }, Math.max(0, minInterval - (now - lastEmitTimeRef.current)));
+      return;
+    }
+
+    const elapsed = now - lastEmitTimeRef.current;
+    if (elapsed >= minInterval) {
+      doEmit(lane);
+    } else {
+      emitTimeoutRef.current = setTimeout(() => {
+        doEmit(lane);
+      }, minInterval - elapsed);
+    }
+  }, [socket]);
+
   const [totalGamePower, setTotalGamePower] = useState(0);
   const [powerLoading, setPowerLoading] = useState(true);
   const [powerError, setPowerError] = useState<string | null>(null);
@@ -432,6 +485,7 @@ export default function Games() {
         const serverNow = performance.now();
         memoryBoardRef.current = null;
         selectedCell.current = null;
+        initStars();
         cartStateRef.current = {
           lane: Number(data.lane) || 1,
           renderLane: Number(data.lane) || 1,
@@ -554,23 +608,30 @@ export default function Games() {
 
     newSocket.on('game:cart_lane', (data: { lane?: number }) => {
       const nextLane = Number(data.lane) || 0;
+      const serverNow = performance.now();
+      const current = cartStateRef.current;
+      const ignoreServerLane = lastLaneActionTimeRef.current && (serverNow - lastLaneActionTimeRef.current < 800);
+      const laneToUse = ignoreServerLane ? current.lane : nextLane;
       cartStateRef.current = {
-        ...cartStateRef.current,
-        lane: nextLane,
-        renderLane: Number.isFinite(cartStateRef.current.renderLane) ? cartStateRef.current.renderLane : nextLane,
+        ...current,
+        lane: laneToUse,
+        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : laneToUse,
       };
     });
 
     newSocket.on('game:cart_update', (data: Record<string, unknown>) => {
       const nextLane = Number(data.lane) || 0;
       const serverNow = performance.now();
+      const current = cartStateRef.current;
+      const ignoreServerLane = lastLaneActionTimeRef.current && (serverNow - lastLaneActionTimeRef.current < 800);
+      const laneToUse = ignoreServerLane ? current.lane : nextLane;
       cartStateRef.current = {
-        ...cartStateRef.current,
-        lane: nextLane,
-        renderLane: Number.isFinite(cartStateRef.current.renderLane) ? cartStateRef.current.renderLane : nextLane,
+        ...current,
+        lane: laneToUse,
+        renderLane: Number.isFinite(current.renderLane) ? current.renderLane : laneToUse,
         health: Number(data.health) || 0,
         score: Number(data.score) || 0,
-        targetScore: Number(data.targetScore) || cartStateRef.current.targetScore,
+        targetScore: Number(data.targetScore) || current.targetScore,
         distance: Number(data.distance) || 0,
         btcCount: Number(data.btcCount) || 0,
         events: Array.isArray(data.events)
@@ -580,12 +641,12 @@ export default function Games() {
               speed:
                 Number(event.speed) ||
                 Number(data.roadSpeed) ||
-                cartStateRef.current.roadSpeed ||
+                current.roadSpeed ||
                 0.48,
             }))
           : [],
         hit: (data.hit as CartServerEvent | null | undefined) ?? null,
-        roadSpeed: Number(data.roadSpeed) || cartStateRef.current.roadSpeed || 0.48,
+        roadSpeed: Number(data.roadSpeed) || current.roadSpeed || 0.48,
         difficulty: Number(data.difficulty) || 0,
         lastServerUpdateAt: serverNow,
       };
@@ -636,6 +697,10 @@ export default function Games() {
       guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
       newSocket.disconnect();
+      if (emitTimeoutRef.current) {
+        clearTimeout(emitTimeoutRef.current);
+        emitTimeoutRef.current = null;
+      }
     };
   }, [token, fetchActiveGamePowers, createExplosion, t]);
 
@@ -924,17 +989,79 @@ export default function Games() {
     const BTC_SIZE = 22;
 
     ctx.save();
-    ctx.fillStyle = '#1a1a1a';
+    
+    // Cyberpunk Sky Background
+    ctx.fillStyle = '#050409';
     ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
     
-    ctx.fillStyle = '#2d6a4f';
+    // Parallax Stars / Space backdrop
+    ctx.fillStyle = '#ffffff';
+    if (starsRef.current) {
+      starsRef.current.forEach((star) => {
+        star.x -= star.speed * deltaSeconds;
+        if (star.x < 0) {
+          star.x = CART_LOGICAL_WIDTH;
+          star.y = Math.random() * CART_LOGICAL_HEIGHT;
+        }
+        ctx.save();
+        ctx.globalAlpha = 0.2 + (star.speed / 110) * 0.6;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+    
+    // Cyberpunk neon grid shoulders
+    const shoulderGrad = ctx.createLinearGradient(0, 0, 0, CART_LOGICAL_HEIGHT);
+    shoulderGrad.addColorStop(0, '#1e1133');
+    shoulderGrad.addColorStop(0.1, '#0c071a');
+    shoulderGrad.addColorStop(0.9, '#0c071a');
+    shoulderGrad.addColorStop(1, '#1e1133');
+    ctx.fillStyle = shoulderGrad;
     ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, 50);
     ctx.fillRect(0, CART_LOGICAL_HEIGHT - 50, CART_LOGICAL_WIDTH, 50);
     
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    // Road surface gradient
+    const roadGrad = ctx.createLinearGradient(0, roadY, 0, roadY + roadH);
+    roadGrad.addColorStop(0, '#0a0915');
+    roadGrad.addColorStop(0.5, '#0e0d22');
+    roadGrad.addColorStop(1, '#0a0915');
+    ctx.fillStyle = roadGrad;
+    ctx.fillRect(roadX, roadY, roadW, roadH);
+    
+    // Glowing neon pink borders for road edges
+    ctx.strokeStyle = '#f72585';
+    ctx.shadowColor = '#f72585';
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, roadY);
+    ctx.lineTo(CART_LOGICAL_WIDTH, roadY);
+    ctx.moveTo(0, roadY + roadH);
+    ctx.lineTo(CART_LOGICAL_WIDTH, roadY + roadH);
+    ctx.stroke();
+    ctx.shadowBlur = 0; // reset shadow
+    
+    // Neon scrolling horizontal grid lines (receding visual)
+    ctx.strokeStyle = 'rgba(0, 245, 255, 0.08)';
+    ctx.lineWidth = 1;
+    const gridSpacing = 80;
+    const gridOffset = scroll % gridSpacing;
+    ctx.beginPath();
+    for (let gx = -gridSpacing; gx < CART_LOGICAL_WIDTH + gridSpacing; gx += gridSpacing) {
+      ctx.moveTo(gx - gridOffset, roadY);
+      ctx.lineTo(gx - gridOffset, roadY + roadH);
+    }
+    ctx.stroke();
+
+    // Lane Dividers (Glowing dashed lines)
+    ctx.strokeStyle = 'rgba(0, 245, 255, 0.28)';
+    ctx.shadowColor = '#00f5ff';
+    ctx.shadowBlur = 4;
     ctx.setLineDash([60, 40]);
     ctx.lineDashOffset = -scroll;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     for (let i = 1; i < lanes; i++) {
       const ly = roadY + laneH * i;
@@ -943,6 +1070,156 @@ export default function Games() {
     }
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.shadowBlur = 0; // reset
+
+    // Vector art drawing helpers for obstacles
+    const drawCone = (cx: number, cy: number) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+      
+      // Shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.beginPath();
+      ctx.ellipse(0, 16, 20, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cone Base
+      ctx.fillStyle = '#1e1b18';
+      ctx.beginPath();
+      ctx.roundRect(-22, 10, 44, 6, 2);
+      ctx.fill();
+
+      // Cone Body (Orange)
+      ctx.fillStyle = '#ff6b35';
+      ctx.beginPath();
+      ctx.moveTo(-14, 10);
+      ctx.lineTo(-4, -18);
+      ctx.quadraticCurveTo(0, -20, 4, -18);
+      ctx.lineTo(14, 10);
+      ctx.closePath();
+      ctx.fill();
+
+      // Reflective white stripe
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(-9, -2);
+      ctx.lineTo(-6, -8);
+      ctx.lineTo(6, -8);
+      ctx.lineTo(9, -2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Neon glow
+      ctx.strokeStyle = 'rgba(255, 107, 53, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#ff6b35';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(-14, 10);
+      ctx.lineTo(-4, -18);
+      ctx.lineTo(4, -18);
+      ctx.lineTo(14, 10);
+      ctx.stroke();
+      
+      ctx.restore();
+    };
+
+    const drawBarrier = (cx: number, cy: number) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.beginPath();
+      ctx.ellipse(0, 16, 25, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Support legs
+      ctx.strokeStyle = '#4a4a4a';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-18, 16);
+      ctx.lineTo(-12, -10);
+      ctx.lineTo(-6, 16);
+      ctx.moveTo(6, 16);
+      ctx.lineTo(12, -10);
+      ctx.lineTo(18, 16);
+      ctx.stroke();
+
+      // Horizontal board
+      ctx.fillStyle = '#ffb703';
+      ctx.beginPath();
+      ctx.roundRect(-26, -8, 52, 14, 2);
+      ctx.fill();
+
+      // Diagonal black stripes
+      ctx.strokeStyle = '#1e1b18';
+      ctx.lineWidth = 5;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-26, -8, 52, 14);
+      ctx.clip();
+      ctx.beginPath();
+      for (let ox = -40; ox < 40; ox += 14) {
+        ctx.moveTo(ox, -10);
+        ctx.lineTo(ox + 10, 10);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Neon warning lights on top corners
+      const pulse = Math.sin(now * 0.015) > 0;
+      ctx.fillStyle = pulse ? '#ff002b' : '#55000a';
+      if (pulse) {
+        ctx.shadowColor = '#ff002b';
+        ctx.shadowBlur = 8;
+      }
+      ctx.beginPath();
+      ctx.arc(-20, -12, 4, 0, Math.PI * 2);
+      ctx.arc(20, -12, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    };
+
+    const drawPothole = (cx: number, cy: number) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Dark hole
+      ctx.fillStyle = '#050409';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 32, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Neon crack outlines (cyberpunk road glitch style)
+      ctx.strokeStyle = '#7209b7'; // glowing purple
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = '#7209b7';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 32, 14, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Cracks extending outwards
+      ctx.beginPath();
+      ctx.moveTo(-32, 0);
+      ctx.lineTo(-42, -4);
+      ctx.lineTo(-46, -2);
+      
+      ctx.moveTo(32, 0);
+      ctx.lineTo(44, 5);
+      
+      ctx.moveTo(0, -14);
+      ctx.lineTo(4, -22);
+      ctx.lineTo(-2, -26);
+      
+      ctx.moveTo(-10, 13);
+      ctx.lineTo(-14, 20);
+      ctx.stroke();
+
+      ctx.restore();
+    };
 
     const drawPlayerCar = (x: number, y: number, tilt: number, alpha = 1) => {
       ctx.save();
@@ -952,9 +1229,10 @@ export default function Games() {
 
       if (alpha === 1) {
           ctx.save();
-          const lightGrad = ctx.createLinearGradient(CAR_WIDTH/2, 0, CAR_WIDTH/2 + 250, 0);
-          lightGrad.addColorStop(0, 'rgba(255, 255, 230, 0.15)');
-          lightGrad.addColorStop(1, 'rgba(255, 255, 230, 0)');
+          // Hyper headlights pointing RIGHT
+          const lightGrad = ctx.createLinearGradient(CAR_WIDTH/2 - 10, 0, CAR_WIDTH/2 + 250, 0);
+          lightGrad.addColorStop(0, 'rgba(0, 245, 255, 0.25)'); // cyan headlights
+          lightGrad.addColorStop(1, 'rgba(0, 245, 255, 0)');
           ctx.fillStyle = lightGrad;
           ctx.beginPath();
           ctx.moveTo(CAR_WIDTH/2 - 10, -16);
@@ -969,67 +1247,151 @@ export default function Games() {
           ctx.restore();
       }
 
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
       ctx.beginPath();
       ctx.ellipse(2, 6, CAR_WIDTH/2 + 4, CAR_HEIGHT/2 + 4, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      // Wheels with glowing cyan rims
       ctx.fillStyle = '#111';
       [[-35, -28], [18, -28], [-35, 18], [18, 18]].forEach(p => {
           ctx.fillRect(p[0], p[1], 24, 12);
+          
+          ctx.save();
+          ctx.strokeStyle = '#00f5ff';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.roundRect(p[0] + 4, p[1] + 2, 16, 8, 2);
+          ctx.stroke();
+          ctx.restore();
       });
 
+      // Body Gradient (Cyber Red/Indigo sportscar)
       const grad = ctx.createLinearGradient(-CAR_WIDTH/2, 0, CAR_WIDTH/2, 0);
-      grad.addColorStop(0, '#d00000');
-      grad.addColorStop(1, '#ff1f1f');
+      grad.addColorStop(0, '#f72585'); // neon hot pink rear
+      grad.addColorStop(1, '#ff003c'); // bright crimson nose
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 12);
+      ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 14);
       ctx.fill();
 
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(-CAR_WIDTH/2, -6, CAR_WIDTH, 12);
+      // Center decal stripe
+      ctx.fillStyle = '#00f5ff';
+      ctx.fillRect(-CAR_WIDTH/2, -5, CAR_WIDTH, 10);
 
-      ctx.fillStyle = '#1b263b';
+      // Cabin / Glass windshield (Sleek dark blue glassmorphism)
+      ctx.fillStyle = '#0a0f1d';
       ctx.beginPath();
-      ctx.roundRect(0, -18, 25, 36, 5);
+      ctx.roundRect(-10, -18, 38, 36, 6);
       ctx.fill();
       
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0, 245, 255, 0.4)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(5, -12); ctx.lineTo(20, -10);
+      ctx.roundRect(-10, -18, 38, 36, 6);
       ctx.stroke();
+
+      // Exhaust tail-lights
+      ctx.fillStyle = '#ff0055';
+      ctx.shadowColor = '#ff0055';
+      ctx.shadowBlur = 10;
+      ctx.fillRect(-CAR_WIDTH/2, -18, 5, 8);
+      ctx.fillRect(-CAR_WIDTH/2, 10, 5, 8);
 
       ctx.restore();
     };
 
-    const drawEnemyCar = (x: number, y: number, color: string) => {
+    const drawEnemyCar = (cx: number, cy: number, color: string) => {
       ctx.save();
-      ctx.translate(x, y);
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.fillRect(-CAR_WIDTH/2 + 4, -CAR_HEIGHT/2 + 4, CAR_WIDTH, CAR_HEIGHT);
+      ctx.translate(cx, cy);
+
+      // Headlight beams pointing LEFT (oncoming)
+      ctx.save();
+      const lightGrad = ctx.createLinearGradient(-CAR_WIDTH/2, 0, -CAR_WIDTH/2 - 150, 0);
+      lightGrad.addColorStop(0, 'rgba(255, 0, 85, 0.18)'); // neon red headlight cone
+      lightGrad.addColorStop(1, 'rgba(255, 0, 85, 0)');
+      ctx.fillStyle = lightGrad;
+      ctx.beginPath();
+      ctx.moveTo(-CAR_WIDTH/2 + 5, -12);
+      ctx.lineTo(-CAR_WIDTH/2 - 140, -32);
+      ctx.lineTo(-CAR_WIDTH/2 - 140, 12);
+      ctx.lineTo(-CAR_WIDTH/2 + 5, 0);
+      ctx.fill();
+      ctx.restore();
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(0, 6, CAR_WIDTH/2 + 4, CAR_HEIGHT/2 + 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Wheels
+      ctx.fillStyle = '#0c0c10';
+      [[-32, -28], [22, -28], [-32, 18], [22, 18]].forEach(p => {
+          ctx.fillRect(p[0], p[1], 20, 10);
+      });
+
+      // Car body (cyber styled)
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 8);
       ctx.fill();
-      ctx.fillStyle = '#222';
-      ctx.fillRect(-15, -18, 32, 36);
+
+      // Cyber glowing decal line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 8);
+      ctx.stroke();
+
+      // Cockpit / Windshield
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.moveTo(-16, -16);
+      ctx.lineTo(-34, -16);
+      ctx.lineTo(-38, 16);
+      ctx.lineTo(-16, 16);
+      ctx.closePath();
+      ctx.fill();
+
+      // Taillights (facing right, meaning on the right side)
+      ctx.fillStyle = '#ff0055';
+      ctx.shadowColor = '#ff0055';
+      ctx.shadowBlur = 8;
+      ctx.fillRect(CAR_WIDTH/2 - 4, -16, 4, 8);
+      ctx.fillRect(CAR_WIDTH/2 - 4, 8, 4, 8);
+
+      // Oncoming headlights (facing left, meaning on the left side)
+      ctx.fillStyle = '#ff3366';
+      ctx.shadowColor = '#ff3366';
+      ctx.shadowBlur = 10;
+      ctx.fillRect(-CAR_WIDTH/2, -14, 4, 6);
+      ctx.fillRect(-CAR_WIDTH/2, 8, 4, 6);
+
       ctx.restore();
     };
 
-    const drawBTC = (x: number, y: number, rot: number) => {
+    const drawBTC = (cx: number, cy: number, rot: number) => {
       ctx.save();
-      ctx.translate(x, y);
+      ctx.translate(cx, cy);
       ctx.scale(Math.cos(rot), 1);
-      const grad = ctx.createRadialGradient(-4, -4, 2, 0, 0, BTC_SIZE);
+      
+      // Outer neon gold aura
+      ctx.shadowColor = '#ffd60a';
+      ctx.shadowBlur = 14;
+      
+      const grad = ctx.createRadialGradient(-3, -3, 2, 0, 0, BTC_SIZE);
       grad.addColorStop(0, '#ffd60a');
       grad.addColorStop(1, '#ff9f1c');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(0, 0, BTC_SIZE, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#fff';
+      
+      ctx.shadowBlur = 0; // reset
+      
+      ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 24px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -1037,6 +1399,7 @@ export default function Games() {
       ctx.restore();
     };
 
+    // Client-side smooth target interpolation & extrapolation for events
     if (!state.localEvents) state.localEvents = [];
     
     if (state.lastProcessedUpdate !== state.lastServerUpdateAt) {
@@ -1052,25 +1415,42 @@ export default function Games() {
         let l_evt = localMap.get(s_evt.id);
         if (l_evt) {
           const diff = Number(s_evt.progress) - Number(l_evt.progress);
-          if (Math.abs(diff) > 0.15) {
-             l_evt.progress = s_evt.progress;
+          if (Math.abs(diff) > 0.4) {
+             l_evt.progress = s_evt.progress; // snap if massive desync
           }
+          // Update properties from server authority
+          (l_evt as any).serverProgress = s_evt.progress;
           l_evt.speed = s_evt.speed;
           l_evt.lane = s_evt.lane;
           newLocalEvents.push(l_evt);
         } else {
-          newLocalEvents.push({ ...s_evt });
+          // New event: Extrapolate start position to prevent pop/spawn stutter
+          const elapsed = (now - state.lastServerUpdateAt) / 1000;
+          const startProgress = (s_evt.progress ?? 0) + elapsed * (Number(s_evt.speed) || serverRoadSpeed);
+          newLocalEvents.push({
+            ...s_evt,
+            serverProgress: s_evt.progress,
+            progress: startProgress,
+          } as any);
         }
       }
       state.localEvents = newLocalEvents;
     }
     
-    state.localEvents.forEach((e) => {
-      e.progress = (Number(e.progress) || 0) + deltaSeconds * (Number(e.speed) || serverRoadSpeed);
+    // In every frame: smoothly lerp visual progress towards extrapolated target progress
+    const elapsedSinceUpdate = (now - state.lastServerUpdateAt) / 1000;
+    state.localEvents.forEach((e: any) => {
+      const speed = Number(e.speed) || serverRoadSpeed;
+      const target = (Number(e.serverProgress) || 0) + elapsedSinceUpdate * speed;
+      const current = Number(e.progress) || 0;
+      
+      // Spring lerp (framerate independent)
+      e.progress = current + (target - current) * (1 - Math.exp(-12 * deltaSeconds));
     });
 
     const btcRotation = now / 200;
 
+    // Draw all local events with their custom drawings
     for (const event of state.localEvents) {
       const lane = clampCartLane(Number(event.lane) || 0, lanes);
       const progress = Math.max(0, Math.min(1.25, Number(event.progress) || 0));
@@ -1078,10 +1458,18 @@ export default function Games() {
       const x = roadX + roadW - progress * (roadW + 180) + 60;
 
       switch (event.kind) {
-        case 'coin': drawBTC(x, y, btcRotation); break;
-        case 'cone': 
-        case 'barrier': 
-        case 'pothole': 
+        case 'coin':
+          drawBTC(x, y, btcRotation);
+          break;
+        case 'cone':
+          drawCone(x, y);
+          break;
+        case 'barrier':
+          drawBarrier(x, y);
+          break;
+        case 'pothole':
+          drawPothole(x, y);
+          break;
         case 'enemy-car':
         default:
           drawEnemyCar(x, y, event.variant?.body || '#457b9d');
@@ -1097,6 +1485,33 @@ export default function Games() {
     const carY = roadY + laneH * state.renderLane + laneH / 2;
     const tilt = (state.lane - state.renderLane) * 0.18;
 
+    // Spawn thruster spark particles behind player's car
+    if (!isGameOver && Math.random() < 0.85) {
+      const rx = carX - CAR_WIDTH/2 + 5;
+      const ry1 = carY - 14;
+      const ry2 = carY + 14;
+      
+      particles.current.push({
+        x: rx,
+        y: ry1 + (Math.random() - 0.5) * 4,
+        vx: -15 - Math.random() * 8, // shoot backwards fast
+        vy: (Math.random() - 0.5) * 1.5,
+        life: 0.7 + Math.random() * 0.4,
+        color: Math.random() < 0.35 ? '#f72585' : '#00f5ff', // neon pink or cyan
+        size: Math.random() * 2.5 + 1.2,
+      });
+
+      particles.current.push({
+        x: rx,
+        y: ry2 + (Math.random() - 0.5) * 4,
+        vx: -15 - Math.random() * 8,
+        vy: (Math.random() - 0.5) * 1.5,
+        life: 0.7 + Math.random() * 0.4,
+        color: Math.random() < 0.35 ? '#f72585' : '#00f5ff',
+        size: Math.random() * 2.5 + 1.2,
+      });
+    }
+
     if (hit) {
       ctx.save();
       const shake = Math.sin(now * 0.04) * 9;
@@ -1107,14 +1522,16 @@ export default function Games() {
 
     if (hit) ctx.restore();
 
+    // Dark screen border vignette
     const v = ctx.createRadialGradient(CART_LOGICAL_WIDTH/2, CART_LOGICAL_HEIGHT/2, CART_LOGICAL_WIDTH/3, CART_LOGICAL_WIDTH/2, CART_LOGICAL_HEIGHT/2, CART_LOGICAL_WIDTH/1.2);
     v.addColorStop(0, 'rgba(0,0,0,0)');
-    v.addColorStop(1, 'rgba(0,0,0,0.5)');
+    v.addColorStop(1, 'rgba(0,0,0,0.6)');
     ctx.fillStyle = v;
     ctx.fillRect(0, 0, CART_LOGICAL_WIDTH, CART_LOGICAL_HEIGHT);
 
     ctx.restore();
 
+    // Glassmorphic Retro Cyberpunk HUD
     ctx.save();
     const drawHudBox = (
       x: number,
@@ -1125,34 +1542,50 @@ export default function Games() {
       value: string,
       valueColor = '#ffffff',
     ) => {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      // Semi-transparent glass box
+      ctx.fillStyle = 'rgba(10, 8, 20, 0.72)';
       ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 6);
+      ctx.roundRect(x, y, w, h, 8);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      
+      // Neon border
+      ctx.strokeStyle = 'rgba(0, 245, 255, 0.15)';
+      ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = '#999';
-      ctx.font = '700 10px Roboto, sans-serif';
+      
+      // Mini corner accent lines
+      ctx.strokeStyle = valueColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 8); ctx.lineTo(x, y); ctx.lineTo(x + 8, y);
+      ctx.moveTo(x + w, y + h - 8); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - 8, y + h);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '900 9px "Outfit", "Inter", sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText(label, x + 14, y + 18);
+      
       ctx.fillStyle = valueColor;
-      ctx.font = '900 22px Roboto, sans-serif';
+      ctx.font = '900 21px "Outfit", "Inter", sans-serif';
       ctx.fillText(value, x + 14, y + h - 14);
     };
 
-    drawHudBox(20, 20, 122, 56, 'TEMPO', `${cartHudTimeRef.current}s`, '#4cc9f0');
+    drawHudBox(20, 20, 122, 56, 'TEMPO', `${cartHudTimeRef.current}s`, '#00f5ff');
     drawHudBox(156, 20, 122, 56, 'PONTOS', `${Number(state.score) || 0}`, '#f72585');
-    drawHudBox(CART_LOGICAL_WIDTH - 280, 20, 122, 56, 'VIDAS', '❤️'.repeat(Math.max(0, Number(state.health) || 0)) || '0', '#e63946');
+    drawHudBox(CART_LOGICAL_WIDTH - 280, 20, 122, 56, 'VIDAS', '❤️'.repeat(Math.max(0, Number(state.health) || 0)) || '0', '#ff0055');
     drawHudBox(CART_LOGICAL_WIDTH - 142, 20, 122, 56, 'DISTÂNCIA', `${Math.floor(Number(state.distance) || 0)}m`, '#ffffff');
 
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    // Progress bar container
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
     ctx.beginPath();
     ctx.roundRect(CART_LOGICAL_WIDTH / 2 - 150, CART_LOGICAL_HEIGHT - 26, 300, 6, 3);
     ctx.fill();
 
+    // Progress bar fill (neon cyan/magenta gradient)
     const progressGrad = ctx.createLinearGradient(CART_LOGICAL_WIDTH / 2 - 150, 0, CART_LOGICAL_WIDTH / 2 + 150, 0);
     progressGrad.addColorStop(0, '#f72585');
-    progressGrad.addColorStop(1, '#4cc9f0');
+    progressGrad.addColorStop(1, '#00f5ff');
     ctx.fillStyle = progressGrad;
     ctx.beginPath();
     ctx.roundRect(CART_LOGICAL_WIDTH / 2 - 150, CART_LOGICAL_HEIGHT - 26, 300 * missionProgress, 6, 3);
@@ -1160,11 +1593,11 @@ export default function Games() {
 
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
-    ctx.font = '900 24px Roboto, sans-serif';
-    ctx.fillText('MISSION: 750', CART_LOGICAL_WIDTH / 2, 54);
-    ctx.font = '700 12px Roboto, sans-serif';
+    ctx.font = '900 24px "Outfit", "Inter", sans-serif';
+    ctx.fillText('MISSION: 750', CART_LOGICAL_WIDTH / 2, 52);
+    ctx.font = '700 12px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = '#aaaaaa';
-    ctx.fillText(`1 BTC = 50 pontos  •  10 metros = 1 ponto  •  Meta ${state.targetScore}`, CART_LOGICAL_WIDTH / 2, 76);
+    ctx.fillText(`1 BTC = 50 pontos  •  10 metros = 1 ponto  •  Meta ${state.targetScore}`, CART_LOGICAL_WIDTH / 2, 74);
     ctx.restore();
   }, []);
 
@@ -1389,6 +1822,7 @@ export default function Games() {
       } else if (activeGame === 'cart') {
         if ('touches' in e && e.touches.length > 0) {
           cartTouchRef.current = { active: true, y };
+          moveCartToPointerLane(y);
           return;
         }
         moveCartToPointerLane(y);
@@ -1459,6 +1893,7 @@ export default function Games() {
     activeGameRef.current = 'cart';
     setSessionReady(false);
     memoryBoardRef.current = null;
+    initStars();
     cartStateRef.current = {
       lane: 1,
       renderLane: 1,
@@ -1478,7 +1913,7 @@ export default function Games() {
       difficulty: 0,
     };
     socket.emit('game:start', 'cart-rush');
-  }, [socket]);
+  }, [socket, initStars]);
 
   useEffect(() => {
     if (activeGame !== 'cart' || isGameOver || !socket) return undefined;
