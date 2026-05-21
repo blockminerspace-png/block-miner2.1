@@ -282,6 +282,7 @@ export type AdminSupportDossierMinerRow = {
   isActive?: boolean;
   displayName?: string;
   imageUrl?: string | null;
+  minerId?: number | null;
 };
 
 /** Rack / inventory / vault machine cards in dossier (overlapping fields). */

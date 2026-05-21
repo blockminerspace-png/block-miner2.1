@@ -22,6 +22,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Fingerprint,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../../store/auth";
@@ -90,7 +91,8 @@ export default function AdminSupport() {
   const [dossierLoading, setDossierLoading] = useState(false);
   const [dossierError, setDossierError] = useState(false);
   const [dossierParams, setDossierParams] = useState<AdminSupportPlayerDossierParams>(() => defaultDossierParams());
-  const [replyComposerOpen, setReplyComposerOpen] = useState(false);
+  const [replyComposerOpen, setReplyComposerOpen] = useState(true);
+  const [dossierOpen, setDossierOpen] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const selectedIdRef = useRef<number | null>(null);
   selectedIdRef.current = selectedMessage?.id ?? null;
@@ -126,6 +128,7 @@ export default function AdminSupport() {
       setDossierLoading(false);
       return;
     }
+    if (!dossierOpen) return;
     const ticketId = selectedMessage.id;
     let cancelled = false;
     const run = async () => {
@@ -150,12 +153,15 @@ export default function AdminSupport() {
     return () => {
       cancelled = true;
     };
-  }, [selectedMessage?.id, dossierParams]);
+  }, [selectedMessage?.id, dossierParams, dossierOpen]);
 
   const selectMessage = async (msg: AdminSupportInboxMessage) => {
     setLoadingDetails(true);
     setReply("");
     setReplyFiles([]);
+    setDossierOpen(false);
+    setDossierBundle(null);
+    setReplyComposerOpen(true);
     try {
       const res = await api.get<AdminSupportMessageApiResponse>(`/admin/support/${msg.id}`);
       if (res.data.ok && res.data.message) {
@@ -445,16 +451,27 @@ export default function AdminSupport() {
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain space-y-6 pr-2 sm:pr-3 xl:pr-4 scrollbar-thin scrollbar-thumb-slate-800">
-                <AdminSupportPlayerDossier
-                  bundle={dossierBundle}
-                  loading={dossierLoading}
-                  error={dossierError}
-                  params={dossierParams}
-                  onParamsChange={handleDossierParamsChange}
-                  onRetry={() => {
-                    if (selectedMessage?.id) setDossierParams((p) => ({ ...p }));
-                  }}
-                />
+                {!dossierOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setDossierOpen(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-sm font-bold text-amber-400 hover:border-amber-500/40 hover:bg-slate-900/70 transition-colors"
+                  >
+                    <Fingerprint className="h-4 w-4" />
+                    {t("admin_support.dossier.load_button")}
+                  </button>
+                ) : (
+                  <AdminSupportPlayerDossier
+                    bundle={dossierBundle}
+                    loading={dossierLoading}
+                    error={dossierError}
+                    params={dossierParams}
+                    onParamsChange={handleDossierParamsChange}
+                    onRetry={() => {
+                      if (selectedMessage?.id) setDossierParams((p) => ({ ...p }));
+                    }}
+                  />
+                )}
                 <div className="rounded-3xl border border-slate-800/50 bg-slate-900/30 p-4 sm:p-5 xl:p-6">
                   <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase text-slate-500">
                     <User className="h-3 w-3" /> {t("admin_support.label_user")}

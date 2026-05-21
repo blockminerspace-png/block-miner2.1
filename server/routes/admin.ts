@@ -62,6 +62,8 @@ import crypto from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import { createAuditLogBestEffort } from "../models/auditLogModel.js";
 import { resolveUploadsRoot } from "../utils/uploadsRoot.js";
+import { hashPassword } from "../modules/auth/shared/auth.service.js";
+import { sendAdminPasswordResetEmail } from "../utils/mailer.js";
 
 function adminErrMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -488,6 +490,45 @@ adminRouter.post("/users/:id/unban", async (req, res) => {
             return res.status(400).json({ ok: false, message: "Unban reason is required." });
         }
         res.status(500).json({ ok: false, message: "Unable to unban user." });
+    }
+});
+
+adminRouter.post("/users/:id/reset-password", createRateLimiter({ windowMs: 60_000, max: 10 }), async (req, res) => {
+    try {
+        const userId = parseStrictPositiveUserId(req.params.id);
+        if (!userId) return res.status(400).json({ ok: false, message: "ID de usuário inválido." });
+
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } });
+        if (!user) return res.status(404).json({ ok: false, message: "Usuário não encontrado." });
+
+        const charset = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$";
+        const newPassword = Array.from(crypto.randomBytes(14))
+            .map((b) => charset[b % charset.length])
+            .join("");
+
+        const passwordHash = await hashPassword(newPassword);
+        await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+
+        let emailSent = false;
+        try {
+            await sendAdminPasswordResetEmail({ to: user.email, name: user.name, newPassword });
+            emailSent = true;
+        } catch (mailErr) {
+            loggerLib.child("AdminUsers").warn("admin.reset-password.email_failed", { userId, message: adminErrMessage(mailErr) });
+        }
+
+        void createAuditLogBestEffort({
+            userId,
+            action: "ADMIN_PASSWORD_RESET",
+            ip: getClientIp(req),
+            userAgent: req.headers["user-agent"] || null,
+            details: { emailSent, resetBy: "admin" },
+        });
+
+        res.json({ ok: true, emailSent, newPassword, message: emailSent ? "Senha redefinida e e-mail enviado." : "Senha redefinida. E-mail não pôde ser enviado — anote a senha abaixo." });
+    } catch (error) {
+        loggerLib.child("AdminUsers").error("admin.reset-password.error", { message: adminErrMessage(error) });
+        res.status(500).json({ ok: false, message: "Erro ao redefinir senha." });
     }
 });
 

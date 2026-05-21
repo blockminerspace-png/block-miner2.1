@@ -408,6 +408,26 @@ export default function AdminUsers() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!selectedUser) return;
+    const displayName = selectedUser.user.username || selectedUser.user.email || `#${selectedUser.user.id}`;
+    if (!confirm(`Redefinir a senha de ${displayName}?\n\nUma nova senha aleatória será gerada e enviada por e-mail para ${selectedUser.user.email}.\nA senha atual deixará de funcionar imediatamente.`)) return;
+    try {
+      const res = await api.post<{ ok: boolean; emailSent: boolean; newPassword: string; message?: string }>(`/admin/users/${selectedUser.user.id}/reset-password`);
+      if (res.data.ok) {
+        if (res.data.emailSent) {
+          toast.success(`Senha redefinida! E-mail enviado para ${selectedUser.user.email}.`);
+        } else {
+          toast.warning(`Senha redefinida (e-mail falhou). Nova senha: ${res.data.newPassword}`, { duration: 30000 });
+        }
+      } else {
+        toast.error(res.data.message || 'Erro ao redefinir senha.');
+      }
+    } catch (err: unknown) {
+      toast.error(readAxiosResponseMessage(err) || 'Erro ao redefinir senha.');
+    }
+  };
+
   const handleSendMiner = async () => {
     if (isSending || !sendMinerId || !selectedUser) return;
     if (!confirm(`Enviar ${sendQty}x máquina para ${selectedUser.user.username || selectedUser.user.email}?`)) return;
@@ -707,7 +727,7 @@ export default function AdminUsers() {
                     ))}
                   </div>
                   <div className="space-y-8 p-6 pb-20">
-                    {detailsTab === 'perfil' ? <ProfileTab selectedUser={selectedUser} onBan={() => void handleBanToggle(selectedUser.user)} /> : null}
+                    {detailsTab === 'perfil' ? <ProfileTab selectedUser={selectedUser} onBan={() => void handleBanToggle(selectedUser.user)} onResetPassword={() => void handleResetPassword()} /> : null}
                     {detailsTab === 'transações' ? <TransactionsTab state={tabState['transações']} onLoad={(o) => void loadTab('transações', o)} /> : null}
                     {detailsTab === 'logs' ? <LogsTab state={tabState.logs} onLoad={(o) => void loadTab('logs', o)} /> : null}
                     {detailsTab === 'tickets' ? <TicketsTab state={tabState.tickets} onLoad={(o) => void loadTab('tickets', o)} /> : null}
@@ -780,7 +800,7 @@ function DetailCard({
   );
 }
 
-function ProfileTab({ selectedUser, onBan }: { selectedUser: AdminUserDetailsPayload; onBan: () => void }) {
+function ProfileTab({ selectedUser, onBan, onResetPassword }: { selectedUser: AdminUserDetailsPayload; onBan: () => void; onResetPassword: () => void }) {
   const { user, metrics } = selectedUser;
   const intel = user.lastIpIntelligence;
   return (
@@ -846,15 +866,24 @@ function ProfileTab({ selectedUser, onBan }: { selectedUser: AdminUserDetailsPay
         <DetailCard label="Logs/Eventos" value={metrics.totalLogs || 0} icon={Terminal} />
       </div>
       <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100">{metrics.riskSummary}</div>
-      <button
-        type="button"
-        onClick={onBan}
-        className={`w-full rounded-2xl py-4 text-sm font-black uppercase tracking-widest ${
-          user.isBanned ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-        }`}
-      >
-        {user.isBanned ? 'Revogar banimento' : 'Banir usuário'}
-      </button>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={onBan}
+          className={`flex-1 rounded-2xl py-4 text-sm font-black uppercase tracking-widest ${
+            user.isBanned ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+          }`}
+        >
+          {user.isBanned ? 'Revogar banimento' : 'Banir usuário'}
+        </button>
+        <button
+          type="button"
+          onClick={onResetPassword}
+          className="flex-1 rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+        >
+          Redefinir senha + enviar e-mail
+        </button>
+      </div>
     </div>
   );
 }

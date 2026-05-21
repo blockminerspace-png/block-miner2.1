@@ -1,11 +1,10 @@
 import type { Request, Response } from "express";
 import type { Prisma } from "@prisma/client";
 import prisma from "../src/db/prisma.js";
-import { parseCreateDailyTaskDefinition } from "../services/dailyTasks/dailyTaskDefinitionAdminValidation.js";
 import {
-  DAILY_TASK_RESET_CADENCES,
-  normalizeDailyTaskResetCadence,
-} from "../services/dailyTasks/dailyTaskPeriod.js";
+  parseCreateDailyTaskDefinition,
+  parsePatchDailyTaskDefinition,
+} from "../services/dailyTasks/dailyTaskDefinitionAdminValidation.js";
 
 function prismaErrCode(e: unknown): string | undefined {
   if (e !== null && typeof e === "object" && "code" in e) {
@@ -16,13 +15,6 @@ function prismaErrCode(e: unknown): string | undefined {
 }
 
 type DefinitionIdParams = { id: string };
-
-type PatchDefinitionBody = {
-  isActive?: unknown;
-  sortOrder?: unknown;
-  resetCadence?: unknown;
-  internalOfferwallOfferId?: unknown;
-};
 
 export async function listDefinitions(_req: Request, res: Response): Promise<void> {
   try {
@@ -36,11 +28,8 @@ export async function listDefinitions(_req: Request, res: Response): Promise<voi
   }
 }
 
-/**
- * Partial update: `isActive`, `sortOrder`, `resetCadence`, `internalOfferwallOfferId` (validated).
- */
 export async function patchDefinition(
-  req: Request<DefinitionIdParams, unknown, PatchDefinitionBody>,
+  req: Request<DefinitionIdParams>,
   res: Response
 ): Promise<void> {
   try {
@@ -49,55 +38,36 @@ export async function patchDefinition(
       res.status(400).json({ ok: false, message: "Invalid task id." });
       return;
     }
-    const body = req.body && typeof req.body === "object" ? req.body : {};
-    const data: Prisma.DailyTaskDefinitionUncheckedUpdateInput = {};
-
-    if (typeof body.isActive === "boolean") {
-      data.isActive = body.isActive;
-    }
-    if (body.sortOrder !== undefined && body.sortOrder !== null) {
-      const n = parseInt(String(body.sortOrder), 10);
-      if (!Number.isInteger(n) || n < 0 || n > 99999) {
-        res.status(400).json({ ok: false, message: "Invalid sort order." });
-        return;
-      }
-      data.sortOrder = n;
-    }
-    if (body.resetCadence !== undefined) {
-      const cadence = normalizeDailyTaskResetCadence(String(body.resetCadence));
-      if (!(DAILY_TASK_RESET_CADENCES as readonly string[]).includes(cadence)) {
-        res.status(400).json({ ok: false, message: "Invalid reset cadence." });
-        return;
-      }
-      data.resetCadence = cadence;
-    }
-    if (body.internalOfferwallOfferId !== undefined) {
-      if (body.internalOfferwallOfferId === null || body.internalOfferwallOfferId === "") {
-        data.internalOfferwallOfferId = null;
-      } else {
-        const oid = parseInt(String(body.internalOfferwallOfferId), 10);
-        if (!Number.isInteger(oid) || oid < 1) {
-          res.status(400).json({ ok: false, message: "Invalid internalOfferwallOfferId." });
-          return;
-        }
-        const offer = await prisma.internalOfferwallOffer.findUnique({ where: { id: oid } });
-        if (!offer) {
-          res.status(400).json({ ok: false, message: "internalOfferwallOfferId does not exist." });
-          return;
-        }
-        data.internalOfferwallOfferId = oid;
-      }
-    }
-    if (Object.keys(data).length === 0) {
-      res.status(400).json({ ok: false, message: "No valid fields to update." });
+    const parsed = parsePatchDailyTaskDefinition(req.body);
+    if (!parsed.ok) {
+      res.status(parsed.status).json({ ok: false, message: parsed.message });
       return;
     }
+    const { data, needsMinerId, needsEventMinerId, needsOfferwallId } = parsed;
+
+    if (needsMinerId != null) {
+      const miner = await prisma.miner.findUnique({ where: { id: needsMinerId } });
+      if (!miner) { res.status(400).json({ ok: false, message: "rewardMinerId does not exist." }); return; }
+    }
+    if (needsEventMinerId != null) {
+      const em = await prisma.eventMiner.findUnique({ where: { id: needsEventMinerId } });
+      if (!em) { res.status(400).json({ ok: false, message: "rewardEventMinerId does not exist." }); return; }
+    }
+    if (needsOfferwallId != null) {
+      const offer = await prisma.internalOfferwallOffer.findUnique({ where: { id: needsOfferwallId } });
+      if (!offer) { res.status(400).json({ ok: false, message: "internalOfferwallOfferId does not exist." }); return; }
+    }
+
     await prisma.dailyTaskDefinition.update({ where: { id }, data });
     const row = await prisma.dailyTaskDefinition.findUnique({ where: { id } });
     res.json({ ok: true, definition: row });
   } catch (e: unknown) {
     if (prismaErrCode(e) === "P2025") {
       res.status(404).json({ ok: false, message: "Task definition not found." });
+      return;
+    }
+    if (prismaErrCode(e) === "P2002") {
+      res.status(409).json({ ok: false, message: "Slug already exists." });
       return;
     }
     console.error("adminDailyTasks patchDefinition", e);

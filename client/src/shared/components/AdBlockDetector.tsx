@@ -5,10 +5,14 @@ import { api } from '../../store/auth';
 const DISMISS_KEY = 'bm_adblock_notice_dismiss_until';
 const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Independent probes; majority must agree (reduces flaky layout / one-off false positives). */
-const PROBE_TRIALS = 5;
-const PROBE_MAJORITY = 4;
-/** Wait for tab to be visible before probing (background tabs can report odd layout). */
+/** All 3 probes must agree \u2014 unanimous verdict eliminates flaky single-trial false positives. */
+const PROBE_TRIALS = 3;
+const PROBE_MAJORITY = 3;
+/** Time between the two measurements inside a single probe (baseline vs ad-class). */
+const PROBE_SETTLE_MS = 650;
+/** Time between consecutive trials. */
+const INTER_TRIAL_MS = 900;
+
 function isTabVisible() {
   return typeof document === 'undefined' || document.visibilityState === 'visible';
 }
@@ -24,9 +28,7 @@ function isDismissedInStorage() {
 
 function runDoubleRaf(): Promise<void> {
   return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve());
-    });
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
 }
 
@@ -37,87 +39,93 @@ function readBoxSize(el: HTMLElement) {
   return { w, h };
 }
 
-function elementLooksPresent(el: HTMLElement) {
+function cssHidden(el: HTMLElement): boolean {
   const cs = window.getComputedStyle(el);
-  if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
-  if (cs.contentVisibility === 'hidden') return false;
-  const { w, h } = readBoxSize(el);
-  // Off-screen probes: some engines report offset* 0 until paint; trust layout box if any metric says visible.
-  return w >= 1 && h >= 1;
-}
-
-function elementLooksBlocked(el: HTMLElement) {
-  const cs = window.getComputedStyle(el);
-  if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return true;
-  if (cs.contentVisibility === 'hidden') return true;
-  const { w, h } = readBoxSize(el);
-  // Real adblock usually removes the box entirely; do not treat offset quirks as "blocked" if layout still has area.
-  if (w >= 1 && h >= 1) return false;
   return (
-    el.offsetHeight === 0 &&
-    el.clientHeight === 0 &&
-    el.offsetWidth === 0 &&
-    el.clientWidth === 0
+    cs.display === 'none' ||
+    cs.visibility === 'hidden' ||
+    cs.opacity === '0' ||
+    cs.contentVisibility === 'hidden'
   );
 }
 
 /**
- * Compares an ad-looking honeypot to a neutral probe with the same off-screen geometry.
- * Brave Shields / filter lists often hide `.ads-google`-style classes only; a neutral sibling
- * staying visible while the bait is collapsed is a stronger signal than the bait alone.
+ * Class-switch probe: creates the element WITHOUT ad classes first (baseline),
+ * confirms it has normal 48px dimensions, then ADDS the ad class names and checks
+ * if it collapses.
+ *
+ * Why this eliminates loading-speed false positives:
+ *   - If a transient layout issue causes 0-size, it affects the baseline step too,
+ *     so we bail early before even adding ad classes.
+ *   - Only adblock CSS that specifically targets the ad class names causes the
+ *     asymmetric baseline\u21920 collapse that returns true.
+ *   - Unlike the old approach (element born with ad classes), there is no window
+ *     where a layout race could look identical to a real block.
  */
-async function detectAdBlockOnce() {
+async function detectAdBlockOnce(): Promise<boolean> {
   if (!isTabVisible()) return false;
 
-  const baseStyle =
+  const BASE_STYLE =
     'position:absolute;left:-9999px;top:-9999px;width:48px;height:48px;overflow:visible;pointer-events:none;';
 
-  const control = document.createElement('div');
-  control.className = `bm-ad-probe-${Math.random().toString(36).slice(2, 12)}`;
-  control.style.cssText = baseStyle;
-  control.textContent = '\u00a0';
+  const probe = document.createElement('div');
+  probe.style.cssText = BASE_STYLE;
+  probe.textContent = '\u00a0';
+  document.body.appendChild(probe);
 
-  const neutral = document.createElement('div');
-  neutral.className = `bm-probe-neutral-${Math.random().toString(36).slice(2, 12)}`;
-  neutral.style.cssText = baseStyle;
-  neutral.textContent = '\u00a0';
-
-  const honeypot = document.createElement('div');
-  honeypot.className = 'ad-banner adsbox ads-google ad-placement public_ads';
-  honeypot.style.cssText = baseStyle;
-  honeypot.innerHTML = '&nbsp;';
-
-  document.body.appendChild(control);
-  document.body.appendChild(neutral);
-  document.body.appendChild(honeypot);
-
+  // \u2500\u2500 Step 1: baseline with no ad classes \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   await runDoubleRaf();
-  await new Promise((r) => setTimeout(r, 520));
+  await new Promise((r) => setTimeout(r, PROBE_SETTLE_MS));
 
-  const controlOk = elementLooksPresent(control);
-  const neutralOk = elementLooksPresent(neutral);
-  const honeypotLooksBlocked = elementLooksBlocked(honeypot);
-
-  document.body.removeChild(control);
-  document.body.removeChild(neutral);
-  document.body.removeChild(honeypot);
-
-  if (!controlOk || !neutralOk) {
+  if (cssHidden(probe)) {
+    // Global CSS is hiding neutral divs \u2192 layout/framework issue; skip trial.
+    document.body.removeChild(probe);
     return false;
   }
-  return honeypotLooksBlocked;
+  const baseline = readBoxSize(probe);
+  if (baseline.w < 1 || baseline.h < 1) {
+    // Can't establish a clean baseline; bail to avoid false positive.
+    document.body.removeChild(probe);
+    return false;
+  }
+
+  // \u2500\u2500 Step 2: apply ad class names and re-measure \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  probe.className = 'ad-banner adsbox ads-google ad-placement public_ads';
+  await runDoubleRaf();
+  await new Promise((r) => setTimeout(r, PROBE_SETTLE_MS));
+
+  const hiddenAfter = cssHidden(probe);
+  const sizeAfter = readBoxSize(probe);
+  document.body.removeChild(probe);
+
+  if (hiddenAfter) return true;
+  // Element had normal size before ad classes; collapsed after \u2192 adblock CSS hid it.
+  if (sizeAfter.w < 1 && sizeAfter.h < 1) return true;
+  return false;
 }
 
-async function detectAdBlockConservative() {
+async function detectAdBlockConservative(): Promise<boolean> {
   let hits = 0;
   for (let i = 0; i < PROBE_TRIALS; i += 1) {
     if (!isTabVisible()) return false;
     if (await detectAdBlockOnce()) hits += 1;
     if (i < PROBE_TRIALS - 1) {
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, INTER_TRIAL_MS));
     }
   }
   return hits >= PROBE_MAJORITY;
+}
+
+/** Resolves on the first real user interaction (pointer, touch, keyboard, scroll). */
+function waitForFirstInteraction(): Promise<void> {
+  return new Promise((resolve) => {
+    const EVENTS = ['mousedown', 'touchstart', 'keydown', 'scroll'] as const;
+    const done = () => {
+      EVENTS.forEach((e) => window.removeEventListener(e, done));
+      resolve();
+    };
+    EVENTS.forEach((e) => window.addEventListener(e, done, { passive: true, once: true }));
+  });
 }
 
 const AdBlockDetector = () => {
@@ -125,30 +133,38 @@ const AdBlockDetector = () => {
   const [isDismissed, setIsDismissed] = useState(() => isDismissedInStorage());
 
   useEffect(() => {
-    if (isDismissedInStorage()) {
-      return undefined;
-    }
+    if (isDismissedInStorage()) return undefined;
 
     const disabled =
       String(import.meta.env.VITE_DISABLE_ADBLOCK_DETECTION || '').trim() === '1' ||
       String(import.meta.env.VITE_DISABLE_ADBLOCK_DETECTION || '').toLowerCase() === 'true';
-    if (disabled) {
-      return undefined;
-    }
+    if (disabled) return undefined;
 
-    const timer = setTimeout(async () => {
+    let cancelled = false;
+
+    const run = async () => {
+      // Wait for the document to fully load.
       if (document.readyState !== 'complete') {
         await new Promise<void>((r) => {
-          if (document.readyState === 'complete') r();
-          else window.addEventListener('load', () => r(), { once: true });
+          if (document.readyState === 'complete') { r(); return; }
+          window.addEventListener('load', () => r(), { once: true });
         });
       }
-      const blocked = await detectAdBlockConservative();
-      if (!blocked) return;
-      setIsDetected(true);
-    }, 5200);
 
-    return () => clearTimeout(timer);
+      // Only start after real user interaction \u2014 page layout is stable by then
+      // and we avoid false positives from rapid initial rendering.
+      await waitForFirstInteraction();
+
+      // Brief settle after the interaction burst starts.
+      await new Promise((r) => setTimeout(r, 2000));
+
+      if (cancelled) return;
+      const blocked = await detectAdBlockConservative();
+      if (!cancelled && blocked) setIsDetected(true);
+    };
+
+    void run();
+    return () => { cancelled = true; };
   }, []);
 
   const dismiss = () => {

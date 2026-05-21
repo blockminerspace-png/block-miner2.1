@@ -195,3 +195,54 @@ export async function sendWelcomeEmail({ to, name }: { to: string; name?: string
 
   logger.info("Welcome email sent", { to });
 }
+
+export async function sendAdminPasswordResetEmail({
+  to,
+  name,
+  newPassword,
+}: {
+  to: string;
+  name?: string | null;
+  newPassword: string;
+}): Promise<void> {
+  const tx = getTransporter();
+  if (!tx) {
+    throw new Error("SMTP not configured");
+  }
+
+  const safeName = name || "Miner";
+
+  const html = `
+  <div style="font-family:Arial,Helvetica,sans-serif;background:#020617;color:#e2e8f0;padding:24px;">
+    <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:24px;">
+      <h2 style="margin:0 0 8px 0;color:#f59e0b;">BlockMiner - Nova Senha</h2>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Olá, ${safeName}.</p>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Um administrador redefiniu sua senha. Use as credenciais abaixo para acessar sua conta:</p>
+      <p style="margin:0 0 8px 0;color:#94a3b8;font-size:13px;">E-mail: <span style="color:#f8fafc;font-weight:700;">${to}</span></p>
+      <p style="margin:0 0 20px 0;color:#94a3b8;font-size:13px;">Nova senha: <span style="display:inline-block;background:#1e293b;color:#fbbf24;font-weight:700;letter-spacing:2px;padding:6px 12px;border-radius:8px;font-size:18px;">${newPassword}</span></p>
+      <p style="margin:0;color:#64748b;font-size:12px;">Por segurança, recomendamos que troque esta senha após o primeiro acesso.</p>
+    </div>
+  </div>`;
+
+  const text = [
+    "BlockMiner - Nova Senha",
+    "",
+    `Olá, ${safeName}.`,
+    "Um administrador redefiniu sua senha. Use as credenciais abaixo:",
+    "",
+    `E-mail: ${to}`,
+    `Nova senha: ${newPassword}`,
+    "",
+    "Por segurança, recomendamos que troque esta senha após o primeiro acesso."
+  ].join("\n");
+
+  await tx.sendMail({
+    from: SMTP_FROM,
+    to,
+    subject: "BlockMiner - Nova Senha Definida pelo Suporte",
+    text,
+    html
+  });
+
+  logger.info("Admin password reset email sent", { to });
+}

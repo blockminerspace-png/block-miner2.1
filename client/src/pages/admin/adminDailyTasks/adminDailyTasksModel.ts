@@ -228,9 +228,142 @@ export type AdminDailyTaskDefinitionRow = {
   translationKey?: string | null;
   internalOfferwallOfferId?: number | null;
   rewardKind?: string | null;
+  rewardBlkAmount?: string | number | null;
+  rewardPolAmount?: string | number | null;
+  rewardHashRate?: string | number | null;
+  rewardHashRateDays?: number | null;
+  rewardMinerId?: number | null;
+  rewardEventMinerId?: number | null;
+  gameSlug?: string | null;
   isActive?: boolean | null;
   sortOrder?: number | null;
+  validFrom?: string | Date | null;
+  validUntil?: string | Date | null;
 };
+
+/** Format a Decimal/number value for display, keeping at most 8 significant decimal digits. */
+function fmtNum(v: string | number | null | undefined): string {
+  if (v == null) return '—';
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  if (!Number.isFinite(n)) return String(v);
+  return parseFloat(n.toFixed(8)).toString();
+}
+
+export function formatRewardSummary(r: AdminDailyTaskDefinitionRow): string {
+  const kind = String(r.rewardKind || '').toUpperCase();
+  switch (kind) {
+    case 'BLK': return `BLK ${fmtNum(r.rewardBlkAmount)}`;
+    case 'POL': return `POL ${fmtNum(r.rewardPolAmount)}`;
+    case 'HASHRATE_TEMP': return `+${fmtNum(r.rewardHashRate)} H/s ×${r.rewardHashRateDays ?? 1}d`;
+    case 'SHOP_MINER': return `Miner #${r.rewardMinerId ?? '?'}`;
+    case 'EVENT_MINER': return `EvMiner #${r.rewardEventMinerId ?? '?'}`;
+    default: return kind || '—';
+  }
+}
+
+/** Convert a date value to the format expected by <input type="datetime-local"> */
+export function toDatetimeLocal(v: string | Date | null | undefined): string {
+  if (!v) return '';
+  const d = typeof v === 'string' ? new Date(v) : v;
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export type EditFormState = {
+  slug: string;
+  taskType: string;
+  resetCadence: string;
+  targetValue: string;
+  translationKey: string;
+  rewardKind: string;
+  rewardBlkAmount: string;
+  rewardPolAmount: string;
+  rewardHashRate: string;
+  rewardHashRateDays: string;
+  rewardMinerId: string;
+  rewardEventMinerId: string;
+  gameSlug: string;
+  internalOfferwallOfferId: string;
+  isActive: boolean;
+  sortOrder: string;
+  validFrom: string;
+  validUntil: string;
+};
+
+export function defaultEditForm(row: AdminDailyTaskDefinitionRow): EditFormState {
+  return {
+    slug: row.slug,
+    taskType: String(row.taskType || ''),
+    resetCadence: String(row.resetCadence || 'DAILY').toUpperCase(),
+    targetValue: String(row.targetValue ?? '0'),
+    translationKey: String(row.translationKey ?? ''),
+    rewardKind: String(row.rewardKind || 'BLK').toUpperCase(),
+    rewardBlkAmount: row.rewardBlkAmount != null ? String(row.rewardBlkAmount) : '',
+    rewardPolAmount: row.rewardPolAmount != null ? String(row.rewardPolAmount) : '',
+    rewardHashRate: row.rewardHashRate != null ? String(row.rewardHashRate) : '',
+    rewardHashRateDays: row.rewardHashRateDays != null ? String(row.rewardHashRateDays) : '1',
+    rewardMinerId: row.rewardMinerId != null ? String(row.rewardMinerId) : '',
+    rewardEventMinerId: row.rewardEventMinerId != null ? String(row.rewardEventMinerId) : '',
+    gameSlug: String(row.gameSlug ?? ''),
+    internalOfferwallOfferId: row.internalOfferwallOfferId != null ? String(row.internalOfferwallOfferId) : '',
+    isActive: row.isActive !== false,
+    sortOrder: String(row.sortOrder ?? '0'),
+    validFrom: toDatetimeLocal(row.validFrom),
+    validUntil: toDatetimeLocal(row.validUntil),
+  };
+}
+
+export type EditDefinitionBody = {
+  slug: string;
+  taskType: string;
+  resetCadence: string;
+  targetValue: number;
+  translationKey: string;
+  rewardKind: string;
+  isActive: boolean;
+  sortOrder: number;
+  gameSlug: string | null;
+  internalOfferwallOfferId: number | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  rewardBlkAmount?: number;
+  rewardPolAmount?: number;
+  rewardHashRate?: number;
+  rewardHashRateDays?: number;
+  rewardMinerId?: number;
+  rewardEventMinerId?: number;
+};
+
+export function buildEditBody(f: EditFormState): EditDefinitionBody {
+  const rawTarget = parseFloat(String(f.targetValue).replace(',', '.'));
+  const targetValue = isCountTaskType(f.taskType) ? Math.round(rawTarget) : rawTarget;
+  const body: EditDefinitionBody = {
+    slug: f.slug.trim(),
+    taskType: f.taskType,
+    resetCadence: f.resetCadence,
+    targetValue,
+    translationKey: f.translationKey.trim(),
+    rewardKind: f.rewardKind,
+    isActive: f.isActive,
+    sortOrder: parseInt(String(f.sortOrder), 10) || 0,
+    gameSlug: String(f.gameSlug).trim() || null,
+    internalOfferwallOfferId: String(f.internalOfferwallOfferId).trim()
+      ? parseInt(String(f.internalOfferwallOfferId).trim(), 10)
+      : null,
+    validFrom: f.validFrom.trim() || null,
+    validUntil: f.validUntil.trim() || null,
+  };
+  if (f.rewardKind === 'BLK') body.rewardBlkAmount = parseFloat(String(f.rewardBlkAmount).replace(',', '.'));
+  if (f.rewardKind === 'POL') body.rewardPolAmount = parseFloat(String(f.rewardPolAmount).replace(',', '.'));
+  if (f.rewardKind === 'HASHRATE_TEMP') {
+    body.rewardHashRate = parseFloat(String(f.rewardHashRate).replace(',', '.'));
+    body.rewardHashRateDays = parseInt(String(f.rewardHashRateDays), 10);
+  }
+  if (f.rewardKind === 'SHOP_MINER') body.rewardMinerId = parseInt(String(f.rewardMinerId), 10);
+  if (f.rewardKind === 'EVENT_MINER') body.rewardEventMinerId = parseInt(String(f.rewardEventMinerId), 10);
+  return body;
+}
 
 export type DefinitionsListResponse = {
   ok?: boolean;

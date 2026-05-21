@@ -666,7 +666,26 @@
     "target_hint_WATCH_YOUTUBE": "Cuántas recompensas de YouTube reclamar.",
     "target_hint_MINE_BLK": "Total de BLK del pool a ganar (decimal).",
     "target_hint_default": "Define un objetivo positivo acorde al tipo de tarea.",
-    "create_type_advanced": "Tipo de tarea (avanzado)"
+    "create_type_advanced": "Tipo de tarea (avanzado)",
+    "col_edit": "Editar",
+    "edit_title": "Editar tarea — {{slug}}",
+    "edit_hint": "Todos los cambios se aplican inmediatamente a todos los usuarios.",
+    "edit_submit": "Guardar cambios",
+    "edit_cancel": "Cancelar",
+    "edit_success": "Tarea actualizada.",
+    "edit_error": "No se pudo actualizar la tarea.",
+    "section_id": "Identificación",
+    "section_task": "Tarea",
+    "section_reward": "Recompensa",
+    "section_visibility": "Visibilidad",
+    "edit_slug": "Slug (identificador)",
+    "edit_slug_warning": "Cambiar el slug puede romper enlaces externos que referencian esta tarea.",
+    "edit_task_type": "Tipo de tarea",
+    "edit_task_type_warning": "Cambiar el tipo afecta cómo se cuenta el progreso de los jugadores.",
+    "edit_valid_from": "Válido desde",
+    "edit_valid_until": "Válido hasta",
+    "edit_is_active": "Tarea activa",
+    "edit_sort_order": "Orden de visualización"
   },
   "miniPass": {
     "title": "Mini Pass",
@@ -1156,7 +1175,9 @@
       "multi_account_chain_overlap": "Direcciones conocidas también vinculadas a otras cuentas",
       "multi_account_via": "Vinculado vía: {{via}}",
       "page_prev": "Página anterior",
-      "page_next": "Página siguiente"
+      "page_next": "Página siguiente",
+      "load_button": "Ver datos del jugador",
+      "miner_count": "×{{count}}"
     }
   },
   "header": {

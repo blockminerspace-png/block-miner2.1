@@ -8,6 +8,8 @@ import {
   ListChecks,
   Plus,
   Trash2,
+  Pencil,
+  X,
   CalendarCheck,
   Gamepad2,
   Layers,
@@ -19,6 +21,7 @@ import { api } from '../../store/auth';
 import {
   type AdminDailyTaskDefinitionRow,
   type CreateFormState,
+  type EditFormState,
   type DefinitionsListResponse,
   type MutationResponse,
   type QuickTemplateId,
@@ -27,8 +30,11 @@ import {
   TASK_TYPES,
   applyQuickTemplate,
   buildCreateBody,
+  buildEditBody,
   coerceTargetWhenSwitchingTaskType,
   defaultCreateForm,
+  defaultEditForm,
+  formatRewardSummary,
   isCountTaskType
 } from './adminDailyTasks/adminDailyTasksModel';
 
@@ -62,6 +68,9 @@ export default function AdminDailyTasks() {
   const [createForm, setCreateForm] = useState<CreateFormState>(() => defaultCreateForm());
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingRow, setEditingRow] = useState<AdminDailyTaskDefinitionRow | null>(null);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -177,6 +186,43 @@ export default function AdminDailyTasks() {
       toast.error(axiosErrorMessage(err) || t('admin_daily_tasks.create_error'));
     } finally {
       setCreating(false);
+    }
+  };
+
+  const onStartEdit = (row: AdminDailyTaskDefinitionRow) => {
+    if (editingRow?.id === row.id) {
+      setEditingRow(null);
+      setEditForm(null);
+      return;
+    }
+    setEditingRow(row);
+    setEditForm(defaultEditForm(row));
+    setShowCreate(false);
+  };
+
+  const onCancelEdit = () => {
+    setEditingRow(null);
+    setEditForm(null);
+  };
+
+  const onSaveEdit = async () => {
+    if (!editingRow || !editForm) return;
+    setSaving(true);
+    try {
+      const body = buildEditBody(editForm);
+      const res = await api.patch<MutationResponse>(`/admin/daily-tasks/definitions/${editingRow.id}`, body);
+      if (res.data?.ok) {
+        toast.success(t('admin_daily_tasks.edit_success'));
+        setEditingRow(null);
+        setEditForm(null);
+        await load();
+      } else {
+        toast.error(res.data?.message || t('admin_daily_tasks.edit_error'));
+      }
+    } catch (err: unknown) {
+      toast.error(axiosErrorMessage(err) || t('admin_daily_tasks.edit_error'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -521,6 +567,7 @@ export default function AdminDailyTasks() {
                 <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_active')}</th>
                 <th className="px-4 py-3 font-semibold">{t('admin_daily_tasks.col_order')}</th>
                 <th className="px-4 py-3 font-semibold whitespace-nowrap">{t('admin_daily_tasks.col_save_order')}</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">{t('admin_daily_tasks.col_edit')}</th>
                 <th className="px-4 py-3 font-semibold whitespace-nowrap">{t('admin_daily_tasks.col_delete')}</th>
               </tr>
             </thead>
@@ -549,7 +596,7 @@ export default function AdminDailyTasks() {
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">
                     {r.internalOfferwallOfferId != null ? String(r.internalOfferwallOfferId) : '—'}
                   </td>
-                  <td className="px-4 py-3">{r.rewardKind}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{formatRewardSummary(r)}</td>
                   <td className="px-4 py-3">
                     <label className="inline-flex cursor-pointer select-none items-center gap-2">
                       <input
@@ -592,6 +639,22 @@ export default function AdminDailyTasks() {
                   <td className="px-4 py-3 align-middle">
                     <button
                       type="button"
+                      disabled={saving && editingRow?.id === r.id}
+                      onClick={() => onStartEdit(r)}
+                      className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-40 ${
+                        editingRow?.id === r.id
+                          ? 'border-sky-500/50 bg-sky-500/20 text-sky-300'
+                          : 'border-slate-600 bg-slate-800/60 text-slate-300 hover:border-sky-500/40 hover:text-sky-300'
+                      }`}
+                      aria-label={t('admin_daily_tasks.col_edit')}
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden />
+                      {t('admin_daily_tasks.col_edit')}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <button
+                      type="button"
                       disabled={deletingId === r.id || Boolean(patching[r.id])}
                       onClick={() => void onDelete(r.id, r.slug)}
                       className="inline-flex items-center gap-1 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-red-400 hover:bg-red-500/20 disabled:opacity-40"
@@ -611,6 +674,282 @@ export default function AdminDailyTasks() {
           </table>
         </div>
       )}
+
+      {editingRow && editForm ? (
+        <div className="rounded-2xl border border-sky-800/40 bg-slate-900/60 p-6 space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-white">{t('admin_daily_tasks.edit_title', { slug: editingRow.slug })}</h2>
+              <p className="text-xs text-slate-500 mt-1">{t('admin_daily_tasks.edit_hint')}</p>
+            </div>
+            <button type="button" onClick={onCancelEdit} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
+              <X className="h-5 w-5" aria-hidden />
+            </button>
+          </div>
+
+          {/* Identificação */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('admin_daily_tasks.section_id')}</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.edit_slug')}</span>
+                <input
+                  value={editForm.slug}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, slug: e.target.value } : f)}
+                  className="w-full rounded-lg border border-amber-500/30 bg-slate-950 px-3 py-2 font-mono text-sm text-amber-300"
+                />
+                <span className="block text-[11px] text-amber-400/80">{t('admin_daily_tasks.edit_slug_warning')}</span>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.edit_task_type')}</span>
+                <select
+                  value={editForm.taskType}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEditForm((f) => {
+                      if (!f) return f;
+                      const nextTv = coerceTargetWhenSwitchingTaskType(f.taskType, v, f.targetValue);
+                      return { ...f, taskType: v, targetValue: nextTv };
+                    });
+                  }}
+                  className="w-full rounded-lg border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-amber-300"
+                >
+                  {TASK_TYPES.map((tt) => (
+                    <option key={tt} value={tt}>{t(`admin_daily_tasks.type_${tt}`)}</option>
+                  ))}
+                </select>
+                <span className="block text-[11px] text-amber-400/80">{t('admin_daily_tasks.edit_task_type_warning')}</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Período */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('admin_daily_tasks.cadence_picker')}</p>
+            <div className="flex flex-wrap gap-2">
+              {RESET_CADENCES.map((c) => {
+                const on = editForm.resetCadence === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setEditForm((f) => f ? { ...f, resetCadence: c } : f)}
+                    className={`rounded-xl border px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+                      on
+                        ? 'border-sky-400/60 bg-sky-500/20 text-sky-100 shadow-md'
+                        : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                    }`}
+                  >
+                    {t(`admin_daily_tasks.cadence_${c}`)}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.edit_valid_from')}</span>
+                <input
+                  type="datetime-local"
+                  value={editForm.validFrom}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, validFrom: e.target.value } : f)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.edit_valid_until')}</span>
+                <input
+                  type="datetime-local"
+                  value={editForm.validUntil}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, validUntil: e.target.value } : f)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Tarefa */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('admin_daily_tasks.section_task')}</p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">
+                  {isCountTaskType(editForm.taskType)
+                    ? t('admin_daily_tasks.create_target_count')
+                    : t('admin_daily_tasks.create_target_mine')}
+                </span>
+                <input
+                  type={isCountTaskType(editForm.taskType) ? 'number' : 'text'}
+                  inputMode={isCountTaskType(editForm.taskType) ? 'numeric' : 'decimal'}
+                  min={isCountTaskType(editForm.taskType) ? 1 : undefined}
+                  step={isCountTaskType(editForm.taskType) ? 1 : 'any'}
+                  value={editForm.targetValue}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, targetValue: e.target.value } : f)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+              <label className="block space-y-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_i18n_key')}</span>
+                <input
+                  value={editForm.translationKey}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, translationKey: e.target.value } : f)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+              {editForm.taskType === 'PLAY_GAMES' ? (
+                <label className="block space-y-1 sm:col-span-2">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_game_slug')}</span>
+                  <input
+                    value={editForm.gameSlug}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, gameSlug: e.target.value } : f)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                    placeholder="memory"
+                  />
+                </label>
+              ) : null}
+              {editForm.taskType === 'INTERNAL_OFFERWALL' ? (
+                <label className="block space-y-1 sm:col-span-2">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_internal_offerwall_offer_id')}</span>
+                  <input
+                    type="number" min={1}
+                    value={editForm.internalOfferwallOfferId}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, internalOfferwallOfferId: e.target.value } : f)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                    placeholder="1"
+                  />
+                </label>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Recompensa */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('admin_daily_tasks.section_reward')}</p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_kind')}</span>
+                <select
+                  value={editForm.rewardKind}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, rewardKind: e.target.value } : f)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                >
+                  {REWARD_KINDS.map((rk) => (
+                    <option key={rk} value={rk}>{t(`admin_daily_tasks.reward_${rk}`)}</option>
+                  ))}
+                </select>
+              </label>
+              {editForm.rewardKind === 'BLK' ? (
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_blk')}</span>
+                  <input
+                    value={editForm.rewardBlkAmount}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, rewardBlkAmount: e.target.value } : f)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  />
+                </label>
+              ) : null}
+              {editForm.rewardKind === 'POL' ? (
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_pol')}</span>
+                  <input
+                    value={editForm.rewardPolAmount}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, rewardPolAmount: e.target.value } : f)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  />
+                </label>
+              ) : null}
+              {editForm.rewardKind === 'HASHRATE_TEMP' ? (
+                <>
+                  <label className="block space-y-1">
+                    <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_hash')}</span>
+                    <input
+                      value={editForm.rewardHashRate}
+                      onChange={(e) => setEditForm((f) => f ? { ...f, rewardHashRate: e.target.value } : f)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_days')}</span>
+                    <input
+                      type="number" min={1} max={365}
+                      value={editForm.rewardHashRateDays}
+                      onChange={(e) => setEditForm((f) => f ? { ...f, rewardHashRateDays: e.target.value } : f)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                    />
+                  </label>
+                </>
+              ) : null}
+              {editForm.rewardKind === 'SHOP_MINER' ? (
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_miner_id')}</span>
+                  <input
+                    type="number" min={1}
+                    value={editForm.rewardMinerId}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, rewardMinerId: e.target.value } : f)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  />
+                </label>
+              ) : null}
+              {editForm.rewardKind === 'EVENT_MINER' ? (
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.create_reward_event_miner_id')}</span>
+                  <input
+                    type="number" min={1}
+                    value={editForm.rewardEventMinerId}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, rewardEventMinerId: e.target.value } : f)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                  />
+                </label>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Visibilidade */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('admin_daily_tasks.section_visibility')}</p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="flex items-center gap-2 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={editForm.isActive}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, isActive: e.target.checked } : f)}
+                  className="h-4 w-4 rounded border-slate-600 accent-emerald-500"
+                />
+                <span className="text-sm text-slate-300">{t('admin_daily_tasks.edit_is_active')}</span>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-400">{t('admin_daily_tasks.edit_sort_order')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99999}
+                  value={editForm.sortOrder}
+                  onChange={(e) => setEditForm((f) => f ? { ...f, sortOrder: e.target.value } : f)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void onSaveEdit()}
+              className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-2.5 text-sm font-black uppercase tracking-wide text-white disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : t('admin_daily_tasks.edit_submit')}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={onCancelEdit}
+              className="rounded-xl border border-slate-700 px-6 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+            >
+              {t('admin_daily_tasks.edit_cancel')}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

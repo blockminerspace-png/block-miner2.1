@@ -20,6 +20,7 @@ import type {
   AdminSupportDossierDepositRow,
   AdminSupportDossierDepositTicketRow,
   AdminSupportDossierMachineCardRow,
+  AdminSupportDossierMinerRow,
   AdminSupportDossierPaged,
   AdminSupportDossierPayoutRow,
   AdminSupportDossierWithdrawalRow,
@@ -117,6 +118,22 @@ export default function AdminSupportPlayerDossier({
     }),
     [dossier]
   );
+
+  const groupedMiners = useMemo(() => {
+    if (!dossier?.miners?.rows?.length) return [];
+    const groups = new Map<string, { row: AdminSupportDossierMinerRow; count: number; activeCount: number }>();
+    for (const m of dossier.miners.rows) {
+      const key = `${m.minerId ?? m.displayName ?? ""}|${m.level ?? ""}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.count++;
+        if (m.isActive) existing.activeCount++;
+      } else {
+        groups.set(key, { row: m, count: 1, activeCount: m.isActive ? 1 : 0 });
+      }
+    }
+    return Array.from(groups.values());
+  }, [dossier?.miners?.rows]);
 
   if (!bundle) {
     if (loading) {
@@ -476,13 +493,14 @@ export default function AdminSupportPlayerDossier({
             onNext={() => changePage("minersPage", 1)}
           />
         </div>
-        {dossier.miners?.rows?.length ? (
+        {groupedMiners.length ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {dossier.miners.rows.map((m) => {
+            {groupedMiners.map(({ row: m, count, activeCount }) => {
               const src = resolveAdminAssetUrl(m.imageUrl);
+              const grouped = count > 1;
               return (
-                <div key={String(m.id)} className="flex gap-3 rounded-lg border border-slate-800/80 bg-slate-900/50 p-3">
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
+                <div key={`${String(m.minerId ?? m.displayName)}-${String(m.level)}`} className="flex gap-3 rounded-lg border border-slate-800/80 bg-slate-900/50 p-3">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
                     {src ? (
                       <img
                         src={src}
@@ -498,18 +516,31 @@ export default function AdminSupportPlayerDossier({
                         <User className="h-6 w-6" />
                       </div>
                     )}
+                    {grouped && (
+                      <span className="absolute bottom-0 right-0 rounded-tl-md bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-slate-950 leading-none">
+                        {t("admin_support.dossier.miner_count", { count })}
+                      </span>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1 text-xs text-slate-300">
                     <p className="font-bold text-white">{m.displayName}</p>
-                    <p className="mt-1 font-mono text-[10px] text-slate-500">ID {m.id}</p>
-                    <p>
+                    {!grouped && (
+                      <p className="mt-1 font-mono text-[10px] text-slate-500">ID {m.id}</p>
+                    )}
+                    <p className="mt-1">
                       {t("admin_support.dossier.miner_level")}: {m.level} · {t("admin_support.dossier.miner_hash")}:{" "}
                       {m.hashRate} · {t("admin_support.dossier.miner_slots")}: {m.slotSize}
                     </p>
-                    <p className="text-slate-500">
-                      {t("admin_support.dossier.miner_slot_index")}: {m.slotIndex} · {t("admin_support.dossier.miner_active")}:{" "}
-                      {m.isActive ? t("admin_support.dossier.yes") : t("admin_support.dossier.no")}
-                    </p>
+                    {grouped ? (
+                      <p className="text-slate-500">
+                        {t("admin_support.dossier.miner_active")}: {activeCount}/{count}
+                      </p>
+                    ) : (
+                      <p className="text-slate-500">
+                        {t("admin_support.dossier.miner_slot_index")}: {m.slotIndex} · {t("admin_support.dossier.miner_active")}:{" "}
+                        {m.isActive ? t("admin_support.dossier.yes") : t("admin_support.dossier.no")}
+                      </p>
+                    )}
                   </div>
                 </div>
               );

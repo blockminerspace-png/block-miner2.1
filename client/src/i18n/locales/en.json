@@ -1030,7 +1030,26 @@
     "target_hint_WATCH_YOUTUBE": "How many YouTube rewards to claim.",
     "target_hint_MINE_BLK": "Total BLK from the pool to earn (decimal).",
     "target_hint_default": "Set a positive target that matches the selected task type.",
-    "create_type_advanced": "Task type (advanced override)"
+    "create_type_advanced": "Task type (advanced override)",
+    "col_edit": "Edit",
+    "edit_title": "Edit task — {{slug}}",
+    "edit_hint": "All changes take effect immediately for all users.",
+    "edit_submit": "Save changes",
+    "edit_cancel": "Cancel",
+    "edit_success": "Task updated.",
+    "edit_error": "Could not update the task.",
+    "section_id": "Identification",
+    "section_task": "Task",
+    "section_reward": "Reward",
+    "section_visibility": "Visibility",
+    "edit_slug": "Slug (identifier)",
+    "edit_slug_warning": "Changing the slug may break external links that reference this task.",
+    "edit_task_type": "Task type",
+    "edit_task_type_warning": "Changing the type affects how player progress is counted.",
+    "edit_valid_from": "Valid from",
+    "edit_valid_until": "Valid until",
+    "edit_is_active": "Task active",
+    "edit_sort_order": "Display order"
   },
   "miniPass": {
     "title": "Mini Pass",
@@ -1520,7 +1539,9 @@
       "multi_account_chain_overlap": "Known addresses also linked to other accounts",
       "multi_account_via": "Linked via: {{via}}",
       "page_prev": "Previous page",
-      "page_next": "Next page"
+      "page_next": "Next page",
+      "load_button": "View player data",
+      "miner_count": "×{{count}}"
     }
   },
   "header": {
