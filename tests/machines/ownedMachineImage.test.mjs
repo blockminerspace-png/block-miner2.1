@@ -8,12 +8,12 @@ import {
 
 describe("ownedMachineImage", () => {
   it("detects stock placeholder paths", () => {
-    assert.equal(isStockPlaceholderMinerImageUrl("/machines/reward1.png"), true);
+    assert.equal(isStockPlaceholderMinerImageUrl("/icon.png"), true);
     assert.equal(isStockPlaceholderMinerImageUrl("/uploads/miners/a.png"), false);
   });
 
   it("does not persist stock placeholders", () => {
-    assert.equal(normalizePersistableMinerImageUrl("/machines/reward1.png"), null);
+    assert.equal(normalizePersistableMinerImageUrl("/icon.png"), null);
     assert.equal(normalizePersistableMinerImageUrl("/uploads/miners/x.png"), "/uploads/miners/x.png");
   });
 
@@ -39,8 +39,8 @@ describe("ownedMachineImage", () => {
 
   it("returns none when no real image exists", () => {
     const c = resolveOwnedMachineImageUrl({
-      rowImageUrl: "/machines/reward2.png",
-      catalogImageUrl: "/machines/1.png",
+      rowImageUrl: "/icon.png",
+      catalogImageUrl: "/icon.png",
     });
     assert.equal(c.imageUrl, null);
     assert.equal(c.imageSource, "none");

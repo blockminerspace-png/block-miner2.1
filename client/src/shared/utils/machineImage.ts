@@ -5,12 +5,6 @@
 export type MachineImageSource = "owned_snapshot" | "catalog_current" | "none";
 
 const STOCK_PLACEHOLDER_PATHS = new Set([
-  "/machines/reward1.png",
-  "/machines/reward2.png",
-  "/machines/reward3.png",
-  "/machines/1.png",
-  "/machines/2.png",
-  "/machines/3.png",
   "/icon.png",
 ]);
 
