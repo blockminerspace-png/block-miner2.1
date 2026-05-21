@@ -21,15 +21,19 @@ wait_for_db() {
 # Wait function
 wait_for_db
 
-echo "Database is ready. Syncing Prisma schema..."
+echo "Database is ready. Applying pending migrations..."
 # Generate Prisma client if it's missing (failsafe)
 npx prisma generate --schema=server/prisma/schema.prisma || true
 
-# Safety first:
-# By default, boot MUST NOT change schema/data.
-# Explicitly enable with DB_BOOTSTRAP_ON_STARTUP=true when you really want it.
+# Always run pending migrations (idempotent — only applies what's missing).
+npx prisma migrate deploy --schema=server/prisma/schema.prisma || {
+  echo "Warning: prisma migrate deploy failed. Continuing startup to keep service available."
+}
+echo "Migrations applied."
+
+# Optional extended bootstrap: db push (schema drift fix) + seed.
+# Enable with DB_BOOTSTRAP_ON_STARTUP=true only when you explicitly need it.
 if is_true "${DB_BOOTSTRAP_ON_STARTUP:-false}"; then
-  # Deploy schema changes safely (no --accept-data-loss).
   echo "DB_BOOTSTRAP_ON_STARTUP enabled: running prisma db push..."
   npx prisma db push --schema=server/prisma/schema.prisma || {
     echo "Warning: prisma db push failed. Continuing startup to keep service available."
