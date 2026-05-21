@@ -1,10 +1,12 @@
 import express from "express";
 import {
   archiveAdminMinerController,
+  assignBrokenMachinesController,
   createAdminMinerController,
   duplicateAdminMinerController,
   getAdminMinerController,
   listAdminMinersController,
+  listBrokenMachineGroupsController,
   listOrphanMachineTypesController,
   relinkOrphanMachineTypesController,
   toggleAdminMinerActiveController,
@@ -17,6 +19,8 @@ import {
 export const adminMinersRouter = express.Router();
 
 adminMinersRouter.get("/miners", listAdminMinersController);
+adminMinersRouter.get("/miners/broken-machines", listBrokenMachineGroupsController);
+adminMinersRouter.post("/miners/broken-machines/assign", assignBrokenMachinesController);
 adminMinersRouter.get("/miners/orphan-types", listOrphanMachineTypesController);
 adminMinersRouter.post("/miners/orphan-types/relink", relinkOrphanMachineTypesController);
 adminMinersRouter.post("/miners", optionalAdminMinerImageUpload, createAdminMinerController);

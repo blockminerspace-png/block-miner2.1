@@ -31,6 +31,7 @@ import { AdminMinersError } from './components/AdminMinersError';
 import AdminMinerImage from './components/AdminMinerImage';
 import AdminMinerImageInput from './components/AdminMinerImageInput';
 import { AdminOrphanMachineTypesPanel } from './AdminOrphanMachineTypesPanel';
+import { AdminBrokenMachinesPanel } from './AdminBrokenMachinesPanel';
 
 type MinerFormState = {
   id?: number;
@@ -350,6 +351,7 @@ export default function AdminMinersPage() {
 
       {listError ? <AdminMinersError message={listError} onRetry={() => void reload()} /> : null}
 
+      <AdminBrokenMachinesPanel />
       <AdminOrphanMachineTypesPanel />
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">

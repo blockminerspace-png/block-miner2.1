@@ -71,6 +71,44 @@ function handleAdminMinersError(res: Response, error: unknown, fallbackMessage: 
   return sendFailure(res, 500, ADMIN_MINERS_ERROR.INTERNAL_ERROR, fallbackMessage);
 }
 
+export async function listBrokenMachineGroupsController(req: Request, res: Response) {
+  try {
+    const { listBrokenMachineGroups } = await import("./adminMiners.machineRepair.js");
+    const groups = await listBrokenMachineGroups(prisma);
+    return res.json({ ok: true, groups, total: groups.reduce((s, g) => s + g.count, 0) });
+  } catch (err: unknown) {
+    console.error("listBrokenMachineGroups", err);
+    return res.status(500).json({ ok: false, message: "Erro ao listar máquinas problemáticas." });
+  }
+}
+
+export async function assignBrokenMachinesController(req: Request, res: Response) {
+  try {
+    const body = (req.body ?? {}) as QueryRecord;
+    const { assignMinerToGroup, autoAssignAllBrokenMachines } = await import("./adminMiners.machineRepair.js");
+
+    if (body.autoAll === true || body.autoAll === "true" || body.autoAll === 1) {
+      const result = await autoAssignAllBrokenMachines(prisma);
+      return res.json(result);
+    }
+
+    const minerName = String(body.minerName ?? "").trim();
+    const hashRate = Number(body.hashRate);
+    const location = String(body.location ?? "").trim();
+    const catalogMinerId = Number(body.catalogMinerId);
+
+    if (!minerName || isNaN(hashRate) || !location || !catalogMinerId) {
+      return sendFailure(res, 400, ADMIN_MINERS_ERROR.INVALID_PAYLOAD, "Campos obrigatórios: minerName, hashRate, location, catalogMinerId.");
+    }
+
+    const result = await assignMinerToGroup(prisma, { minerName, hashRate, location, catalogMinerId });
+    return res.status(result.ok ? 200 : 400).json(result);
+  } catch (err: unknown) {
+    console.error("assignBrokenMachines", err);
+    return handleAdminMinersError(res, err, "Erro ao atribuir mineradora.");
+  }
+}
+
 export async function listOrphanMachineTypesController(req: Request, res: Response) {
   try {
     const { listOrphanMachineTypes } = await import("./adminMiners.orphanTypes.js");
