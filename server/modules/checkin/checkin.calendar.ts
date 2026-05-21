@@ -37,7 +37,7 @@ function getBrazilHourMinute(now: Date, timezone: string): { hour: number; minut
     hour12: false,
   });
   const parts = fmt.formatToParts(now);
-  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0") % 24;
   const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
   return { hour, minute };
 }
@@ -83,8 +83,7 @@ export function isSameCheckinPeriod(storedKey: string, currentEndKey: string): b
   const stored = normalizeBrazilDateKey(storedKey);
   const current = normalizeBrazilDateKey(currentEndKey);
   if (!stored || !current) return false;
-  if (stored === current) return true;
-  return stored === getLegacyPeriodStartKey(current);
+  return stored === current;
 }
 
 /** True when `storedKey` is the immediately preceding period (end or legacy start key). */
@@ -93,8 +92,7 @@ export function isPreviousPeriodEndKey(storedKey: string, currentEndKey: string)
   const current = normalizeBrazilDateKey(currentEndKey);
   if (!stored || !current) return false;
   const prevEnd = addDaysToBrazilDateKey(current, -1);
-  if (stored === prevEnd) return true;
-  return stored === getLegacyPeriodStartKey(prevEnd);
+  return stored === prevEnd;
 }
 
 /** DB lookup keys for a period end dateKey (current + legacy start aliases). */
@@ -103,10 +101,6 @@ export function getCheckinPeriodLookupKeys(endKey: string): string[] {
   if (!normalized) return [];
   const keys = new Set<string>();
   for (const alias of getBrazilDateKeyAliases(normalized)) {
-    keys.add(alias);
-  }
-  const legacyStart = getLegacyPeriodStartKey(normalized);
-  for (const alias of getBrazilDateKeyAliases(legacyStart)) {
     keys.add(alias);
   }
   return [...keys];

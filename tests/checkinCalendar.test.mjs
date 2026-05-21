@@ -22,15 +22,15 @@ describe("checkin.calendar (period end dateKey)", () => {
     assert.equal(getCheckinPeriodEndKey(now, cfg), "2026-05-20");
   });
 
-  it("legacy start key matches same period as end key", () => {
-    assert.equal(isSameCheckinPeriod("2026-05-19", "2026-05-20"), true);
+  it("legacy start key does not match same period as end key", () => {
+    assert.equal(isSameCheckinPeriod("2026-05-19", "2026-05-20"), false);
     assert.equal(isSameCheckinPeriod("2026-05-20", "2026-05-20"), true);
     assert.equal(isSameCheckinPeriod("2026-05-18", "2026-05-20"), false);
   });
 
   it("previous period end is distinct from current", () => {
     assert.equal(isPreviousPeriodEndKey("2026-05-19", "2026-05-20"), true);
-    assert.equal(isSameCheckinPeriod("2026-05-19", "2026-05-20"), true);
+    assert.equal(isSameCheckinPeriod("2026-05-19", "2026-05-20"), false);
     assert.equal(isPreviousPeriodEndKey("2026-05-18", "2026-05-20"), false);
   });
 
@@ -41,10 +41,10 @@ describe("checkin.calendar (period end dateKey)", () => {
     assert.equal(isSameCheckinPeriod("2026-05-19", current), false);
   });
 
-  it("lookup keys include legacy start alias", () => {
+  it("lookup keys do not include legacy start alias", () => {
     const keys = getCheckinPeriodLookupKeys("2026-05-20");
     assert.equal(keys.includes("2026-05-20"), true);
-    assert.equal(keys.includes("2026-05-19"), true);
+    assert.equal(keys.includes("2026-05-19"), false);
   });
 
   it("current period window spans 21:00 to 20:59 BRT", () => {

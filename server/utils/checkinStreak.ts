@@ -89,7 +89,6 @@ export async function computeStreakAfterCheckin(
     where: { userId: input.userId, status: "confirmed" },
     orderBy: [{ confirmedAt: "desc" }, { createdAt: "desc" }],
     select: { checkinDate: true, streak: true },
-    take: 30,
   });
 
   const confirmedKeys = rows
@@ -97,7 +96,15 @@ export async function computeStreakAfterCheckin(
     .filter((k): k is string => Boolean(k));
 
   const lastKey = confirmedKeys[0] ?? null;
-  const lastStreak = rows[0]?.streak ?? 0;
+  let lastStreak = 0;
+  if (lastKey) {
+    let cursor = lastKey;
+    const confirmedSet = new Set(confirmedKeys);
+    while (confirmedSet.has(cursor)) {
+      lastStreak += 1;
+      cursor = addDaysToBrazilDateKey(cursor, -1);
+    }
+  }
 
   if (isSameCheckinPeriod(lastKey, periodKey)) {
     return { streakAfter: Math.max(lastStreak, 1), usedGrace: false, usedFreeze: false };
