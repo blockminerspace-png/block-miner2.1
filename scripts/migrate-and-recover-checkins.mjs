@@ -79,7 +79,15 @@ async function main() {
     deletedCount++;
   }
 
-  // 2. Update keys for the best rows
+  // 2. Update keys to temporary unique strings first to prevent transient collisions
+  for (const { id } of toUpdate) {
+    await prisma.dailyCheckin.update({
+      where: { id },
+      data: { checkinDate: `temp-migrate-${id}` }
+    });
+  }
+
+  // 3. Now update to final correct keys
   for (const { id, correctKey } of toUpdate) {
     await prisma.dailyCheckin.update({
       where: { id },
