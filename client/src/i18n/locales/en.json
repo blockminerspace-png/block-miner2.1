@@ -1859,7 +1859,7 @@
     "subtitle": "Earn temporary mining power every 60 minutes. Complete the partner step to unlock your bonus.",
     "loading": "Loading faucet…",
     "reward_permanent": "Never expires",
-    "reward_temporary": "Time-limited",
+    "reward_temporary": "Temporary power valid for 24 hours",
     "avail_prize": "Available Prize",
     "ghs": "H/s",
     "slots": "Slots",

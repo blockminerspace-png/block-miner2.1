@@ -26,7 +26,7 @@ export function mapPublicReward(reward: FaucetRewardInfo) {
     hashRate: reward.miner.baseHashRate,
     slotSize: reward.miner.slotSize,
     imageUrl: normalizePersistableMinerImageUrl(reward.miner.imageUrl) ?? null,
-    inventoryPermanent: true,
+    inventoryPermanent: reward.miner.id === 999999 ? false : ((reward.miner as any).inventoryPermanent ?? true),
     inventoryExpiresAt: null,
   };
 }
