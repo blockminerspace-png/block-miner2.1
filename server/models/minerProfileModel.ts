@@ -55,14 +55,17 @@ export async function getOrCreateMinerProfile(user: { id: number }) {
     where: { userId: user.id }
   });
 
-  // Count active temporary powers (Games, YouTube & Auto Mining)
+  // Count active temporary powers (Games, YouTube, Shortlink & Auto Mining)
   const now = new Date();
   const v2Ok = await isAutoMiningV2SchemaAvailable();
-  const [gamePowers, ytPowers, gpuPowers, autoMiningV2Grants] = await Promise.all([
+  const [gamePowers, ytPowers, shortlinkPowers, gpuPowers, autoMiningV2Grants] = await Promise.all([
     prisma.userPowerGame.findMany({
       where: { userId: user.id, expiresAt: { gt: now } }
     }),
     prisma.youtubeWatchPower.findMany({
+      where: { userId: user.id, expiresAt: { gt: now } }
+    }),
+    prisma.shortlinkPower.findMany({
       where: { userId: user.id, expiresAt: { gt: now } }
     }),
     prisma.autoMiningGpu.findMany({
@@ -82,11 +85,12 @@ export async function getOrCreateMinerProfile(user: { id: number }) {
   }, 0);
   const gameHashRate = gamePowers.reduce((sum, g) => sum + (g.hashRate || 0), 0);
   const ytHashRate = ytPowers.reduce((sum, y) => sum + (y.hashRate || 0), 0);
+  const shortlinkHashRate = shortlinkPowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
   const legacyGpuHashRate = gpuPowers.reduce((sum, p) => sum + (p.gpuHashRate || 0), 0);
   const v2GpuHashRate = autoMiningV2Grants.reduce((sum, g) => sum + (Number(g.hashRate) || 0), 0);
   const gpuHashRate = legacyGpuHashRate + v2GpuHashRate;
 
-  const totalHashRate = machineHashRate + gameHashRate + ytHashRate + gpuHashRate;
+  const totalHashRate = machineHashRate + gameHashRate + ytHashRate + shortlinkHashRate + gpuHashRate;
 
   return {
     ...profile,
@@ -136,10 +140,11 @@ export async function persistMinerProfile(miner: {
 export async function syncUserBaseHashRate(userId) {
   const now = new Date();
   const v2Ok = await isAutoMiningV2SchemaAvailable();
-  const [activeMiners, gamePowers, ytPowers, gpuPowers, autoMiningV2Grants] = await Promise.all([
+  const [activeMiners, gamePowers, ytPowers, shortlinkPowers, gpuPowers, autoMiningV2Grants] = await Promise.all([
     prisma.userMiner.findMany({ where: { userId, isActive: true } }),
     prisma.userPowerGame.findMany({ where: { userId, expiresAt: { gt: now } } }),
     prisma.youtubeWatchPower.findMany({ where: { userId, expiresAt: { gt: now } } }),
+    prisma.shortlinkPower.findMany({ where: { userId, expiresAt: { gt: now } } }),
     prisma.autoMiningGpu.findMany({ where: { userId, isClaimed: true, expiresAt: { gt: now } } }),
     v2Ok
       ? prisma.autoMiningV2PowerGrant.findMany({
@@ -156,9 +161,10 @@ export async function syncUserBaseHashRate(userId) {
   }, 0);
   const gameHashRate = gamePowers.reduce((sum, g) => sum + (g.hashRate || 0), 0);
   const ytHashRate = ytPowers.reduce((sum, y) => sum + (y.hashRate || 0), 0);
+  const shortlinkHashRate = shortlinkPowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
   const legacyGpuHashRate = gpuPowers.reduce((sum, p) => sum + (p.gpuHashRate || 0), 0);
   const v2GpuHashRate = autoMiningV2Grants.reduce((sum, g) => sum + (Number(g.hashRate) || 0), 0);
   const gpuHashRate = legacyGpuHashRate + v2GpuHashRate;
 
-  return machineHashRate + gameHashRate + ytHashRate + gpuHashRate;
+  return machineHashRate + gameHashRate + ytHashRate + shortlinkHashRate + gpuHashRate;
 }

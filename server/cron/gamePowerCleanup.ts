@@ -43,6 +43,14 @@ export function startGamePowerCleanup(_args: GamePowerCleanupArgs): ReturnType<t
         logger.info(`Cleaned up ${expiredYtPowers.count} expired YouTube powers.`);
       }
 
+      const expiredShortlinkPowers = await prisma.shortlinkPower.deleteMany({
+        where: { expiresAt: { lt: now } },
+      });
+
+      if (expiredShortlinkPowers.count > 0) {
+        logger.info(`Cleaned up ${expiredShortlinkPowers.count} expired shortlink powers.`);
+      }
+
       if (await isAutoMiningV2SchemaAvailable()) {
         const staleAmV2Imp = await cleanupStaleAutoMiningV2Impressions();
         if (staleAmV2Imp > 0) {

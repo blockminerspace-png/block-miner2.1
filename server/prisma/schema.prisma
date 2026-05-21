@@ -60,6 +60,7 @@ model User {
   gamePowers    UserPowerGame[]
   ytPowers      YoutubeWatchPower[]
   ytHistory     YoutubeWatchHistory[]
+  shortlinkPowers ShortlinkPower[]
   rackConfigs   RackConfig[]
   ptpAds        PtpAd[]
   ptpEarnings   PtpEarning[]
@@ -1041,6 +1042,21 @@ model YoutubeWatchHistory {
 
   @@index([userId])
   @@map("youtube_watch_power_history")
+}
+
+model ShortlinkPower {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  hashRate  Float    @default(5.0) @map("hash_rate")
+  claimedAt DateTime @map("claimed_at")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("shortlink_powers")
 }
 
 model PtpAd {

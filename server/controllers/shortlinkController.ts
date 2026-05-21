@@ -3,13 +3,15 @@ import type { Request, Response } from "express";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import { createAuditLog } from "../models/auditLogModel.js";
-import { INTERNAL_SHORTLINK_TYPE } from "../models/shortlinkRewardModel.js";
-import { createInventoryWithOwnedMachineTx } from "../services/userOwnedMachineService.js";
+import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
+import { getMiningEngine } from "../src/miningEngineInstance.js";
 import type { Prisma } from "@prisma/client";
 
 const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
 const MAX_DAILY_RUNS = 1;
+const REWARD_HASH_RATE = 5.0;
+const REWARD_DURATION_HOURS = 24;
 
 type AuthedRequest = Request & { user: { id: number } };
 
@@ -58,7 +60,7 @@ export async function getShortlinkStatus(req: Request, res: Response) {
         currentStep: status.currentStep,
         dailyRuns: status.dailyRuns,
         shortlinkName: "Internal Shortlink",
-        rewardName: "5 HS Mining Machine",
+        rewardName: `+${REWARD_HASH_RATE} H/s por ${REWARD_DURATION_HOURS}h`,
         totalSteps: TOTAL_STEPS,
         maxDailyRuns: MAX_DAILY_RUNS,
         inProgress: status.currentStep > 0
@@ -117,12 +119,10 @@ export async function completeShortlinkStep(req: Request, res: Response) {
 
     const incidents: string[] = [];
     if (status.sessionToken !== sessionToken) incidents.push("token_mismatch");
-
     if (securityFlags?.isUntrustedEvent) incidents.push("script_click");
 
     const startTime = status.stepStartedAt ? status.stepStartedAt.getTime() : 0;
     const timeElapsed = now.getTime() - startTime;
-
     if (timeElapsed < 8000) incidents.push("too_fast");
 
     if (incidents.length > 0) {
@@ -141,7 +141,6 @@ export async function completeShortlinkStep(req: Request, res: Response) {
       return res.status(403).json({ ok: false, message: "Detection: " + incidents.join(", "), kick: true });
     }
 
-    let reward: { message: string } | null = null;
     const isLastStep = normalizedStep === TOTAL_STEPS;
     const nextStep = isLastStep ? 0 : normalizedStep + 1;
     const nextSessionToken = isLastStep ? null : generateStepToken(userId, nextStep);
@@ -159,32 +158,45 @@ export async function completeShortlinkStep(req: Request, res: Response) {
       });
 
       if (isLastStep) {
-        const shortlinkReward = await tx.shortlinkReward.findFirst({
-          where: { shortlinkType: INTERNAL_SHORTLINK_TYPE, isActive: true },
-          include: { miner: true }
+        const expiresAt = new Date(now.getTime() + REWARD_DURATION_HOURS * 60 * 60 * 1000);
+        await tx.shortlinkPower.create({
+          data: { userId, hashRate: REWARD_HASH_RATE, claimedAt: now, expiresAt }
         });
-
-        if (!shortlinkReward?.miner) {
-          throw new Error("Recompensa de shortlink não configurada no sistema. Contate o administrador.");
-        }
-
-        const miner = shortlinkReward.miner;
-        await createInventoryWithOwnedMachineTx(tx, {
-          userId,
-          minerId: miner.id,
-          minerName: miner.name,
-          level: 1,
-          hashRate: miner.baseHashRate,
-          slotSize: miner.slotSize,
-          imageUrl: miner.imageUrl,
-          acquiredAt: now,
-          updatedAt: now
+        await tx.auditLog.create({
+          data: {
+            userId,
+            action: "shortlink_power_claimed",
+            detailsJson: JSON.stringify({ hashRate: REWARD_HASH_RATE, durationHours: REWARD_DURATION_HOURS, expiresAt })
+          }
         });
-        reward = { message: `${miner.name} adicionada ao inventário!` };
       }
     });
 
-    res.json({ ok: true, step: normalizedStep, runCompleted: isLastStep, sessionToken: nextSessionToken, reward });
+    let rewardMessage: string | null = null;
+    if (isLastStep) {
+      rewardMessage = `+${REWARD_HASH_RATE} H/s ativado por ${REWARD_DURATION_HOURS}h!`;
+      try {
+        const newTotal = await syncUserBaseHashRate(userId);
+        const engine = getMiningEngine();
+        if (engine) {
+          const miner = engine.findMinerByUserId(userId);
+          if (miner) miner.baseHashRate = newTotal;
+          if (engine.io) engine.io.to(`user:${userId}`).emit("machines:update");
+        }
+      } catch (syncErr: unknown) {
+        logger.warn("Shortlink claim: engine sync failed (non-fatal)", {
+          error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+        });
+      }
+    }
+
+    res.json({
+      ok: true,
+      step: normalizedStep,
+      runCompleted: isLastStep,
+      sessionToken: nextSessionToken,
+      reward: rewardMessage ? { message: rewardMessage } : null
+    });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Process failed";
     logger.error("completeShortlinkStep error", { error: msg });

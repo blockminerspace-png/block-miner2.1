@@ -43,7 +43,6 @@ import { getUserById } from "./models/userModel.js";
 import { verifyAccessToken } from "./utils/authTokens.js";
 import { attachSocketIoExplicitAuthMiddleware } from "./utils/socketHandshakeAuthPolicy.js";
 import { getOrCreateMinerProfile, persistMinerProfile, syncUserBaseHashRate } from "./models/minerProfileModel.js";
-import { ensureDefaultInternalReward } from "./models/shortlinkRewardModel.js";
 import { ensureFaucetReward } from "./src/bootstrap/ensureFaucetReward.js";
 import { startAuditOutboxWorker } from "./src/audit/index.js";
 import { applyTrustProxy, buildSocketIoCorsConfig } from "./utils/corsConfig.js";
@@ -364,10 +363,6 @@ async function bootstrap() {
   try {
       const port = Number(process.env.PORT) || 3000;
       const host = process.env.HOST || '0.0.0.0';
-    // Ensure shortlink reward is correctly set up
-    await ensureDefaultInternalReward().catch((err: unknown) =>
-      logger.error("Failed to ensure shortlink reward", { error: errMsg(err) }),
-    );
     await ensureFaucetReward().catch((err: unknown) =>
       logger.error("Failed to ensure faucet reward", { error: errMsg(err) }),
     );

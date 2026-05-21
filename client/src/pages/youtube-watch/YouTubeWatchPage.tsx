@@ -28,6 +28,7 @@ interface YoutubeStatsPayload {
 interface YoutubeClaimResponse {
     ok?: boolean;
     rewardGh?: number;
+    retryAfterMs?: number;
 }
 
 type TrackerColor = 'primary' | 'amber' | 'blue' | 'emerald';
@@ -240,6 +241,8 @@ export default function YouTubeWatch() {
     const claimReward = useCallback(async () => {
         if (isClaimingRef.current) return;
         isClaimingRef.current = true;
+        let scheduleRetry = false;
+        let retryDelay = 0;
         try {
             const res = await api.post<YoutubeClaimResponse>('/youtube/claim', { videoId });
             if (res.data.ok) {
@@ -252,31 +255,42 @@ export default function YouTubeWatch() {
                 fetchUserStats();
             }
         } catch (err: unknown) {
-            const msg =
-                isAxiosError(err) &&
-                err.response?.data &&
-                typeof err.response.data === 'object' &&
-                err.response.data !== null &&
-                'message' in err.response.data &&
-                typeof (err.response.data as { message?: unknown }).message === 'string'
-                    ? (err.response.data as { message: string }).message
-                    : t('youtube.claim_failed');
-            toast.error(msg);
-            setIsRunning(false);
+            if (isAxiosError(err) && err.response?.status === 400) {
+                const data = err.response.data as { message?: string; retryAfterMs?: number } | null;
+                const retryAfterMs = data?.retryAfterMs;
+                if (retryAfterMs != null && retryAfterMs > 0) {
+                    // Insufficient watch time — silently retry without stopping the timer
+                    scheduleRetry = true;
+                    retryDelay = retryAfterMs;
+                } else {
+                    toast.error(data?.message ?? t('youtube.claim_failed'));
+                    setIsRunning(false);
+                }
+            } else {
+                toast.error(t('youtube.claim_failed'));
+                setIsRunning(false);
+            }
         } finally {
             isClaimingRef.current = false;
         }
+        if (scheduleRetry) {
+            setTimeout(() => void claimReward(), retryDelay);
+        }
     }, [videoId, fetchStatus, fetchUserStats, t]);
 
-    // Heartbeat — roda mesmo com a aba em segundo plano para acumular saldo no servidor
+    // Heartbeat — roda mesmo com a aba em segundo plano para acumular saldo no servidor.
+    // Envia imediatamente ao iniciar e depois a cada 10s para garantir 6 heartbeats
+    // antes que o timer dispare o claim aos 60s (evita rejeição por saldo insuficiente).
     useEffect(() => {
         if (!isRunning) return;
-        const heartbeatInterval = setInterval(async () => {
+        const sendHeartbeat = async () => {
             try {
                 const security = generateSecurityPayload();
                 await api.post('/session/heartbeat', { type: 'youtube', security });
             } catch (_) {}
-        }, 10000);
+        };
+        void sendHeartbeat();
+        const heartbeatInterval = setInterval(sendHeartbeat, 10000);
         return () => clearInterval(heartbeatInterval);
     }, [isRunning]);
 
@@ -293,7 +307,7 @@ export default function YouTubeWatch() {
             if (!cycleStartRef.current) return;
             const elapsed = (Date.now() - cycleStartRef.current) / 1000;
             const remaining = Math.max(0, Math.round(60 - elapsed));
-            setCountdown(remaining || 60);
+            setCountdown(remaining);
             if (elapsed >= 60) {
                 cycleStartRef.current = Date.now(); // reinicia ciclo imediatamente
                 void claimReward();

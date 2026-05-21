@@ -123,7 +123,7 @@ export default function Shortlinks() {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-black text-white">{status?.shortlinkName || 'Internal Shortlink'}</h3>
-                                    <p className="text-sm font-bold text-primary mt-1">{t('shortlinks.reward')}: {status?.rewardName || '5 H/s Miner'}</p>
+                                    <p className="text-sm font-bold text-primary mt-1">{t('shortlinks.reward')}: {status?.rewardName || '+5 H/s por 24h'}</p>
                                 </div>
                             </div>
 

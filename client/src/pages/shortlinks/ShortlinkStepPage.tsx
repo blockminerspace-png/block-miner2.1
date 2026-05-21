@@ -110,8 +110,8 @@ export default function ShortlinkStep() {
             if (res.data.ok) {
                 if (res.data.runCompleted) {
                     sessionStorage.removeItem('sl_session');
-                    toast.success(res.data.reward?.message || 'Shortlink completed!');
-                    navigate('/inventory');
+                    toast.success(res.data.reward?.message || '+5 H/s ativado por 24h!');
+                    navigate('/shortlinks');
                 } else {
                     const nextStep = currentStepNum + 1;
                     const nextSession = {
