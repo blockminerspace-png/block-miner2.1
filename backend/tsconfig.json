@@ -117,6 +117,9 @@
       "#server/routes/sidebar-nav.js": [
         "./src/types/stubs/stub-server-routes-sidebar-nav.d.ts"
       ],
+      "#server/routes/reward-inbox.js": [
+        "./src/types/stubs/stub-server-routes-reward-inbox.d.ts"
+      ],
       "#server/routes/admin-auth.js": [
         "./src/types/stubs/stub-server-routes-admin-auth.d.ts"
       ],
