@@ -4,6 +4,7 @@ import prisma from "../../src/db/prisma.js";
 const MAX_SUBJECT_LEN = 120;
 const MAX_MSG_LEN = 2000;
 const MAX_NAME_LEN = 80;
+const MAX_URL_LEN = 512;
 
 function sanitizeStr(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
@@ -16,11 +17,19 @@ function isValidEmail(s: string): boolean {
 
 // ─── Public (no auth) ────────────────────────────────────────────────────────
 
+function sanitizeImageUrl(v: unknown): string | null {
+  const s = sanitizeStr(v, MAX_URL_LEN);
+  if (!s) return null;
+  if (!/^\/uploads\/[\w\-\.]+$/.test(s)) return null;
+  return s;
+}
+
 export async function createTicket(req: Request, res: Response) {
   const name = sanitizeStr(req.body?.name, MAX_NAME_LEN);
   const email = sanitizeStr(req.body?.email, 200).toLowerCase();
   const subject = sanitizeStr(req.body?.subject, MAX_SUBJECT_LEN);
   const message = sanitizeStr(req.body?.message, MAX_MSG_LEN);
+  const imageUrl = sanitizeImageUrl(req.body?.imageUrl);
 
   if (!name || !email || !subject || !message) {
     return res.status(400).json({ error: "missing_fields" });
@@ -34,7 +43,7 @@ export async function createTicket(req: Request, res: Response) {
       guestName: name,
       guestEmail: email,
       subject,
-      messages: { create: { authorType: "guest", content: message } },
+      messages: { create: { authorType: "guest", content: message, imageUrl } },
     },
     include: { messages: true },
   });
@@ -89,10 +98,11 @@ export async function addGuestMessage(req: Request, res: Response) {
   const id = parseInt(String(req.params.id), 10);
   const email = sanitizeStr(req.body?.email, 200).toLowerCase();
   const content = sanitizeStr(req.body?.message, MAX_MSG_LEN);
+  const imageUrl = sanitizeImageUrl(req.body?.imageUrl);
 
   if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid_id" });
   if (!email || !isValidEmail(email)) return res.status(400).json({ error: "invalid_email" });
-  if (!content) return res.status(400).json({ error: "empty_message" });
+  if (!content && !imageUrl) return res.status(400).json({ error: "empty_message" });
 
   const ticket = await prisma.publicSupportTicket.findFirst({
     where: { id, guestEmail: email },
@@ -102,7 +112,7 @@ export async function addGuestMessage(req: Request, res: Response) {
   if (ticket.status === "closed") return res.status(400).json({ error: "ticket_closed" });
 
   const msg = await prisma.publicSupportMessage.create({
-    data: { ticketId: id, authorType: "guest", content },
+    data: { ticketId: id, authorType: "guest", content: content || "", imageUrl },
   });
   await prisma.publicSupportTicket.update({
     where: { id },
@@ -157,9 +167,10 @@ export async function adminGetTicket(req: Request, res: Response) {
 export async function adminReply(req: Request, res: Response) {
   const id = parseInt(String(req.params.id), 10);
   const content = sanitizeStr(req.body?.message, MAX_MSG_LEN);
+  const imageUrl = sanitizeImageUrl(req.body?.imageUrl);
 
   if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid_id" });
-  if (!content) return res.status(400).json({ error: "empty_message" });
+  if (!content && !imageUrl) return res.status(400).json({ error: "empty_message" });
 
   const ticket = await prisma.publicSupportTicket.findUnique({
     where: { id },
@@ -168,7 +179,7 @@ export async function adminReply(req: Request, res: Response) {
   if (!ticket) return res.status(404).json({ error: "not_found" });
 
   const msg = await prisma.publicSupportMessage.create({
-    data: { ticketId: id, authorType: "admin", content },
+    data: { ticketId: id, authorType: "admin", content: content || "", imageUrl },
   });
   await prisma.publicSupportTicket.update({
     where: { id },

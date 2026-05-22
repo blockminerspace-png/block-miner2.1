@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
-import { MessageCircle, RefreshCw, Send, CheckCircle2, Clock, ChevronLeft, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { MessageCircle, RefreshCw, Send, CheckCircle2, Clock, ChevronLeft, Loader2, ImageIcon, X } from 'lucide-react';
 import { api } from '../../store/auth';
 import { toast } from 'sonner';
 
-type Msg = { id: number; authorType: string; content: string; createdAt: string };
+type Msg = { id: number; authorType: string; content: string; imageUrl?: string | null; createdAt: string };
 type Ticket = { id: number; guestName: string; guestEmail: string; subject: string; status: string; createdAt: string; updatedAt: string; messages?: Msg[] };
 
 const STATUS_FILTERS = ['all', 'open', 'closed'] as const;
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export default function AdminPublicSupport() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -16,8 +18,11 @@ export default function AdminPublicSupport() {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [reply, setReply] = useState('');
+  const [replyImage, setReplyImage] = useState<File | null>(null);
+  const [replyImagePreview, setReplyImagePreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingTicket, setLoadingTicket] = useState(false);
+  const imageRef = useRef<HTMLInputElement>(null);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -48,14 +53,50 @@ export default function AdminPublicSupport() {
     }
   }
 
+  function pickImage(file: File | undefined | null) {
+    if (!file) return;
+    if (!ALLOWED_TYPES.includes(file.type)) { toast.error('Only JPEG, PNG, GIF, WebP allowed'); return; }
+    if (file.size > MAX_FILE_BYTES) { toast.error('Image must be under 5 MB'); return; }
+    setReplyImage(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setReplyImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function clearImage() {
+    setReplyImage(null);
+    setReplyImagePreview(null);
+    if (imageRef.current) imageRef.current.value = '';
+  }
+
+  async function uploadImage(file: File): Promise<string | null> {
+    const fd = new FormData();
+    fd.append('image', file);
+    try {
+      const res = await api.post<{ url: string }>('/admin/upload-image', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data.url;
+    } catch {
+      toast.error('Image upload failed');
+      return null;
+    }
+  }
+
   async function sendReply(e: React.FormEvent) {
     e.preventDefault();
-    if (!selected || !reply.trim()) return;
+    if (!selected || (!reply.trim() && !replyImage)) return;
     setSending(true);
     try {
-      const res = await api.post<{ message: Msg }>(`/admin/public-support/ticket/${selected.id}/message`, { message: reply });
+      let imageUrl: string | null = null;
+      if (replyImage) imageUrl = await uploadImage(replyImage);
+      const res = await api.post<{ message: Msg }>(`/admin/public-support/ticket/${selected.id}/message`, {
+        message: reply,
+        imageUrl,
+      });
       setSelected((t) => t ? { ...t, messages: [...(t.messages ?? []), res.data.message] } : t);
       setReply('');
+      clearImage();
       toast.success('Reply sent');
     } catch {
       toast.error('Failed to send reply');
@@ -112,22 +153,51 @@ export default function AdminPublicSupport() {
           {(selected.messages ?? []).map((m) => (
             <div key={m.id} className={`rounded-xl px-4 py-3 text-sm max-w-[85%] ${m.authorType === 'admin' ? 'ml-auto bg-blue-600/20 border border-blue-500/20 text-blue-100' : 'bg-white/5 border border-white/10 text-gray-200'}`}>
               <p className="text-xs text-gray-400 mb-1">{m.authorType === 'admin' ? 'You (admin)' : selected.guestName} · {fmtDate(m.createdAt)}</p>
-              <p className="whitespace-pre-wrap">{m.content}</p>
+              {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
+              {m.imageUrl && (
+                <a href={m.imageUrl} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                  <img src={m.imageUrl} alt="" className="max-w-full rounded-lg max-h-48 object-contain border border-white/10" />
+                </a>
+              )}
             </div>
           ))}
         </div>
 
         {selected.status === 'open' && (
-          <form onSubmit={sendReply} className="flex gap-2">
-            <input
-              required value={reply} onChange={(e) => setReply(e.target.value)}
-              placeholder="Write a reply..."
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-            />
-            <button type="submit" disabled={sending} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/40 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors">
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Send
-            </button>
+          <form onSubmit={sendReply} className="flex flex-col gap-2">
+            {replyImagePreview && (
+              <div className="relative w-fit">
+                <img src={replyImagePreview} alt="" className="max-h-32 rounded-lg border border-white/10 object-contain" />
+                <button
+                  type="button" onClick={clearImage}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            <input ref={imageRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={(e) => pickImage(e.target.files?.[0])} />
+            <div className="flex gap-2">
+              <button
+                type="button" onClick={() => imageRef.current?.click()}
+                className="shrink-0 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2.5 py-2 text-gray-400 hover:text-white transition-colors"
+                title="Attach image"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
+              <input
+                value={reply} onChange={(e) => setReply(e.target.value)}
+                placeholder="Write a reply..."
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit" disabled={sending || (!reply.trim() && !replyImage)}
+                className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/40 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+              >
+                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Send
+              </button>
+            </div>
           </form>
         )}
       </div>

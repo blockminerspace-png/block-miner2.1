@@ -2883,6 +2883,10 @@
     "status_closed": "Cerrado",
     "admin_label": "Equipo de soporte",
     "reply_placeholder": "Escribe un mensaje...",
-    "ticket_closed_notice": "Este ticket está cerrado. Abre uno nuevo si necesitas más ayuda."
+    "ticket_closed_notice": "Este ticket está cerrado. Abre uno nuevo si necesitas más ayuda.",
+    "attach_image": "Adjuntar imagen (JPEG, PNG, GIF, WebP · máx. 5 MB)",
+    "uploading_image": "Subiendo...",
+    "image_too_large": "La imagen debe pesar menos de 5 MB.",
+    "image_invalid_type": "Solo se permiten imágenes JPEG, PNG, GIF y WebP."
   }
 }

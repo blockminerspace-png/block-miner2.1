@@ -880,7 +880,11 @@
     "status_closed": "Fechado",
     "admin_label": "Equipe de suporte",
     "reply_placeholder": "Escreva uma mensagem...",
-    "ticket_closed_notice": "Este ticket está fechado. Abra um novo se precisar de mais ajuda."
+    "ticket_closed_notice": "Este ticket está fechado. Abra um novo se precisar de mais ajuda.",
+    "attach_image": "Anexar imagem (JPEG, PNG, GIF, WebP · máx. 5 MB)",
+    "uploading_image": "Enviando...",
+    "image_too_large": "A imagem deve ter no máximo 5 MB.",
+    "image_invalid_type": "Apenas imagens JPEG, PNG, GIF e WebP são permitidas."
   },
   "admin_fraud": {
     "title": "Inteligência antifraude",

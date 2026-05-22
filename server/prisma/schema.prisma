@@ -944,6 +944,7 @@ model PublicSupportMessage {
   ticketId   Int      @map("ticket_id")
   authorType String   @map("author_type")
   content    String
+  imageUrl   String?  @map("image_url")
   createdAt  DateTime @default(now()) @map("created_at")
 
   ticket PublicSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
