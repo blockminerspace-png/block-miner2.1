@@ -2998,6 +2998,23 @@
     "items_count": "itens",
     "go_to_machines": "Ir para Sala de Mineração",
     "install_cta": "Instalar no Rack",
-    "load_error": "Erro ao carregar inventário."
+    "load_error": "Erro ao carregar inventário.",
+    "inbox_title": "Caixa de Entrada de Recompensas",
+    "inbox_subtitle": "Colete suas recompensas pendentes",
+    "pending_count": "{{count}} recompensa(s) pendente(s)",
+    "collect_all": "Coletar Tudo",
+    "collect": "Coletar",
+    "collected_toast": "Recompensa coletada!",
+    "collect_all_toast": "{{count}} recompensa(s) coletada(s)!",
+    "source_checkin": "Check-in",
+    "source_daily_task": "Tarefa Diária",
+    "source_offerwall": "Offerwall",
+    "type_machine": "Máquina",
+    "type_pol": "POL",
+    "type_power": "Poder Temporário",
+    "type_blk": "BLK",
+    "empty_title": "Caixa de entrada vazia",
+    "inbox_load_error": "Erro ao carregar recompensas.",
+    "collect_error": "Erro ao coletar recompensa."
   }
 }

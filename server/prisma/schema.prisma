@@ -111,6 +111,7 @@ model User {
   internalOfferwallAttempts      InternalOfferwallAttempt[]
   game2048Sessions               Game2048Session[]
   polygonHdAddress               PolygonHdAddress?
+  rewardInbox                    UserRewardInbox[]
 
   @@index([registrationIp])
   @@index([ip])
@@ -918,6 +919,28 @@ model UserCheckinStreakReward {
   @@unique([userId, milestoneId])
   @@index([userId])
   @@map("user_checkin_streak_rewards")
+}
+
+model UserRewardInbox {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @map("user_id")
+  status        String    @default("pending")
+  source        String
+  rewardType    String    @map("reward_type")
+  rewardValue   Decimal   @default(0) @db.Decimal(20, 8) @map("reward_value")
+  minerId       Int?      @map("miner_id")
+  minerName     String?   @map("miner_name")
+  minerImageUrl String?   @map("miner_image_url")
+  slotSize      Int       @default(1) @map("slot_size")
+  durationHours Int?      @map("duration_hours")
+  metaJson      Json?     @map("meta_json")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  collectedAt   DateTime? @map("collected_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@map("user_reward_inbox")
 }
 
 /// Partner "Read & Earn" campaigns: users redeem a secret code once per campaign.

@@ -2841,6 +2841,23 @@
     "items_count": "artículos",
     "go_to_machines": "Ir a la Sala de Minería",
     "install_cta": "Instalar en Rack",
-    "load_error": "Error al cargar el inventario."
+    "load_error": "Error al cargar el inventario.",
+    "inbox_title": "Bandeja de Recompensas",
+    "inbox_subtitle": "Recoge tus recompensas pendientes",
+    "pending_count": "{{count}} recompensa(s) pendiente(s)",
+    "collect_all": "Recoger Todo",
+    "collect": "Recoger",
+    "collected_toast": "¡Recompensa recogida!",
+    "collect_all_toast": "¡{{count}} recompensa(s) recogida(s)!",
+    "source_checkin": "Check-in",
+    "source_daily_task": "Tarea Diaria",
+    "source_offerwall": "Offerwall",
+    "type_machine": "Máquina",
+    "type_pol": "POL",
+    "type_power": "Poder Temporal",
+    "type_blk": "BLK",
+    "empty_title": "Bandeja vacía",
+    "inbox_load_error": "Error al cargar recompensas.",
+    "collect_error": "Error al recoger la recompensa."
   }
 }

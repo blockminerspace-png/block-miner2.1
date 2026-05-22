@@ -2993,6 +2993,23 @@
     "items_count": "items",
     "go_to_machines": "Go to Mining Room",
     "install_cta": "Install in Rack",
-    "load_error": "Failed to load inventory."
+    "load_error": "Failed to load inventory.",
+    "inbox_title": "Reward Inbox",
+    "inbox_subtitle": "Collect your pending rewards",
+    "pending_count": "{{count}} pending reward(s)",
+    "collect_all": "Collect All",
+    "collect": "Collect",
+    "collected_toast": "Reward collected!",
+    "collect_all_toast": "{{count}} reward(s) collected!",
+    "source_checkin": "Check-in",
+    "source_daily_task": "Daily Task",
+    "source_offerwall": "Offerwall",
+    "type_machine": "Machine",
+    "type_pol": "POL",
+    "type_power": "Temporary Power",
+    "type_blk": "BLK",
+    "empty_title": "Empty inbox",
+    "inbox_load_error": "Failed to load rewards.",
+    "collect_error": "Failed to collect reward."
   }
 }

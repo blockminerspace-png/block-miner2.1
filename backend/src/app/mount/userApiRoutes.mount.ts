@@ -30,6 +30,7 @@ import { swapRouter } from "#server/routes/swap.js";
 import supportRouter from "#server/routes/support.js";
 import userRouter from "#server/routes/user.js";
 import { sidebarNavRouter } from "#server/routes/sidebar-nav.js";
+import { rewardInboxRouter } from "#server/routes/reward-inbox.js";
 
 export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/auth", authRouter);
@@ -63,4 +64,5 @@ export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/support", supportRouter);
   app.use("/api/user", userRouter);
   app.use("/api/sidebar", sidebarNavRouter);
+  app.use("/api/reward-inbox", rewardInboxRouter);
 }

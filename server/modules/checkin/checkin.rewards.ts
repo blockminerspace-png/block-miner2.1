@@ -1,9 +1,6 @@
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
 import { computeCheckinStreak } from "../../utils/checkinStreak.js";
-import { syncUserBaseHashRate } from "../../models/minerProfileModel.js";
-import { getMiningEngine } from "../../src/miningEngineInstance.js";
-import { createInventoryWithOwnedMachineTx } from "../../services/userOwnedMachineService.js";
 import { normalizePersistableMinerImageUrl } from "../../utils/ownedMachineImage.js";
 import {
   isAllowedMilestoneRewardType,
@@ -15,6 +12,10 @@ import {
   REWARD_POL,
   REWARD_TEMPORARY_POWER,
 } from "./checkin.milestoneRules.js";
+import {
+  createRewardInboxEntry,
+  INBOX_SOURCE_CHECKIN,
+} from "../../services/rewardInboxService.js";
 
 export {
   REWARD_POL,
@@ -32,8 +33,6 @@ export const REWARD_ITEM = "item";
 export const REWARD_TICKET = "ticket";
 export const REWARD_NONE = "none";
 
-const CHECKIN_BONUS_GAME_SLUG = "checkin-streak-bonus";
-
 type MilestoneRow = {
   id: number;
   dayThreshold: number;
@@ -45,84 +44,8 @@ type MilestoneRow = {
   metadataJson: Prisma.JsonValue | null;
 };
 
-async function getOrCreateCheckinBonusGameId(
-  tx: PrismaClient | Prisma.TransactionClient = prisma,
-) {
-  const g = await tx.game.upsert({
-    where: { slug: CHECKIN_BONUS_GAME_SLUG },
-    create: {
-      name: "Check-in streak bonus",
-      slug: CHECKIN_BONUS_GAME_SLUG,
-      isActive: true,
-    },
-    update: {},
-  });
-  return g.id;
-}
-
 export function normalizeRewardType(raw: string): string {
   return normalizeMilestoneRewardType(raw);
-}
-
-async function grantMachineMilestone(
-  tx: Prisma.TransactionClient,
-  userId: number,
-  milestone: MilestoneRow,
-): Promise<void> {
-  const minerId = milestone.minerId;
-  if (!minerId || minerId < 1) {
-    throw new Error("MACHINE_REWARD_MISSING_MINER");
-  }
-  const miner = await tx.miner.findFirst({
-    where: { id: minerId, isActive: true, isArchived: false },
-    select: {
-      id: true,
-      name: true,
-      baseHashRate: true,
-      imageUrl: true,
-      slug: true,
-      price: true,
-      slotSize: true,
-    },
-  });
-  if (!miner) {
-    throw new Error("MACHINE_REWARD_MINER_NOT_FOUND");
-  }
-  const imageUrl = normalizePersistableMinerImageUrl(miner.imageUrl);
-  await createInventoryWithOwnedMachineTx(tx, {
-    userId,
-    minerId: miner.id,
-    minerName: miner.name,
-    level: 1,
-    hashRate: miner.baseHashRate,
-    slotSize: miner.slotSize ?? 1,
-    imageUrl,
-    snapshotSlug: miner.slug,
-    snapshotPrice: miner.price,
-    acquisitionSource: "checkin_milestone",
-  });
-}
-
-async function grantTemporaryPowerMilestone(
-  tx: Prisma.TransactionClient,
-  userId: number,
-  milestone: MilestoneRow,
-): Promise<void> {
-  const value = Number(milestone.rewardValue || 0);
-  if (!(value > 0)) throw new Error("TEMPORARY_POWER_REWARD_INVALID_AMOUNT");
-  const gameId = await getOrCreateCheckinBonusGameId(tx);
-  const durationMs = readDurationHours(milestone.validityDays, milestone.metadataJson) * 60 * 60 * 1000;
-  const playedAt = new Date();
-  const expiresAt = new Date(playedAt.getTime() + durationMs);
-  await tx.userPowerGame.create({
-    data: {
-      userId,
-      gameId,
-      hashRate: value,
-      playedAt,
-      expiresAt,
-    },
-  });
 }
 
 async function applyMilestoneRewardInTx(
@@ -139,21 +62,56 @@ async function applyMilestoneRewardInTx(
 
   if (rewardType === REWARD_POL) {
     if (!(value > 0)) throw new Error("POL_REWARD_INVALID_AMOUNT");
-    await tx.user.update({
-      where: { id: userId },
-      data: { polBalance: { increment: new Prisma.Decimal(String(value)) } },
+    await createRewardInboxEntry(tx, {
+      userId,
+      source: INBOX_SOURCE_CHECKIN,
+      rewardType: "pol",
+      rewardValue: value,
     });
     return false;
   }
 
   if (rewardType === REWARD_TEMPORARY_POWER) {
-    await grantTemporaryPowerMilestone(tx, userId, milestone);
-    return true;
+    if (!(value > 0)) throw new Error("TEMPORARY_POWER_REWARD_INVALID_AMOUNT");
+    const durationHours = readDurationHours(milestone.validityDays, milestone.metadataJson);
+    await createRewardInboxEntry(tx, {
+      userId,
+      source: INBOX_SOURCE_CHECKIN,
+      rewardType: "temporary_power",
+      rewardValue: value,
+      durationHours,
+    });
+    return false;
   }
 
   if (rewardType === REWARD_MACHINE) {
-    await grantMachineMilestone(tx, userId, milestone);
-    return true;
+    const minerId = milestone.minerId;
+    if (!minerId || minerId < 1) throw new Error("MACHINE_REWARD_MISSING_MINER");
+    const miner = await tx.miner.findFirst({
+      where: { id: minerId, isActive: true, isArchived: false },
+      select: {
+        id: true,
+        name: true,
+        baseHashRate: true,
+        imageUrl: true,
+        slug: true,
+        price: true,
+        slotSize: true,
+      },
+    });
+    if (!miner) throw new Error("MACHINE_REWARD_MINER_NOT_FOUND");
+    const imageUrl = normalizePersistableMinerImageUrl(miner.imageUrl);
+    await createRewardInboxEntry(tx, {
+      userId,
+      source: INBOX_SOURCE_CHECKIN,
+      rewardType: "machine",
+      rewardValue: Number(miner.baseHashRate ?? 0),
+      minerId: miner.id,
+      minerName: miner.name,
+      minerImageUrl: imageUrl,
+      slotSize: miner.slotSize ?? 1,
+    });
+    return false;
   }
 
   return false;
@@ -181,7 +139,6 @@ export async function applyStreakMilestoneRewards(userId: number) {
     rewardType: string;
     rewardValue: number;
   }> = [];
-  let needsEngineReload = false;
 
   for (const m of milestones) {
     if (isInvalidLegacyMilestoneRewardType(m.rewardType)) {
@@ -205,8 +162,7 @@ export async function applyStreakMilestoneRewards(userId: number) {
             streakWhenClaimed: streak,
           },
         });
-        const reload = await applyMilestoneRewardInTx(tx, userId, m);
-        if (reload) needsEngineReload = true;
+        await applyMilestoneRewardInTx(tx, userId, m);
       });
 
       granted.push({
@@ -221,11 +177,6 @@ export async function applyStreakMilestoneRewards(userId: number) {
       const message = error instanceof Error ? error.message : "unknown";
       console.error("checkin.rewards apply", { userId, milestoneId: m.id, err: message });
     }
-  }
-
-  if (needsEngineReload) {
-    await syncUserBaseHashRate(userId);
-    getMiningEngine()?.reloadMinerProfile(userId).catch(() => {});
   }
 
   return { granted, streak };

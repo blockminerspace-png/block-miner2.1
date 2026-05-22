@@ -2,32 +2,15 @@ import prisma from "../../src/db/prisma.js";
 import type { Prisma } from "@prisma/client";
 import { SIDEBAR_ITEM_REGISTRY } from "../sidebarNavRegistry.js";
 import { getVisibleSidebarPaths } from "../sidebarNavService.js";
-import { REWARD_POL } from "../miniPass/miniPassConstants.js";
-import {
-  applyPolDeltaInEngine,
-  fulfillMiniPassLevelReward,
-  syncMiningAfterMiniPassReward
-} from "../miniPass/miniPassRewardFulfillmentService.js";
 import { TASK_LOGIN_DAY } from "./dailyTaskConstants.js";
 import { getDailyTaskPeriodKey, normalizeDailyTaskResetCadence } from "./dailyTaskPeriod.js";
+import {
+  createRewardInboxEntry,
+  INBOX_SOURCE_DAILY_TASK,
+  type InboxRewardPayload,
+} from "../rewardInboxService.js";
 
 const CHECKIN_APP_PATH = SIDEBAR_ITEM_REGISTRY.checkin.path;
-
-/**
- * Maps a daily task definition row to the reward shape expected by `fulfillMiniPassLevelReward`.
- * @param {import("@prisma/client").DailyTaskDefinition} def
- */
-function rewardPayloadFromDefinition(def) {
-  return {
-    rewardKind: def.rewardKind,
-    minerId: def.rewardMinerId,
-    eventMinerId: def.rewardEventMinerId,
-    hashRate: def.rewardHashRate,
-    hashRateDays: def.rewardHashRateDays,
-    blkAmount: def.rewardBlkAmount,
-    polAmount: def.rewardPolAmount
-  };
-}
 
 /**
  * @param {number} userId
@@ -96,10 +79,69 @@ export async function claimDailyTaskReward(userId, taskDefinitionId) {
         throw err;
       }
 
-      const summary = await fulfillMiniPassLevelReward(tx, {
-        userId,
-        reward: rewardPayloadFromDefinition(def)
-      });
+      let inboxPayload: InboxRewardPayload | null = null;
+      const kind = String(def.rewardKind || "").toUpperCase();
+
+      if (kind === "POL" && def.rewardPolAmount && Number(def.rewardPolAmount) > 0) {
+        inboxPayload = {
+          userId,
+          source: INBOX_SOURCE_DAILY_TASK,
+          rewardType: "pol",
+          rewardValue: Number(def.rewardPolAmount),
+        };
+      } else if (kind === "BLK" && def.rewardBlkAmount && Number(def.rewardBlkAmount) > 0) {
+        inboxPayload = {
+          userId,
+          source: INBOX_SOURCE_DAILY_TASK,
+          rewardType: "blk",
+          rewardValue: Number(def.rewardBlkAmount),
+        };
+      } else if (kind === "HASHRATE_TEMP" && def.rewardHashRate && Number(def.rewardHashRate) > 0) {
+        const days = Math.max(1, Number(def.rewardHashRateDays || 1));
+        inboxPayload = {
+          userId,
+          source: INBOX_SOURCE_DAILY_TASK,
+          rewardType: "temporary_power",
+          rewardValue: Number(def.rewardHashRate),
+          durationHours: days * 24,
+        };
+      } else if (kind === "SHOP_MINER" && def.rewardMinerId) {
+        const miner = await tx.miner.findUnique({
+          where: { id: def.rewardMinerId },
+          select: { id: true, name: true, baseHashRate: true, imageUrl: true, slotSize: true },
+        });
+        if (miner) {
+          inboxPayload = {
+            userId,
+            source: INBOX_SOURCE_DAILY_TASK,
+            rewardType: "machine",
+            rewardValue: Number(miner.baseHashRate ?? 0),
+            minerId: miner.id,
+            minerName: miner.name,
+            minerImageUrl: miner.imageUrl,
+            slotSize: miner.slotSize ?? 1,
+          };
+        }
+      } else if (kind === "EVENT_MINER" && def.rewardEventMinerId) {
+        const em = await tx.eventMiner.findUnique({
+          where: { id: def.rewardEventMinerId },
+          select: { name: true, imageUrl: true, baseHashRate: true, slotSize: true },
+        });
+        if (em) {
+          inboxPayload = {
+            userId,
+            source: INBOX_SOURCE_DAILY_TASK,
+            rewardType: "machine",
+            rewardValue: Number(em.baseHashRate ?? 0),
+            minerId: null,
+            minerName: em.name,
+            minerImageUrl: em.imageUrl,
+            slotSize: em.slotSize ?? 1,
+          };
+        }
+      }
+
+      if (inboxPayload) await createRewardInboxEntry(tx, inboxPayload);
 
       await tx.auditLog.create({
         data: {
@@ -114,13 +156,8 @@ export async function claimDailyTaskReward(userId, taskDefinitionId) {
         }
       });
 
-      return { summary };
+      return { summary: { kind: def.rewardKind } };
     });
-
-    if (out.summary?.kind === REWARD_POL && out.summary.amount) {
-      applyPolDeltaInEngine(userId, Number(out.summary.amount));
-    }
-    await syncMiningAfterMiniPassReward(userId);
 
     return { ok: true, summary: out.summary };
   } catch (e: unknown) {
