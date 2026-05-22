@@ -713,7 +713,8 @@
       "main": "Main",
       "earn": "Earn",
       "social": "Social & Fun"
-    }
+    },
+    "inventario": "Inventory"
   },
   "game2048": {
     "title": "Chain 2048",
@@ -2983,5 +2984,15 @@
       "delete_failed": "Delete failed.",
       "template_failed": "Quick fill failed (partial rows may exist)."
     }
+  },
+  "inventario": {
+    "title": "Inventory",
+    "subtitle": "Received items — ready to install in the rack",
+    "empty": "No items in inventory",
+    "empty_hint": "Complete check-ins, milestones and daily tasks to earn machines",
+    "items_count": "items",
+    "go_to_machines": "Go to Mining Room",
+    "install_cta": "Install in Rack",
+    "load_error": "Failed to load inventory."
   }
 }

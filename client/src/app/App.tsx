@@ -23,6 +23,7 @@ const ForgotPassword = lazy(() => import('../pages/auth/forgot-password/ForgotPa
 const Dashboard = lazy(() => import('../pages/dashboard'));
 const Shop = lazy(() => import('../pages/shop'));
 const Inventory = lazy(() => import('../pages/machines'));
+const Inventario = lazy(() => import('../pages/inventario'));
 const Vault = lazy(() => import('../pages/vault'));
 const Wallet = lazy(() => import('../pages/wallet'));
 const Faucet = lazy(() => import('../pages/faucet'));
@@ -219,6 +220,7 @@ function App() {
             <Route path="/shop" element={<Shop />} />
             <Route path="/offers" element={<PopularOffers />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/inventario" element={<Inventario />} />
             <Route path="/vault" element={<Vault />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/wallets" element={<Navigate to="/wallet" replace />} />

@@ -12,6 +12,7 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
       { itemId: 'dashboard', labelKey: 'sidebar.dashboard', icon: 'LayoutDashboard', path: '/dashboard' },
       { itemId: 'power_stats', labelKey: 'sidebar.power_stats', icon: 'BarChart3', path: '/power-stats' },
       { itemId: 'machines', labelKey: 'sidebar.machines', icon: 'Cpu', path: '/inventory' },
+      { itemId: 'inventario', labelKey: 'sidebar.inventario', icon: 'Package', path: '/inventario' },
       { itemId: 'shop', labelKey: 'sidebar.shop', icon: 'ShoppingCart', path: '/shop' },
       { itemId: 'offers', labelKey: 'sidebar.offers', icon: 'Tag', path: '/offers' },
       { itemId: 'wallet', labelKey: 'sidebar.wallet', icon: 'Wallet', path: '/wallet' },

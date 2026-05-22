@@ -714,7 +714,8 @@
       "main": "Principal",
       "earn": "Ganhar",
       "social": "Social & Fun"
-    }
+    },
+    "inventario": "Inventário"
   },
   "game2048": {
     "title": "Chain 2048",
@@ -2988,5 +2989,15 @@
       "delete_failed": "Falha ao eliminar.",
       "template_failed": "Preenchimento rápido falhou (pode haver linhas parciais)."
     }
+  },
+  "inventario": {
+    "title": "Inventário",
+    "subtitle": "Itens recebidos — prontos para instalar no rack",
+    "empty": "Nenhum item no inventário",
+    "empty_hint": "Complete check-ins, marcos e tarefas para ganhar máquinas",
+    "items_count": "itens",
+    "go_to_machines": "Ir para Sala de Mineração",
+    "install_cta": "Instalar no Rack",
+    "load_error": "Erro ao carregar inventário."
   }
 }

@@ -45,6 +45,13 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "main",
     defaultParentItemId: null
   },
+  inventario: {
+    path: "/inventario",
+    labelKey: "sidebar.inventario",
+    icon: "Package",
+    section: "main",
+    defaultParentItemId: null
+  },
   shop: {
     path: "/shop",
     labelKey: "sidebar.shop",
@@ -306,6 +313,7 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "dashboard", visible: true, sortOrder: 10, section: "main", parentItemId: null },
     { itemId: "power_stats", visible: true, sortOrder: 20, section: "main", parentItemId: null },
     { itemId: "machines", visible: true, sortOrder: 30, section: "main", parentItemId: null },
+    { itemId: "inventario", visible: true, sortOrder: 35, section: "main", parentItemId: null },
     { itemId: "shop", visible: true, sortOrder: 40, section: "main", parentItemId: null },
     { itemId: "offers", visible: true, sortOrder: 50, section: "main", parentItemId: null },
     { itemId: "wallet", visible: true, sortOrder: 60, section: "main", parentItemId: null },
