@@ -40,4 +40,25 @@ describe('readAuthErrorMessage', () => {
     expect(readAuthErrorMessage(new Error(''), 'fb')).toBe('fb');
     expect(readAuthErrorMessage(null, 'fb')).toBe('fb');
   });
+
+  it('maps 502/503/504 to gateway-busy message (never blames credentials)', () => {
+    for (const status of [502, 503, 504] as const) {
+      const msg = readAuthErrorMessage(ax('<html>Bad Gateway</html>', status), 'fb');
+      expect(msg.toLowerCase()).toContain('servidor');
+      expect(msg.toLowerCase()).not.toContain('verifique os dados');
+    }
+  });
+
+  it('maps generic 5xx to gateway-busy when no body', () => {
+    const msg = readAuthErrorMessage(ax(undefined as unknown, 500), 'fb');
+    expect(msg.toLowerCase()).toContain('servidor');
+  });
+
+  it('maps ERR_NETWORK / no response to network message', () => {
+    const err = new AxiosError('Network Error');
+    err.code = 'ERR_NETWORK';
+    const msg = readAuthErrorMessage(err, 'fb');
+    expect(msg.toLowerCase()).toContain('conexão');
+    expect(msg.toLowerCase()).not.toContain('verifique os dados');
+  });
 });

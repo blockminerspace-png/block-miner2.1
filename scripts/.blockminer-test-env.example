@@ -1,3 +1,0 @@
-# Copiar para scripts/.blockminer-test-env (gitignored). Nunca commitar.
-# export BLOCKMINER_TEST_IDENTIFIER="email-de-teste-sem-2fa"
-# export BLOCKMINER_TEST_PASSWORD="senha"

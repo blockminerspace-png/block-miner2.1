@@ -11,8 +11,10 @@ From repo root:
   python3 scripts/vm-deploy-local-over-ssh.py --zip ~/Documentos/BlockMiner\\ 2.1.zip
   BLOCKMINER_DEPLOY_ZIP=/path/to/file.zip python3 scripts/vm-deploy-local-over-ssh.py
 
-Credentials: same as `deploy-test-vm-remote.py` — `scripts/vm_config_secret.py`
-(copy from `vm_config_secret.example.py`) or env `VM_IP`, `VM_USER`, `VM_PASSWORD`.
+Credentials: `scripts/vm_config_secret.py` (copy from `vm_config_secret.example.py`)
+or env `VM_IP`, `VM_USER`, `VM_PASSWORD`.
+
+Never overwrites server `.env` / `.env.production` (backed up before extract, restored after).
 
 Optional env:
   BLOCKMINER_DEPLOY_ZIP=path         — upload this .zip instead of `git archive` (same as --zip)
@@ -163,6 +165,36 @@ rm -f "{remote_arc}"
 {compose_discover}
 {env_restore_loop}
 '''
+    docker_stack = r'''
+export APP_ROOT
+export BLOCKMINER_DOCKER_BUILD_NO_CACHE="${BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}"
+cd "$APP_ROOT"
+compose() {
+  local -a c=(docker compose -f "$APP_ROOT/docker-compose.yml")
+  if [[ -f "$APP_ROOT/.env.production" ]]; then
+    c+=(--env-file "$APP_ROOT/.env.production")
+  fi
+  "${c[@]}" "$@"
+}
+if [[ -d /root/support-block-miner ]]; then
+  (cd /root/support-block-miner && docker compose down --remove-orphans) 2>/dev/null || true
+fi
+for old in block-miner-app-1 block-miner-worker-1 block-miner-nginx-1 block-miner-db-1 block-miner-redis-1; do
+  docker rm -f "$old" 2>/dev/null || true
+done
+if [[ "${BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}" == "1" ]]; then
+  compose build --no-cache app worker
+else
+  compose build app worker
+fi
+compose up -d --remove-orphans db redis app worker nginx
+if ! ss -tlnp 2>/dev/null | grep -qF ':80 '; then
+  compose up -d --force-recreate --no-deps nginx || true
+fi
+compose exec -T app npx prisma migrate deploy --schema=server/prisma/schema.prisma || true
+curl -sS -o /dev/null -w "health:%{http_code}\n" http://127.0.0.1:3000/health || true
+echo "[vm] docker steps finished"
+'''
     if _skip_docker():
         return f"""set -euo pipefail
 {no_cache}APP_ROOT={shlex.quote(app_root)}
@@ -170,11 +202,7 @@ rm -f "{remote_arc}"
 """
     return f"""set -euo pipefail
 {no_cache}APP_ROOT={shlex.quote(app_root)}
-{extract}export APP_ROOT
-export BLOCKMINER_DOCKER_BUILD_NO_CACHE="${{BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}}"
-bash "$APP_ROOT/scripts/docker-ensure-block-miner-stack.sh"
-curl -sS -o /dev/null -w "health:%{{http_code}}\\n" http://127.0.0.1:3000/health || true
-echo "[vm] docker steps finished"
+{extract}{docker_stack}
 """
 
 

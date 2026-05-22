@@ -102,14 +102,30 @@ function writeWithLevel(
   message: string,
   payload: Record<string, unknown>,
 ): void {
-  const normalizedLevel = String(level || "warn").toLowerCase();
-  const fn = logger[normalizedLevel];
-  if (typeof fn === "function") {
-    (fn as (m: string, p?: Record<string, unknown>) => void)(message, payload);
-    return;
-  }
-  if (typeof logger.warn === "function") {
-    logger.warn(message, payload);
+  // Use bracket-call syntax so the logger method keeps its `this` binding.
+  // Extracting `const fn = logger[level]; fn(...)` would invoke the prototype
+  // method with `this === undefined` and crash inside `Logger#_emit`, which
+  // is what flooded MiningCron with one ERROR per second:
+  //   "Cannot read properties of undefined (reading '_emit')"
+  // The crash also propagated out of the (un-try-catch'd) `Cron action skipped`
+  // path and re-entered tick().catch as "Mining tick unexpected error",
+  // doubling the noise. Wrap the dispatch defensively so log calls themselves
+  // never take down the cron runner.
+  const normalizedLevel = String(level || "warn").toLowerCase() as keyof CronLogger;
+  try {
+    if (typeof logger[normalizedLevel] === "function") {
+      (logger[normalizedLevel] as NonNullable<CronLogger[keyof CronLogger]>).call(
+        logger,
+        message,
+        payload,
+      );
+      return;
+    }
+    if (typeof logger.warn === "function") {
+      logger.warn(message, payload);
+    }
+  } catch {
+    /* never let a log call take down the cron runner */
   }
 }
 
