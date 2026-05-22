@@ -16,6 +16,7 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
       { itemId: 'shop', labelKey: 'sidebar.shop', icon: 'ShoppingCart', path: '/shop' },
       { itemId: 'offers', labelKey: 'sidebar.offers', icon: 'Tag', path: '/offers' },
       { itemId: 'wallet', labelKey: 'sidebar.wallet', icon: 'Wallet', path: '/wallet' },
+      { itemId: 'taxes', labelKey: 'sidebar.taxes', icon: 'Receipt', path: '/taxes' },
       { itemId: 'support', labelKey: 'sidebar.support', icon: 'LifeBuoy', path: '/support' },
     ],
   },

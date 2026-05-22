@@ -33,6 +33,7 @@ const PowerStatistics = lazy(() => import('../pages/stats'));
 const PopularOffers = lazy(() => import('../pages/offers'));
 const DailyTasks = lazy(() => import('../pages/tasks'));
 const Support = lazy(() => import('../pages/support'));
+const TaxesPage = lazy(() => import('../pages/taxes'));
 const YouTubeWatch = lazy(() => import('../pages/youtube-watch'));
 const Ranking = lazy(() => import('../pages/ranking'));
 const PublicRoom = lazy(() => import('../pages/public-room'));
@@ -237,6 +238,7 @@ function App() {
             <Route path="/room/:username" element={<PublicRoom />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/taxes" element={<TaxesPage />} />
             <Route path="/games" element={<Games />} />
             <Route path="/games/2048" element={<Game2048Page />} />
             <Route path="/minigame" element={<Navigate to="/games" replace />} />

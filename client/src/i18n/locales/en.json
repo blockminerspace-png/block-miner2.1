@@ -702,7 +702,20 @@
       "earn": "Earn",
       "social": "Social & Fun"
     },
-    "inventario": "Inventory"
+    "inventario": "Inventory",
+    "taxes": "Taxes & Fees"
+  },
+  "taxes": {
+    "title": "Taxes & Fees",
+    "coming_soon_desc": "A transparent tax and fee system is coming to BlockMiner. Here you will be able to track energy costs, upcoming charges, and your full fee history.",
+    "planned_features": "Planned features",
+    "feature_energy_tax": "Energy Tax",
+    "feature_energy_tax_desc": "10% charge on energy costs based on your mining output over the last 7 days.",
+    "feature_weekly_charge": "Weekly Billing",
+    "feature_weekly_charge_desc": "Charges are processed every Monday automatically. No surprises.",
+    "feature_transparency": "Full Transparency",
+    "feature_transparency_desc": "Complete history of every charge with breakdown by day and miner.",
+    "coming_soon_notice": "This feature is under development and will be available soon."
   },
   "game2048": {
     "title": "Chain 2048",

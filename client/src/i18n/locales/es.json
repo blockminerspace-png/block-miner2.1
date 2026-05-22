@@ -338,7 +338,20 @@
       "earn": "Ganar",
       "social": "Social & Fun"
     },
-    "inventario": "Inventario"
+    "inventario": "Inventario",
+    "taxes": "Impuestos y Tasas"
+  },
+  "taxes": {
+    "title": "Impuestos y Tasas",
+    "coming_soon_desc": "Un sistema transparente de impuestos y tasas está llegando a BlockMiner. Aquí podrás seguir los costos de energía, los próximos cargos y tu historial completo de tasas.",
+    "planned_features": "Funciones planificadas",
+    "feature_energy_tax": "Tasa de Energía",
+    "feature_energy_tax_desc": "10% sobre los costos de energía según tu minería de los últimos 7 días.",
+    "feature_weekly_charge": "Cobro Semanal",
+    "feature_weekly_charge_desc": "Los cobros se procesan cada lunes automáticamente. Sin sorpresas.",
+    "feature_transparency": "Transparencia Total",
+    "feature_transparency_desc": "Historial completo de cada cargo con desglose por día y minero.",
+    "coming_soon_notice": "Esta función está en desarrollo y estará disponible próximamente."
   },
   "game2048": {
     "title": "Chain 2048",
