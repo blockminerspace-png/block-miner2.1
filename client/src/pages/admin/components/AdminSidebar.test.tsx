@@ -27,7 +27,6 @@ const enAdminSidebar = {
     read_earn: "Read & Earn",
     creators: "Creators",
     transparency: "Transparency",
-    deposit_tickets: "Deposit tickets",
     backups: "Backups",
     logs: "Logs",
     metrics: "Metrics",

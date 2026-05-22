@@ -160,7 +160,6 @@ export type AdminSupportPlayerDossierParams = {
   limit: number;
   depositsPage: number;
   ccpaymentPage: number;
-  depositTicketsPage: number;
   withdrawalsPage: number;
   payoutsPage: number;
   minersPage: number;

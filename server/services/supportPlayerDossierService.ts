@@ -59,27 +59,18 @@ export async function collectKnownWalletAddresses(prisma, userId, primaryWallet,
 
   add(primaryWallet);
 
-  const [txRows, ticketRows] = await Promise.all([
+  const [txRows] = await Promise.all([
     prisma.transaction.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: sampleSize,
       select: { address: true, fromAddress: true },
     }),
-    prisma.depositTicket.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: Math.min(200, sampleSize),
-      select: { walletAddress: true },
-    }),
   ]);
 
   for (const r of txRows) {
     add(r.address);
     add(r.fromAddress);
-  }
-  for (const r of ticketRows) {
-    add(r.walletAddress);
   }
 
   return Array.from(set.values());
@@ -90,7 +81,6 @@ export async function collectKnownWalletAddresses(prisma, userId, primaryWallet,
  * @param {string} [q.limit]
  * @param {string} [q.depositsPage]
  * @param {string} [q.ccpaymentPage]
- * @param {string} [q.depositTicketsPage]
  * @param {string} [q.withdrawalsPage]
  * @param {string} [q.payoutsPage]
  * @param {string} [q.minersPage]
@@ -107,7 +97,6 @@ export function parseDossierPagination(q) {
     limit,
     depositsPage: page("depositsPage"),
     ccpaymentPage: page("ccpaymentPage"),
-    depositTicketsPage: page("depositTicketsPage"),
     withdrawalsPage: page("withdrawalsPage"),
     payoutsPage: page("payoutsPage"),
     minersPage: page("minersPage"),
@@ -210,7 +199,6 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
     depositSplit,
     withdrawalSplit,
     ccpaymentSplit,
-    depositTicketsSplit,
     payoutsSplit,
     minersSplit,
     inventorySplit,
@@ -279,27 +267,6 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
             payStatus: true,
             credited: true,
             txHash: true,
-            createdAt: true,
-          },
-        }),
-      ]);
-      return { total, rows };
-    }),
-    loadDossierSlice("depositTickets", async () => {
-      const [total, rows] = await Promise.all([
-        prisma.depositTicket.count({ where: { userId } }),
-        prisma.depositTicket.findMany({
-          where: { userId },
-          orderBy: { createdAt: "desc" },
-          skip: skipFor(p.depositTicketsPage, p.limit),
-          take: p.limit,
-          select: {
-            id: true,
-            walletAddress: true,
-            txHash: true,
-            amountClaimed: true,
-            status: true,
-            creditedAmount: true,
             createdAt: true,
           },
         }),
@@ -385,8 +352,6 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
   const withdrawalTxRows = withdrawalSplit?.rows ?? [];
   const ccpaymentTotal = ccpaymentSplit?.total ?? 0;
   const ccpaymentRows = ccpaymentSplit?.rows ?? [];
-  const depositTicketsTotal = depositTicketsSplit?.total ?? 0;
-  const depositTicketsRows = depositTicketsSplit?.rows ?? [];
   const payoutsTotal = payoutsSplit?.total ?? 0;
   const payoutsRows = payoutsSplit?.rows ?? [];
   const minersTotal = minersSplit?.total ?? 0;
@@ -405,12 +370,6 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
   const mapCcp = (c) => ({
     ...c,
     amountPol: c.amountPol != null ? toNumberOrNull(c.amountPol) : null,
-  });
-
-  const mapTicket = (d) => ({
-    ...d,
-    amountClaimed: d.amountClaimed != null ? toNumberOrNull(d.amountClaimed) : null,
-    creditedAmount: d.creditedAmount != null ? toNumberOrNull(d.creditedAmount) : null,
   });
 
   const miners = minersRows.map((m) => ({
@@ -484,12 +443,6 @@ export async function getSupportTicketPlayerDossier(prisma, ticketId, query) {
         rows: ccpaymentRows.map(mapCcp),
         total: ccpaymentTotal,
         page: p.ccpaymentPage,
-        limit: p.limit,
-      },
-      depositTickets: {
-        rows: depositTicketsRows.map(mapTicket),
-        total: depositTicketsTotal,
-        page: p.depositTicketsPage,
         limit: p.limit,
       },
       withdrawalTransactions: {

@@ -50,7 +50,6 @@ function defaultDossierParams(): AdminSupportPlayerDossierParams {
     limit: 30,
     depositsPage: 1,
     ccpaymentPage: 1,
-    depositTicketsPage: 1,
     withdrawalsPage: 1,
     payoutsPage: 1,
     minersPage: 1,

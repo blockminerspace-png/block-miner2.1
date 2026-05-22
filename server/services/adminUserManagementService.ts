@@ -244,11 +244,6 @@ async function findCandidateUserIds(prisma: PrismaClient, q: string): Promise<nu
       select: { userId: true },
       take,
     }),
-    prisma.depositTicket.findMany({
-      where: { OR: [{ txHash: containsInsensitive(q) }, { walletAddress: containsInsensitive(q) }] },
-      select: { userId: true },
-      take,
-    }).catch(() => [] as IdPick[]),
     prisma.auditLog.findMany({
       where: { OR: [{ ip: ip || q }, { action: containsInsensitive(q) }, { detailsJson: containsInsensitive(q) }] },
       select: { userId: true },
