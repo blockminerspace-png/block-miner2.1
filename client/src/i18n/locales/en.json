@@ -13,7 +13,7 @@
       "CAPTCHA_FAILED": "Human verification failed. Please try again.",
       "INVALID_REQUEST_SIGNATURE": "The idempotency key does not match this request. Use a new key for a different action.",
       "HTTPS_REQUIRED": "This server requires HTTPS. Update the URL to use https:// and try again."
-    },
+    }
   },
   "landing": {
     "meta": {
