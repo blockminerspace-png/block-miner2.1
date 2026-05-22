@@ -101,24 +101,62 @@ def _resolve_zip_path(raw: str) -> Path:
     return z
 
 
-def _make_gzipped_archive() -> Path:
-    """Tracked files only at HEAD (same as `git archive`), compressed (shell pipe avoids pipe deadlocks)."""
-    tmp = Path(tempfile.mkdtemp(prefix="bm-deploy-"))
-    out = tmp / "tree.tgz"
-    # One shell pipeline: reader drains gzip stdout while git archive feeds gzip stdin.
+def _build_server_dist() -> None:
+    """Compile TypeScript server sources so dist/ is up-to-date before packaging.
+
+    The Dockerfile's frontend-builder stage needs dist/server/services/game2048Engine.js
+    (gitignored) in the build context.  Running tsc here guarantees it's always present
+    and contains the latest committed fixes — no stale patches can survive a force-recreate.
+    """
+    print("[local] npm run build:server …", flush=True)
     r = subprocess.run(
-        [
-            "bash",
-            "-lc",
-            f'set -euo pipefail; git archive --format=tar HEAD | gzip -1 > "{out}"',
-        ],
+        ["npm", "run", "build:server"],
         cwd=str(REPO_ROOT),
         check=False,
     )
     if r.returncode != 0:
-        raise SystemExit(f"git archive | gzip failed (exit {r.returncode})")
-    if not out.is_file() or out.stat().st_size == 0:
-        raise SystemExit("archive output missing or empty")
+        raise SystemExit("npm run build:server failed — fix TypeScript errors before deploying")
+    print("[local] build:server OK", flush=True)
+
+
+def _make_gzipped_archive() -> Path:
+    """Tracked files + compiled dist/ at HEAD, compressed.
+
+    git archive provides the committed source tree; we then append dist/server/ so the
+    Dockerfile frontend-builder stage has game2048Engine.js without needing a pre-existing
+    dist/ on the VM.
+    """
+    _build_server_dist()
+
+    tmp = Path(tempfile.mkdtemp(prefix="bm-deploy-"))
+    out = tmp / "tree.tgz"
+    # Step 1: git archive → raw tar in a temp file so we can append dist/ to it.
+    raw_tar = tmp / "tree.tar"
+    r = subprocess.run(
+        ["git", "archive", "--format=tar", "--output", str(raw_tar), "HEAD"],
+        cwd=str(REPO_ROOT),
+        check=False,
+    )
+    if r.returncode != 0:
+        raise SystemExit(f"git archive failed (exit {r.returncode})")
+    # Step 2: append dist/server/ to the tar (--append keeps the git-tree entries intact).
+    dist_server = REPO_ROOT / "dist" / "server"
+    if dist_server.is_dir():
+        r2 = subprocess.run(
+            ["tar", "--append", "-f", str(raw_tar), "dist/server"],
+            cwd=str(REPO_ROOT),
+            check=False,
+        )
+        if r2.returncode != 0:
+            print("[local] warning: could not append dist/server to archive", flush=True)
+    # Step 3: gzip the combined tar.
+    r3 = subprocess.run(
+        ["bash", "-lc", f'gzip -1 < "{raw_tar}" > "{out}"'],
+        check=False,
+    )
+    raw_tar.unlink(missing_ok=True)
+    if r3.returncode != 0 or not out.is_file() or out.stat().st_size == 0:
+        raise SystemExit("gzip of archive failed or produced empty output")
     print(f"[local] archive {out.stat().st_size} bytes -> {out}", flush=True)
     return out
 
