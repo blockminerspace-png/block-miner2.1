@@ -125,14 +125,14 @@ export async function claimDailyTaskReward(userId, taskDefinitionId) {
       } else if (kind === "EVENT_MINER" && def.rewardEventMinerId) {
         const em = await tx.eventMiner.findUnique({
           where: { id: def.rewardEventMinerId },
-          select: { name: true, imageUrl: true, baseHashRate: true, slotSize: true },
+          select: { name: true, imageUrl: true, hashRate: true, slotSize: true },
         });
         if (em) {
           inboxPayload = {
             userId,
             source: INBOX_SOURCE_DAILY_TASK,
             rewardType: "machine",
-            rewardValue: Number(em.baseHashRate ?? 0),
+            rewardValue: Number(em.hashRate ?? 0),
             minerId: null,
             minerName: em.name,
             minerImageUrl: em.imageUrl,
