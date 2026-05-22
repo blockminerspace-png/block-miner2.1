@@ -2,11 +2,9 @@ import express, { type Express, type Request } from "express";
 import compression from "compression";
 import cors from "cors";
 import helmet from "helmet";
-import { createRateLimiter } from "#server/middleware/rateLimit.js";
 import { createDistributedRateLimiter } from "#server/middleware/distributedRateLimit.js";
 import { getHelmetContentSecurityPolicyOptions } from "#server/middleware/csp.js";
 import { createCsrfMiddleware } from "#server/middleware/csrf.js";
-import { handleBtcpayWebhook } from "#server/controllers/btcpayWebhookController.js";
 import { auditContextMiddleware } from "#server/src/audit/index.js";
 import { createHttpRequestLogger } from "#server/middleware/httpRequestLogger.js";
 import { buildExpressCorsOptions } from "#server/utils/corsConfig.js";
@@ -52,21 +50,6 @@ export function setupExpressHttpStack(app: Express, opts: SetupExpressHttpStackO
   if (process.env.NODE_ENV === "production") {
     app.use(compression({ threshold: 1024 }));
   }
-
-  const btcpayWebhookLimiter = createRateLimiter({
-    windowMs: 60_000,
-    max: 300,
-    message: "Too many BTCPay webhook requests.",
-  });
-  app.post(
-    "/api/payments/btcpay/webhook",
-    btcpayWebhookLimiter,
-    express.raw({
-      type: () => true,
-      limit: "4mb",
-    }),
-    handleBtcpayWebhook,
-  );
 
   const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "1mb";
   app.use(express.json({ limit: JSON_BODY_LIMIT }));

@@ -36,9 +36,6 @@
       "#server/routes/mining.js": [
         "./src/types/stubs/stub-server-routes-mining.d.ts"
       ],
-      "#server/routes/deposit-tickets.js": [
-        "./src/types/stubs/stub-server-routes-deposit-tickets.d.ts"
-      ],
       "#server/routes/shop.js": [
         "./src/types/stubs/stub-server-routes-shop.d.ts"
       ],
@@ -140,9 +137,6 @@
       ],
       "#server/middleware/csrf.js": [
         "./src/types/stubs/stub-server-middleware-csrf.d.ts"
-      ],
-      "#server/controllers/btcpayWebhookController.js": [
-        "./src/types/stubs/stub-server-controllers-btcpayWebhookController.d.ts"
       ],
       "#server/src/audit/index.js": [
         "./src/types/stubs/stub-server-src-audit-index.d.ts"

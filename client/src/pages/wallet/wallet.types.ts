@@ -12,9 +12,6 @@ export type WalletBalanceResponse = {
   minDepositPol?: number;
   blockConfirmations?: number;
   depositVerifyMaxAttempts?: number;
-  btcpayDepositEnabled?: boolean;
-  btcpayDepositComingSoon?: boolean;
-  btcpayDepositMissingEnvKeys?: string[];
   polygonHdDepositEnabled?: boolean;
   polygonHdDepositFeatureVisible?: boolean;
   polygonHdDepositMissingEnvKeys?: string[];
@@ -78,48 +75,12 @@ export type WalletHdAddressResponse = {
   derivationPath?: string;
 };
 
-export type WalletBtcpayInvoicePollResponse = {
-  ok: boolean;
-  localStatus?: string;
-  btcAddress?: string | null;
-  lightningInvoice?: string | null;
-};
-
-export type WalletBtcpayInvoicePostResponse = {
-  ok: boolean;
-  invoiceId?: string;
-  checkoutLink?: string;
-  btcAddress?: string | null;
-  lightningInvoice?: string | null;
-  status?: string;
-  i18nKey?: string;
-  message?: string;
-};
-
 export type WalletDepositSubmitResponse = {
   ok: boolean;
   message?: string;
 };
 
 export type WalletWithdrawResponse = {
-  ok: boolean;
-  message?: string;
-};
-
-export type DepositTicketRow = {
-  id: number | string;
-  status: string;
-  txHash?: string | null;
-  createdAt: string;
-  creditedAmount?: number | string | null;
-};
-
-export type WalletDepositTicketsResponse = {
-  ok: boolean;
-  tickets?: DepositTicketRow[];
-};
-
-export type WalletDepositTicketPostResponse = {
   ok: boolean;
   message?: string;
 };

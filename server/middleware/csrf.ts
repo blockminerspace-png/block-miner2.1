@@ -59,7 +59,7 @@ export function createCsrfMiddleware(): RequestHandler {
     const method = req.method.toUpperCase();
     const url = req.originalUrl || req.url;
 
-    if (url.includes("/socket.io/") || url.includes("/api/payments/btcpay/webhook")) {
+    if (url.includes("/socket.io/")) {
       next();
       return;
     }

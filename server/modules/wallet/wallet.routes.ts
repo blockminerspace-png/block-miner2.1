@@ -2,7 +2,6 @@ import express from "express";
 import { getRequestIp } from "../../utils/clientIp.js";
 import * as walletController from "./wallet.controller.js";
 import * as blkWalletController from "../../controllers/blkWalletController.js";
-import * as btcpayDepositController from "../../controllers/btcpayDepositController.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { createDistributedRateLimiter } from "../../middleware/distributedRateLimit.js";
 import { validateBody } from "../../middleware/validate.js";
@@ -65,8 +64,6 @@ walletRouter.post(
 );
 walletRouter.get("/deposit/pending", requireAuth, walletReadLimiter, walletController.getPendingDeposits);
 walletRouter.get("/deposit/hd-address", requireAuth, walletReadLimiter, walletController.getPolygonHdDepositAddress);
-walletRouter.post("/btcpay/invoice", requireAuth, walletLimiter, btcpayDepositController.postBtcpayInvoice);
-walletRouter.get("/btcpay/invoice/:invoiceId", requireAuth, walletReadLimiter, btcpayDepositController.getBtcpayInvoiceStatus);
 walletRouter.post(
   "/link/challenge",
   requireAuth,

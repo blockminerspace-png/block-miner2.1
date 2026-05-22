@@ -251,13 +251,6 @@ export type AdminSupportDossierCcpaymentRow = {
   createdAt?: string | Date | null;
 };
 
-export type AdminSupportDossierDepositTicketRow = {
-  id: number | string;
-  status?: string | null;
-  walletAddress?: string | null;
-  createdAt?: string | Date | null;
-};
-
 export type AdminSupportDossierWithdrawalRow = {
   id: number | string;
   amount?: number | string | null;
@@ -307,7 +300,6 @@ export type AdminSupportPlayerDossierData = {
   accountCollisions?: AdminSupportDossierAccountCollisions | null;
   depositTransactions: AdminSupportDossierPaged<AdminSupportDossierDepositRow>;
   ccpaymentDeposits: AdminSupportDossierPaged<AdminSupportDossierCcpaymentRow>;
-  depositTickets: AdminSupportDossierPaged<AdminSupportDossierDepositTicketRow>;
   withdrawalTransactions: AdminSupportDossierPaged<AdminSupportDossierWithdrawalRow>;
   payouts: AdminSupportDossierPaged<AdminSupportDossierPayoutRow>;
   miners: AdminSupportDossierPaged<AdminSupportDossierMinerRow>;

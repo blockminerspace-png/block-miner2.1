@@ -10,11 +10,6 @@ import { getPolUsdPrice } from "../../utils/cryptoPrice.js";
 import { getMinDepositPol, getRequiredBlockConfirmations } from "../../services/polygonDepositConfig.js";
 import { getSharedPolygonProvider } from "../../services/polygonProvider.js";
 import {
-  isBtcpayComingSoon,
-  isBtcpayInvoiceFlowEnabled,
-  listBtcpayMissingEnvKeys
-} from "../../services/btcpayService.js";
-import {
   getPolygonHdMinDepositPol,
   isPolygonHdDepositEnabled,
   isPolygonHdFeatureFlagged,
@@ -56,8 +51,6 @@ export async function getBalance(req: Request, res: Response) {
     const balance = await walletModel.getUserBalance(user.id);
     const depositAddress = normalizeHexAddressEnv(process.env.DEPOSIT_WALLET_ADDRESS);
     const depositContractAddress = normalizeHexAddressEnv(process.env.SMART_CONTRACT_ADDRESS);
-    const comingSoon = isBtcpayComingSoon();
-    const btcpayMissing = comingSoon ? [] : listBtcpayMissingEnvKeys();
     res.json({
       ok: true,
       ...balance,
@@ -66,9 +59,6 @@ export async function getBalance(req: Request, res: Response) {
       minDepositPol: getMinDepositPol(),
       blockConfirmations: getRequiredBlockConfirmations(),
       depositVerifyMaxAttempts: DEPOSIT_VERIFY_MAX_ATTEMPTS,
-      btcpayDepositEnabled: isBtcpayInvoiceFlowEnabled(),
-      btcpayDepositComingSoon: comingSoon,
-      btcpayDepositMissingEnvKeys: btcpayMissing,
       polygonHdDepositEnabled: isPolygonHdDepositEnabled(),
       polygonHdDepositFeatureVisible: isPolygonHdFeatureFlagged(),
       polygonHdDepositMissingEnvKeys: listPolygonHdMissingEnvKeys(),
@@ -563,7 +553,7 @@ export async function getPendingDeposits(req: Request, res: Response) {
       where: {
         userId: user.id,
         type: "deposit",
-        status: { in: ["pending_verification", "btcpay_pending", "completed", "failed"] }
+        status: { in: ["pending_verification", "completed", "failed"] }
       },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -604,8 +594,7 @@ export async function getPendingDeposits(req: Request, res: Response) {
         let confirmationsCurrent: number | null = null;
         let txMined: boolean | null = null;
         let txReverted: boolean | null = null;
-        const isBtcpayHash = typeof d.txHash === "string" && d.txHash.toLowerCase().startsWith("btcpay:");
-        if (d.status === "pending_verification" && d.txHash && latestBlock != null && !isBtcpayHash) {
+        if (d.status === "pending_verification" && d.txHash && latestBlock != null) {
           try {
             const receipt = await provider.getTransactionReceipt(d.txHash);
             if (!receipt) {

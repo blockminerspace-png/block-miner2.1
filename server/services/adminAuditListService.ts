@@ -48,8 +48,7 @@ export function inferAuditCategory(action) {
     u.includes("VAULT") ||
     u.includes("PAYOUT") ||
     u.includes("BALANCE") ||
-    u.includes("STRIPE") ||
-    u.includes("BTCPAY")
+    u.includes("STRIPE")
   ) {
     return "economy";
   }

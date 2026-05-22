@@ -153,7 +153,6 @@ const IDEMPOTENCY_PATH_MARKERS = [
   '/wallet/deposit/submit',
   '/wallet/withdraw',
   '/wallet/blk/convert',
-  '/wallet/btcpay/invoice',
   '/internal-offerwall/',
 ];
 

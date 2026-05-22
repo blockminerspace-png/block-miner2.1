@@ -96,7 +96,7 @@ export const USER_DASHBOARD_SCREEN_MATRIX = [
     screen: 'Carteira',
     module: 'wallet',
     frontendPath: '/wallet',
-    backendPrefixes: ['/api/wallet', '/api/deposit-tickets'],
+    backendPrefixes: ['/api/wallet'],
     notes: 'Depósitos, saques, BTCPay; saldo sempre do backend.',
   },
   {

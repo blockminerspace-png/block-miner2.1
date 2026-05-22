@@ -14,18 +14,6 @@
       "INVALID_REQUEST_SIGNATURE": "A chave de idempotência não corresponde a esta solicitação. Use uma chave nova para uma ação diferente.",
       "HTTPS_REQUIRED": "Este servidor exige HTTPS. Atualize o URL para https:// e tente novamente."
     },
-    "btcpay": {
-      "PAYMENT_NOT_CONFIRMED": "O pagamento em Bitcoin ainda não foi confirmado. Mantenha esta página aberta ou volte depois; o saldo é atualizado automaticamente.",
-      "INVALID_WEBHOOK": "Notificação de pagamento inválida.",
-      "INVOICE_NOT_FOUND": "Fatura não encontrada para sua conta.",
-      "BTCPAY_DISABLED": "Depósitos em Bitcoin (BTCPay) não estão configurados neste servidor.",
-      "INVALID_AMOUNT": "Informe um valor válido em POL acima do mínimo.",
-      "PRICE_UNAVAILABLE": "Não foi possível carregar o preço do POL. Tente novamente em alguns minutos.",
-      "INVOICE_CREATE_FAILED": "Não foi possível criar a fatura no BTCPay. Tente novamente mais tarde.",
-      "INVALID_INVOICE_ID": "Identificador de fatura inválido.",
-      "BTCPAY_COMING_SOON": "Depósitos em Bitcoin (BTCPay) estão temporariamente indisponíveis. Tenta mais tarde.",
-      "SERVER_ERROR": "Algo deu errado. Tente novamente."
-    }
   },
   "landing": {
     "meta": {
@@ -1768,31 +1756,6 @@
     "ticket_status_credited": "Creditado",
     "ticket_status_rejected": "Rejeitado",
     "ticket_status_approved": "Aprovado",
-    "btcpay": {
-      "option_label": "Bitcoin (BTCPay)",
-      "option_hint": "Paga com Bitcoin on-chain ou Lightning (o checkout pede os dois quando a tua loja BTCPay suporta). A tua conta é creditada em POL depois da fatura ser liquidada.",
-      "title": "Depósito em Bitcoin (BTCPay)",
-      "body": "Criamos uma fatura BTCPay em USD com base na taxa atual do POL. Quando o BTCPay marca a fatura como liquidada, creditamos o teu saldo em POL uma vez — sem crédito duplicado.",
-      "create_invoice": "Criar fatura Bitcoin",
-      "pay_with_bitcoin": "Pagar com Bitcoin",
-      "waiting_confirmation": "À espera da confirmação do BTCPay",
-      "payment_confirmed": "Pagamento confirmado — POL creditado",
-      "invoice_created": "Fatura criada. Conclui o pagamento na carteira ou no checkout alojado.",
-      "checkout_open": "Abrir checkout",
-      "copy_link": "Copiar link de pagamento",
-      "onchain_address": "Endereço BTC (se disponível)",
-      "lightning_invoice": "Fatura Lightning (se disponível)",
-      "copy_lightning": "Copiar fatura Lightning",
-      "status_label": "Estado",
-      "status_pending": "Liquidação pendente",
-      "status_completed": "Concluído",
-      "pending_short": "Fatura BTCPay",
-      "qr_alt": "Código QR do checkout BTCPay",
-      "disabled_hint_generic": "Depósitos Bitcoin (BTCPay) estão desativados neste servidor porque a integração BTCPay não está completa.",
-      "disabled_hint_keys": "Bitcoin (BTCPay) fica desligado até o servidor definir estas variáveis de ambiente (depois reinicia a app): {{keys}}",
-      "coming_soon": "Em breve",
-      "coming_soon_hint": "Bitcoin (BTCPay) está em pausa enquanto mudamos a infraestrutura. Os outros métodos de depósito continuam disponíveis."
-    },
     "polygon_hd": {
       "option_label": "Endereço de depósito",
       "option_hint": "Envia POL na Polygon (rede 137) para o teu endereço único. As entradas são detetadas automaticamente — não precisas de colar o hash da transação.",

@@ -21,9 +21,7 @@ import {
     TrendingUp,
     ChevronRight,
     QrCode,
-    Ticket,
     Send,
-    HelpCircle,
     Loader2,
     Banknote,
     LogOut,
@@ -31,7 +29,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../store/auth';
 import { walletApi } from './wallet.api';
-import type { DepositTicketRow, PendingDepositRow, WalletTransactionRow } from './wallet.types';
+import type { PendingDepositRow, WalletTransactionRow } from './wallet.types';
 import { WALLET_MIN_WITHDRAW_POL, isValidPolygonWithdrawAddress } from './wallet.validation';
 import { parseEther, isAddress, getAddress, Interface } from 'ethers';
 import { BLOCK_MINER_DEPOSIT_ABI } from '../../web3/blockMinerDepositAbi';
@@ -228,14 +226,6 @@ export default function Wallet() {
     const [depositChannel, setDepositChannel] = useState('smart_contract');
     const [injectedDiscovery, setInjectedDiscovery] = useState<'scanning' | 'none' | 'found'>('scanning');
     const [detectedWalletName, setDetectedWalletName] = useState<string | null>(null);
-    const [btcpayDepositEnabled, setBtcpayDepositEnabled] = useState(false);
-    const [btcpayDepositComingSoon, setBtcpayDepositComingSoon] = useState(false);
-    const [btcpayMissingEnvKeys, setBtcpayMissingEnvKeys] = useState<string[]>([]);
-    const [btcpayCheckoutLink, setBtcpayCheckoutLink] = useState('');
-    const [btcpayInvoiceId, setBtcpayInvoiceId] = useState('');
-    const [btcpayBtcAddr, setBtcpayBtcAddr] = useState<string | null>(null);
-    const [btcpayLightningInvoice, setBtcpayLightningInvoice] = useState<string | null>(null);
-    const [btcpayInvoiceStatus, setBtcpayInvoiceStatus] = useState<string | null>(null);
     const [polygonHdDepositEnabled, setPolygonHdDepositEnabled] = useState(false);
     const [polygonHdFeatureVisible, setPolygonHdFeatureVisible] = useState(false);
     const [polygonHdMissingEnvKeys, setPolygonHdMissingEnvKeys] = useState<string[]>([]);
@@ -292,12 +282,6 @@ export default function Wallet() {
         return false;
     };
 
-    // Deposit Ticket state
-    const [myTickets, setMyTickets] = useState<DepositTicketRow[]>([]);
-    const [ticketForm, setTicketForm] = useState({ walletAddress: '', txHash: '', amountClaimed: '', description: '' });
-    const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
-    const [ticketsLoaded, setTicketsLoaded] = useState(false);
-
     const fetchPrice = async () => {
         try {
             const res = await walletApi.getPolUsd();
@@ -346,13 +330,6 @@ export default function Wallet() {
                 if (typeof balanceRes.data.depositVerifyMaxAttempts === 'number' && balanceRes.data.depositVerifyMaxAttempts >= 1) {
                     setDepositVerifyMaxAttempts(balanceRes.data.depositVerifyMaxAttempts);
                 }
-                setBtcpayDepositEnabled(Boolean(balanceRes.data.btcpayDepositEnabled));
-                setBtcpayDepositComingSoon(Boolean(balanceRes.data.btcpayDepositComingSoon));
-                setBtcpayMissingEnvKeys(
-                    Array.isArray(balanceRes.data.btcpayDepositMissingEnvKeys)
-                        ? balanceRes.data.btcpayDepositMissingEnvKeys
-                        : []
-                );
                 setPolygonHdDepositEnabled(Boolean(balanceRes.data.polygonHdDepositEnabled));
                 setPolygonHdFeatureVisible(Boolean(balanceRes.data.polygonHdDepositFeatureVisible));
                 setPolygonHdMissingEnvKeys(
@@ -524,31 +501,6 @@ export default function Wallet() {
     }, [depositChannel, polygonHdDepositEnabled, polygonHdMissingEnvKeys, polygonHdFeatureVisible, t]);
 
     useEffect(() => {
-        if (depositChannel === 'btcpay' && !btcpayDepositEnabled) {
-            const canInjected = canUseInjectedDepositChannel(systemContractAddress, systemDepositAddress);
-            setDepositChannel(
-                !canInjected && walletConnectConfigured ? 'walletconnect' : 'smart_contract'
-            );
-        }
-    }, [
-        depositChannel,
-        btcpayDepositEnabled,
-        walletConnectConfigured,
-        systemContractAddress,
-        systemDepositAddress
-    ]);
-
-    useEffect(() => {
-        if (depositChannel !== 'btcpay') {
-            setBtcpayInvoiceId('');
-            setBtcpayCheckoutLink('');
-            setBtcpayBtcAddr(null);
-            setBtcpayLightningInvoice(null);
-            setBtcpayInvoiceStatus(null);
-        }
-    }, [depositChannel]);
-
-    useEffect(() => {
         if (depositChannel !== 'smart_contract' || isConnected) {
             return undefined;
         }
@@ -569,37 +521,10 @@ export default function Wallet() {
         };
     }, [depositChannel, isConnected]);
 
-    useEffect(() => {
-        if (!btcpayInvoiceId || depositChannel !== 'btcpay') return undefined;
-        const poll = async () => {
-            try {
-                const res = await walletApi.getBtcpayInvoiceStatus(btcpayInvoiceId);
-                if (res.data?.ok) {
-                    setBtcpayInvoiceStatus(res.data.localStatus ?? null);
-                    if (res.data.btcAddress != null) setBtcpayBtcAddr(res.data.btcAddress);
-                    if (res.data.lightningInvoice != null) setBtcpayLightningInvoice(res.data.lightningInvoice);
-                    if (res.data.localStatus === 'completed') {
-                        setBtcpayInvoiceId('');
-                        setBtcpayCheckoutLink('');
-                        setBtcpayBtcAddr(null);
-                        setBtcpayLightningInvoice(null);
-                        void fetchWalletData();
-                        void fetchPendingDeposits();
-                    }
-                }
-            } catch {
-                /* ignore */
-            }
-        };
-        void poll();
-        const id = setInterval(poll, 12_000);
-        return () => clearInterval(id);
-    }, [btcpayInvoiceId, depositChannel, fetchWalletData, fetchPendingDeposits]);
-
     // Para de fazer poll quando não há mais pendentes
     useEffect(() => {
         const hasPending = pendingDeposits.some(
-            d => d.status === 'pending_verification' || d.status === 'btcpay_pending'
+            d => d.status === 'pending_verification'
         );
         if (hasPending) {
             startPendingPoll();
@@ -795,38 +720,6 @@ export default function Wallet() {
         }
     };
 
-    const handleCreateBtcpayInvoice = async () => {
-        const amount = parseFloat(depositForm.amount);
-        if (isNaN(amount) || amount < minDepositPol) {
-            toast.error(t('wallet.min_deposit_error', { min: minDepositPol }));
-            return;
-        }
-        setIsActionLoading(true);
-        try {
-            const res = await walletApi.postBtcpayInvoice({ amountPol: amount });
-            if (res.data?.ok) {
-                setBtcpayInvoiceId(typeof res.data.invoiceId === 'string' ? res.data.invoiceId : '');
-                setBtcpayCheckoutLink(typeof res.data.checkoutLink === 'string' ? res.data.checkoutLink : '');
-                setBtcpayBtcAddr(res.data.btcAddress ?? null);
-                setBtcpayLightningInvoice(res.data.lightningInvoice ?? null);
-                setBtcpayInvoiceStatus(typeof res.data.status === 'string' ? res.data.status : null);
-                toast.success(t('wallet.btcpay.invoice_created'));
-                void fetchPendingDeposits();
-                startPendingPoll();
-            } else {
-                const key = res.data?.i18nKey;
-                toast.error(key ? t(key) : res.data?.message || t('common.error'));
-            }
-        } catch (err: unknown) {
-            const ax = err as AxiosError<{ i18nKey?: string; message?: string }>;
-            const key = ax.response?.data?.i18nKey;
-            const msg = ax.response?.data?.message;
-            toast.error(key ? t(key) : msg || (err instanceof Error ? err.message : '') || t('common.error'));
-        } finally {
-            setIsActionLoading(false);
-        }
-    };
-
     const handleWithdraw = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (isActionLoading) return;
@@ -874,38 +767,6 @@ export default function Wallet() {
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         toast.success(t('common.copied'));
-    };
-
-    const fetchMyTickets = async () => {
-        try {
-            const res = await walletApi.getDepositTickets();
-            if (res.data.ok) setMyTickets(res.data.tickets || []);
-        } catch {}
-        setTicketsLoaded(true);
-    };
-
-    const handleOpenTicket = async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (!ticketForm.walletAddress || !/^0x[0-9a-fA-F]{40}$/.test(ticketForm.walletAddress)) {
-            toast.error(t('wallet.ticket_invalid_wallet'));
-            return;
-        }
-        try {
-            setIsSubmittingTicket(true);
-            const res = await walletApi.postDepositTicket(ticketForm as unknown as Record<string, unknown>);
-            if (res.data.ok) {
-                toast.success(t('wallet.ticket_open_success'));
-                setTicketForm({ walletAddress: '', txHash: '', amountClaimed: '', description: '' });
-                fetchMyTickets();
-            } else {
-                toast.error(res.data.message || t('wallet.ticket_open_error'));
-            }
-        } catch (err: unknown) {
-            const ax = err as AxiosError<{ message?: string }>;
-            toast.error(ax.response?.data?.message || t('wallet.ticket_open_error'));
-        } finally {
-            setIsSubmittingTicket(false);
-        }
     };
 
     const StatusBadge = ({ status }: { status: string }) => {
@@ -1169,12 +1030,6 @@ export default function Wallet() {
                             >
                                 {t('wallet.tab_withdraw')}
                             </button>
-                            <button
-                                onClick={() => { setActiveTab('ticket'); if (!ticketsLoaded) fetchMyTickets(); }}
-                                className={`flex-1 py-2.5 sm:py-4 text-[8px] sm:text-xs font-black uppercase tracking-tight sm:tracking-widest leading-tight rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'ticket' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
-                            >
-                                {t('wallet.tab_ticket')}
-                            </button>
                         </div>
 
                         <div className="p-3 sm:p-8">
@@ -1303,25 +1158,6 @@ export default function Wallet() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setDepositChannel('btcpay')}
-                                            disabled={!btcpayDepositEnabled}
-                                            className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
-                                                depositChannel === 'btcpay'
-                                                    ? 'border-primary bg-primary/15 text-white shadow-lg shadow-primary/10'
-                                                    : 'border-slate-700 text-slate-400 hover:border-slate-600'
-                                            } disabled:opacity-40 disabled:cursor-not-allowed`}
-                                        >
-                                            <span className="flex flex-col items-center justify-center gap-1.5">
-                                                <span>{t('wallet.btcpay.option_label')}</span>
-                                                {btcpayDepositComingSoon ? (
-                                                    <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-100">
-                                                        {t('wallet.btcpay.coming_soon')}
-                                                    </span>
-                                                ) : null}
-                                            </span>
-                                        </button>
-                                        <button
-                                            type="button"
                                             onClick={() => setDepositChannel('polygon_hd')}
                                             className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
                                                 depositChannel === 'polygon_hd'
@@ -1332,34 +1168,19 @@ export default function Wallet() {
                                             {t('wallet.polygon_hd.option_label')}
                                         </button>
                                     </div>
-                                    {depositChannel === 'btcpay' && !btcpayDepositEnabled ? (
-                                        <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed px-1">
-                                            {btcpayDepositComingSoon
-                                                ? t('wallet.btcpay.coming_soon_hint')
-                                                : btcpayMissingEnvKeys.length
-                                                  ? t('wallet.btcpay.disabled_hint_keys', {
-                                                        keys: btcpayMissingEnvKeys.join(', ')
-                                                    })
-                                                  : t('wallet.btcpay.disabled_hint_generic')}
-                                        </p>
-                                    ) : null}
                                     {depositChannel !== 'polygon_hd' ? (
                                         <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
-                                            {depositChannel === 'btcpay'
-                                                ? t('wallet.btcpay.option_hint')
-                                                : t('wallet.deposit_options.hint')}
+                                            {t('wallet.deposit_options.hint')}
                                         </p>
                                     ) : null}
-                                    {depositChannel !== 'btcpay' &&
-                                    depositChannel !== 'polygon_hd' &&
+                                    {depositChannel !== 'polygon_hd' &&
                                     depositChannel === 'smart_contract' &&
                                     kitConnected ? (
                                         <p className="text-[9px] text-amber-300/90 font-bold text-center leading-relaxed">
                                             {t('wallet.web3_deposit.hint_disconnect_for_contract')}
                                         </p>
                                     ) : null}
-                                    {depositChannel !== 'btcpay' &&
-                                    depositChannel !== 'polygon_hd' &&
+                                    {depositChannel !== 'polygon_hd' &&
                                     depositChannel === 'walletconnect' &&
                                     isConnected &&
                                     !kitConnected ? (
@@ -1466,7 +1287,7 @@ export default function Wallet() {
                                                 )}
                                             </div>
                                         )
-                                    ) : depositChannel !== 'btcpay' ? (
+                                    ) : (
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
                                         <div className="p-5 sm:p-6 rounded-3xl border border-indigo-500/25 bg-indigo-950/20 flex flex-col gap-4 min-h-[280px]">
                                             <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300">
@@ -1624,125 +1445,6 @@ export default function Wallet() {
                                             ) : null}
                                         </div>
                                     </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch">
-                                            <div className="p-5 sm:p-6 rounded-3xl border border-amber-500/25 bg-amber-950/15 flex flex-col gap-4 min-h-[280px]">
-                                                <h4 className="text-xs font-black uppercase tracking-widest text-amber-200">
-                                                    {t('wallet.btcpay.title')}
-                                                </h4>
-                                                <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
-                                                    {t('wallet.btcpay.body')}
-                                                </p>
-                                                <p className="text-[9px] text-slate-500 font-bold mt-auto">
-                                                    {t('wallet.web3_deposit.min_deposit', { min: minDepositPol })}
-                                                </p>
-                                            </div>
-                                            <div className="p-5 sm:p-6 rounded-3xl border border-slate-800/80 bg-slate-950/50 flex flex-col gap-4 min-h-[280px]">
-                                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-200">
-                                                    {t('wallet.btcpay.pay_with_bitcoin')}
-                                                </h4>
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-                                                        {t('wallet.amount_to_add')}
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={depositForm.amount}
-                                                        onChange={(e) => setDepositForm({ amount: e.target.value })}
-                                                        placeholder="0.00"
-                                                        className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-4 text-slate-200 text-sm font-black transition-all outline-none"
-                                                    />
-                                                    <p className="text-[9px] text-slate-600 font-bold ml-1">
-                                                        {t('wallet.min_deposit_hint', { min: minDepositPol })}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleCreateBtcpayInvoice()}
-                                                    disabled={isActionLoading}
-                                                    className="w-full py-4 sm:py-5 bg-gradient-to-r from-amber-600 to-orange-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-tight sm:tracking-[0.1em] transition-all shadow-xl shadow-amber-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                                                >
-                                                    {isActionLoading ? (
-                                                        <Loader2 className="w-5 h-5 animate-spin shrink-0" />
-                                                    ) : (
-                                                        <QrCode className="w-5 h-5 shrink-0" />
-                                                    )}
-                                                    {t('wallet.btcpay.create_invoice')}
-                                                </button>
-                                                {btcpayCheckoutLink ? (
-                                                    <div className="space-y-3 pt-2 border-t border-slate-800/80">
-                                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                                            {t('wallet.btcpay.status_label')}:{' '}
-                                                            <span className="text-slate-200">
-                                                                {btcpayInvoiceStatus === 'completed'
-                                                                    ? t('wallet.btcpay.payment_confirmed')
-                                                                    : t('wallet.btcpay.waiting_confirmation')}
-                                                            </span>
-                                                        </p>
-                                                        <div className="flex justify-center p-3 bg-white rounded-2xl">
-                                                            <QRCodeSVG
-                                                                value={btcpayCheckoutLink}
-                                                                size={160}
-                                                                level="M"
-                                                                title={t('wallet.btcpay.qr_alt')}
-                                                            />
-                                                        </div>
-                                                        {btcpayBtcAddr ? (
-                                                            <div className="space-y-1">
-                                                                <p className="text-[9px] font-black text-slate-500 uppercase">
-                                                                    {t('wallet.btcpay.onchain_address')}
-                                                                </p>
-                                                                <p className="text-[10px] font-mono text-slate-300 break-all">
-                                                                    {btcpayBtcAddr}
-                                                                </p>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => copyToClipboard(btcpayBtcAddr)}
-                                                                    className="text-[9px] font-black text-primary uppercase"
-                                                                >
-                                                                    {t('common.copy')}
-                                                                </button>
-                                                            </div>
-                                                        ) : null}
-                                                        {btcpayLightningInvoice ? (
-                                                            <div className="space-y-1">
-                                                                <p className="text-[9px] font-black text-slate-500 uppercase">
-                                                                    {t('wallet.btcpay.lightning_invoice')}
-                                                                </p>
-                                                                <p className="text-[10px] font-mono text-slate-300 break-all">
-                                                                    {btcpayLightningInvoice}
-                                                                </p>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => copyToClipboard(btcpayLightningInvoice)}
-                                                                    className="text-[9px] font-black text-primary uppercase"
-                                                                >
-                                                                    {t('wallet.btcpay.copy_lightning')}
-                                                                </button>
-                                                            </div>
-                                                        ) : null}
-                                                        <div className="flex flex-col sm:flex-row gap-2">
-                                                            <a
-                                                                href={btcpayCheckoutLink}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="flex-1 text-center py-3 rounded-xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 border border-slate-600"
-                                                            >
-                                                                {t('wallet.btcpay.checkout_open')}
-                                                            </a>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => copyToClipboard(btcpayCheckoutLink)}
-                                                                className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-600 text-slate-200 hover:bg-slate-800"
-                                                            >
-                                                                {t('wallet.btcpay.copy_link')}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                        </div>
                                     )}
 
                                     {/* Painel de depósitos em verificação */}
@@ -1754,12 +1456,8 @@ export default function Wallet() {
                                             </h4>
                                             <div className="space-y-2 max-h-52 overflow-y-auto scrollbar-hide">
                                                 {pendingDeposits.map(dep => {
-                                                    const isBtcpayRow =
-                                                        typeof dep.txHash === 'string' &&
-                                                        dep.txHash.toLowerCase().startsWith('btcpay:');
                                                     const isPending =
-                                                        dep.status === 'pending_verification' ||
-                                                        dep.status === 'btcpay_pending';
+                                                        dep.status === 'pending_verification';
                                                     const isOk = dep.status === 'completed';
                                                     return (
                                                         <div key={dep.id} className={`flex items-center justify-between p-3.5 rounded-2xl border ${
@@ -1776,45 +1474,35 @@ export default function Wallet() {
                                                                 }
                                                                 <div>
                                                                     <p className="text-[9px] font-mono text-slate-400">
-                                                                        {isBtcpayRow
-                                                                            ? t('wallet.btcpay.pending_short')
-                                                                            : dep.txHash
+                                                                        {dep.txHash
                                                                               ? `${dep.txHash.slice(0, 10)}...${dep.txHash.slice(-6)}`
                                                                               : 'N/A'}
                                                                     </p>
                                                                     <p className="text-[9px] text-slate-600">
                                                                         {isPending ? (
                                                                             <>
-                                                                                {isBtcpayRow ? (
-                                                                                    <span className="block text-indigo-300/90">
-                                                                                        {t('wallet.btcpay.waiting_confirmation')}
+                                                                                {t('wallet.verifying_attempt', {
+                                                                                    current: dep.verifyAttempts,
+                                                                                    max:
+                                                                                        dep.verifyMaxAttempts ??
+                                                                                        depositVerifyMaxAttempts
+                                                                                })}
+                                                                                {typeof dep.confirmationsCurrent ===
+                                                                                    'number' && dep.confirmationsRequired ? (
+                                                                                    <span className="block mt-0.5 text-indigo-300/90">
+                                                                                        {dep.txReverted
+                                                                                            ? t('wallet.web3_deposit.tx_reverted_hint')
+                                                                                            : dep.txMined === false
+                                                                                              ? t('wallet.web3_deposit.tx_pending_mined')
+                                                                                              : t('wallet.web3_deposit.confirmations', {
+                                                                                                    current: Math.min(
+                                                                                                        dep.confirmationsCurrent,
+                                                                                                        dep.confirmationsRequired
+                                                                                                    ),
+                                                                                                    required: dep.confirmationsRequired
+                                                                                                })}
                                                                                     </span>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        {t('wallet.verifying_attempt', {
-                                                                                            current: dep.verifyAttempts,
-                                                                                            max:
-                                                                                                dep.verifyMaxAttempts ??
-                                                                                                depositVerifyMaxAttempts
-                                                                                        })}
-                                                                                        {typeof dep.confirmationsCurrent ===
-                                                                                            'number' && dep.confirmationsRequired ? (
-                                                                                            <span className="block mt-0.5 text-indigo-300/90">
-                                                                                                {dep.txReverted
-                                                                                                    ? t('wallet.web3_deposit.tx_reverted_hint')
-                                                                                                    : dep.txMined === false
-                                                                                                      ? t('wallet.web3_deposit.tx_pending_mined')
-                                                                                                      : t('wallet.web3_deposit.confirmations', {
-                                                                                                            current: Math.min(
-                                                                                                                dep.confirmationsCurrent,
-                                                                                                                dep.confirmationsRequired
-                                                                                                            ),
-                                                                                                            required: dep.confirmationsRequired
-                                                                                                        })}
-                                                                                            </span>
-                                                                                        ) : null}
-                                                                                    </>
-                                                                                )}
+                                                                                ) : null}
                                                                             </>
                                                                         ) : isOk ? (
                                                                             `+${Number(dep.amount).toFixed(4)} POL`
@@ -1825,7 +1513,7 @@ export default function Wallet() {
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                {dep.txHash && !isBtcpayRow ? (
+                                                                {dep.txHash ? (
                                                                     <a
                                                                         href={`https://polygonscan.com/tx/${dep.txHash}`}
                                                                         target="_blank"
@@ -1852,102 +1540,6 @@ export default function Wallet() {
                                 </form>
                             )}
 
-                            {activeTab === 'ticket' && (
-                                <div className="space-y-8">
-                                    <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
-                                        <HelpCircle className="w-5 h-5 text-amber-400 shrink-0" />
-                                        <p className="text-[10px] text-slate-400 leading-relaxed font-bold">
-                                            {t('wallet.ticket_hint')}
-                                        </p>
-                                    </div>
-
-                                    <form onSubmit={handleOpenTicket} className="space-y-6">
-                                        <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_wallet_origin')}</label>
-                                            <input
-                                                type="text"
-                                                value={ticketForm.walletAddress}
-                                                onChange={(e) => setTicketForm(p => ({ ...p, walletAddress: e.target.value.trim() }))}
-                                                placeholder={t('wallet.ticket_wallet_placeholder')}
-                                                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
-                                            />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_tx_hash_opt')}</label>
-                                            <input
-                                                type="text"
-                                                value={ticketForm.txHash}
-                                                onChange={(e) => setTicketForm(p => ({ ...p, txHash: e.target.value.trim() }))}
-                                                placeholder="0x..."
-                                                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_amount_sent')}</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.0001"
-                                                    value={ticketForm.amountClaimed}
-                                                    onChange={(e) => setTicketForm(p => ({ ...p, amountClaimed: e.target.value }))}
-                                                    placeholder="Ex: 0.5"
-                                                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
-                                                />
-                                            </div>
-                                            <div className="space-y-3">
-                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('wallet.ticket_note')}</label>
-                                                <input
-                                                    type="text"
-                                                    value={ticketForm.description}
-                                                    onChange={(e) => setTicketForm(p => ({ ...p, description: e.target.value }))}
-                                                    placeholder="Detalhes adicionais..."
-                                                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl py-4 px-5 text-slate-200 text-xs transition-all outline-none"
-                                                />
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="submit"
-                                            disabled={isSubmittingTicket}
-                                            className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                                        >
-                                            {isSubmittingTicket ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
-                                            {isSubmittingTicket ? t('wallet.ticket_submitting') : t('wallet.ticket_submit')}
-                                        </button>
-                                    </form>
-
-                                    {/* Meus tickets */}
-                                    {myTickets.length > 0 && (
-                                        <div className="space-y-4">
-                                            <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t('wallet.ticket_my_tickets')}</h4>
-                                            <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">
-                                                {myTickets.map(ticket => {
-                                                    const statusCfg = {
-                                                        open: { color: 'text-blue-400 bg-blue-400/10', label: t('wallet.ticket_status_open') },
-                                                        analyzing: { color: 'text-amber-400 bg-amber-400/10', label: t('wallet.ticket_status_analyzing') },
-                                                        credited: { color: 'text-emerald-400 bg-emerald-400/10', label: t('wallet.ticket_status_credited') },
-                                                        rejected: { color: 'text-red-400 bg-red-400/10', label: t('wallet.ticket_status_rejected') },
-                                                        approved: { color: 'text-emerald-400 bg-emerald-400/10', label: t('wallet.ticket_status_approved') }
-                                                    }[ticket.status] || { color: 'text-slate-400 bg-slate-400/10', label: ticket.status };
-                                                    return (
-                                                        <div key={ticket.id} className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800/50 rounded-2xl">
-                                                            <div className="space-y-1">
-                                                                <p className="text-[10px] font-black text-white">Ticket #{ticket.id}</p>
-                                                                <p className="text-[9px] text-slate-500 font-mono">{ticket.txHash ? `${ticket.txHash.slice(0,12)}...` : t('wallet.ticket_no_hash')}</p>
-                                                                <p className="text-[9px] text-slate-600">{new Date(ticket.createdAt).toLocaleDateString()}</p>
-                                                            </div>
-                                                            <div className="text-right space-y-1">
-                                                                <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${statusCfg.color}`}>{statusCfg.label}</span>
-                                                                {ticket.creditedAmount && <p className="text-[9px] text-emerald-400 font-bold">+{Number(ticket.creditedAmount).toFixed(4)} POL</p>}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>

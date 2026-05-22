@@ -57,7 +57,6 @@ const AdminMetrics = lazy(() => import('../pages/admin/AdminMetrics'));
 const AdminOfferEvents = lazy(() => import('../pages/admin/AdminOfferEvents'));
 const AdminOfferEventManage = lazy(() => import('../pages/admin/AdminOfferEventManage'));
 const AdminSupport = lazy(() => import('../pages/admin/AdminSupport'));
-const AdminDepositTickets = lazy(() => import('../pages/admin/AdminDepositTickets'));
 const AdminBanners = lazy(() => import('../pages/admin/AdminBanners'));
 const AdminCreators = lazy(() => import('../pages/admin/AdminCreators'));
 const AdminTransparency = lazy(() => import('../pages/admin/AdminTransparency'));
@@ -262,7 +261,6 @@ function App() {
             <Route path="/admin/offer-events" element={<AdminOfferEvents />} />
             <Route path="/admin/offer-events/:id" element={<AdminOfferEventManage />} />
             <Route path="/admin/support" element={<AdminSupport />} />
-            <Route path="/admin/deposit-tickets" element={<AdminDepositTickets />} />
             <Route path="/admin/banners" element={<AdminBanners />} />
             <Route path="/admin/creators" element={<AdminCreators />} />
             <Route path="/admin/transparency" element={<AdminTransparency />} />

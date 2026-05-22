@@ -3,7 +3,6 @@ import * as adminController from "../controllers/adminController.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 import * as adminSupportController from "../controllers/adminSupportController.js";
 import * as adminUserInsightsController from "../controllers/adminUserInsightsController.js";
-import * as depositTicketController from "../controllers/depositTicketController.js";
 import * as bannerController from "../controllers/bannerController.js";
 import * as creatorController from "../controllers/creatorController.js";
 import * as transparencyController from "../controllers/transparencyController.js";
@@ -1147,12 +1146,6 @@ adminRouter.get("/support", adminSupportController.listMessages);
 adminRouter.get("/support/:id/player-dossier", adminSupportController.getPlayerDossier);
 adminRouter.get("/support/:id", adminSupportController.getMessage);
 adminRouter.post("/support/:id/reply", adminSupportController.replyToMessage);
-
-// Deposit Tickets
-adminRouter.get("/deposit-tickets", depositTicketController.adminListTickets);
-adminRouter.get("/deposit-tickets/:id", depositTicketController.adminGetTicket);
-adminRouter.post("/deposit-tickets/:id/approve", depositTicketController.adminApproveTicket);
-adminRouter.post("/deposit-tickets/:id/reject", depositTicketController.adminRejectTicket);
 
 // ── Broadcast Messages ──────────────────────────────────────────────────────
 adminRouter.get("/broadcast", async (req, res) => {

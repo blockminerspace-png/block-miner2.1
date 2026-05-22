@@ -18,7 +18,6 @@ import {
 import type {
   AdminSupportDossierCcpaymentRow,
   AdminSupportDossierDepositRow,
-  AdminSupportDossierDepositTicketRow,
   AdminSupportDossierMachineCardRow,
   AdminSupportDossierMinerRow,
   AdminSupportDossierPaged,
@@ -65,7 +64,6 @@ function translateViaCodes(t: TFunction, codes: readonly string[]): string {
 type DossierNumericPageKey =
   | "depositsPage"
   | "ccpaymentPage"
-  | "depositTicketsPage"
   | "withdrawalsPage"
   | "payoutsPage"
   | "minersPage"
@@ -75,7 +73,6 @@ type DossierNumericPageKey =
 type DossierPagedTablePageKey =
   | "depositsPage"
   | "ccpaymentPage"
-  | "depositTicketsPage"
   | "withdrawalsPage"
   | "payoutsPage";
 
@@ -112,7 +109,6 @@ export default function AdminSupportPlayerDossier({
     () => ({
       deposits: { key: "depositsPage" as const, data: dossier?.depositTransactions },
       ccpayment: { key: "ccpaymentPage" as const, data: dossier?.ccpaymentDeposits },
-      tickets: { key: "depositTicketsPage" as const, data: dossier?.depositTickets },
       withdrawals: { key: "withdrawalsPage" as const, data: dossier?.withdrawalTransactions },
       payouts: { key: "payoutsPage" as const, data: dossier?.payouts },
     }),
@@ -398,31 +394,6 @@ export default function AdminSupportPlayerDossier({
             <td className="px-2 py-2 font-mono">{row.id}</td>
             <td className="px-2 py-2 font-mono">{row.amountPol ?? "—"}</td>
             <td className="px-2 py-2">{String(row.credited)}</td>
-            <td className="px-2 py-2 whitespace-nowrap">{row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}</td>
-          </tr>
-        )}
-      />
-
-      <DossierPagedTable<AdminSupportDossierDepositTicketRow>
-        t={t}
-        title={t("admin_support.dossier.deposits_tickets")}
-        sectionKey="depositTicketsPage"
-        data={pageControls.tickets.data}
-        params={params}
-        onPageDelta={(delta) => changePage("depositTicketsPage", delta)}
-        columns={[
-          { key: "id", label: t("admin_support.dossier.col_id") },
-          { key: "status", label: t("admin_support.dossier.col_status") },
-          { key: "walletAddress", label: t("admin_support.dossier.col_wallet") },
-          { key: "createdAt", label: t("admin_support.dossier.col_date") },
-        ]}
-        rowRender={(row) => (
-          <tr key={String(row.id)} className="border-b border-slate-800/50 text-xs text-slate-300">
-            <td className="px-2 py-2 font-mono">{row.id}</td>
-            <td className="px-2 py-2">{row.status}</td>
-            <td className="max-w-[140px] truncate px-2 py-2 font-mono" title={row.walletAddress ?? undefined}>
-              {row.walletAddress}
-            </td>
             <td className="px-2 py-2 whitespace-nowrap">{row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}</td>
           </tr>
         )}

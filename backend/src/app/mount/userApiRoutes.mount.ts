@@ -3,7 +3,6 @@ import { authRouter } from "#server/routes/auth.js";
 import { faucetRouter } from "#server/routes/faucet.js";
 import { walletRouter } from "#server/routes/wallet.js";
 import { miningRouter } from "#server/routes/mining.js";
-import { depositTicketRouter } from "#server/routes/deposit-tickets.js";
 import { shopRouter } from "#server/routes/shop.js";
 import { inventoryRouter } from "#server/routes/inventory.js";
 import { machinesRouter } from "#server/routes/machines.js";
@@ -37,7 +36,6 @@ export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/faucet", faucetRouter);
   app.use("/api/wallet", walletRouter);
   app.use("/api/mining", miningRouter);
-  app.use("/api/deposit-tickets", depositTicketRouter);
   app.use("/api/shop", shopRouter);
   app.use("/api/inventory", inventoryRouter);
   app.use("/api/machines", machinesRouter);

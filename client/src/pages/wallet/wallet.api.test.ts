@@ -21,9 +21,4 @@ describe('walletApi', () => {
     expect(api.post).toHaveBeenCalledWith('/wallet/withdraw', body);
   });
 
-  it('getBtcpayInvoiceStatus encodes invoice id in the URL path', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue({ data: { ok: true } });
-    await walletApi.getBtcpayInvoiceStatus('inv/with%chars');
-    expect(api.get).toHaveBeenCalledWith('/wallet/btcpay/invoice/inv%2Fwith%25chars');
-  });
 });
