@@ -1,4 +1,5 @@
 import { useState } from "react";
+import FloatingPublicSupport from '../../../components/FloatingPublicSupport/FloatingPublicSupport';
 import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
@@ -229,6 +230,7 @@ export default function ForgotPassword() {
           </Link>
         </div>
       </div>
+      <FloatingPublicSupport />
     </div>
   );
 }

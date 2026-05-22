@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Tag,
   MessageSquare,
+  HelpCircle,
   Megaphone,
   Youtube,
   Eye,
@@ -45,6 +46,7 @@ const ADMIN_MENU_ITEMS: AdminMenuEntry[] = [
   { icon: Wallet, labelKey: 'adminSidebar.nav.finance', path: '/admin/finance' },
   { icon: PanelLeft, labelKey: 'adminSidebar.nav.user_app_sidebar', path: '/admin/user-sidebar' },
   { icon: MessageSquare, labelKey: 'adminSidebar.nav.support', path: '/admin/support' },
+  { icon: HelpCircle, labelKey: 'adminSidebar.nav.public_support', path: '/admin/public-support' },
   { icon: Megaphone, labelKey: 'adminSidebar.nav.banners', path: '/admin/banners' },
   {
     icon: CalendarRange,

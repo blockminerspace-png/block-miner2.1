@@ -28,6 +28,7 @@ import { broadcastRouter } from "#server/routes/broadcast.js";
 import { swapRouter } from "#server/routes/swap.js";
 import supportRouter from "#server/routes/support.js";
 import userRouter from "#server/routes/user.js";
+import { publicSupportRouter } from "#server/modules/publicSupport/publicSupport.routes.js";
 import { sidebarNavRouter } from "#server/routes/sidebar-nav.js";
 import { rewardInboxRouter } from "#server/routes/reward-inbox.js";
 
@@ -63,4 +64,5 @@ export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/user", userRouter);
   app.use("/api/sidebar", sidebarNavRouter);
   app.use("/api/reward-inbox", rewardInboxRouter);
+  app.use("/api/public-support", publicSupportRouter);
 }

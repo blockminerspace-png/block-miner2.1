@@ -1,5 +1,6 @@
 import express from "express";
 import * as adminController from "../controllers/adminController.js";
+import * as publicSupportCtrl from "../modules/publicSupport/publicSupport.controller.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 import * as adminSupportController from "../controllers/adminSupportController.js";
 import * as adminUserInsightsController from "../controllers/adminUserInsightsController.js";
@@ -1207,3 +1208,9 @@ adminRouter.delete("/broadcast/:id", async (req, res) => {
     res.status(500).json({ ok: false, message: adminErrMessage(err) });
   }
 });
+
+// ─── Public Support (admin) ───────────────────────────────────────────────────
+adminRouter.get("/public-support/tickets", publicSupportCtrl.adminListTickets);
+adminRouter.get("/public-support/ticket/:id", publicSupportCtrl.adminGetTicket);
+adminRouter.post("/public-support/ticket/:id/message", publicSupportCtrl.adminReply);
+adminRouter.patch("/public-support/ticket/:id/status", publicSupportCtrl.adminSetStatus);

@@ -117,6 +117,9 @@
       "#server/routes/reward-inbox.js": [
         "./src/types/stubs/stub-server-routes-reward-inbox.d.ts"
       ],
+      "#server/modules/publicSupport/publicSupport.routes.js": [
+        "./src/types/stubs/stub-server-modules-publicSupport-routes.d.ts"
+      ],
       "#server/routes/admin-auth.js": [
         "./src/types/stubs/stub-server-routes-admin-auth.d.ts"
       ],

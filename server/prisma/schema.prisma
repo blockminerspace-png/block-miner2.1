@@ -921,6 +921,37 @@ model UserCheckinStreakReward {
   @@map("user_checkin_streak_rewards")
 }
 
+model PublicSupportTicket {
+  id         Int      @id @default(autoincrement())
+  guestName  String   @map("guest_name")
+  guestEmail String   @map("guest_email")
+  subject    String
+  status     String   @default("open")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  resolvedById Int?   @map("resolved_by_id")
+
+  messages PublicSupportMessage[]
+
+  @@index([guestEmail])
+  @@index([status])
+  @@map("public_support_tickets")
+}
+
+model PublicSupportMessage {
+  id         Int      @id @default(autoincrement())
+  ticketId   Int      @map("ticket_id")
+  authorType String   @map("author_type")
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket PublicSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("public_support_messages")
+}
+
 model CheckinStreakRecovery {
   id              Int      @id @default(autoincrement())
   userId          Int      @map("user_id")

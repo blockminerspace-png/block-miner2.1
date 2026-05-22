@@ -477,13 +477,13 @@
       "read_earn": "Read & Earn",
       "creators": "Creadores",
       "transparency": "Transparencia",
-      "deposit_tickets": "Tickets de depósito",
       "backups": "Copias de seguridad",
       "logs": "Registros",
       "metrics": "Métricas",
       "analytics": "Analíticas",
       "broadcast": "Notificaciones",
-      "user_app_sidebar": "Barra lateral de usuario"
+      "user_app_sidebar": "Barra lateral de usuario",
+      "public_support": "Soporte Pre-login"
     },
     "logout": "Cerrar sesión"
   },
@@ -2855,5 +2855,34 @@
     "empty_title": "Bandeja vacía",
     "inbox_load_error": "Error al cargar recompensas.",
     "collect_error": "Error al recoger la recompensa."
+  },
+  "publicSupport": {
+    "open_button": "¿Necesitas ayuda?",
+    "header_title": "Soporte",
+    "home_desc": "¿Problemas para entrar, registrarte u otra duda? Estamos aquí.",
+    "new_ticket_btn": "Abrir nuevo ticket",
+    "new_ticket_sub": "Describe el problema y te respondemos pronto",
+    "find_tickets_btn": "Buscar mis tickets",
+    "find_tickets_sub": "Consulta tickets ya abiertos con tu e-mail",
+    "new_ticket_desc": "Rellena el formulario. Responderemos lo antes posible.",
+    "field_name": "Tu nombre",
+    "field_email": "Tu e-mail",
+    "field_subject": "Asunto",
+    "field_message": "Describe tu problema...",
+    "send_btn": "Enviar",
+    "sending": "Enviando...",
+    "sent_title": "¡Ticket enviado!",
+    "sent_desc": "Recibimos tu mensaje y responderemos a tu e-mail.",
+    "back_home": "Volver al inicio",
+    "lookup_desc": "Introduce tu e-mail para ver todos los tickets que abriste.",
+    "search_btn": "Buscar",
+    "searching": "Buscando...",
+    "lookup_error": "No se encontraron tickets. Verifica el e-mail.",
+    "no_tickets": "No se encontraron tickets para este e-mail.",
+    "status_open": "Abierto",
+    "status_closed": "Cerrado",
+    "admin_label": "Equipo de soporte",
+    "reply_placeholder": "Escribe un mensaje...",
+    "ticket_closed_notice": "Este ticket está cerrado. Abre uno nuevo si necesitas más ayuda."
   }
 }

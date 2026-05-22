@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, type FormEvent } from 'react';
+import FloatingPublicSupport from '../../../components/FloatingPublicSupport/FloatingPublicSupport';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../../../store/auth';
@@ -553,6 +554,7 @@ export default function Login() {
           </Link>
         </div>
       </div>
+      <FloatingPublicSupport />
     </div>
   );
 }

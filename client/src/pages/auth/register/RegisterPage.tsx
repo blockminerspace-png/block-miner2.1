@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
+import FloatingPublicSupport from '../../../components/FloatingPublicSupport/FloatingPublicSupport';
 import { toast } from 'sonner';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -465,6 +466,7 @@ export default function Register() {
         </div>
       </div>
       <SiteFooter compact />
+      <FloatingPublicSupport />
     </div>
   );
 }
