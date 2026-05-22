@@ -73,6 +73,13 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "main",
     defaultParentItemId: null
   },
+  taxes: {
+    path: "/taxes",
+    labelKey: "sidebar.taxes",
+    icon: "Receipt",
+    section: "main",
+    defaultParentItemId: null
+  },
   support: {
     path: "/support",
     labelKey: "sidebar.support",
@@ -317,6 +324,7 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "shop", visible: true, sortOrder: 40, section: "main", parentItemId: null },
     { itemId: "offers", visible: true, sortOrder: 50, section: "main", parentItemId: null },
     { itemId: "wallet", visible: true, sortOrder: 60, section: "main", parentItemId: null },
+    { itemId: "taxes", visible: true, sortOrder: 65, section: "main", parentItemId: null },
     { itemId: "support", visible: true, sortOrder: 70, section: "main", parentItemId: null },
 
     { itemId: "checkin", visible: true, sortOrder: 110, section: "earn", parentItemId: null },
