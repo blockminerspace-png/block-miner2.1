@@ -716,7 +716,27 @@
     "feature_weekly_charge_desc": "Cobranças processadas toda segunda-feira automaticamente. Sem surpresas.",
     "feature_transparency": "Transparência Total",
     "feature_transparency_desc": "Histórico completo de cada cobrança com detalhamento por dia e minerador.",
-    "coming_soon_notice": "Esta funcionalidade está em desenvolvimento e estará disponível em breve."
+    "coming_soon_notice": "Esta funcionalidade está em desenvolvimento e estará disponível em breve.",
+    "recovery": {
+      "title": "Recuperar Sequência",
+      "subtitle": "Perdeu o check-in? Pague uma taxa para restaurar sua sequência.",
+      "loading": "Verificando sua sequência...",
+      "not_eligible_streak_active": "Sua sequência está ativa — nenhuma recuperação necessária.",
+      "not_eligible_checked_in": "Você já fez check-in hoje.",
+      "not_eligible_too_many": "Dias perdidos demais (máx. 3). A sequência não pode ser recuperada.",
+      "not_eligible_no_streak": "Nenhuma sequência para recuperar.",
+      "not_eligible_already_recovered": "Sequência já recuperada para esses dias.",
+      "eligible_title": "Recuperação disponível",
+      "eligible_desc": "Sua sequência de {{streak}} dias foi quebrada após {{days}} dia(s) perdido(s).",
+      "fee_label": "Taxa de recuperação",
+      "fee_formula": "0,07 POL × {{streak}} dias = {{fee}} POL",
+      "balance_label": "Seu saldo",
+      "pay_button": "Restaurar sequência por {{fee}} POL",
+      "paying": "Processando...",
+      "success": "Sequência restaurada! Sua sequência de {{streak}} dias está de volta.",
+      "error_insufficient": "Saldo insuficiente para pagar a taxa de recuperação.",
+      "error_generic": "Falha ao processar recuperação. Tente novamente."
+    }
   },
   "game2048": {
     "title": "Chain 2048",

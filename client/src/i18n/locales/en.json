@@ -715,7 +715,27 @@
     "feature_weekly_charge_desc": "Charges are processed every Monday automatically. No surprises.",
     "feature_transparency": "Full Transparency",
     "feature_transparency_desc": "Complete history of every charge with breakdown by day and miner.",
-    "coming_soon_notice": "This feature is under development and will be available soon."
+    "coming_soon_notice": "This feature is under development and will be available soon.",
+    "recovery": {
+      "title": "Streak Recovery",
+      "subtitle": "Missed your check-in? Pay a fee to restore your streak.",
+      "loading": "Checking your streak...",
+      "not_eligible_streak_active": "Your streak is active — no recovery needed.",
+      "not_eligible_checked_in": "You already checked in today.",
+      "not_eligible_too_many": "Too many missed days (max 3). Streak cannot be recovered.",
+      "not_eligible_no_streak": "No streak to recover.",
+      "not_eligible_already_recovered": "Streak already recovered for these days.",
+      "eligible_title": "Recovery available",
+      "eligible_desc": "Your {{streak}}-day streak broke after {{days}} missed day(s).",
+      "fee_label": "Recovery fee",
+      "fee_formula": "0.07 POL × {{streak}} days = {{fee}} POL",
+      "balance_label": "Your balance",
+      "pay_button": "Restore streak for {{fee}} POL",
+      "paying": "Processing...",
+      "success": "Streak restored! Your {{streak}}-day streak is back.",
+      "error_insufficient": "Insufficient balance to pay the recovery fee.",
+      "error_generic": "Failed to process recovery. Please try again."
+    }
   },
   "game2048": {
     "title": "Chain 2048",

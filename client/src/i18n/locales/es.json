@@ -351,7 +351,27 @@
     "feature_weekly_charge_desc": "Los cobros se procesan cada lunes automáticamente. Sin sorpresas.",
     "feature_transparency": "Transparencia Total",
     "feature_transparency_desc": "Historial completo de cada cargo con desglose por día y minero.",
-    "coming_soon_notice": "Esta función está en desarrollo y estará disponible próximamente."
+    "coming_soon_notice": "Esta función está en desarrollo y estará disponible próximamente.",
+    "recovery": {
+      "title": "Recuperar Racha",
+      "subtitle": "¿Perdiste tu check-in? Paga una tasa para restaurar tu racha.",
+      "loading": "Verificando tu racha...",
+      "not_eligible_streak_active": "Tu racha está activa — no se necesita recuperación.",
+      "not_eligible_checked_in": "Ya hiciste check-in hoy.",
+      "not_eligible_too_many": "Demasiados días perdidos (máx. 3). La racha no se puede recuperar.",
+      "not_eligible_no_streak": "No hay racha que recuperar.",
+      "not_eligible_already_recovered": "Racha ya recuperada para esos días.",
+      "eligible_title": "Recuperación disponible",
+      "eligible_desc": "Tu racha de {{streak}} días se rompió tras {{days}} día(s) perdido(s).",
+      "fee_label": "Tasa de recuperación",
+      "fee_formula": "0.07 POL × {{streak}} días = {{fee}} POL",
+      "balance_label": "Tu saldo",
+      "pay_button": "Restaurar racha por {{fee}} POL",
+      "paying": "Procesando...",
+      "success": "¡Racha restaurada! Tu racha de {{streak}} días está de vuelta.",
+      "error_insufficient": "Saldo insuficiente para pagar la tasa de recuperación.",
+      "error_generic": "Error al procesar la recuperación. Inténtalo de nuevo."
+    }
   },
   "game2048": {
     "title": "Chain 2048",

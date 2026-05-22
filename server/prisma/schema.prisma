@@ -111,6 +111,7 @@ model User {
   game2048Sessions               Game2048Session[]
   polygonHdAddress               PolygonHdAddress?
   rewardInbox                    UserRewardInbox[]
+  checkinStreakRecoveries         CheckinStreakRecovery[]
 
   @@index([registrationIp])
   @@index([ip])
@@ -918,6 +919,20 @@ model UserCheckinStreakReward {
   @@unique([userId, milestoneId])
   @@index([userId])
   @@map("user_checkin_streak_rewards")
+}
+
+model CheckinStreakRecovery {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  recoveredStreak Int      @map("recovered_streak")
+  missedDays      Int      @map("missed_days")
+  feePolPaid      Float    @map("fee_pol_paid")
+  recoveredAt     DateTime @default(now()) @map("recovered_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("checkin_streak_recoveries")
 }
 
 model UserRewardInbox {
