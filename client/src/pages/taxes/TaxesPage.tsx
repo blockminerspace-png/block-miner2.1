@@ -27,7 +27,7 @@ export default function TaxesPage() {
       .then(([r, w]) => {
         if (cancelled) return;
         setRecovery(r.data);
-        const raw = (w.data as { polBalance?: unknown }).polBalance;
+        const raw = (w.data as { balance?: unknown }).balance;
         setBalance(typeof raw === 'number' ? raw : parseFloat(String(raw ?? '0')));
       })
       .catch(() => { if (!cancelled) setRecovery(null); })
