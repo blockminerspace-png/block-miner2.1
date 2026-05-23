@@ -155,6 +155,13 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "earn",
     defaultParentItemId: "rewards_group"
   },
+  offerwall: {
+    path: "/offerwall",
+    labelKey: "sidebar.offerwall",
+    icon: "Globe",
+    section: "earn",
+    defaultParentItemId: "rewards_group"
+  },
   zerads: {
     path: "/zerads",
     labelKey: "sidebar.zerads",
@@ -275,6 +282,25 @@ export function coerceInternalOfferwallEarnRoot(entries) {
   return { entries: next, changed };
 }
 
+/**
+ * Forces `zerads` to `visible: false` so it no longer appears in the sidebar
+ * now that it is embedded inside the Offerwall page.
+ */
+export function coerceZeradsHidden(entries) {
+  if (!Array.isArray(entries)) return { entries: /** @type {object[]} */ (entries), changed: false };
+  let changed = false;
+  const next = entries.map((e) => {
+    if (!e || typeof e !== "object") return /** @type {object} */ (e);
+    const row = /** @type {{ itemId: string, visible?: boolean }} */ (e);
+    if (row.itemId === "zerads" && row.visible !== false) {
+      changed = true;
+      return { ...row, visible: false };
+    }
+    return /** @type {object} */ (e);
+  });
+  return { entries: next, changed };
+}
+
 export function coerceParentLockedSidebarEntries(entries) {
   if (!Array.isArray(entries)) return { entries: /** @type {object[]} */ (entries), changed: false };
   let changed = false;
@@ -339,7 +365,8 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "daily_tasks", visible: true, sortOrder: 118, section: "earn", parentItemId: null },
     { itemId: "rewards_group", visible: true, sortOrder: 120, section: "earn", parentItemId: null },
     { itemId: "internal_offerwall", visible: true, sortOrder: 125, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "zerads", visible: true, sortOrder: 127, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "offerwall", visible: true, sortOrder: 127, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "zerads", visible: false, sortOrder: 128, section: "earn", parentItemId: "rewards_group" },
     { itemId: "faucet", visible: true, sortOrder: 130, section: "earn", parentItemId: "rewards_group" },
     { itemId: "shortlinks", visible: true, sortOrder: 140, section: "earn", parentItemId: "rewards_group" },
     { itemId: "auto_mining", visible: true, sortOrder: 150, section: "earn", parentItemId: "rewards_group" },

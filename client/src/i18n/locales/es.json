@@ -340,7 +340,8 @@
     },
     "inventario": "Inventario",
     "taxes": "Impuestos y Tasas",
-    "zerads": "Zerads PTC"
+    "zerads": "Zerads PTC",
+    "offerwall": "Offerwall"
   },
   "taxes": {
     "title": "Impuestos y Tasas",
@@ -2911,5 +2912,8 @@
     "col_clicks": "Clics",
     "col_zer": "ZER",
     "col_pol": "POL Ganado"
+  },
+  "offerwall": {
+    "subtitle": "Gana POL con anuncios y ofertas externas"
   }
 }

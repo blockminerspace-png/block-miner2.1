@@ -24,7 +24,8 @@ import {
   ListChecks,
   LayoutGrid,
   Crosshair,
-  Receipt
+  Receipt,
+  Globe
 } from 'lucide-react';
 import type { PublicNavCategory, PublicNavItem } from './sidebarNavPublicSchema';
 
@@ -54,7 +55,8 @@ export const SIDEBAR_ICON_MAP: Record<string, LucideIcon> = {
   ListChecks,
   LayoutGrid,
   Crosshair,
-  Receipt
+  Receipt,
+  Globe
 };
 
 export function resolveSidebarIcon(iconName: unknown): LucideIcon {
