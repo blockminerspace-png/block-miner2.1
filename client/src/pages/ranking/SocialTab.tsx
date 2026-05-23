@@ -404,11 +404,9 @@ function MySubmissions() {
 // ─── Main Social Tab ──────────────────────────────────────────────────────────
 
 export default function SocialTab() {
-  const { user } = useAuthStore();
   const [feed, setFeed] = useState<FeedResponse | null>(null);
   const [page, setPage] = useState(1);
   const [loadingFeed, setLoadingFeed] = useState(true);
-  const [profile, setProfile] = useState<YoutuberProfile | null | undefined>(undefined);
 
   const loadFeed = useCallback(async (p: number) => {
     setLoadingFeed(true);
@@ -421,21 +419,6 @@ export default function SocialTab() {
   }, []);
 
   useEffect(() => { void loadFeed(page); }, [page, loadFeed]);
-
-  useEffect(() => {
-    if (!user) return;
-    void (async () => {
-      try {
-        const res = await api.get<{ ok: boolean; profile: YoutuberProfile | null }>('/social/my-profile');
-        setProfile(res.data.ok ? res.data.profile : null);
-      } catch { setProfile(null); }
-    })();
-  }, [user]);
-
-  const isCredentialed = profile?.isCredentialed === true;
-  const isPending = !isCredentialed && profile?.credentialRequestStatus === 'pending';
-  const isRejected = !isCredentialed && profile?.credentialRequestStatus === 'rejected';
-  const hasNoRequest = !isCredentialed && !isPending && !isRejected;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -454,49 +437,6 @@ export default function SocialTab() {
           </span>
         )}
       </div>
-
-      {/* Profile state section — only if logged in and profile loaded */}
-      {user && profile !== undefined && (
-        <>
-          {/* ── Credenciado ── */}
-          {isCredentialed && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-950/10 px-4 py-3">
-                <ChannelAvatar photo={profile.channelPhoto} name={profile.channelName} />
-                <div className="flex-1">
-                  <p className="text-sm font-black text-white">{profile.channelName}</p>
-                  <p className="text-[10px] text-red-400">Criador Credenciado</p>
-                </div>
-              </div>
-              <SubmitForm onSubmitted={() => void loadFeed(1)} />
-              <MySubmissions />
-            </div>
-          )}
-
-          {/* ── Aguardando aprovação ── */}
-          {isPending && (
-            <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-950/10 px-4 py-4">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-                <Clock className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-white">Solicitação em análise</p>
-                <p className="text-xs text-amber-400/70">Aguarde a revisão da equipe BlockMiner.</p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Recusado — permite reenvio ── */}
-          {isRejected && (
-            <CredentialRequestForm profile={profile} onRequested={(p) => setProfile(p)} />
-          )}
-
-          {/* ── Sem solicitação ── */}
-          {hasNoRequest && (
-            <CredentialRequestForm profile={null} onRequested={(p) => setProfile(p)} />
-          )}
-        </>
-      )}
 
       {/* Feed */}
       {loadingFeed ? (
@@ -534,6 +474,94 @@ export default function SocialTab() {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+// ─── Credential / Creator Tab ─────────────────────────────────────────────────
+
+export function CredentialTab() {
+  const { user } = useAuthStore();
+  const [profile, setProfile] = useState<YoutuberProfile | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!user) return;
+    void (async () => {
+      try {
+        const res = await api.get<{ ok: boolean; profile: YoutuberProfile | null }>('/social/my-profile');
+        setProfile(res.data.ok ? res.data.profile : null);
+      } catch { setProfile(null); }
+    })();
+  }, [user]);
+
+  const isCredentialed = profile?.isCredentialed === true;
+  const isPending = !isCredentialed && profile?.credentialRequestStatus === 'pending';
+  const isRejected = !isCredentialed && profile?.credentialRequestStatus === 'rejected';
+  const hasNoRequest = !isCredentialed && !isPending && !isRejected;
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-600">
+        <Star className="w-10 h-10 opacity-30" />
+        <p className="text-sm font-bold">Faça login para solicitar credenciamento.</p>
+      </div>
+    );
+  }
+
+  if (profile === undefined) {
+    return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-500" /></div>;
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center">
+          <Star className="w-5 h-5 text-violet-400" />
+        </div>
+        <div>
+          <p className="text-sm font-black text-white">Área do Criador</p>
+          <p className="text-[10px] text-gray-500">Solicite credenciamento e envie vídeos</p>
+        </div>
+      </div>
+
+      {/* ── Credenciado ── */}
+      {isCredentialed && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-950/10 px-4 py-3">
+            <ChannelAvatar photo={profile.channelPhoto} name={profile.channelName} />
+            <div className="flex-1">
+              <p className="text-sm font-black text-white">{profile.channelName}</p>
+              <p className="text-[10px] text-red-400">Criador Credenciado</p>
+            </div>
+          </div>
+          <SubmitForm onSubmitted={() => {}} />
+          <MySubmissions />
+        </div>
+      )}
+
+      {/* ── Aguardando aprovação ── */}
+      {isPending && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-950/10 px-4 py-4">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm font-black text-white">Solicitação em análise</p>
+            <p className="text-xs text-amber-400/70">Aguarde a revisão da equipe BlockMiner.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Recusado — permite reenvio ── */}
+      {isRejected && (
+        <CredentialRequestForm profile={profile} onRequested={(p) => setProfile(p)} />
+      )}
+
+      {/* ── Sem solicitação ── */}
+      {hasNoRequest && (
+        <CredentialRequestForm profile={null} onRequested={(p) => setProfile(p)} />
       )}
     </div>
   );

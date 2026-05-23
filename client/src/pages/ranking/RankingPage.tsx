@@ -3,9 +3,9 @@ import type { SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { NavigateFunction } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Trophy, Zap, Cpu, Gamepad2, RefreshCw, ExternalLink, Crown, Medal, Loader2, ChevronRight, Youtube } from 'lucide-react';
+import { Trophy, Zap, Cpu, Gamepad2, RefreshCw, ExternalLink, Crown, Medal, Loader2, ChevronRight, Youtube, Star } from 'lucide-react';
 import { api } from '../../store/auth';
-import SocialTab from './SocialTab';
+import SocialTab, { CredentialTab } from './SocialTab';
 import {
   formatHashrate,
   getGlobalSlotIndex,
@@ -191,7 +191,7 @@ function MiniRacks({ username, navigate }: { username: string; navigate: Navigat
   );
 }
 
-type Tab = 'ranking' | 'social';
+type Tab = 'ranking' | 'social' | 'creator';
 
 export default function Ranking() {
   const { t } = useTranslation();
@@ -258,9 +258,21 @@ export default function Ranking() {
           <Youtube className="w-4 h-4" />
           Social
         </button>
+        <button
+          onClick={() => setActiveTab('creator')}
+          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-black transition-all ${
+            activeTab === 'creator'
+              ? 'bg-violet-600 text-white shadow-lg'
+              : 'text-gray-500 hover:text-white'
+          }`}
+        >
+          <Star className="w-4 h-4" />
+          Criador
+        </button>
       </div>
 
       {activeTab === 'social' && <SocialTab />}
+      {activeTab === 'creator' && <CredentialTab />}
 
       {activeTab === 'ranking' && <>
       {/* Top 3 Spotlight */}
