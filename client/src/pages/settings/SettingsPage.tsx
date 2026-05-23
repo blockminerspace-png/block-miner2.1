@@ -383,7 +383,7 @@ export default function Settings() {
                             <div className="flex-1">
                                 <h2 className="text-lg font-bold text-white uppercase tracking-wider">Verificação por E-mail</h2>
                                 <p className="text-[10px] text-gray-500 font-medium mt-0.5">
-                                    {email2faEnabled ? 'Ativo — exigido no login e em saques' : 'Inativo — recomendado para maior segurança'}
+                                    {email2faEnabled ? 'Ativo — exigido no login e em saques' : 'Inativo — saques sem verificação de e-mail'}
                                 </p>
                             </div>
                             <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${email2faEnabled ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
