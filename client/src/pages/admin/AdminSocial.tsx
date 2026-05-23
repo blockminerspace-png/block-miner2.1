@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   Youtube, Plus, Trash2, Search, X, Save, ExternalLink, CheckCircle2, XCircle,
-  Clock, Settings, RefreshCw, Loader2, AlertTriangle, Play,
+  Clock, Settings, RefreshCw, Loader2, AlertTriangle, Play, Star,
 } from 'lucide-react';
 import { api } from '../../store/auth';
 import { readAxiosResponseMessage } from './admin.api';
@@ -17,6 +17,8 @@ interface Profile {
   channelUrl: string | null;
   bio: string | null;
   isCredentialed: boolean;
+  credentialRequestStatus: string | null;
+  credentialRejectNote: string | null;
   createdAt: string;
   user: { id: number; username: string | null; name: string | null; email: string };
   _count: { submissions: number };
@@ -476,6 +478,159 @@ function RewardSettingsPanel() {
   );
 }
 
+// ─── Credential Requests Tab ─────────────────────────────────────────────────
+
+function RejectCredentialModal({ profile, onClose, onRejected }: { profile: Profile; onClose: () => void; onRejected: () => void }) {
+  const [note, setNote] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleReject = async () => {
+    setLoading(true);
+    try {
+      await api.post(`/admin/social/credential-requests/${profile.id}/reject`, { rejectNote: note.trim() || undefined });
+      toast.success('Solicitação recusada.');
+      onRejected();
+      onClose();
+    } catch (err) {
+      toast.error(readAxiosResponseMessage(err) ?? 'Erro ao recusar.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+          <p className="font-black text-white">Recusar Credenciamento</p>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/8">
+            <ChannelAvatar photo={profile.channelPhoto} name={profile.channelName} />
+            <div>
+              <p className="text-sm font-bold text-white">{profile.channelName}</p>
+              <p className="text-[10px] text-gray-500">@{profile.user.username}</p>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">Motivo (opcional)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="Explique o motivo da recusa..."
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-500/50 resize-none"
+            />
+          </div>
+          <button
+            onClick={handleReject}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-xl text-sm font-black text-white transition-colors"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+            Recusar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CredentialRequestsTab() {
+  const [requests, setRequests] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rejectTarget, setRejectTarget] = useState<Profile | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get<{ ok: boolean; profiles: Profile[] }>('/admin/social/credential-requests');
+      if (res.data.ok) setRequests(res.data.profiles);
+    } catch { /* silent */ } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleApprove = async (profile: Profile) => {
+    try {
+      await api.post(`/admin/social/credential-requests/${profile.id}/approve`);
+      toast.success(`${profile.channelName} credenciado!`);
+      void load();
+    } catch (err) {
+      toast.error(readAxiosResponseMessage(err) ?? 'Erro ao aprovar.');
+    }
+  };
+
+  return (
+    <>
+      {rejectTarget && (
+        <RejectCredentialModal
+          profile={rejectTarget}
+          onClose={() => setRejectTarget(null)}
+          onRejected={load}
+        />
+      )}
+
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+          {requests.length} solicitaç{requests.length !== 1 ? 'ões' : 'ão'} pendente{requests.length !== 1 ? 's' : ''}
+        </p>
+        <button onClick={() => void load()} className="p-2 rounded-xl bg-white/5 border border-white/8 text-gray-500 hover:text-white">
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-gray-500" /></div>
+      ) : !requests.length ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-600">
+          <Star className="w-10 h-10 opacity-30" />
+          <p className="text-sm font-bold">Nenhuma solicitação pendente.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {requests.map((r) => (
+            <div key={r.id} className="rounded-2xl border border-white/8 bg-white/3 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <ChannelAvatar photo={r.channelPhoto} name={r.channelName} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black text-white">{r.channelName}</p>
+                  <p className="text-[10px] text-gray-500">@{r.user.username} · {r.user.email}</p>
+                  {r.channelUrl && (
+                    <a href={r.channelUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-red-400 hover:underline inline-flex items-center gap-1 mt-0.5">
+                      <ExternalLink className="w-2.5 h-2.5" /> {r.channelUrl}
+                    </a>
+                  )}
+                  {r.bio && <p className="text-xs text-gray-400 mt-1 italic">"{r.bio}"</p>}
+                </div>
+                <p className="text-[9px] text-gray-700 shrink-0">{new Date(r.createdAt).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void handleApprove(r)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black text-white transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Aprovar
+                </button>
+                <button
+                  onClick={() => setRejectTarget(r)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-xl text-xs font-black text-red-400 transition-colors border border-red-500/20"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Recusar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Profiles Tab ─────────────────────────────────────────────────────────────
 
 function ProfilesTab() {
@@ -729,15 +884,16 @@ function SubmissionsTab() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-type AdminSocialTab = 'profiles' | 'submissions' | 'settings';
+type AdminSocialTab = 'requests' | 'profiles' | 'submissions' | 'settings';
 
 export default function AdminSocial() {
-  const [activeTab, setActiveTab] = useState<AdminSocialTab>('submissions');
+  const [activeTab, setActiveTab] = useState<AdminSocialTab>('requests');
 
-  const tabs: { id: AdminSocialTab; label: string; icon: React.ElementType }[] = [
-    { id: 'submissions', label: 'Vídeos', icon: Youtube },
-    { id: 'profiles',   label: 'Criadores', icon: Youtube },
-    { id: 'settings',   label: 'Configurações', icon: Settings },
+  const tabs: { id: AdminSocialTab; label: string }[] = [
+    { id: 'requests',    label: 'Solicitações' },
+    { id: 'submissions', label: 'Vídeos' },
+    { id: 'profiles',   label: 'Criadores' },
+    { id: 'settings',   label: 'Configurações' },
   ];
 
   return (
@@ -769,6 +925,7 @@ export default function AdminSocial() {
       </div>
 
       {/* Content */}
+      {activeTab === 'requests' && <CredentialRequestsTab />}
       {activeTab === 'submissions' && <SubmissionsTab />}
       {activeTab === 'profiles' && <ProfilesTab />}
       {activeTab === 'settings' && <RewardSettingsPanel />}

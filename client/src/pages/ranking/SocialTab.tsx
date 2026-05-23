@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Youtube, Send, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Play, Loader2, AlertTriangle } from 'lucide-react';
+import { Youtube, Send, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Play, Loader2, AlertTriangle, Star } from 'lucide-react';
 import { api, useAuthStore } from '../../store/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -10,6 +10,8 @@ interface YoutuberProfile {
   channelPhoto: string | null;
   channelUrl: string | null;
   isCredentialed: boolean;
+  credentialRequestStatus: string | null;
+  credentialRejectNote: string | null;
 }
 
 interface FeedEntry {
@@ -117,6 +119,133 @@ function VideoCard({ entry }: { entry: FeedEntry }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Credential request form ──────────────────────────────────────────────────
+
+function CredentialRequestForm({ profile, onRequested }: { profile: YoutuberProfile | null; onRequested: (p: YoutuberProfile) => void }) {
+  const [channelName, setChannelName] = useState(profile?.channelName ?? '');
+  const [channelUrl, setChannelUrl] = useState(profile?.channelUrl ?? '');
+  const [channelPhoto, setChannelPhoto] = useState(profile?.channelPhoto ?? '');
+  const [bio, setBio] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isResubmit = profile?.credentialRequestStatus === 'rejected';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await api.post<{ ok: boolean; profile: YoutuberProfile }>('/social/request-credential', {
+        channelName: channelName.trim(),
+        channelUrl: channelUrl.trim() || undefined,
+        channelPhoto: channelPhoto.trim() || undefined,
+        bio: bio.trim() || undefined,
+      });
+      onRequested(res.data.profile);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Erro ao enviar solicitação.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-red-500/20 bg-red-950/10 p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Star className="w-4 h-4 text-red-400" />
+        <p className="text-sm font-black text-white">
+          {isResubmit ? 'Reenviar Solicitação de Credenciamento' : 'Solicitar Credenciamento de Criador'}
+        </p>
+      </div>
+
+      <p className="text-xs text-gray-500">
+        Preencha os dados do seu canal. Nossa equipe vai revisar e liberar o acesso para envio de vídeos.
+      </p>
+
+      {isResubmit && profile.credentialRejectNote && (
+        <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-black text-xs mb-0.5">Recusado anteriormente:</p>
+            <p className="text-xs">{profile.credentialRejectNote}</p>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            Nome do Canal *
+          </label>
+          <input
+            type="text"
+            value={channelName}
+            onChange={(e) => setChannelName(e.target.value)}
+            placeholder="Nome do seu canal no YouTube"
+            required
+            maxLength={100}
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-500/50"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            URL do Canal
+          </label>
+          <input
+            type="url"
+            value={channelUrl}
+            onChange={(e) => setChannelUrl(e.target.value)}
+            placeholder="https://youtube.com/@seucanal"
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-500/50"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            Foto do Canal (URL)
+          </label>
+          <input
+            type="url"
+            value={channelPhoto}
+            onChange={(e) => setChannelPhoto(e.target.value)}
+            placeholder="https://..."
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-500/50"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            Sobre o Canal (opcional)
+          </label>
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="Conte um pouco sobre seu canal..."
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-500/50 resize-none"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading || !channelName.trim()}
+          className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-black text-white transition-colors"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          {isResubmit ? 'Reenviar Solicitação' : 'Enviar Solicitação'}
+        </button>
+      </form>
     </div>
   );
 }
@@ -304,6 +433,9 @@ export default function SocialTab() {
   }, [user]);
 
   const isCredentialed = profile?.isCredentialed === true;
+  const isPending = !isCredentialed && profile?.credentialRequestStatus === 'pending';
+  const isRejected = !isCredentialed && profile?.credentialRequestStatus === 'rejected';
+  const hasNoRequest = !isCredentialed && !isPending && !isRejected;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -323,19 +455,47 @@ export default function SocialTab() {
         )}
       </div>
 
-      {/* Credentialed badge + submit */}
-      {isCredentialed && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-950/10 px-4 py-3">
-            <ChannelAvatar photo={profile!.channelPhoto} name={profile!.channelName} />
-            <div className="flex-1">
-              <p className="text-sm font-black text-white">{profile!.channelName}</p>
-              <p className="text-[10px] text-red-400">Criador Credenciado</p>
+      {/* Profile state section — only if logged in and profile loaded */}
+      {user && profile !== undefined && (
+        <>
+          {/* ── Credenciado ── */}
+          {isCredentialed && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-950/10 px-4 py-3">
+                <ChannelAvatar photo={profile.channelPhoto} name={profile.channelName} />
+                <div className="flex-1">
+                  <p className="text-sm font-black text-white">{profile.channelName}</p>
+                  <p className="text-[10px] text-red-400">Criador Credenciado</p>
+                </div>
+              </div>
+              <SubmitForm onSubmitted={() => void loadFeed(1)} />
+              <MySubmissions />
             </div>
-          </div>
-          <SubmitForm onSubmitted={() => void loadFeed(1)} />
-          <MySubmissions />
-        </div>
+          )}
+
+          {/* ── Aguardando aprovação ── */}
+          {isPending && (
+            <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-950/10 px-4 py-4">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-white">Solicitação em análise</p>
+                <p className="text-xs text-amber-400/70">Aguarde a revisão da equipe BlockMiner.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Recusado — permite reenvio ── */}
+          {isRejected && (
+            <CredentialRequestForm profile={profile} onRequested={(p) => setProfile(p)} />
+          )}
+
+          {/* ── Sem solicitação ── */}
+          {hasNoRequest && (
+            <CredentialRequestForm profile={null} onRequested={(p) => setProfile(p)} />
+          )}
+        </>
       )}
 
       {/* Feed */}

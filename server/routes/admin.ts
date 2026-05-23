@@ -439,6 +439,9 @@ adminRouter.put("/transparency/:id", transparencyController.adminUpdate);
 adminRouter.delete("/transparency/:id", transparencyController.adminDelete);
 
 // Social — YouTuber Profiles & Video Submissions
+adminRouter.get("/social/credential-requests", adminSocialController.listCredentialRequests);
+adminRouter.post("/social/credential-requests/:id/approve", adminSocialController.approveCredential);
+adminRouter.post("/social/credential-requests/:id/reject", adminSocialController.rejectCredential);
 adminRouter.get("/social/profiles", adminSocialController.listProfiles);
 adminRouter.post("/social/profiles", adminSocialController.createProfile);
 adminRouter.put("/social/profiles/:id", adminSocialController.updateProfile);

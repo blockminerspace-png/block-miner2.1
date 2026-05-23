@@ -83,6 +83,61 @@ export async function getMySubmissions(req: Request, res: Response): Promise<voi
   res.json({ ok: true, submissions });
 }
 
+export async function requestCredential(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const { channelName, channelUrl, channelPhoto, bio } = req.body as Record<string, unknown>;
+
+  if (!channelName || typeof channelName !== "string" || !channelName.trim()) {
+    res.status(400).json({ ok: false, message: "Nome do canal é obrigatório." });
+    return;
+  }
+
+  const existing = await prisma.youtuberProfile.findUnique({ where: { userId } });
+
+  if (existing) {
+    if (existing.isCredentialed) {
+      res.status(409).json({ ok: false, message: "Você já é um criador credenciado." });
+      return;
+    }
+    if (existing.credentialRequestStatus === "pending") {
+      res.status(409).json({ ok: false, message: "Solicitação já enviada. Aguarde a revisão." });
+      return;
+    }
+    // rejected → allow resubmit by updating
+    const updated = await prisma.youtuberProfile.update({
+      where: { userId },
+      data: {
+        channelName: channelName.trim().slice(0, 100),
+        channelPhoto: channelPhoto ? String(channelPhoto).trim() : null,
+        channelUrl: channelUrl ? String(channelUrl).trim() : null,
+        bio: bio ? String(bio).trim().slice(0, 500) : null,
+        credentialRequestStatus: "pending",
+        credentialRejectNote: null,
+      },
+    });
+    logger.info("social.credential_resubmitted", { userId });
+    res.json({ ok: true, profile: updated });
+    return;
+  }
+
+  const profile = await prisma.youtuberProfile.create({
+    data: {
+      userId,
+      channelName: channelName.trim().slice(0, 100),
+      channelPhoto: channelPhoto ? String(channelPhoto).trim() : null,
+      channelUrl: channelUrl ? String(channelUrl).trim() : null,
+      bio: bio ? String(bio).trim().slice(0, 500) : null,
+      isCredentialed: false,
+      credentialRequestStatus: "pending",
+    },
+  });
+
+  logger.info("social.credential_requested", { userId, profileId: profile.id });
+  res.json({ ok: true, profile });
+}
+
 export async function submitVideo(req: Request, res: Response): Promise<void> {
   const userId = req.user?.id;
   if (!userId) { res.status(401).json({ ok: false }); return; }

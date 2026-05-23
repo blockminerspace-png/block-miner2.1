@@ -8,3 +8,4 @@ socialRouter.get("/feed", social.getPublicFeed);
 socialRouter.get("/my-profile", requireAuth, social.getMyProfile);
 socialRouter.get("/my-submissions", requireAuth, social.getMySubmissions);
 socialRouter.post("/submit", requireAuth, social.submitVideo);
+socialRouter.post("/request-credential", requireAuth, social.requestCredential);

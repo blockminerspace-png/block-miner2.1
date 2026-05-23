@@ -83,6 +83,54 @@ export async function deleteProfile(
   res.json({ ok: true });
 }
 
+// ─── Credential Requests ─────────────────────────────────────────────────────
+
+export async function listCredentialRequests(_req: Request, res: Response): Promise<void> {
+  const profiles = await prisma.youtuberProfile.findMany({
+    where: { credentialRequestStatus: "pending" },
+    orderBy: { createdAt: "asc" },
+    include: {
+      user: { select: { id: true, username: true, name: true, email: true } },
+    },
+  });
+  res.json({ ok: true, profiles });
+}
+
+export async function approveCredential(
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> {
+  const id = parseInt(req.params.id, 10);
+  if (!id) { res.status(400).json({ ok: false, message: "ID inválido." }); return; }
+
+  const profile = await prisma.youtuberProfile.update({
+    where: { id },
+    data: { isCredentialed: true, credentialRequestStatus: "approved", credentialRejectNote: null },
+  });
+  logger.info("social.credential_approved", { profileId: id, userId: profile.userId });
+  res.json({ ok: true, profile });
+}
+
+export async function rejectCredential(
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> {
+  const id = parseInt(req.params.id, 10);
+  if (!id) { res.status(400).json({ ok: false, message: "ID inválido." }); return; }
+
+  const { rejectNote } = req.body as { rejectNote?: string };
+
+  const profile = await prisma.youtuberProfile.update({
+    where: { id },
+    data: {
+      credentialRequestStatus: "rejected",
+      credentialRejectNote: rejectNote ? String(rejectNote).trim().slice(0, 500) : null,
+    },
+  });
+  logger.info("social.credential_rejected", { profileId: id, userId: profile.userId });
+  res.json({ ok: true });
+}
+
 // ─── Video Submissions ────────────────────────────────────────────────────────
 
 export async function listSubmissions(req: Request, res: Response): Promise<void> {
