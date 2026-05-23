@@ -172,7 +172,9 @@ export async function claimForUser(userId: number, req: Request): Promise<Faucet
     if (miner.id === 999999) {
       const gameId = await getOrCreateFaucetGameId(tx);
       const playedAt = now;
-      const expiresAt = new Date(playedAt.getTime() + 24 * 3600 * 1000);
+      const { getBoostTtlMs } = await import("../../services/powerBoostService.js");
+      const ttlMs = await getBoostTtlMs(userId);
+      const expiresAt = new Date(playedAt.getTime() + ttlMs);
       await tx.userPowerGame.create({
         data: {
           userId,

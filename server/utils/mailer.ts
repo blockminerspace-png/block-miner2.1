@@ -147,6 +147,60 @@ export async function sendLoginTwoFactorCodeEmail({
   logger.info("Login 2FA email sent", { to });
 }
 
+export async function sendWithdrawalTwoFactorCodeEmail({
+  to,
+  name,
+  code,
+  ttlMinutes
+}: {
+  to: string;
+  name?: string | null;
+  code: string | number;
+  ttlMinutes?: number;
+}): Promise<void> {
+  const tx = getTransporter();
+  if (!tx) {
+    throw new Error("SMTP not configured");
+  }
+
+  const safeName = name || "Miner";
+  const safeCode = String(code || "").trim();
+  const safeTtl = Number(ttlMinutes || 10);
+
+  const html = `
+  <div style="font-family:Arial,Helvetica,sans-serif;background:#020617;color:#e2e8f0;padding:24px;">
+    <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:24px;">
+      <h2 style="margin:0 0 8px 0;color:#f59e0b;">BlockMiner - Código de verificação de saque</h2>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Olá, ${safeName}.</p>
+      <p style="margin:0 0 16px 0;color:#cbd5e1;">Use o código abaixo para confirmar seu saque:</p>
+      <p style="margin:0 0 18px 0;font-size:28px;letter-spacing:4px;font-weight:700;color:#f8fafc;">${safeCode}</p>
+      <p style="margin:0 0 6px 0;color:#94a3b8;">Este código expira em ${safeTtl} minutos.</p>
+      <p style="margin:0;color:#64748b;font-size:12px;">Se você não solicitou um saque, ignore este e-mail e altere sua senha imediatamente.</p>
+    </div>
+  </div>`;
+
+  const text = [
+    "BlockMiner - Código de verificação de saque",
+    "",
+    `Olá, ${safeName}.`,
+    "Use este código para confirmar seu saque:",
+    safeCode,
+    "",
+    `Este código expira em ${safeTtl} minutos.`,
+    "Se você não solicitou um saque, ignore este e-mail e altere sua senha imediatamente."
+  ].join("\n");
+
+  await tx.sendMail({
+    from: SMTP_FROM,
+    to,
+    subject: "BlockMiner - Código de verificação de saque",
+    text,
+    html
+  });
+
+  logger.info("Withdrawal 2FA email sent", { to });
+}
+
 const APP_URL = (process.env.APP_URL || "https://blockminer.space").replace(/\/+$/, "");
 
 /**

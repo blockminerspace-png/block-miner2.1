@@ -5,6 +5,7 @@ import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { createInventoryWithOwnedMachineTx } from "../services/userOwnedMachineService.js";
 import type { Prisma } from "@prisma/client";
+import { getBoostTtlMs } from "../services/powerBoostService.js";
 
 const logger = loggerLib.child("AutoMiningGpuController");
 
@@ -96,7 +97,7 @@ export async function claimGPUHandler(req: Request, res: Response) {
       return res.status(400).json({ success: false, error: "Tempo de atividade focado insuficiente." });
     }
 
-    const durationMs = 24 * 60 * 60 * 1000;
+    const durationMs = await getBoostTtlMs(userId);
     const expiresAt = new Date(now.getTime() + durationMs);
 
     const gpuWithReward = await prisma.autoMiningGpu.findUnique({

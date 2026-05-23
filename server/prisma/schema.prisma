@@ -57,6 +57,7 @@ model User {
   periodicCheckins   PeriodicCheckin[]
   faucetClaims  FaucetClaim?
   faucetVisits  FaucetPartnerVisit[]
+  dailyPowerBoosts DailyPowerBoost[]
   gamePowers    UserPowerGame[]
   ytPowers      YoutubeWatchPower[]
   ytHistory     YoutubeWatchHistory[]
@@ -815,6 +816,20 @@ model FaucetReward {
   miner Miner @relation(fields: [minerId], references: [id])
 
   @@map("faucet_rewards")
+}
+
+model DailyPowerBoost {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  dayKey    String   @map("day_key")
+  paidAt    DateTime @default(now()) @map("paid_at")
+  amountPol Decimal  @map("amount_pol") @db.Decimal(20, 8)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dayKey])
+  @@index([userId])
+  @@map("daily_power_boosts")
 }
 
 model FaucetClaim {

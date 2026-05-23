@@ -7,6 +7,7 @@ import type { AxiosError } from "axios";
 import { Cpu, Zap, History, BarChart3, ShieldCheck, Play, Pause, Loader2, CheckCircle2 } from "lucide-react";
 import { api } from "../../store/auth";
 import { validateTrustedEvent, generateSecurityPayload } from "../../shared/utils/security";
+import PowerBoostBanner from "../../components/PowerBoostBanner/PowerBoostBanner";
 import AutoMiningModeSelector from "../../shared/components/autoMining/AutoMiningModeSelector";
 import AutoMiningCycleTimer from "../../shared/components/autoMining/AutoMiningCycleTimer";
 import TurboPartnerBanner from "../../shared/components/autoMining/TurboPartnerBanner";
@@ -318,6 +319,7 @@ export default function AutoMining() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
+      <PowerBoostBanner />
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <div className="inline-flex p-3 bg-primary/10 rounded-2xl">

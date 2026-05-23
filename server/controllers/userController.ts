@@ -3,6 +3,8 @@ import prisma from "../src/db/prisma.js";
 import type { Prisma, User } from "@prisma/client";
 import { authenticator } from "otplib";
 import qrcode from "qrcode";
+import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../services/emailTwoFactorService.js";
+import { isSmtpConfigured } from "../utils/mailer.js";
 
 function clientIp(req: Request): string | undefined {
   const xReal = req.headers["x-real-ip"];
@@ -326,5 +328,96 @@ export const linkReferral = async (req: Request, res: Response): Promise<void> =
     res.json({ ok: true, message: "Indicador vinculado com sucesso!" });
   } catch (_e: unknown) {
     res.status(500).json({ ok: false, message: "Erro ao vincular indicador." });
+  }
+};
+
+export const getEmailTwoFactorStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (req.user == null) {
+      res.status(401).json({ ok: false, message: "Unauthorized." });
+      return;
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { emailTwoFactorEnabled: true } });
+    if (!user) {
+      res.status(404).json({ ok: false, message: "User not found." });
+      return;
+    }
+    res.json({ ok: true, enabled: user.emailTwoFactorEnabled });
+  } catch (_e: unknown) {
+    res.status(500).json({ ok: false, message: "Erro ao obter status." });
+  }
+};
+
+export const requestEmailTwoFactorChallenge = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (req.user == null) {
+      res.status(401).json({ ok: false, message: "Unauthorized." });
+      return;
+    }
+    if (!isSmtpConfigured()) {
+      res.status(503).json({ ok: false, message: "Email verification unavailable." });
+      return;
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true, name: true } });
+    if (!user) {
+      res.status(404).json({ ok: false, message: "User not found." });
+      return;
+    }
+    const challenge = await issueEmailTwoFactorChallenge({ userId: req.user.id, email: user.email, name: user.name });
+    if (!challenge.ok) {
+      res.status(503).json({ ok: false, message: "Failed to send verification email." });
+      return;
+    }
+    res.json({ ok: true, challengeToken: challenge.challengeToken, ttlMinutes: challenge.ttlMinutes });
+  } catch (_e: unknown) {
+    res.status(500).json({ ok: false, message: "Erro ao enviar código." });
+  }
+};
+
+export const enableEmailTwoFactor = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (req.user == null) {
+      res.status(401).json({ ok: false, message: "Unauthorized." });
+      return;
+    }
+    const { code, challengeToken } = req.body as { code?: unknown; challengeToken?: unknown };
+    const result = verifyEmailTwoFactorChallenge({
+      challengeToken: typeof challengeToken === "string" ? challengeToken : undefined,
+      code: typeof code === "string" ? code : undefined,
+      userId: req.user.id,
+    });
+    if (!result.ok) {
+      const msg = result.reason === "EXPIRED" ? "Código expirado." : "Código inválido.";
+      res.status(401).json({ ok: false, message: msg, reason: result.reason });
+      return;
+    }
+    await prisma.user.update({ where: { id: req.user.id }, data: { emailTwoFactorEnabled: true } });
+    res.json({ ok: true, message: "Verificação em duas etapas ativada." });
+  } catch (_e: unknown) {
+    res.status(500).json({ ok: false, message: "Erro ao ativar 2FA." });
+  }
+};
+
+export const disableEmailTwoFactor = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (req.user == null) {
+      res.status(401).json({ ok: false, message: "Unauthorized." });
+      return;
+    }
+    const { code, challengeToken } = req.body as { code?: unknown; challengeToken?: unknown };
+    const result = verifyEmailTwoFactorChallenge({
+      challengeToken: typeof challengeToken === "string" ? challengeToken : undefined,
+      code: typeof code === "string" ? code : undefined,
+      userId: req.user.id,
+    });
+    if (!result.ok) {
+      const msg = result.reason === "EXPIRED" ? "Código expirado." : "Código inválido.";
+      res.status(401).json({ ok: false, message: msg, reason: result.reason });
+      return;
+    }
+    await prisma.user.update({ where: { id: req.user.id }, data: { emailTwoFactorEnabled: false } });
+    res.json({ ok: true, message: "Verificação em duas etapas desativada." });
+  } catch (_e: unknown) {
+    res.status(500).json({ ok: false, message: "Erro ao desativar 2FA." });
   }
 };

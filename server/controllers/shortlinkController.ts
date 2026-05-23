@@ -6,6 +6,7 @@ import { createAuditLog } from "../models/auditLogModel.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import type { Prisma } from "@prisma/client";
+import { getBoostTtlMs } from "../services/powerBoostService.js";
 
 const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
@@ -158,7 +159,8 @@ export async function completeShortlinkStep(req: Request, res: Response) {
       });
 
       if (isLastStep) {
-        const expiresAt = new Date(now.getTime() + REWARD_DURATION_HOURS * 60 * 60 * 1000);
+        const ttlMs = await getBoostTtlMs(userId);
+        const expiresAt = new Date(now.getTime() + ttlMs);
         await tx.shortlinkPower.create({
           data: { userId, hashRate: REWARD_HASH_RATE, claimedAt: now, expiresAt }
         });

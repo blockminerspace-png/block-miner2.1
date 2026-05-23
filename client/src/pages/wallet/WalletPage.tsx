@@ -222,6 +222,13 @@ export default function Wallet() {
         address: '',
         amount: ''
     });
+    const [withdrawalChallenge, setWithdrawalChallenge] = useState<{
+        challengeToken: string;
+        ttlMinutes: number;
+        pendingAmount: number;
+        pendingAddress: string;
+    } | null>(null);
+    const [withdrawalCode, setWithdrawalCode] = useState('');
     const [depositForm, setDepositForm] = useState({ amount: '' });
     const [depositChannel, setDepositChannel] = useState('smart_contract');
     const [injectedDiscovery, setInjectedDiscovery] = useState<'scanning' | 'none' | 'found'>('scanning');
@@ -749,6 +756,18 @@ export default function Wallet() {
                 address: withdrawForm.address
             });
 
+            if (res.data.require2FA && res.data.withdrawalChallengeToken) {
+                setWithdrawalChallenge({
+                    challengeToken: res.data.withdrawalChallengeToken,
+                    ttlMinutes: res.data.ttlMinutes ?? 10,
+                    pendingAmount: amount,
+                    pendingAddress: withdrawForm.address,
+                });
+                setWithdrawalCode('');
+                toast.info('Código de verificação enviado para seu e-mail.');
+                return;
+            }
+
             if (res.data.ok) {
                 toast.success(res.data.message || t('common.success'));
                 setWithdrawForm(prev => ({ ...prev, amount: '' }));
@@ -759,6 +778,51 @@ export default function Wallet() {
         } catch (err: unknown) {
             const ax = err as AxiosError<{ message?: string }>;
             toast.error(ax.response?.data?.message || t('common.error'));
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const handleWithdrawalCodeSubmit = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!withdrawalChallenge || isActionLoading) return;
+        if (!/^\d{6}$/.test(withdrawalCode.trim())) {
+            toast.error('Código deve ter 6 dígitos.');
+            return;
+        }
+
+        try {
+            setIsActionLoading(true);
+            const res = await walletApi.postWithdraw({
+                amount: withdrawalChallenge.pendingAmount,
+                address: withdrawalChallenge.pendingAddress,
+                withdrawalCode: withdrawalCode.trim(),
+                withdrawalChallengeToken: withdrawalChallenge.challengeToken,
+            });
+
+            if (res.data.ok) {
+                toast.success(res.data.message || t('common.success'));
+                setWithdrawForm(prev => ({ ...prev, amount: '' }));
+                setWithdrawalChallenge(null);
+                setWithdrawalCode('');
+                fetchWalletData();
+            } else if (res.data.reason === 'EXPIRED') {
+                toast.error('Código expirado. Tente novamente.');
+                setWithdrawalChallenge(null);
+                setWithdrawalCode('');
+            } else {
+                toast.error(res.data.message || 'Código inválido.');
+            }
+        } catch (err: unknown) {
+            const ax = err as AxiosError<{ message?: string; reason?: string }>;
+            const reason = ax.response?.data?.reason;
+            if (reason === 'EXPIRED') {
+                toast.error('Código expirado. Tente novamente.');
+                setWithdrawalChallenge(null);
+                setWithdrawalCode('');
+            } else {
+                toast.error(ax.response?.data?.message || 'Código inválido.');
+            }
         } finally {
             setIsActionLoading(false);
         }
@@ -1033,7 +1097,53 @@ export default function Wallet() {
                         </div>
 
                         <div className="p-3 sm:p-8">
-                            {activeTab === 'withdraw' && (
+                            {activeTab === 'withdraw' && withdrawalChallenge && (
+                                <form onSubmit={handleWithdrawalCodeSubmit} className="space-y-6">
+                                    <div className="text-center space-y-2">
+                                        <div className="inline-flex p-3 bg-amber-500/10 rounded-2xl mb-2">
+                                            <ShieldCheck className="w-7 h-7 text-amber-400" />
+                                        </div>
+                                        <h3 className="text-white font-black text-sm uppercase tracking-widest">Verificação de Saque</h3>
+                                        <p className="text-slate-400 text-[11px] font-medium">
+                                            Código enviado para seu e-mail. Expira em {withdrawalChallenge.ttlMinutes} minutos.
+                                        </p>
+                                        <p className="text-slate-500 text-[10px]">
+                                            Saque de <span className="text-white font-black">{withdrawalChallenge.pendingAmount.toFixed(4)} POL</span> para <span className="text-slate-300 font-mono text-[9px]">{withdrawalChallenge.pendingAddress.slice(0, 8)}...{withdrawalChallenge.pendingAddress.slice(-6)}</span>
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Código de 6 dígitos</label>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="[0-9]{6}"
+                                            maxLength={6}
+                                            value={withdrawalCode}
+                                            onChange={(e) => setWithdrawalCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            placeholder="000000"
+                                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-2xl py-5 px-6 text-slate-200 text-2xl font-black text-center tracking-[0.4em] transition-all outline-none"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={isActionLoading || withdrawalCode.length !== 6}
+                                        className="w-full py-4 sm:py-5 bg-gradient-to-r from-amber-500 to-orange-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-xs sm:text-sm uppercase tracking-tight sm:tracking-[0.2em] transition-all shadow-2xl shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-3"
+                                    >
+                                        {isActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                                        {isActionLoading ? 'Verificando...' : 'Confirmar Saque'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setWithdrawalChallenge(null); setWithdrawalCode(''); }}
+                                        className="w-full py-3 text-slate-500 hover:text-slate-300 text-[10px] font-black uppercase tracking-widest transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </form>
+                            )}
+
+                        {activeTab === 'withdraw' && !withdrawalChallenge && (
                                 <form onSubmit={handleWithdraw} className="space-y-4 sm:space-y-8">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
                                         <div className="space-y-3">

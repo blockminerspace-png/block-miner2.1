@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../store/auth';
 import type { AxiosError } from 'axios';
+import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 
 interface FaucetReward {
     imageUrl?: string | null;
@@ -197,7 +198,9 @@ export default function Faucet() {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <PowerBoostBanner />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group">
                     <div className="relative z-10">
                         <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-8">{t('faucet.avail_prize')}</h3>

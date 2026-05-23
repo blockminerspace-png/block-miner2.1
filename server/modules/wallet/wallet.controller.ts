@@ -41,6 +41,8 @@ import {
 } from "./wallet.service.js";
 import { WALLET_ERROR } from "./wallet.errors.js";
 import { withdrawRequestSchema } from "./wallet.schemas.js";
+import { issueWithdrawalTwoFactorChallenge, verifyWithdrawalTwoFactorChallenge } from "../../services/emailTwoFactorService.js";
+import { isSmtpConfigured } from "../../utils/mailer.js";
 
 const logger = loggerLib.child("WalletController");
 
@@ -329,7 +331,53 @@ export async function requestWithdrawal(req: Request, res: Response) {
       return res.status(400).json({ ok: false, message: msg });
     }
 
-    const { amount, address } = parsed.data;
+    const { amount, address, withdrawalCode, withdrawalChallengeToken } = parsed.data;
+
+    // 2FA email verification is always required for withdrawals
+    if (!withdrawalCode && !withdrawalChallengeToken) {
+      // Step 1: issue challenge
+      if (!isSmtpConfigured()) {
+        return res.status(503).json({ ok: false, message: "Email verification unavailable. Contact support." });
+      }
+      const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true, name: true } });
+      if (!dbUser) {
+        return res.status(404).json({ ok: false, message: "User not found." });
+      }
+      const challenge = await issueWithdrawalTwoFactorChallenge({
+        userId: user.id,
+        email: dbUser.email,
+        name: dbUser.name,
+      });
+      if (!challenge.ok) {
+        return res.status(503).json({ ok: false, message: "Failed to send verification email." });
+      }
+      return res.status(200).json({
+        ok: false,
+        require2FA: true,
+        withdrawalChallengeToken: challenge.challengeToken,
+        ttlMinutes: challenge.ttlMinutes,
+        message: "Verification code sent to your email.",
+      });
+    }
+
+    // Step 2: verify challenge
+    if (!withdrawalCode || !withdrawalChallengeToken) {
+      return res.status(400).json({ ok: false, message: "Verification code and challenge token are required." });
+    }
+
+    const verifyResult = verifyWithdrawalTwoFactorChallenge({
+      challengeToken: withdrawalChallengeToken,
+      code: withdrawalCode,
+      userId: user.id,
+    });
+
+    if (!verifyResult.ok) {
+      const msg =
+        verifyResult.reason === "EXPIRED"
+          ? "Verification code expired. Please request a new one."
+          : "Invalid verification code.";
+      return res.status(401).json({ ok: false, message: msg, reason: verifyResult.reason });
+    }
 
     const transaction = await submitWithdrawalRequest(user.id, amount, address);
     void createAuditLogBestEffort({

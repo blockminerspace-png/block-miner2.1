@@ -7,6 +7,7 @@ import { Youtube, Zap, Clock, TrendingUp, AlertCircle, History, BarChart3, Shiel
 import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
 import { formatHashrate } from '../../shared/utils/machine';
+import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 import { validateTrustedEvent, generateSecurityPayload } from '../../shared/utils/security';
 
 interface YoutubeStatusPayload {
@@ -323,6 +324,7 @@ export default function YouTubeWatch() {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
+            <PowerBoostBanner />
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-2">
                     <div className="inline-flex p-3 bg-red-500/10 rounded-2xl">

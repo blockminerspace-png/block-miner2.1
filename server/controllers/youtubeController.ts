@@ -5,6 +5,7 @@ import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { notifyDailyTaskYoutubeWatch } from "../services/dailyTasks/dailyTaskHookService.js";
 import type { Prisma } from "@prisma/client";
+import { getBoostTtlMs } from "../services/powerBoostService.js";
 
 const logger = loggerLib.child("YouTubeController");
 
@@ -103,7 +104,8 @@ export async function claimReward(req: Request, res: Response) {
       return res.status(400).json({ ok: false, message: "Daily reward limit reached. Try again later!" });
     }
 
-    const expiresAt = new Date(Date.now() + DURATION_HOURS * 60 * 60 * 1000);
+    const ttlMs = await getBoostTtlMs(userId);
+    const expiresAt = new Date(Date.now() + ttlMs);
 
     const historyRow = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.youtubeWatchPower.create({

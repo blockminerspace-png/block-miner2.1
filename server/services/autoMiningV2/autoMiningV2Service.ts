@@ -5,6 +5,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
  */
 
 import prisma from "../../src/db/prisma.js";
+import { getBoostTtlMs } from "../powerBoostService.js";
 import { isAutoMiningV2SchemaAvailable } from "./autoMiningV2DbAvailability.js";
 import {
   MINING_MODES,
@@ -273,6 +274,7 @@ export async function claimNormal(userId) {
       throw err;
     }
 
+    const ttlMs = await getBoostTtlMs(userId);
     const grant = await tx.autoMiningV2PowerGrant.create({
       data: {
         userId,
@@ -280,7 +282,7 @@ export async function claimNormal(userId) {
         hashRate: amount,
         mode: MINING_MODES.NORMAL,
         earnedAt: now,
-        expiresAt: computeExpiresAt(now)
+        expiresAt: computeExpiresAt(now, ttlMs)
       }
     });
 
@@ -463,6 +465,7 @@ export async function claimTurbo(userId, impressionId) {
       throw err;
     }
 
+    const ttlMs = await getBoostTtlMs(userId);
     const grant = await tx.autoMiningV2PowerGrant.create({
       data: {
         userId,
@@ -470,7 +473,7 @@ export async function claimTurbo(userId, impressionId) {
         hashRate: amount,
         mode: MINING_MODES.TURBO,
         earnedAt: now,
-        expiresAt: computeExpiresAt(now)
+        expiresAt: computeExpiresAt(now, ttlMs)
       }
     });
 

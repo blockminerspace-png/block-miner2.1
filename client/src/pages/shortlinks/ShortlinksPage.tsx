@@ -13,6 +13,7 @@ import {
 import { api } from '../../store/auth';
 import { useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
+import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 
 interface ShortlinkStatusPayload {
     dailyRuns?: number;
@@ -98,6 +99,7 @@ export default function Shortlinks() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <PowerBoostBanner />
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-2">
                     <div className="inline-flex p-3 bg-blue-500/10 rounded-2xl">

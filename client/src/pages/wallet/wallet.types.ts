@@ -40,6 +40,8 @@ export type WalletPolUsdResponse = {
 export type WalletWithdrawRequestBody = {
   amount: number;
   address: string;
+  withdrawalCode?: string;
+  withdrawalChallengeToken?: string;
 };
 
 export type WalletDepositGasEstimateResponse = {
@@ -83,6 +85,10 @@ export type WalletDepositSubmitResponse = {
 export type WalletWithdrawResponse = {
   ok: boolean;
   message?: string;
+  require2FA?: boolean;
+  withdrawalChallengeToken?: string;
+  ttlMinutes?: number;
+  reason?: string;
 };
 
 export type SavedWalletState = {

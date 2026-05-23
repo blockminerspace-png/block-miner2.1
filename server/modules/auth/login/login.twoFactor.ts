@@ -39,6 +39,7 @@ export function getAuthTwoFactorEnvConfig(): AuthTwoFactorEnvConfig {
 export type LoginTwoFactorUserShape = {
   id: number;
   isTwoFactorEnabled?: boolean | null;
+  emailTwoFactorEnabled?: boolean | null;
   isCreator?: boolean | null;
 };
 
@@ -56,5 +57,5 @@ export function shouldRequireEmailTwoFactorForLogin(input: {
   if (env.emailTwoFactorRequiredForAdmins && Boolean(user.isCreator)) {
     return true;
   }
-  return Boolean(user.isTwoFactorEnabled);
+  return Boolean(user.isTwoFactorEnabled) || Boolean(user.emailTwoFactorEnabled);
 }

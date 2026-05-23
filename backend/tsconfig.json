@@ -170,6 +170,9 @@
       ],
       "#server/modules/zerads/zerads.routes.js": [
         "./src/types/stubs/stub-server-modules-zerads-routes.d.ts"
+      ],
+      "#server/modules/powerBoost/powerBoost.routes.js": [
+        "./src/types/stubs/stub-server-modules-powerBoost-routes.d.ts"
       ]
     }
   },

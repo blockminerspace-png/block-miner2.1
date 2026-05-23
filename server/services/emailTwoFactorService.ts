@@ -1,8 +1,9 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { isSmtpConfigured, sendLoginTwoFactorCodeEmail } from "../utils/mailer.js";
+import { isSmtpConfigured, sendLoginTwoFactorCodeEmail, sendWithdrawalTwoFactorCodeEmail } from "../utils/mailer.js";
 
-const EMAIL_2FA_TOKEN_PURPOSE = "email-2fa";
+const PURPOSE_LOGIN = "email-2fa";
+const PURPOSE_WITHDRAWAL = "email-2fa-withdrawal";
 const EMAIL_2FA_CODE_LEN = 6;
 const EMAIL_2FA_CODE_TTL_MINUTES = Math.max(1, Number(process.env.EMAIL_2FA_CODE_TTL_MINUTES || 10));
 
@@ -34,10 +35,11 @@ function createNumericCode() {
   return String(crypto.randomInt(0, max)).padStart(EMAIL_2FA_CODE_LEN, "0");
 }
 
-/**
- * @param {{ userId: number; email: string; name?: string | null }} params
- */
-export async function issueEmailTwoFactorChallenge({ userId, email, name }) {
+async function issueChallenge(
+  { userId, email, name }: { userId: number; email: string; name?: string | null },
+  purpose: string,
+  sendEmail: (params: { to: string; name?: string | null; code: string; ttlMinutes: number }) => Promise<void>,
+) {
   if (!isSmtpConfigured()) {
     return { ok: false, reason: "SMTP_UNAVAILABLE" };
   }
@@ -48,7 +50,7 @@ export async function issueEmailTwoFactorChallenge({ userId, email, name }) {
   const secret = requireJwtSecret();
 
   const challengeToken = jwt.sign(
-    { sub: String(userId), typ: EMAIL_2FA_TOKEN_PURPOSE, cid: challengeId, cch: codeHash },
+    { sub: String(userId), typ: purpose, cid: challengeId, cch: codeHash },
     secret,
     {
       expiresIn: `${EMAIL_2FA_CODE_TTL_MINUTES}m`,
@@ -57,20 +59,15 @@ export async function issueEmailTwoFactorChallenge({ userId, email, name }) {
     },
   );
 
-  await sendLoginTwoFactorCodeEmail({
-    to: email,
-    name: name || "Miner",
-    code,
-    ttlMinutes: EMAIL_2FA_CODE_TTL_MINUTES,
-  });
+  await sendEmail({ to: email, name, code, ttlMinutes: EMAIL_2FA_CODE_TTL_MINUTES });
 
   return { ok: true, challengeToken, ttlMinutes: EMAIL_2FA_CODE_TTL_MINUTES };
 }
 
-/**
- * @param {{ challengeToken?: string; code?: string; userId: number }} params
- */
-export function verifyEmailTwoFactorChallenge({ challengeToken, code, userId }) {
+function verifyChallenge(
+  { challengeToken, code, userId }: { challengeToken?: string; code?: string; userId: number },
+  expectedPurpose: string,
+) {
   const submittedCode = String(code || "").trim();
   if (!challengeToken || !submittedCode) {
     return { ok: false, reason: "MISSING_INPUT" };
@@ -90,7 +87,7 @@ export function verifyEmailTwoFactorChallenge({ challengeToken, code, userId }) 
     }
     const payload = verified;
 
-    if (payload.typ !== EMAIL_2FA_TOKEN_PURPOSE) {
+    if (payload.typ !== expectedPurpose) {
       return { ok: false, reason: "INVALID_TYPE" };
     }
     if (String(payload?.sub || "") !== String(userId)) {
@@ -108,11 +105,37 @@ export function verifyEmailTwoFactorChallenge({ challengeToken, code, userId }) 
     }
     return { ok: true };
   } catch (err: unknown) {
-    // Distinguish expired tokens from genuinely invalid ones so callers can
-    // skip the lockout counter when the user simply took too long to submit.
     if (err instanceof jwt.JsonWebTokenError && err.name === "TokenExpiredError") {
       return { ok: false, reason: "EXPIRED" };
     }
     return { ok: false, reason: "INVALID_OR_EXPIRED" };
   }
+}
+
+/**
+ * @param {{ userId: number; email: string; name?: string | null }} params
+ */
+export async function issueEmailTwoFactorChallenge({ userId, email, name }) {
+  return issueChallenge({ userId, email, name }, PURPOSE_LOGIN, sendLoginTwoFactorCodeEmail);
+}
+
+/**
+ * @param {{ challengeToken?: string; code?: string; userId: number }} params
+ */
+export function verifyEmailTwoFactorChallenge({ challengeToken, code, userId }) {
+  return verifyChallenge({ challengeToken, code, userId }, PURPOSE_LOGIN);
+}
+
+/**
+ * @param {{ userId: number; email: string; name?: string | null }} params
+ */
+export async function issueWithdrawalTwoFactorChallenge({ userId, email, name }) {
+  return issueChallenge({ userId, email, name }, PURPOSE_WITHDRAWAL, sendWithdrawalTwoFactorCodeEmail);
+}
+
+/**
+ * @param {{ challengeToken?: string; code?: string; userId: number }} params
+ */
+export function verifyWithdrawalTwoFactorChallenge({ challengeToken, code, userId }) {
+  return verifyChallenge({ challengeToken, code, userId }, PURPOSE_WITHDRAWAL);
 }

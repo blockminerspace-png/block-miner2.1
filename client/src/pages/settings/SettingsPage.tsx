@@ -3,15 +3,17 @@ import type { FormEvent } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { isAxiosError } from 'axios';
-import { 
-    Settings as SettingsIcon, 
-    Lock, 
-    Wallet, 
-    User, 
-    ShieldCheck, 
-    Save, 
+import {
+    Settings as SettingsIcon,
+    Lock,
+    Wallet,
+    User,
+    ShieldCheck,
+    Save,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    Mail,
+    ShieldOff
 } from 'lucide-react';
 import { api, useAuthStore } from '../../store/auth';
 import { Edit2 } from 'lucide-react';
@@ -27,6 +29,15 @@ export default function Settings() {
     const [isChangingUsername, setIsChangingUsername] = useState(false);
     const [newUsername, setNewUsername] = useState('');
 
+    const [email2faEnabled, setEmail2faEnabled] = useState(false);
+    const [email2faLoading, setEmail2faLoading] = useState(false);
+    const [email2faChallenge, setEmail2faChallenge] = useState<{
+        challengeToken: string;
+        ttlMinutes: number;
+        action: 'enable' | 'disable';
+    } | null>(null);
+    const [email2faCode, setEmail2faCode] = useState('');
+
     const [walletAddress, setWalletAddress] = useState('');
     const [passwords, setPasswords] = useState({
         current: '',
@@ -39,6 +50,72 @@ export default function Settings() {
             setWalletAddress(stats.miner.walletAddress);
         }
     }, [stats]);
+
+    useEffect(() => {
+        api.get('/user/email-2fa/status')
+            .then((res) => { if (res.data?.ok) setEmail2faEnabled(Boolean(res.data.enabled)); })
+            .catch(() => {});
+    }, []);
+
+    const handleEmail2faToggle = async () => {
+        if (email2faLoading) return;
+        try {
+            setEmail2faLoading(true);
+            const res = await api.post('/user/email-2fa/challenge');
+            if (res.data?.ok) {
+                setEmail2faChallenge({
+                    challengeToken: res.data.challengeToken,
+                    ttlMinutes: res.data.ttlMinutes ?? 10,
+                    action: email2faEnabled ? 'disable' : 'enable',
+                });
+                setEmail2faCode('');
+                toast.info('Código enviado para seu e-mail.');
+            }
+        } catch (err: unknown) {
+            const msg = isAxiosError(err)
+                ? (err.response?.data as { message?: string })?.message ?? null
+                : null;
+            toast.error(msg || 'Erro ao enviar código.');
+        } finally {
+            setEmail2faLoading(false);
+        }
+    };
+
+    const handleEmail2faCodeSubmit = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!email2faChallenge || email2faLoading) return;
+        if (!/^\d{6}$/.test(email2faCode.trim())) {
+            toast.error('Código deve ter 6 dígitos.');
+            return;
+        }
+        try {
+            setEmail2faLoading(true);
+            const endpoint = email2faChallenge.action === 'enable' ? '/user/email-2fa/enable' : '/user/email-2fa/disable';
+            const res = await api.post(endpoint, {
+                code: email2faCode.trim(),
+                challengeToken: email2faChallenge.challengeToken,
+            });
+            if (res.data?.ok) {
+                setEmail2faEnabled(email2faChallenge.action === 'enable');
+                setEmail2faChallenge(null);
+                setEmail2faCode('');
+                toast.success(res.data.message || 'Configuração salva.');
+            } else {
+                toast.error(res.data?.message || 'Erro ao verificar código.');
+            }
+        } catch (err: unknown) {
+            const msg = isAxiosError(err)
+                ? (err.response?.data as { message?: string })?.message ?? null
+                : null;
+            if (msg?.toLowerCase().includes('expirado')) {
+                setEmail2faChallenge(null);
+                setEmail2faCode('');
+            }
+            toast.error(msg || 'Código inválido.');
+        } finally {
+            setEmail2faLoading(false);
+        }
+    };
 
     const handleChangeUsername = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -242,58 +319,132 @@ export default function Settings() {
                     </div>
                 </div>
 
-                {/* Password Change */}
-                <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl">
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="p-3 bg-amber-500/10 rounded-xl">
-                            <Lock className="w-5 h-5 text-amber-400" />
+                {/* Password Change + Email 2FA */}
+                <div className="space-y-8">
+                    <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="p-3 bg-amber-500/10 rounded-xl">
+                                <Lock className="w-5 h-5 text-amber-400" />
+                            </div>
+                            <h2 className="text-lg font-bold text-white uppercase tracking-wider">Segurança e Senha</h2>
                         </div>
-                        <h2 className="text-lg font-bold text-white uppercase tracking-wider">Segurança e Senha</h2>
+
+                        <form onSubmit={handleChangePassword} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Senha Atual</label>
+                                <input
+                                    type="password"
+                                    value={passwords.current}
+                                    onChange={(e) => setPasswords({...passwords, current: e.target.value})}
+                                    className="w-full bg-gray-950 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Nova Senha</label>
+                                <input
+                                    type="password"
+                                    value={passwords.new}
+                                    onChange={(e) => setPasswords({...passwords, new: e.target.value})}
+                                    className="w-full bg-gray-950 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Confirmar Nova Senha</label>
+                                <input
+                                    type="password"
+                                    value={passwords.confirm}
+                                    onChange={(e) => setPasswords({...passwords, confirm: e.target.value})}
+                                    className="w-full bg-gray-950 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                                    required
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isChangingPassword}
+                                className="w-full py-5 bg-gray-800 hover:bg-primary hover:text-white text-gray-400 rounded-[2rem] transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.2em] italic border border-gray-700 hover:border-primary/50"
+                            >
+                                {isChangingPassword ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                Atualizar Credenciais
+                            </button>
+                        </form>
                     </div>
 
-                    <form onSubmit={handleChangePassword} className="space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Senha Atual</label>
-                            <input 
-                                type="password" 
-                                value={passwords.current}
-                                onChange={(e) => setPasswords({...passwords, current: e.target.value})}
-                                className="w-full bg-gray-950 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner"
-                                required
-                            />
+                    {/* Email 2FA */}
+                    <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className={`p-3 rounded-xl ${email2faEnabled ? 'bg-emerald-500/10' : 'bg-gray-700/30'}`}>
+                                <Mail className={`w-5 h-5 ${email2faEnabled ? 'text-emerald-400' : 'text-gray-500'}`} />
+                            </div>
+                            <div className="flex-1">
+                                <h2 className="text-lg font-bold text-white uppercase tracking-wider">Verificação por E-mail</h2>
+                                <p className="text-[10px] text-gray-500 font-medium mt-0.5">
+                                    {email2faEnabled ? 'Ativo — exigido no login e em saques' : 'Inativo — recomendado para maior segurança'}
+                                </p>
+                            </div>
+                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${email2faEnabled ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
+                                {email2faEnabled ? 'Ativo' : 'Inativo'}
+                            </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Nova Senha</label>
-                            <input 
-                                type="password" 
-                                value={passwords.new}
-                                onChange={(e) => setPasswords({...passwords, new: e.target.value})}
-                                className="w-full bg-gray-950 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner"
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Confirmar Nova Senha</label>
-                            <input 
-                                type="password" 
-                                value={passwords.confirm}
-                                onChange={(e) => setPasswords({...passwords, confirm: e.target.value})}
-                                className="w-full bg-gray-950 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner"
-                                required
-                            />
-                        </div>
-
-                        <button 
-                            type="submit"
-                            disabled={isChangingPassword}
-                            className="w-full py-5 bg-gray-800 hover:bg-primary hover:text-white text-gray-400 rounded-[2rem] transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.2em] italic border border-gray-700 hover:border-primary/50"
-                        >
-                            {isChangingPassword ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                            Atualizar Credenciais
-                        </button>
-                    </form>
+                        {!email2faChallenge ? (
+                            <button
+                                type="button"
+                                onClick={handleEmail2faToggle}
+                                disabled={email2faLoading}
+                                className={`w-full py-4 rounded-[2rem] transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.2em] italic border ${
+                                    email2faEnabled
+                                        ? 'bg-gray-800 hover:bg-red-900/40 text-gray-400 hover:text-red-300 border-gray-700 hover:border-red-800/50'
+                                        : 'bg-gray-800 hover:bg-emerald-900/40 text-gray-400 hover:text-emerald-300 border-gray-700 hover:border-emerald-800/50'
+                                }`}
+                            >
+                                {email2faLoading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : email2faEnabled ? (
+                                    <ShieldOff className="w-4 h-4" />
+                                ) : (
+                                    <ShieldCheck className="w-4 h-4" />
+                                )}
+                                {email2faEnabled ? 'Desativar 2FA por E-mail' : 'Ativar 2FA por E-mail'}
+                            </button>
+                        ) : (
+                            <form onSubmit={handleEmail2faCodeSubmit} className="space-y-4">
+                                <p className="text-[11px] text-gray-400 text-center">
+                                    Código enviado para seu e-mail. Expira em {email2faChallenge.ttlMinutes} min.
+                                </p>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]{6}"
+                                    maxLength={6}
+                                    value={email2faCode}
+                                    onChange={(e) => setEmail2faCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="000000"
+                                    className="w-full bg-gray-950 border border-gray-700 focus:border-primary/50 rounded-2xl py-4 px-6 text-2xl font-black text-white text-center tracking-[0.4em] focus:outline-none transition-all shadow-inner"
+                                    autoFocus
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={email2faLoading || email2faCode.length !== 6}
+                                    className="w-full py-4 bg-primary hover:bg-primary-hover text-white rounded-[2rem] transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.2em] italic"
+                                >
+                                    {email2faLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                    Confirmar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setEmail2faChallenge(null); setEmail2faCode(''); }}
+                                    className="w-full py-2 text-gray-600 hover:text-gray-400 text-[10px] font-black uppercase tracking-widest transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                            </form>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

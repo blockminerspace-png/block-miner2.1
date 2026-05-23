@@ -12,6 +12,8 @@ export const withdrawRequestSchema = z.object({
     .string()
     .min(1)
     .refine((a) => EVM_ADDRESS_REGEX.test(a), { message: "Invalid wallet address format." }),
+  withdrawalCode: z.string().optional(),
+  withdrawalChallengeToken: z.string().optional(),
 });
 
 export const updateWalletAddressSchema = z.object({
