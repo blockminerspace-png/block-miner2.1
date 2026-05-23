@@ -18,6 +18,7 @@ import * as blkWalletController from "../controllers/blkWalletController.js";
 import * as miningController from "../controllers/miningController.js";
 import * as adminCheckinMilestoneController from "../controllers/adminCheckinMilestoneController.js";
 import * as adminReadEarnController from "../controllers/adminReadEarnController.js";
+import * as adminSocialController from "../modules/social/adminSocial.controller.js";
 import * as sidebarNavController from "../controllers/sidebarNavController.js";
 import * as adminDailyTasksController from "../controllers/adminDailyTasksController.js";
 import * as adminInternalOfferwallController from "../controllers/adminInternalOfferwallController.js";
@@ -436,6 +437,17 @@ adminRouter.put("/transparency/tracked-wallets/:id", transparencyController.admi
 adminRouter.delete("/transparency/tracked-wallets/:id", transparencyController.adminTrackedWalletDelete);
 adminRouter.put("/transparency/:id", transparencyController.adminUpdate);
 adminRouter.delete("/transparency/:id", transparencyController.adminDelete);
+
+// Social — YouTuber Profiles & Video Submissions
+adminRouter.get("/social/profiles", adminSocialController.listProfiles);
+adminRouter.post("/social/profiles", adminSocialController.createProfile);
+adminRouter.put("/social/profiles/:id", adminSocialController.updateProfile);
+adminRouter.delete("/social/profiles/:id", adminSocialController.deleteProfile);
+adminRouter.get("/social/submissions", adminSocialController.listSubmissions);
+adminRouter.post("/social/submissions/:id/approve", adminSocialController.approveSubmission);
+adminRouter.post("/social/submissions/:id/reject", adminSocialController.rejectSubmission);
+adminRouter.get("/social/reward-settings", adminSocialController.getRewardSettings);
+adminRouter.put("/social/reward-settings", adminSocialController.setRewardSettings);
 
 // Users
 adminRouter.get("/users", async (req, res) => {

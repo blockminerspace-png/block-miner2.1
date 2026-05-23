@@ -173,6 +173,9 @@
       ],
       "#server/modules/powerBoost/powerBoost.routes.js": [
         "./src/types/stubs/stub-server-modules-powerBoost-routes.d.ts"
+      ],
+      "#server/modules/social/social.routes.js": [
+        "./src/types/stubs/stub-server-modules-social-routes.d.ts"
       ]
     }
   },

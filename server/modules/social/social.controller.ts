@@ -1,0 +1,129 @@
+import type { Request, Response } from "express";
+import prisma from "../../src/db/prisma.js";
+import loggerLib from "../../utils/logger.js";
+
+const logger = loggerLib.child("SocialController");
+
+const FEED_PAGE_SIZE = 20;
+
+function extractYoutubeId(url: string): string | null {
+  const m = url.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  return m?.[1] ?? null;
+}
+
+export async function getPublicFeed(req: Request, res: Response): Promise<void> {
+  const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+  const skip = (page - 1) * FEED_PAGE_SIZE;
+
+  const [entries, total] = await Promise.all([
+    prisma.youtubeVideoSubmission.findMany({
+      where: { status: "approved" },
+      orderBy: { reviewedAt: "desc" },
+      skip,
+      take: FEED_PAGE_SIZE,
+      select: {
+        id: true,
+        videoId: true,
+        videoUrl: true,
+        title: true,
+        reviewedAt: true,
+        profile: {
+          select: {
+            channelName: true,
+            channelPhoto: true,
+            channelUrl: true,
+          },
+        },
+      },
+    }),
+    prisma.youtubeVideoSubmission.count({ where: { status: "approved" } }),
+  ]);
+
+  res.json({
+    ok: true,
+    entries,
+    total,
+    page,
+    pageSize: FEED_PAGE_SIZE,
+    totalPages: Math.ceil(total / FEED_PAGE_SIZE),
+  });
+}
+
+export async function getMyProfile(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const profile = await prisma.youtuberProfile.findUnique({ where: { userId } });
+  res.json({ ok: true, profile: profile ?? null });
+}
+
+export async function getMySubmissions(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const submissions = await prisma.youtubeVideoSubmission.findMany({
+    where: { userId },
+    orderBy: { submittedAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      videoId: true,
+      videoUrl: true,
+      title: true,
+      status: true,
+      reviewNote: true,
+      rewardGranted: true,
+      submittedAt: true,
+      reviewedAt: true,
+    },
+  });
+
+  res.json({ ok: true, submissions });
+}
+
+export async function submitVideo(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const { videoUrl, title } = req.body as { videoUrl?: string; title?: string };
+
+  if (!videoUrl || typeof videoUrl !== "string") {
+    res.status(400).json({ ok: false, message: "URL do vídeo é obrigatória." });
+    return;
+  }
+
+  const videoId = extractYoutubeId(videoUrl.trim());
+  if (!videoId) {
+    res.status(400).json({ ok: false, message: "URL do YouTube inválida." });
+    return;
+  }
+
+  const profile = await prisma.youtuberProfile.findUnique({ where: { userId } });
+  if (!profile || !profile.isCredentialed) {
+    res.status(403).json({ ok: false, message: "Usuário não é um YouTuber credenciado." });
+    return;
+  }
+
+  const existing = await prisma.youtubeVideoSubmission.findFirst({
+    where: { userId, status: "pending" },
+  });
+  if (existing) {
+    res.status(409).json({ ok: false, message: "Você já tem um vídeo aguardando aprovação." });
+    return;
+  }
+
+  const submission = await prisma.youtubeVideoSubmission.create({
+    data: {
+      userId,
+      profileId: profile.id,
+      videoUrl: videoUrl.trim(),
+      videoId,
+      title: typeof title === "string" ? title.trim().slice(0, 200) || null : null,
+    },
+  });
+
+  logger.info("social.video_submitted", { userId, videoId, submissionId: submission.id });
+  res.json({ ok: true, submission });
+}

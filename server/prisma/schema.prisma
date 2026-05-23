@@ -115,6 +115,8 @@ model User {
   rewardInbox                    UserRewardInbox[]
   checkinStreakRecoveries         CheckinStreakRecovery[]
   zeradsCallbacks                ZeradsCallback[]
+  youtuberProfile                YoutuberProfile?
+  videoSubmissions               YoutubeVideoSubmission[]
 
   @@index([registrationIp])
   @@index([ip])
@@ -414,6 +416,8 @@ model Miner {
   miniPassLevelRewards MiniPassLevelReward[]
   dailyTaskRewardDefs DailyTaskDefinition[]
   checkinStreakMilestones CheckinStreakMilestone[]
+  videoSubmissionRewards  YoutubeVideoSubmission[]
+  youtuberRewardSettings  YoutuberRewardSettings[]
 
   @@index([isActive, showInShop])
   @@index([isArchived])
@@ -1953,4 +1957,58 @@ model TelegramOutboxEvent {
   @@index([userId])
   @@index([createdAt])
   @@map("telegram_outbox_events")
+}
+
+/// Admin-managed channel profile for a credentialed YouTuber.
+model YoutuberProfile {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @unique @map("user_id")
+  channelName    String   @map("channel_name")
+  channelPhoto   String?  @map("channel_photo")
+  channelUrl     String?  @map("channel_url")
+  bio            String?
+  isCredentialed Boolean  @default(true) @map("is_credentialed")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submissions YoutubeVideoSubmission[]
+
+  @@map("youtuber_profiles")
+}
+
+/// YouTuber video submission pending admin review.
+model YoutubeVideoSubmission {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @map("user_id")
+  profileId     Int       @map("profile_id")
+  videoUrl      String    @map("video_url")
+  videoId       String    @map("video_id")
+  title         String?
+  status        String    @default("pending")
+  reviewedBy    Int?      @map("reviewed_by")
+  reviewNote    String?   @map("review_note") @db.Text
+  rewardMinerId Int?      @map("reward_miner_id")
+  rewardGranted Boolean   @default(false) @map("reward_granted")
+  submittedAt   DateTime  @default(now()) @map("submitted_at")
+  reviewedAt    DateTime? @map("reviewed_at")
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile YoutuberProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  miner   Miner?          @relation(fields: [rewardMinerId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([submittedAt])
+  @@map("youtube_video_submissions")
+}
+
+/// Singleton (id=1): which Miner to grant when a video submission is approved.
+model YoutuberRewardSettings {
+  id      Int  @id @default(1)
+  minerId Int? @map("miner_id")
+
+  miner Miner? @relation(fields: [minerId], references: [id], onDelete: SetNull)
+
+  @@map("youtuber_reward_settings")
 }

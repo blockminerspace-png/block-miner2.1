@@ -7,6 +7,7 @@ import {
   fetchTrackedWalletsSummary,
   fetchWalletNativeActivity
 } from "../services/transparencyWalletService.js";
+import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 
 const VALID_CATEGORIES = ["infrastructure", "tooling", "marketing", "payroll", "legal", "misc"] as const;
 const VALID_INCOME_CATEGORIES = ["sponsorship", "donation", "revenue", "investment_return", "other"] as const;
@@ -234,6 +235,100 @@ function asBodyRecord(req: Request): Record<string, unknown> {
   const b = req.body;
   if (b && typeof b === "object" && !Array.isArray(b)) return b as Record<string, unknown>;
   return {};
+}
+
+const FALLBACK_GAME_WALLET = "0x9da76e16147cc728ab46f4403e6c1d4d718ea289";
+const WALLET_STATS_CACHE_TTL_MS = 10 * 60 * 1000;
+let _walletStatsCache: { result: unknown; expiresAt: number } | null = null;
+
+export async function getPublicWalletStats(_req: Request, res: Response): Promise<void> {
+  const now = Date.now();
+  if (_walletStatsCache && _walletStatsCache.expiresAt > now) {
+    res.json(_walletStatsCache.result);
+    return;
+  }
+
+  try {
+    const [settingsRow, firstPublicWallet] = await Promise.all([
+      prisma.transparencyWalletSettings.findUnique({ where: { id: 1 } }),
+      prisma.transparencyTrackedWallet.findFirst({
+        where: { isActive: true, isPublic: true },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      }),
+    ]);
+
+    const address = settingsRow?.address || firstPublicWallet?.address || FALLBACK_GAME_WALLET;
+    const data = await fetchWalletNativeActivity(address, { pageSize: 100, maxPages: 100 });
+
+    const result = {
+      ok: true,
+      address: data.address,
+      apiKeyConfigured: data.apiKeyConfigured,
+      totalInPol: data.summary.totalInPol,
+      totalOutPol: data.summary.totalOutPol,
+      totalInUsd: data.summary.totalInUsd,
+      movementCount: data.summary.movementCount,
+      polUsdPrice: data.summary.polUsdPrice,
+      historyMayBeTruncated: data.summary.historyMayBeTruncated,
+    };
+
+    _walletStatsCache = { result, expiresAt: now + WALLET_STATS_CACHE_TTL_MS };
+    res.json(result);
+  } catch (e: unknown) {
+    res.status(502).json({ ok: false, message: errMsg(e) || "Erro ao consultar a chain." });
+  }
+}
+
+let _withdrawalStatsCache: { result: unknown; expiresAt: number } | null = null;
+
+export async function getPublicWithdrawalStats(_req: Request, res: Response): Promise<void> {
+  const now = Date.now();
+  if (_withdrawalStatsCache && _withdrawalStatsCache.expiresAt > now) {
+    res.json(_withdrawalStatsCache.result);
+    return;
+  }
+
+  try {
+    const [agg, senderGroups] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { type: "withdrawal", status: "completed" },
+        _sum: { amount: true },
+        _count: { id: true },
+      }),
+      prisma.transaction.groupBy({
+        by: ["fromAddress"],
+        where: { type: "withdrawal", status: "completed", fromAddress: { not: null } },
+        _sum: { amount: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    let polUsdPrice: number | null = null;
+    try { polUsdPrice = Number(await getPolUsdPrice()); } catch { /* no-op */ }
+
+    const totalPol = Number(agg._sum.amount ?? 0);
+    const result = {
+      ok: true,
+      currency: "POL",
+      network: "Polygon",
+      totalPol,
+      totalUsd: polUsdPrice != null ? Number((totalPol * polUsdPrice).toFixed(2)) : null,
+      totalCount: agg._count.id,
+      polUsdPrice,
+      senderWallets: senderGroups
+        .filter((r) => r.fromAddress)
+        .map((r) => ({
+          address: r.fromAddress as string,
+          totalPol: Number(r._sum.amount ?? 0),
+          count: r._count.id,
+        })),
+    };
+
+    _withdrawalStatsCache = { result, expiresAt: now + WALLET_STATS_CACHE_TTL_MS };
+    res.json(result);
+  } catch (e: unknown) {
+    res.status(500).json({ ok: false, message: errMsg(e) || "Erro ao buscar saques." });
+  }
 }
 
 export async function getPublicEntries(_req: Request, res: Response): Promise<void> {

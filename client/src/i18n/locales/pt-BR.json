@@ -843,6 +843,7 @@
       "live_streaming": "Transmissão ao vivo",
       "read_earn": "Read & Earn",
       "creators": "Criadores",
+      "social": "Social YouTube",
       "transparency": "Transparência",
       "deposit_tickets": "Dep. tickets",
       "backups": "Backups",
@@ -2536,11 +2537,24 @@
     "wallet": {
       "title": "Carteira de Investimentos",
       "subtitle": "Polygon Network — On-chain em tempo real",
-      "native_balance": "Saldo Nativo",
+      "native_balance": "Saldo Atual",
+      "balance_note": "Saldo atual na rede",
+      "total_received": "Total Recebido (Depósitos)",
+      "may_be_truncated": "Histórico parcial — carteira muito ativa",
       "unavailable": "Indisponível",
       "debank": "DeBank",
       "polygonscan": "Polygonscan",
       "active_pools": "Posições Ativas nas Pools"
+    },
+    "withdrawals": {
+      "title": "Carteira de Saques",
+      "subtitle": "Total pago aos usuários via blockchain",
+      "total_paid": "Total Pago (POL)",
+      "total_count": "Transações",
+      "txs": "saques",
+      "sender_wallets": "Carteiras Remetentes",
+      "hot_wallets": "hot wallets",
+      "sending_wallets_label": "Carteiras do Projeto (Remetentes)"
     },
     "admin": {
       "title": "Portal de Transparência",
