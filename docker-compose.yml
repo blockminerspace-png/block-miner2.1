@@ -1,5 +1,5 @@
-# Official production stack — exactly these 5 containers (fixed names via container_name):
-#   block-miner-db, block-miner-redis, block-miner-app, block-miner-worker, block-miner-nginx
+# Official production stack — exactly these 6 containers (fixed names via container_name):
+#   block-miner-db, block-miner-redis, block-miner-app, block-miner-worker, block-miner-nginx, block-miner-telegram-worker
 # Production deploy: python3 scripts/vm-deploy-local-over-ssh.py
 # Do not run BTCPay/support compose on the same host without stopping them first.
 # Optional `.env` (gitignored) is loaded after `.env.production` so overrides win in containers.
@@ -113,6 +113,26 @@ services:
       - ./data/uploads:/app/data/uploads
     restart: unless-stopped
     command: ["node", "dist/server/jobs/runBlockminerWorker.js"]
+
+  telegram-worker:
+    container_name: block-miner-telegram-worker
+    build:
+      context: .
+      args:
+        VITE_DISABLE_ADBLOCK_DETECTION: ${VITE_DISABLE_ADBLOCK_DETECTION:-}
+        VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.production
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
+    restart: unless-stopped
+    command: ["node", "services/telegram-proof-worker/telegramProofWorker.js"]
 
   nginx:
     container_name: block-miner-nginx
