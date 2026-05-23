@@ -28,6 +28,8 @@ export default function CalculatorPage() {
     const [myHashRateInput, setMyHashRateInput] = useState('');
     const [networkHashRateInput, setNetworkHashRateInput] = useState('');
     const [tokenPriceInput, setTokenPriceInput] = useState('0.35');
+    const [tokenPriceLive, setTokenPriceLive] = useState<number | null>(null);
+    const [tokenPriceManual, setTokenPriceManual] = useState(false);
     const [networkManual, setNetworkManual] = useState(false);
     const [myHashManual, setMyHashManual] = useState(false);
     const [selectedMiners, setSelectedMiners] = useState<Record<string, number>>({});
@@ -57,10 +59,21 @@ export default function CalculatorPage() {
         }
     }, [stats?.miner?.estimatedHashRate, myHashManual]);
 
-    // Sync preço do token ao vivo
+    // Busca preço POL real do CoinGecko via API
     useEffect(() => {
-        if (stats?.tokenPrice) setTokenPriceInput(String(stats.tokenPrice));
-    }, [stats?.tokenPrice]);
+        api.get<{ ok: boolean; priceUsd: number | null }>('/wallet/pol-usd')
+            .then(res => {
+                if (res.data?.ok && res.data.priceUsd && res.data.priceUsd > 0) {
+                    setTokenPriceLive(res.data.priceUsd);
+                    if (!tokenPriceManual) setTokenPriceInput(String(res.data.priceUsd));
+                }
+            })
+            .catch(() => {
+                // Fallback: usa tokenPrice do socket se disponível
+                if (stats?.tokenPrice) setTokenPriceInput(String(stats.tokenPrice));
+            });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Quando adiciona/remove máquinas, atualiza o campo de hash rate
     useEffect(() => {
@@ -258,18 +271,43 @@ export default function CalculatorPage() {
 
                             {/* Preço do POL */}
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                    {t('calculator.token_price_label')}
-                                </label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                        {t('calculator.token_price_label')}
+                                    </label>
+                                    {tokenPriceLive && tokenPriceManual && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setTokenPriceManual(false);
+                                                setTokenPriceInput(String(tokenPriceLive));
+                                            }}
+                                            className="flex items-center gap-1 text-[9px] font-bold text-primary hover:text-primary-hover uppercase tracking-widest transition-colors"
+                                        >
+                                            <RefreshCw className="w-3 h-3" /> Ao vivo
+                                        </button>
+                                    )}
+                                </div>
                                 <input
                                     type="number"
                                     min="0"
-                                    step="0.001"
+                                    step="0.0001"
                                     value={tokenPriceInput}
-                                    onChange={e => setTokenPriceInput(e.target.value)}
+                                    onChange={e => { setTokenPriceInput(e.target.value); setTokenPriceManual(true); }}
                                     placeholder="0.35"
                                     className="w-full bg-gray-900/50 border border-gray-800 rounded-2xl py-4 px-6 text-gray-200 text-sm focus:outline-none focus:border-primary/50 transition-all"
                                 />
+                                {tokenPriceLive && !tokenPriceManual ? (
+                                    <p className="text-[10px] text-green-400 font-bold flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                                        CoinGecko — ${tokenPriceLive.toFixed(4)} USD
+                                    </p>
+                                ) : tokenPriceManual && tokenPriceLive ? (
+                                    <p className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                                        Manual — ao vivo: ${tokenPriceLive.toFixed(4)}
+                                    </p>
+                                ) : null}
                             </div>
 
                             {/* Sua % da rede */}
