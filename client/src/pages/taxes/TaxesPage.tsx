@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Receipt, Zap, Clock, Info, Flame, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { api } from '../../store/auth';
 import { toast } from 'sonner';
+import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 
 type RecoveryStatus =
   | { eligible: false; reason: string }
@@ -159,6 +160,11 @@ export default function TaxesPage() {
           </div>
         </div>
         {renderRecoveryBody()}
+      </div>
+
+      {/* Power Boost */}
+      <div className="w-full">
+        <PowerBoostBanner />
       </div>
 
       {/* Planned features */}
