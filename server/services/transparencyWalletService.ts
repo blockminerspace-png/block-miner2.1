@@ -471,7 +471,8 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
         valuePol = displayMode === "total_sent" ? summary.totalOutPol : summary.totalInPol;
         valueUsd = polUsdPrice != null ? Number((valuePol * polUsdPrice).toFixed(2)) : null;
       }
-    } catch {
+    } catch (err) {
+      console.error("[wallets-live] wallet fetch error", { walletId: wallet.id, address: String(wallet.address || ""), displayMode, error: String((err as Error)?.message || err) });
       valuePol = null;
       valueUsd = null;
     }
