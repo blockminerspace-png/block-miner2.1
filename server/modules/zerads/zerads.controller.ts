@@ -10,9 +10,19 @@ const logger = loggerLib.child("ZeradsController");
 const SITE_ID = "10776";
 const ZERADS_PTC_BASE = "https://zerads.com/ptc.php";
 
-const EXCHANGE_RATE = Number(process.env.ZERADS_EXCHANGE_RATE ?? "0.07");
+// Support both env var naming conventions (ZERADS_PTC_EXCHANGE_RATE = nome legado do .env.production)
+const _rawRate = process.env.ZERADS_PTC_EXCHANGE_RATE || process.env.ZERADS_EXCHANGE_RATE || "0.07";
+const EXCHANGE_RATE = Number(_rawRate) || 0.07; // fallback 0.07 se vier 0 ou inválido
+
 const MAX_ZER_PER_CALLBACK = Number(process.env.ZERADS_MAX_ZER_PER_CALLBACK ?? "5");
-const ZERADS_SERVER_IP = (process.env.ZERADS_SERVER_IP ?? "162.0.208.108").trim();
+
+// Suporta ZERADS_ALLOWED_IPS (legado) ou ZERADS_SERVER_IP, separado por vírgula
+const _allowedIpsRaw = (process.env.ZERADS_ALLOWED_IPS || process.env.ZERADS_SERVER_IP || "162.0.208.108").trim();
+const ZERADS_ALLOWED_IPS = new Set(
+  _allowedIpsRaw.split(",").map((s) => s.trim()).filter(Boolean).length
+    ? _allowedIpsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : ["162.0.208.108"]
+);
 
 const HISTORY_PAGE_SIZE = 50;
 
@@ -38,13 +48,14 @@ function buildCallbackHash(username: string, amountZer: number, clicks: number):
 export async function zeradsCallbackHandler(req: Request, res: Response): Promise<void> {
   const clientIp = getClientIp(req);
 
-  if (clientIp !== ZERADS_SERVER_IP) {
-    logger.warn("zerads.callback.ip_rejected", { ip: clientIp });
+  if (!ZERADS_ALLOWED_IPS.has(clientIp)) {
+    logger.warn("zerads.callback.ip_rejected", { ip: clientIp, allowed: [...ZERADS_ALLOWED_IPS] });
     res.status(403).send("0");
     return;
   }
 
-  const secret = (process.env.ZERADS_CALLBACK_SECRET ?? "").trim();
+  // Suporta ZERADS_CALLBACK_PASSWORD (nome legado no .env.production) ou ZERADS_CALLBACK_SECRET
+  const secret = (process.env.ZERADS_CALLBACK_PASSWORD ?? process.env.ZERADS_CALLBACK_SECRET ?? "").trim();
   if (!secret) {
     logger.error("zerads.callback.no_secret_configured");
     res.status(500).send("0");
