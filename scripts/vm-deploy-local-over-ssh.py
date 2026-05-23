@@ -225,7 +225,7 @@ if [[ "${BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}" == "1" ]]; then
 else
   compose build app worker
 fi
-compose up -d --remove-orphans db redis app worker nginx
+compose up -d --remove-orphans db redis app worker telegram-worker nginx
 if ! ss -tlnp 2>/dev/null | grep -qF ':80 '; then
   compose up -d --force-recreate --no-deps nginx || true
 fi

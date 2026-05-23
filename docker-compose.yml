@@ -116,11 +116,7 @@ services:
 
   telegram-worker:
     container_name: block-miner-telegram-worker
-    build:
-      context: .
-      args:
-        VITE_DISABLE_ADBLOCK_DETECTION: ${VITE_DISABLE_ADBLOCK_DETECTION:-}
-        VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
+    image: block-miner-worker
     depends_on:
       db:
         condition: service_healthy
