@@ -375,46 +375,83 @@ export default function Settings() {
                     </div>
 
                     {/* Email 2FA */}
-                    <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className={`p-3 rounded-xl ${email2faEnabled ? 'bg-emerald-500/10' : 'bg-gray-700/30'}`}>
-                                <Mail className={`w-5 h-5 ${email2faEnabled ? 'text-emerald-400' : 'text-gray-500'}`} />
+                    <div className={`relative overflow-hidden rounded-[2.5rem] p-8 shadow-xl border transition-all duration-500 ${
+                        email2faEnabled
+                            ? 'bg-emerald-950/40 border-emerald-500/25'
+                            : 'bg-surface border-gray-800/50'
+                    }`}>
+                        {/* Glow accent when active */}
+                        {email2faEnabled && (
+                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/8 via-transparent to-transparent pointer-events-none" />
+                        )}
+
+                        {/* Header */}
+                        <div className="relative flex items-center gap-4 mb-6">
+                            <div className={`relative p-3.5 rounded-2xl transition-all duration-500 ${
+                                email2faEnabled ? 'bg-emerald-500/15 shadow-lg shadow-emerald-500/10' : 'bg-gray-800/60'
+                            }`}>
+                                {email2faEnabled
+                                    ? <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                                    : <Mail className="w-6 h-6 text-gray-500" />
+                                }
+                                {email2faEnabled && (
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full shadow-lg shadow-emerald-400/50" />
+                                )}
                             </div>
-                            <div className="flex-1">
-                                <h2 className="text-lg font-bold text-white uppercase tracking-wider">Verificação por E-mail</h2>
-                                <p className="text-[10px] text-gray-500 font-medium mt-0.5">
-                                    {email2faEnabled ? 'Ativo — exigido no login e em saques' : 'Inativo — saques sem verificação de e-mail'}
+                            <div className="flex-1 min-w-0">
+                                <h2 className="text-base font-black text-white uppercase tracking-wider">
+                                    2FA por E-mail
+                                </h2>
+                                <p className={`text-[10px] font-semibold mt-0.5 transition-colors duration-300 ${
+                                    email2faEnabled ? 'text-emerald-400/80' : 'text-gray-500'
+                                }`}>
+                                    {email2faEnabled
+                                        ? 'Ativo — exigido no login e em saques'
+                                        : 'Inativo — saques sem verificação de e-mail'}
                                 </p>
                             </div>
-                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${email2faEnabled ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
-                                {email2faEnabled ? 'Ativo' : 'Inativo'}
-                            </div>
-                        </div>
-
-                        {!email2faChallenge ? (
+                            {/* Toggle pill */}
                             <button
                                 type="button"
                                 onClick={handleEmail2faToggle}
-                                disabled={email2faLoading}
-                                className={`w-full py-4 rounded-[2rem] transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.2em] italic border ${
-                                    email2faEnabled
-                                        ? 'bg-gray-800 hover:bg-red-900/40 text-gray-400 hover:text-red-300 border-gray-700 hover:border-red-800/50'
-                                        : 'bg-gray-800 hover:bg-emerald-900/40 text-gray-400 hover:text-emerald-300 border-gray-700 hover:border-emerald-800/50'
+                                disabled={email2faLoading || Boolean(email2faChallenge)}
+                                aria-label={email2faEnabled ? 'Desativar 2FA' : 'Ativar 2FA'}
+                                className={`relative shrink-0 w-12 h-6 rounded-full transition-all duration-300 focus:outline-none disabled:opacity-50 ${
+                                    email2faEnabled ? 'bg-emerald-500' : 'bg-gray-700'
                                 }`}
                             >
-                                {email2faLoading ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : email2faEnabled ? (
-                                    <ShieldOff className="w-4 h-4" />
-                                ) : (
-                                    <ShieldCheck className="w-4 h-4" />
+                                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300 ${
+                                    email2faEnabled ? 'left-[calc(100%-1.375rem)]' : 'left-0.5'
+                                }`} />
+                                {email2faLoading && (
+                                    <Loader2 className="absolute inset-0 m-auto w-3.5 h-3.5 animate-spin text-white" />
                                 )}
-                                {email2faEnabled ? 'Desativar 2FA por E-mail' : 'Ativar 2FA por E-mail'}
                             </button>
-                        ) : (
-                            <form onSubmit={handleEmail2faCodeSubmit} className="space-y-4">
-                                <p className="text-[11px] text-gray-400 text-center">
-                                    Código enviado para seu e-mail. Expira em {email2faChallenge.ttlMinutes} min.
+                        </div>
+
+                        {/* What this protects */}
+                        <div className={`relative grid grid-cols-2 gap-2 mb-5 text-[10px] font-semibold uppercase tracking-widest`}>
+                            {[
+                                { label: 'Login', active: email2faEnabled },
+                                { label: 'Saques', active: email2faEnabled },
+                            ].map(({ label, active }) => (
+                                <div key={label} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all duration-300 ${
+                                    active
+                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                        : 'bg-gray-900/40 border-gray-800 text-gray-600'
+                                }`}>
+                                    <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${active ? 'text-emerald-400' : 'text-gray-700'}`} />
+                                    {label}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Code verification form (shown after toggle click) */}
+                        {email2faChallenge && (
+                            <form onSubmit={handleEmail2faCodeSubmit} className="relative space-y-3 pt-5 border-t border-white/5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+                                    Código enviado para seu e-mail.<br />
+                                    <span className="text-gray-500">Expira em {email2faChallenge.ttlMinutes} min.</span>
                                 </p>
                                 <input
                                     type="text"
@@ -423,8 +460,8 @@ export default function Settings() {
                                     maxLength={6}
                                     value={email2faCode}
                                     onChange={(e) => setEmail2faCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    placeholder="000000"
-                                    className="w-full bg-gray-950 border border-gray-700 focus:border-primary/50 rounded-2xl py-4 px-6 text-2xl font-black text-white text-center tracking-[0.4em] focus:outline-none transition-all shadow-inner"
+                                    placeholder="• • • • • •"
+                                    className="w-full bg-gray-950 border border-gray-700 focus:border-primary/50 rounded-2xl py-4 px-6 text-2xl font-black text-white text-center tracking-[0.5em] focus:outline-none transition-all shadow-inner placeholder:tracking-[0.3em] placeholder:text-gray-700"
                                     autoFocus
                                 />
                                 <button
@@ -433,7 +470,7 @@ export default function Settings() {
                                     className="w-full py-4 bg-primary hover:bg-primary-hover text-white rounded-[2rem] transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.2em] italic"
                                 >
                                     {email2faLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                                    Confirmar
+                                    Confirmar código
                                 </button>
                                 <button
                                     type="button"
