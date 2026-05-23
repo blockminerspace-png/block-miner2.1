@@ -62,38 +62,46 @@ function amountText(value) {
   return `${Number.isFinite(n) ? n.toFixed(8) : "0.00000000"} POL`;
 }
 
+function esc(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 export function buildPrivateAlertMessage(event) {
   const payload = event.payload || {};
-  const username = payload.username || event.usernameSnapshot || `user-${event.userId || "?"}`;
-  return [
-    "⚠️ New Withdrawal Request",
+  const username = esc(payload.username || event.usernameSnapshot || `user-${event.userId || "?"}`);
+  const lines = [
+    "⚠️ <b>New Withdrawal Request</b>",
     "",
-    `User: @${username} (#${event.userId || "?"})`,
-    payload.emailMasked ? `Email: ${payload.emailMasked}` : null,
-    `Amount: ${amountText(event.amount)}`,
-    `Destination: ${event.destinationWallet || payload.destinationWallet || "-"}`,
-    `Date: ${formatTelegramDate(payload.createdAt || event.createdAt)}`,
-    `Transaction ID: #${event.transactionId || event.id}`,
-    "Status: Pending",
-    payload.lastIp ? `IP: ${payload.lastIp}` : null,
-  ].filter(Boolean).join("\n");
+    `👤 <b>User:</b> @${username} <code>(#${event.userId || "?"})</code>`,
+    payload.emailMasked ? `📧 <b>Email:</b> <code>${esc(payload.emailMasked)}</code>` : null,
+    `💰 <b>Amount:</b> <b>${esc(amountText(event.amount))}</b>`,
+    `📍 <b>Destination:</b> <code>${esc(event.destinationWallet || payload.destinationWallet || "-")}</code>`,
+    `📅 <b>Date:</b> ${esc(formatTelegramDate(payload.createdAt || event.createdAt))}`,
+    `🆔 <b>Transaction ID:</b> #${event.transactionId || event.id}`,
+    `📊 <b>Status:</b> Pending`,
+    payload.lastIp ? `🌐 <b>IP:</b> <code>${esc(payload.lastIp)}</code>` : null,
+  ];
+  return lines.filter(Boolean).join("\n");
 }
 
 export function buildPublicProofMessage(event) {
   const payload = event.payload || {};
   const txHash = cleanString(event.txHash || payload.txHash);
   const url = buildPolygonscanTxUrl(txHash);
-  const username = payload.username || event.usernameSnapshot || `user-${event.userId || "?"}`;
-  return [
-    "✅ Withdrawal Confirmed",
+  const username = esc(payload.username || event.usernameSnapshot || `user-${event.userId || "?"}`);
+  const lines = [
+    "✅ <b>Withdrawal Confirmed</b>",
     "",
-    `User: ${username}`,
-    `Amount: ${amountText(event.amount)}`,
-    `Tx Hash: ${txHash}`,
-    `Explorer: ${url}`,
-    `Date: ${formatTelegramDate(payload.completedAt || event.sentAt || event.updatedAt || event.createdAt)}`,
-    event.transactionId ? `Reference: #${event.transactionId}` : null,
-  ].filter(Boolean).join("\n");
+    `👤 <b>User:</b> ${username}`,
+    `💰 <b>Amount:</b> <b>${esc(amountText(event.amount))}</b>`,
+    `🔗 <b>Tx Hash:</b> <code>${esc(txHash)}</code>`,
+    `🌐 <b>Explorer:</b> ${esc(url)}`,
+    `📅 <b>Date:</b> ${esc(formatTelegramDate(payload.completedAt || event.sentAt || event.updatedAt || event.createdAt))}`,
+    event.transactionId ? `🆔 <b>Reference:</b> #${event.transactionId}` : null,
+    "",
+    `<i>Powered by BlockMiner ⛏️</i>`,
+  ];
+  return lines.filter(Boolean).join("\n");
 }
 
 async function telegramFetch(method, botToken, body) {
@@ -110,6 +118,7 @@ export async function sendTelegramMessage({ botToken, chatId, threadId, text, fe
   const body = {
     chat_id: String(chatId),
     text,
+    parse_mode: "HTML",
     disable_web_page_preview: false,
   };
   if (threadId) body.message_thread_id = Number(threadId);
