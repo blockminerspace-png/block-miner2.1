@@ -46,9 +46,13 @@ export function computeBackoffMs(attempts) {
 
 export function formatTelegramDate(value) {
   const date = value instanceof Date ? value : new Date(value || Date.now());
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
     timeZone: process.env.TZ || "America/Sao_Paulo",
   }).format(date);
 }
@@ -62,14 +66,15 @@ export function buildPrivateAlertMessage(event) {
   const payload = event.payload || {};
   const username = payload.username || event.usernameSnapshot || `user-${event.userId || "?"}`;
   return [
-    "Novo pedido de saque",
-    `Usuario: @${username} (#${event.userId || "?"})`,
+    "⚠️ New Withdrawal Request",
+    "",
+    `User: @${username} (#${event.userId || "?"})`,
     payload.emailMasked ? `Email: ${payload.emailMasked}` : null,
-    `Valor: ${amountText(event.amount)}`,
-    `Destino: ${event.destinationWallet || payload.destinationWallet || "-"}`,
-    `Data: ${formatTelegramDate(payload.createdAt || event.createdAt)}`,
-    `Transacao: #${event.transactionId || event.id}`,
-    "Status: pending",
+    `Amount: ${amountText(event.amount)}`,
+    `Destination: ${event.destinationWallet || payload.destinationWallet || "-"}`,
+    `Date: ${formatTelegramDate(payload.createdAt || event.createdAt)}`,
+    `Transaction ID: #${event.transactionId || event.id}`,
+    "Status: Pending",
     payload.lastIp ? `IP: ${payload.lastIp}` : null,
   ].filter(Boolean).join("\n");
 }
@@ -80,15 +85,14 @@ export function buildPublicProofMessage(event) {
   const url = buildPolygonscanTxUrl(txHash);
   const username = payload.username || event.usernameSnapshot || `user-${event.userId || "?"}`;
   return [
-    "Saque processado",
-    `Usuario: ${username}`,
-    `Valor: ${amountText(event.amount)}`,
-    "Moeda: POL",
-    `Hash: ${txHash}`,
-    `Polygonscan: ${url}`,
-    `Data: ${formatTelegramDate(payload.completedAt || event.sentAt || event.updatedAt || event.createdAt)}`,
-    "Status: completed",
-    event.transactionId ? `Transacao: #${event.transactionId}` : null,
+    "✅ Withdrawal Confirmed",
+    "",
+    `User: ${username}`,
+    `Amount: ${amountText(event.amount)}`,
+    `Tx Hash: ${txHash}`,
+    `Explorer: ${url}`,
+    `Date: ${formatTelegramDate(payload.completedAt || event.sentAt || event.updatedAt || event.createdAt)}`,
+    event.transactionId ? `Reference: #${event.transactionId}` : null,
   ].filter(Boolean).join("\n");
 }
 
