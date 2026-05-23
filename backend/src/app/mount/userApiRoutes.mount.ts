@@ -31,6 +31,7 @@ import userRouter from "#server/routes/user.js";
 import { publicSupportRouter } from "#server/modules/publicSupport/publicSupport.routes.js";
 import { sidebarNavRouter } from "#server/routes/sidebar-nav.js";
 import { rewardInboxRouter } from "#server/routes/reward-inbox.js";
+import { zeradsRouter } from "#server/modules/zerads/zerads.routes.js";
 
 export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/auth", authRouter);
@@ -65,4 +66,5 @@ export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/sidebar", sidebarNavRouter);
   app.use("/api/reward-inbox", rewardInboxRouter);
   app.use("/api/public-support", publicSupportRouter);
+  app.use("/api/zerads", zeradsRouter);
 }

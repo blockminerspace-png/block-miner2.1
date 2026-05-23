@@ -704,7 +704,8 @@
       "social": "Social & Fun"
     },
     "inventario": "Inventário",
-    "taxes": "Impostos e Taxas"
+    "taxes": "Impostos e Taxas",
+    "zerads": "Zerads PTC"
   },
   "taxes": {
     "title": "Impostos e Taxas",
@@ -3046,5 +3047,17 @@
     "empty_title": "Caixa de entrada vazia",
     "inbox_load_error": "Erro ao carregar recompensas.",
     "collect_error": "Erro ao coletar recompensa."
+  },
+  "zerads": {
+    "title": "Zerads PTC",
+    "subtitle": "Clique em anúncios e ganhe POL",
+    "how_it_works_title": "Como funciona",
+    "how_it_works_body": "Abra a página de anúncios da Zerads, clique nos ads e os prêmios em POL são creditados automaticamente em até ~5 minutos.",
+    "exchange_rate": "1 ZER = {{rate}} POL — créditos automáticos a cada ~5 minutos.",
+    "start_earning": "Abrir Anúncios & Ganhar",
+    "credits_delay_note": "O crédito pode levar até 5 minutos para aparecer no saldo.",
+    "load_error": "Falha ao carregar o link. Atualize a página e tente novamente.",
+    "no_username_title": "Nome de usuário necessário",
+    "no_username_body": "Você precisa definir um nome de usuário nas Configurações antes de usar o Zerads."
   }
 }

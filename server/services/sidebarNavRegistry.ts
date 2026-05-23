@@ -155,6 +155,13 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "earn",
     defaultParentItemId: "rewards_group"
   },
+  zerads: {
+    path: "/zerads",
+    labelKey: "sidebar.zerads",
+    icon: "MousePointerClick",
+    section: "earn",
+    defaultParentItemId: "rewards_group"
+  },
   daily_tasks: {
     path: "/tasks",
     labelKey: "sidebar.daily_tasks",
@@ -332,6 +339,7 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "daily_tasks", visible: true, sortOrder: 118, section: "earn", parentItemId: null },
     { itemId: "rewards_group", visible: true, sortOrder: 120, section: "earn", parentItemId: null },
     { itemId: "internal_offerwall", visible: true, sortOrder: 125, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "zerads", visible: true, sortOrder: 127, section: "earn", parentItemId: "rewards_group" },
     { itemId: "faucet", visible: true, sortOrder: 130, section: "earn", parentItemId: "rewards_group" },
     { itemId: "shortlinks", visible: true, sortOrder: 140, section: "earn", parentItemId: "rewards_group" },
     { itemId: "auto_mining", visible: true, sortOrder: 150, section: "earn", parentItemId: "rewards_group" },

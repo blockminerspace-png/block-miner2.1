@@ -164,6 +164,12 @@
       ],
       "#server/utils/logger.js": [
         "./src/types/stubs/stub-server-utils-logger.d.ts"
+      ],
+      "#server/modules/zerads/zerads.controller.js": [
+        "./src/types/stubs/stub-server-modules-zerads-controller.d.ts"
+      ],
+      "#server/modules/zerads/zerads.routes.js": [
+        "./src/types/stubs/stub-server-modules-zerads-routes.d.ts"
       ]
     }
   },

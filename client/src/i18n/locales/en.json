@@ -703,7 +703,8 @@
       "social": "Social & Fun"
     },
     "inventario": "Inventory",
-    "taxes": "Taxes & Fees"
+    "taxes": "Taxes & Fees",
+    "zerads": "Zerads PTC"
   },
   "taxes": {
     "title": "Taxes & Fees",
@@ -3041,5 +3042,17 @@
     "empty_title": "Empty inbox",
     "inbox_load_error": "Failed to load rewards.",
     "collect_error": "Failed to collect reward."
+  },
+  "zerads": {
+    "title": "Zerads PTC",
+    "subtitle": "Click ads and earn POL rewards",
+    "how_it_works_title": "How it works",
+    "how_it_works_body": "Open the Zerads PTC page, click ads, and POL rewards are automatically credited to your account within ~5 minutes.",
+    "exchange_rate": "1 ZER = {{rate}} POL — rewards credited automatically every ~5 minutes.",
+    "start_earning": "Open Ads & Earn",
+    "credits_delay_note": "Credits may take up to 5 minutes to appear in your balance.",
+    "load_error": "Failed to load the link. Please refresh and try again.",
+    "no_username_title": "Username required",
+    "no_username_body": "You need to set a username in Settings before you can use Zerads."
   }
 }

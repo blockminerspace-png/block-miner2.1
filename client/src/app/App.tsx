@@ -74,6 +74,7 @@ const AdminMiniPass = lazy(() => import('../pages/admin/AdminMiniPass'));
 const AdminMiniPassSeason = lazy(() => import('../pages/admin/AdminMiniPassSeason'));
 const ReadEarn = lazy(() => import('../pages/read-earn'));
 const InternalOfferwall = lazy(() => import('../pages/internal-offerwall'));
+const Zerads = lazy(() => import('../pages/zerads'));
 const MiniPass = lazy(() => import('../pages/mini-pass'));
 const Transparency = lazy(() => import('../pages/transparency'));
 const LiveServer = lazy(() => import('../pages/live-server'));
@@ -229,6 +230,7 @@ function App() {
             <Route path="/shortlinks" element={<Shortlinks />} />
             <Route path="/read-earn" element={<ReadEarn />} />
             <Route path="/internal-offerwall" element={<InternalOfferwall />} />
+            <Route path="/zerads" element={<Zerads />} />
             <Route path="/mini-pass" element={<MiniPass />} />
             <Route path="/mini-pass/:seasonId" element={<MiniPass />} />
             <Route path="/tasks" element={<DailyTasks />} />
