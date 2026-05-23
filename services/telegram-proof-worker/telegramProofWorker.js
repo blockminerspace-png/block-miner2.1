@@ -89,19 +89,19 @@ export function buildPublicProofMessage(event) {
   const txHash = cleanString(event.txHash || payload.txHash);
   const url = buildPolygonscanTxUrl(txHash);
   const username = esc(payload.username || event.usernameSnapshot || `user-${event.userId || "?"}`);
-  const lines = [
+  return [
     "✅ <b>Withdrawal Confirmed</b>",
     "",
     `👤 <b>User:</b> ${username}`,
-    `💰 <b>Amount:</b> <b>${esc(amountText(event.amount))}</b>`,
-    `🔗 <b>Tx Hash:</b> <code>${esc(txHash)}</code>`,
-    `🌐 <b>Explorer:</b> ${esc(url)}`,
-    `📅 <b>Date:</b> ${esc(formatTelegramDate(payload.completedAt || event.sentAt || event.updatedAt || event.createdAt))}`,
-    event.transactionId ? `🆔 <b>Reference:</b> #${event.transactionId}` : null,
+    `💰 <b>Amount:</b> ${esc(amountText(event.amount))}`,
     "",
-    `<i>Powered by BlockMiner ⛏️</i>`,
-  ];
-  return lines.filter(Boolean).join("\n");
+    `🔗 <b>Hash:</b> <code>${esc(txHash)}</code>`,
+    `🌐 <b>Explorer:</b> ${esc(url)}`,
+    "",
+    `📅 <b>Date:</b> ${esc(formatTelegramDate(payload.completedAt || event.sentAt || event.updatedAt || event.createdAt))}`,
+    "",
+    `<i>⛏️ BlockMiner</i>`,
+  ].join("\n");
 }
 
 async function telegramFetch(method, botToken, body) {
