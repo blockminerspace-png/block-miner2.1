@@ -380,73 +380,55 @@ export type WalletLiveEntry = {
   tokens?: TokenHolding[];
 };
 
-function tokenUsdValue(
-  symbol: string,
+// Polygon mainnet addresses for major DeFi tokens (6 fixed calls, no discovery needed)
+const POLYGON_KNOWN_TOKENS = [
+  { contractAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", symbol: "USDC",   name: "USD Coin",          decimals: 6,  priceKey: "stable"  },
+  { contractAddress: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", symbol: "USDC.e", name: "Bridged USDC",     decimals: 6,  priceKey: "stable"  },
+  { contractAddress: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", symbol: "USDT",   name: "Tether USD",       decimals: 6,  priceKey: "stable"  },
+  { contractAddress: "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063", symbol: "DAI",    name: "Dai Stablecoin",   decimals: 18, priceKey: "stable"  },
+  { contractAddress: "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6", symbol: "WBTC",   name: "Wrapped BTC",      decimals: 8,  priceKey: "btc"     },
+  { contractAddress: "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619", symbol: "WETH",   name: "Wrapped Ether",    decimals: 18, priceKey: "eth"     },
+] as const;
+
+type PriceKey = "stable" | "btc" | "eth";
+
+function resolveTokenUsd(
+  priceKey: PriceKey,
   balance: number,
-  prices: { pol: number | null; btc: number | null; eth: number | null }
+  prices: { btc: number | null; eth: number | null }
 ): number | null {
-  const s = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (s.includes("USD") || s === "DAI" || s === "FRAX" || s === "MIMATIC") return balance;
-  if (s === "WBTC" || s === "BTCB" || s === "RENBTC") return prices.btc != null ? balance * prices.btc : null;
-  if (s === "WETH" || s === "ETH") return prices.eth != null ? balance * prices.eth : null;
-  if (s === "WMATIC" || s === "MATIC" || s === "POL") return prices.pol != null ? balance * prices.pol : null;
+  if (priceKey === "stable") return balance;
+  if (priceKey === "btc") return prices.btc != null ? balance * prices.btc : null;
+  if (priceKey === "eth") return prices.eth != null ? balance * prices.eth : null;
   return null;
 }
 
-async function fetchWalletErc20Tokens(
+async function fetchKnownTokenBalances(
   address: string,
-  prices: { pol: number | null; btc: number | null; eth: number | null }
+  prices: { btc: number | null; eth: number | null }
 ): Promise<TokenHolding[]> {
-  const json = await etherscanV2Fetch({
-    module: "account",
-    action: "tokentx",
-    address,
-    startblock: 0,
-    endblock: 99999999,
-    page: 1,
-    offset: 1000,
-    sort: "desc",
-  });
-
-  const txs = Array.isArray(json?.result) ? (json.result as Record<string, unknown>[]) : [];
-
-  const seen = new Map<string, { symbol: string; name: string; decimals: number }>();
-  for (const tx of txs) {
-    const ca = String(tx.contractAddress || "").toLowerCase();
-    if (!ca || seen.has(ca)) continue;
-    seen.set(ca, {
-      symbol: String(tx.tokenSymbol || ""),
-      name: String(tx.tokenName || ""),
-      decimals: Number(tx.tokenDecimal ?? 18),
-    });
-    if (seen.size >= 40) break;
-  }
-
-  const results: TokenHolding[] = [];
-
-  for (const [contractAddress, info] of seen) {
-    try {
-      const balJson = await etherscanV2Fetch({
-        module: "account",
-        action: "tokenbalance",
-        contractaddress: contractAddress,
-        address,
-        tag: "latest",
-      });
-      const rawBal = BigInt(String(balJson?.result ?? "0"));
-      if (rawBal === 0n) continue;
-
-      const balance = Number(rawBal) / 10 ** info.decimals;
-      const usdValue = tokenUsdValue(info.symbol, balance, prices);
-
-      results.push({ contractAddress, ...info, balance, usdValue });
-    } catch {
-      /* skip token on error */
-    }
-  }
-
-  results.sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
-  return results;
+  const results = await Promise.all(
+    POLYGON_KNOWN_TOKENS.map(async (token) => {
+      try {
+        const json = await etherscanV2Fetch({
+          module: "account",
+          action: "tokenbalance",
+          contractaddress: token.contractAddress,
+          address,
+          tag: "latest",
+        });
+        const raw = BigInt(String(json?.result ?? "0"));
+        if (raw === 0n) return null;
+        const balance = Number(raw) / 10 ** token.decimals;
+        const usdValue = resolveTokenUsd(token.priceKey, balance, prices);
+        return { contractAddress: token.contractAddress, symbol: token.symbol, name: token.name, decimals: token.decimals, balance, usdValue } as TokenHolding;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return results.filter((t): t is TokenHolding => t !== null && t.balance > 0)
+    .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
 }
 
 export async function fetchTrackedWalletsLive(wallets: unknown[]) {
@@ -478,7 +460,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
         const wei = BigInt(String(balJson?.result ?? "0"));
         valuePol = Number(ethers.formatEther(wei));
 
-        tokens = await fetchWalletErc20Tokens(address, { pol: polUsdPrice, btc: btcPrice, eth: ethPrice });
+        tokens = await fetchKnownTokenBalances(address, { btc: btcPrice, eth: ethPrice });
 
         const polUsd = polUsdPrice != null ? valuePol * polUsdPrice : 0;
         const tokensUsd = tokens.reduce((s, t) => s + (t.usdValue ?? 0), 0);
