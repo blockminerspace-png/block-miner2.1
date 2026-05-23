@@ -3053,6 +3053,16 @@
     "credits_delay_note": "Credits may take up to 5 minutes to appear in your balance.",
     "load_error": "Failed to load the link. Please refresh and try again.",
     "no_username_title": "Username required",
-    "no_username_body": "You need to set a username in Settings before you can use Zerads."
+    "no_username_body": "You need to set a username in Settings before you can use Zerads.",
+    "stat_total_zer": "Total ZER",
+    "stat_total_pol": "Total POL",
+    "stat_total_clicks": "Total Clicks",
+    "history_title": "Earnings History",
+    "history_total": "{{count}} records",
+    "history_empty": "No PTC earnings yet. Click ads to start earning.",
+    "col_date": "Date",
+    "col_clicks": "Clicks",
+    "col_zer": "ZER",
+    "col_pol": "POL Earned"
   }
 }

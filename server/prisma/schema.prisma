@@ -77,6 +77,7 @@ model User {
   shortlinkComp ShortlinkCompletion?
   hasAdblock    Boolean  @default(false) @map("has_adblock")
   isCreator     Boolean  @default(false) @map("is_creator")
+  emailTwoFactorEnabled Boolean @default(false) @map("email_two_factor_enabled")
   youtubeUrl    String?  @map("youtube_url")
 
   // Migration Meta & Historical Data
@@ -112,6 +113,7 @@ model User {
   polygonHdAddress               PolygonHdAddress?
   rewardInbox                    UserRewardInbox[]
   checkinStreakRecoveries         CheckinStreakRecovery[]
+  zeradsCallbacks                ZeradsCallback[]
 
   @@index([registrationIp])
   @@index([ip])
@@ -1188,7 +1190,10 @@ model ZeradsCallback {
   callbackAt   DateTime @map("callback_at")
   createdAt    DateTime @default(now()) @map("created_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
+  @@index([createdAt])
   @@map("zerads_ptc_callbacks")
 }
 

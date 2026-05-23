@@ -3058,6 +3058,16 @@
     "credits_delay_note": "O crédito pode levar até 5 minutos para aparecer no saldo.",
     "load_error": "Falha ao carregar o link. Atualize a página e tente novamente.",
     "no_username_title": "Nome de usuário necessário",
-    "no_username_body": "Você precisa definir um nome de usuário nas Configurações antes de usar o Zerads."
+    "no_username_body": "Você precisa definir um nome de usuário nas Configurações antes de usar o Zerads.",
+    "stat_total_zer": "ZER Total",
+    "stat_total_pol": "POL Total",
+    "stat_total_clicks": "Cliques Totais",
+    "history_title": "Histórico de Ganhos",
+    "history_total": "{{count}} registros",
+    "history_empty": "Nenhum ganho PTC ainda. Clique nos anúncios para começar.",
+    "col_date": "Data",
+    "col_clicks": "Cliques",
+    "col_zer": "ZER",
+    "col_pol": "POL Ganho"
   }
 }

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import prisma from "../../models/db.js";
@@ -9,45 +10,49 @@ const logger = loggerLib.child("ZeradsController");
 const SITE_ID = "10776";
 const ZERADS_PTC_BASE = "https://zerads.com/ptc.php";
 
-// 1 ZER = EXCHANGE_RATE POL
 const EXCHANGE_RATE = Number(process.env.ZERADS_EXCHANGE_RATE ?? "0.07");
-
-// Hard cap per callback: amount of ZER we'll ever credit in one call.
-// Zerads docs: callbacks are ~5 min intervals. 5 ZER = 0.35 POL max per window.
 const MAX_ZER_PER_CALLBACK = Number(process.env.ZERADS_MAX_ZER_PER_CALLBACK ?? "5");
-
-// Official Zerads callback server IP from their docs.
 const ZERADS_SERVER_IP = (process.env.ZERADS_SERVER_IP ?? "162.0.208.108").trim();
 
+const HISTORY_PAGE_SIZE = 50;
+
 function getClientIp(req: Request): string {
-  // req.ip already has trust-proxy applied by Express
   return String(req.ip ?? "").replace("::ffff:", "");
 }
 
 /**
+ * Idempotency key: prevents crediting the same 5-min window twice.
+ * Hash covers username + amount + clicks + 5-min bucket so replays are rejected.
+ */
+function buildCallbackHash(username: string, amountZer: number, clicks: number): string {
+  const bucket = Math.floor(Date.now() / 300_000); // 5-min window
+  const payload = `${username}|${amountZer}|${clicks}|${bucket}`;
+  return crypto.createHash("sha256").update(payload).digest("hex");
+}
+
+/**
  * GET /zeradsptc.php
- * Called by the Zerads server every ~5 minutes.
- * Query: pwd, user, amount, clicks
- * Returns "1" on success, "0" on failure (matches their PHP example).
+ * Zerads server callback — every ~5 minutes per user.
+ * Returns "1" on success, "0" on any failure (matches their PHP pattern).
  */
 export async function zeradsCallbackHandler(req: Request, res: Response): Promise<void> {
   const clientIp = getClientIp(req);
 
-  // --- IP guard ---
   if (clientIp !== ZERADS_SERVER_IP) {
     logger.warn("zerads.callback.ip_rejected", { ip: clientIp });
     res.status(403).send("0");
     return;
   }
 
-  // --- Password guard ---
   const secret = (process.env.ZERADS_CALLBACK_SECRET ?? "").trim();
   if (!secret) {
     logger.error("zerads.callback.no_secret_configured");
     res.status(500).send("0");
     return;
   }
-  const { pwd, user: username, amount: rawAmount, clicks: rawClicks } = req.query as Record<string, string | undefined>;
+
+  const { pwd, user: username, amount: rawAmount, clicks: rawClicks } =
+    req.query as Record<string, string | undefined>;
 
   if (!pwd || pwd !== secret) {
     logger.warn("zerads.callback.bad_password", { ip: clientIp });
@@ -55,7 +60,6 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
     return;
   }
 
-  // --- Parameter validation ---
   if (!username || typeof username !== "string" || username.trim() === "") {
     res.status(400).send("0");
     return;
@@ -68,7 +72,6 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
     return;
   }
 
-  // Hard cap: never credit more than MAX_ZER_PER_CALLBACK ZER in one call.
   const cappedZer = Math.min(amountZer, MAX_ZER_PER_CALLBACK);
   if (cappedZer < amountZer) {
     logger.warn("zerads.callback.amount_capped", {
@@ -78,10 +81,11 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
     });
   }
 
-  const polToCredit = new Prisma.Decimal(String(cappedZer * EXCHANGE_RATE));
   const clicks = parseInt(rawClicks ?? "0", 10) || 0;
+  const callbackHash = buildCallbackHash(username.trim(), cappedZer, clicks);
+  const polToCredit = new Prisma.Decimal(String(cappedZer * EXCHANGE_RATE));
+  const now = new Date();
 
-  // --- User lookup ---
   const user = await prisma.user.findUnique({
     where: { username: username.trim() },
     select: { id: true, isBanned: true, username: true },
@@ -99,11 +103,38 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
     return;
   }
 
-  // --- Credit ---
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { polBalance: { increment: polToCredit } },
-  });
+  try {
+    await prisma.$transaction([
+      prisma.zeradsCallback.create({
+        data: {
+          userId: user.id,
+          username: user.username!,
+          amountZer: cappedZer,
+          exchangeRate: EXCHANGE_RATE,
+          payoutAmount: Number(polToCredit),
+          clicks,
+          requestIp: clientIp,
+          callbackHash,
+          callbackAt: now,
+        },
+      }),
+      prisma.user.update({
+        where: { id: user.id },
+        data: { polBalance: { increment: polToCredit } },
+      }),
+    ]);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Unique constraint") && msg.includes("callback_hash")) {
+      // Duplicate callback for this 5-min window — already credited, safe to ack
+      logger.warn("zerads.callback.duplicate_ignored", { username, callbackHash });
+      res.send("1");
+      return;
+    }
+    logger.error("zerads.callback.transaction_failed", { username, error: msg });
+    res.status(500).send("0");
+    return;
+  }
 
   void createAuditLogBestEffort({
     userId: user.id,
@@ -158,5 +189,72 @@ export async function getUserZeradsLink(req: Request, res: Response): Promise<vo
     username: user.username,
     exchangeRate: EXCHANGE_RATE,
     siteId: SITE_ID,
+  });
+}
+
+/**
+ * GET /api/zerads/history?page=1
+ * Returns paginated PTC callback history for the authenticated user.
+ */
+export async function getZeradsHistory(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ ok: false });
+    return;
+  }
+
+  const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+  const skip = (page - 1) * HISTORY_PAGE_SIZE;
+
+  const [entries, total] = await Promise.all([
+    prisma.zeradsCallback.findMany({
+      where: { userId },
+      orderBy: { callbackAt: "desc" },
+      skip,
+      take: HISTORY_PAGE_SIZE,
+      select: {
+        id: true,
+        amountZer: true,
+        payoutAmount: true,
+        clicks: true,
+        callbackAt: true,
+      },
+    }),
+    prisma.zeradsCallback.count({ where: { userId } }),
+  ]);
+
+  res.json({
+    ok: true,
+    entries,
+    total,
+    page,
+    pageSize: HISTORY_PAGE_SIZE,
+    totalPages: Math.ceil(total / HISTORY_PAGE_SIZE),
+  });
+}
+
+/**
+ * GET /api/zerads/stats
+ * Total ZER earned and POL credited for the authenticated user.
+ */
+export async function getZeradsStats(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ ok: false });
+    return;
+  }
+
+  const agg = await prisma.zeradsCallback.aggregate({
+    where: { userId },
+    _sum: { amountZer: true, payoutAmount: true, clicks: true },
+    _count: { id: true },
+  });
+
+  res.json({
+    ok: true,
+    totalZer: agg._sum.amountZer ?? 0,
+    totalPol: agg._sum.payoutAmount ?? 0,
+    totalClicks: agg._sum.clicks ?? 0,
+    totalCallbacks: agg._count.id,
   });
 }
