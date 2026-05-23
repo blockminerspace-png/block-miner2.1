@@ -16,6 +16,9 @@ const EXCHANGE_RATE = Number(_rawRate) || 0.07; // fallback 0.07 se vier 0 ou in
 
 const MAX_ZER_PER_CALLBACK = Number(process.env.ZERADS_MAX_ZER_PER_CALLBACK ?? "5");
 
+// Platform keeps 20%; user receives 80% of the gross ZER → POL conversion.
+const PAYOUT_MULTIPLIER = 0.80;
+
 // Suporta ZERADS_ALLOWED_IPS (legado) ou ZERADS_SERVER_IP, separado por vírgula
 const _allowedIpsRaw = (process.env.ZERADS_ALLOWED_IPS || process.env.ZERADS_SERVER_IP || "162.0.208.108").trim();
 const ZERADS_ALLOWED_IPS = new Set(
@@ -97,7 +100,7 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
 
   const clicks = parseInt(rawClicks ?? "0", 10) || 0;
   const callbackHash = buildCallbackHash(username.trim(), cappedZer, clicks);
-  const polToCredit = new Prisma.Decimal(String(cappedZer * EXCHANGE_RATE));
+  const polToCredit = new Prisma.Decimal(String(cappedZer * EXCHANGE_RATE * PAYOUT_MULTIPLIER));
   const now = new Date();
 
   const user = await prisma.user.findUnique({
@@ -201,7 +204,7 @@ export async function getUserZeradsLink(req: Request, res: Response): Promise<vo
     ok: true,
     url,
     username: user.username,
-    exchangeRate: EXCHANGE_RATE,
+    exchangeRate: EXCHANGE_RATE * PAYOUT_MULTIPLIER,
     siteId: SITE_ID,
   });
 }
