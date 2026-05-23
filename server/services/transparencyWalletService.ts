@@ -3,7 +3,7 @@
  * Supports one-off lookups and multi-wallet admin summaries.
  */
 import { ethers } from "ethers";
-import { getPolUsdPrice } from "../utils/cryptoPrice.js";
+import { getPolUsdPrice, getBtcUsdPrice, getEthUsdPrice } from "../utils/cryptoPrice.js";
 
 const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 const POLYGON_CHAIN_ID_STR = "137";
@@ -357,6 +357,15 @@ type TrackedWalletLiveInput = {
   displayMode?: string | null;
 };
 
+export type TokenHolding = {
+  contractAddress: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: number;
+  usdValue: number | null;
+};
+
 export type WalletLiveEntry = {
   id: number | null;
   label: string;
@@ -368,7 +377,77 @@ export type WalletLiveEntry = {
   displayMode: string;
   valuePol: number | null;
   valueUsd: number | null;
+  tokens?: TokenHolding[];
 };
+
+function tokenUsdValue(
+  symbol: string,
+  balance: number,
+  prices: { pol: number | null; btc: number | null; eth: number | null }
+): number | null {
+  const s = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (s.includes("USD") || s === "DAI" || s === "FRAX" || s === "MIMATIC") return balance;
+  if (s === "WBTC" || s === "BTCB" || s === "RENBTC") return prices.btc != null ? balance * prices.btc : null;
+  if (s === "WETH" || s === "ETH") return prices.eth != null ? balance * prices.eth : null;
+  if (s === "WMATIC" || s === "MATIC" || s === "POL") return prices.pol != null ? balance * prices.pol : null;
+  return null;
+}
+
+async function fetchWalletErc20Tokens(
+  address: string,
+  prices: { pol: number | null; btc: number | null; eth: number | null }
+): Promise<TokenHolding[]> {
+  const json = await etherscanV2Fetch({
+    module: "account",
+    action: "tokentx",
+    address,
+    startblock: 0,
+    endblock: 99999999,
+    page: 1,
+    offset: 1000,
+    sort: "desc",
+  });
+
+  const txs = Array.isArray(json?.result) ? (json.result as Record<string, unknown>[]) : [];
+
+  const seen = new Map<string, { symbol: string; name: string; decimals: number }>();
+  for (const tx of txs) {
+    const ca = String(tx.contractAddress || "").toLowerCase();
+    if (!ca || seen.has(ca)) continue;
+    seen.set(ca, {
+      symbol: String(tx.tokenSymbol || ""),
+      name: String(tx.tokenName || ""),
+      decimals: Number(tx.tokenDecimal ?? 18),
+    });
+    if (seen.size >= 40) break;
+  }
+
+  const results: TokenHolding[] = [];
+
+  for (const [contractAddress, info] of seen) {
+    try {
+      const balJson = await etherscanV2Fetch({
+        module: "account",
+        action: "tokenbalance",
+        contractaddress: contractAddress,
+        address,
+        tag: "latest",
+      });
+      const rawBal = BigInt(String(balJson?.result ?? "0"));
+      if (rawBal === 0n) continue;
+
+      const balance = Number(rawBal) / 10 ** info.decimals;
+      const usdValue = tokenUsdValue(info.symbol, balance, prices);
+
+      results.push({ contractAddress, ...info, balance, usdValue });
+    } catch {
+      /* skip token on error */
+    }
+  }
+
+  results.sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
+  return results;
+}
 
 export async function fetchTrackedWalletsLive(wallets: unknown[]) {
   const list = wallets as TrackedWalletLiveInput[];
@@ -385,24 +464,34 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
     const address = normalizeAddress(wallet.address);
     const displayMode = String(wallet.displayMode || "total_received");
     let valuePol: number | null = null;
+    let valueUsd: number | null = null;
+    let tokens: TokenHolding[] | undefined;
 
     try {
       if (displayMode === "current_balance") {
-        const json = await etherscanV2Fetch({
-          module: "account",
-          action: "balance",
-          address,
-          tag: "latest",
-        });
-        const wei = BigInt(String(json?.result ?? "0"));
+        const [balJson, btcPrice, ethPrice] = await Promise.all([
+          etherscanV2Fetch({ module: "account", action: "balance", address, tag: "latest" }),
+          getBtcUsdPrice().catch(() => null as number | null),
+          getEthUsdPrice().catch(() => null as number | null),
+        ]);
+
+        const wei = BigInt(String(balJson?.result ?? "0"));
         valuePol = Number(ethers.formatEther(wei));
+
+        tokens = await fetchWalletErc20Tokens(address, { pol: polUsdPrice, btc: btcPrice, eth: ethPrice });
+
+        const polUsd = polUsdPrice != null ? valuePol * polUsdPrice : 0;
+        const tokensUsd = tokens.reduce((s, t) => s + (t.usdValue ?? 0), 0);
+        valueUsd = Number((polUsd + tokensUsd).toFixed(2));
       } else {
         const history = await fetchTxHistory("txlist", address, { pageSize: 100, maxPages: 100 });
         const summary = buildMovementSummary(address, history.rows as unknown[]);
         valuePol = displayMode === "total_sent" ? summary.totalOutPol : summary.totalInPol;
+        valueUsd = polUsdPrice != null ? Number((valuePol * polUsdPrice).toFixed(2)) : null;
       }
     } catch {
       valuePol = null;
+      valueUsd = null;
     }
 
     results.push({
@@ -415,7 +504,8 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
       isActive: wallet.isActive !== false,
       displayMode,
       valuePol,
-      valueUsd: polUsdPrice != null && valuePol != null ? Number((valuePol * polUsdPrice).toFixed(2)) : null,
+      valueUsd,
+      ...(tokens !== undefined ? { tokens } : {}),
     });
   }
 

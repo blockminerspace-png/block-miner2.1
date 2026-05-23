@@ -1,36 +1,50 @@
 const PRICE_TTL_MS = 2 * 60 * 1000;
 const priceCache = new Map();
 
-export async function getPolUsdPrice() {
-  const cached = priceCache.get("POL");
+async function fetchCoinGeckoPrice(ids: string, key: string): Promise<number | null> {
+  const res = await fetch(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
+    { signal: AbortSignal.timeout(10_000) }
+  );
+  const data = await res.json();
+  return data[key]?.usd ?? null;
+}
+
+async function getCachedPrice(cacheKey: string, fetcher: () => Promise<number | null>): Promise<number> {
+  const cached = priceCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < PRICE_TTL_MS) return cached.price;
 
   try {
-    // Try primary name
-    let res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token&vs_currencies=usd`);
-    let data = await res.json();
-    let price = data['polygon-ecosystem-token']?.usd;
-
-    if (!price) {
-      // Fallback to matic-network
-      res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd`);
-      data = await res.json();
-      price = data['matic-network']?.usd;
-    }
-
+    const price = await fetcher();
     if (price) {
-      priceCache.set("POL", { price, timestamp: Date.now() });
+      priceCache.set(cacheKey, { price, timestamp: Date.now() });
       return price;
     }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Error fetching POL price from CoinGecko:", msg);
+    console.error(`Error fetching ${cacheKey} price from CoinGecko:`, msg);
   }
 
   if (cached) {
-    console.warn("Using stale POL price cache.");
-    return cached.price; // Allow stale cache if network fails
+    console.warn(`Using stale ${cacheKey} price cache.`);
+    return cached.price;
   }
 
-  throw new Error("Não foi possível obter o preço atual do POL. Tente novamente mais tarde.");
+  throw new Error(`Não foi possível obter o preço atual do ${cacheKey}.`);
+}
+
+export async function getPolUsdPrice(): Promise<number> {
+  return getCachedPrice("POL", async () => {
+    let price = await fetchCoinGeckoPrice("polygon-ecosystem-token", "polygon-ecosystem-token");
+    if (!price) price = await fetchCoinGeckoPrice("matic-network", "matic-network");
+    return price;
+  });
+}
+
+export async function getBtcUsdPrice(): Promise<number> {
+  return getCachedPrice("BTC", () => fetchCoinGeckoPrice("bitcoin", "bitcoin"));
+}
+
+export async function getEthUsdPrice(): Promise<number> {
+  return getCachedPrice("ETH", () => fetchCoinGeckoPrice("ethereum", "ethereum"));
 }

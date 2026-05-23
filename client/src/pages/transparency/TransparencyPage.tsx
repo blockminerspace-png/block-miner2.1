@@ -78,6 +78,15 @@ export interface TransparencyEntry {
   direction?: string | null;
 }
 
+export interface TokenHolding {
+  contractAddress: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: number;
+  usdValue: number | null;
+}
+
 export interface TrackedWalletEntry {
   id?: string | number;
   address: string;
@@ -89,6 +98,7 @@ export interface TrackedWalletEntry {
   isActive?: boolean;
   valuePol?: number | null;
   valueUsd?: number | null;
+  tokens?: TokenHolding[];
 }
 
 interface TransparencyApiResponse {
@@ -521,21 +531,62 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
           <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">{cfg.label} · Polygon</p>
           {loading
             ? <div className="h-8 w-40 bg-white/5 rounded-lg animate-pulse" />
-            : wallet.valuePol != null
+            : mode === 'current_balance'
               ? <>
-                  <p className="text-2xl font-black text-white">
-                    {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                    <span className={`text-base ml-2 ${cfg.valueBadge}`}>{wallet.assetSymbol || 'POL'}</span>
-                  </p>
-                  {wallet.valueUsd != null && (
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      ≈ ${wallet.valueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                    </p>
-                  )}
+                  {wallet.valueUsd != null
+                    ? <>
+                        <p className="text-2xl font-black text-white">
+                          ${wallet.valueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className="text-sm text-gray-500 ml-2">USD</span>
+                        </p>
+                        {wallet.valuePol != null && (
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} POL liquid
+                          </p>
+                        )}
+                      </>
+                    : <p className="text-sm text-gray-600">Unavailable</p>
+                  }
                 </>
-              : <p className="text-sm text-gray-600">Unavailable</p>
+              : wallet.valuePol != null
+                ? <>
+                    <p className="text-2xl font-black text-white">
+                      {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                      <span className={`text-base ml-2 ${cfg.valueBadge}`}>{wallet.assetSymbol || 'POL'}</span>
+                    </p>
+                    {wallet.valueUsd != null && (
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        ≈ ${wallet.valueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                      </p>
+                    )}
+                  </>
+                : <p className="text-sm text-gray-600">Unavailable</p>
           }
         </div>
+
+        {!loading && mode === 'current_balance' && wallet.tokens && wallet.tokens.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Token Holdings</p>
+            {wallet.tokens.map(t => (
+              <div key={t.contractAddress} className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-black text-white bg-white/8 rounded px-1.5 py-0.5 shrink-0">{t.symbol}</span>
+                  <span className="text-[10px] text-gray-500 truncate">{t.name}</span>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[11px] font-black text-white">
+                    {t.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: t.decimals > 8 ? 4 : 6 })}
+                  </p>
+                  {t.usdValue != null && (
+                    <p className="text-[10px] text-gray-500">
+                      ${t.usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <span className={`text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 ${cfg.chainBadge}`}>
