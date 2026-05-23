@@ -27,6 +27,9 @@ const ZERADS_ALLOWED_IPS = new Set(
 const HISTORY_PAGE_SIZE = 50;
 
 function getClientIp(req: Request): string {
+  // Site sits behind Cloudflare; real origin IP is in CF-Connecting-IP
+  const cfIp = req.headers["cf-connecting-ip"];
+  if (cfIp && typeof cfIp === "string") return cfIp.trim();
   return String(req.ip ?? "").replace("::ffff:", "");
 }
 
