@@ -5,6 +5,7 @@ import prisma from "../src/db/prisma.js";
 import {
   assertValidTransparencyWalletAddress,
   fetchTrackedWalletsSummary,
+  fetchTrackedWalletsLive,
   fetchWalletNativeActivity
 } from "../services/transparencyWalletService.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
@@ -14,6 +15,7 @@ const VALID_INCOME_CATEGORIES = ["sponsorship", "donation", "revenue", "investme
 const VALID_PERIODS = ["daily", "monthly", "annual", "one_time"] as const;
 const VALID_TYPES = ["expense", "income"] as const;
 const VALID_CHAINS = ["polygon"] as const;
+const VALID_DISPLAY_MODES = ["total_received", "current_balance", "total_sent"] as const;
 const VALID_DIRECTIONS = ["in", "out"] as const;
 
 function normalizeString(value: unknown, max = 5000): string | null {
@@ -152,6 +154,11 @@ function normalizeTrackedWalletPayload(
 
   const sym = normalizeString(body.assetSymbol ?? current?.assetSymbol ?? "POL", 16)?.toUpperCase() || "POL";
 
+  const displayMode = normalizeString(body.displayMode ?? current?.displayMode ?? "total_received", 32) ?? "total_received";
+  if (!VALID_DISPLAY_MODES.includes(displayMode as (typeof VALID_DISPLAY_MODES)[number])) {
+    throw new Error("Display mode inválido.");
+  }
+
   return {
     label,
     address,
@@ -161,6 +168,7 @@ function normalizeTrackedWalletPayload(
     isActive: normalizeBool(body.isActive ?? current?.isActive, true),
     isPublic: normalizeBool(body.isPublic ?? current?.isPublic, true),
     includeInTotals: normalizeBool(body.includeInTotals ?? current?.includeInTotals, true),
+    displayMode,
     sortOrder: Math.max(0, parseInt(String(body.sortOrder ?? current?.sortOrder ?? 0), 10) || 0)
   };
 }
@@ -528,6 +536,35 @@ export async function adminWalletGetActivity(req: Request, res: Response): Promi
       return;
     }
     res.status(502).json({ ok: false, message: errMsg(e) || "Erro ao consultar a chain." });
+  }
+}
+
+let _walletsLiveCache: { result: unknown; expiresAt: number } | null = null;
+
+export async function getPublicTrackedWalletsLive(_req: Request, res: Response): Promise<void> {
+  const now = Date.now();
+  if (_walletsLiveCache && _walletsLiveCache.expiresAt > now) {
+    res.json(_walletsLiveCache.result);
+    return;
+  }
+
+  try {
+    const wallets = await prisma.transparencyTrackedWallet.findMany({
+      where: { isPublic: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+
+    if (!wallets.length) {
+      res.json({ ok: true, apiKeyConfigured: false, polUsdPrice: null, wallets: [] });
+      return;
+    }
+
+    const data = await fetchTrackedWalletsLive(wallets);
+    const result = { ok: true, ...data };
+    _walletsLiveCache = { result, expiresAt: now + WALLET_STATS_CACHE_TTL_MS };
+    res.json(result);
+  } catch (e: unknown) {
+    res.status(502).json({ ok: false, message: errMsg(e) || "Erro ao buscar carteiras." });
   }
 }
 

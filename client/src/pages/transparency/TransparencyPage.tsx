@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -8,7 +8,7 @@ import {
 import type { PieLabelRenderProps } from 'recharts';
 import {
   Eye, Server, Wrench, Megaphone, Briefcase, Scale, Package,
-  DollarSign, RefreshCw, ExternalLink, TrendingUp, TrendingDown,
+  DollarSign, ExternalLink, TrendingUp, TrendingDown,
   CheckCircle2, Clock, Wallet, Copy, Check as CheckIcon, ShieldCheck,
   BarChart2, Activity, ArrowUpRight, ImageIcon, AlertTriangle,
 } from 'lucide-react';
@@ -16,9 +16,7 @@ import type { LucideIcon } from 'lucide-react';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-/** Default Polygon wallet if none is configured in admin (Transparency → wallet settings). */
-const FALLBACK_INVESTMENT_WALLET = '0x9da76e16147cc728ab46f4403e6c1d4d718ea289';
-const POLYGON_RPC = 'https://polygon-rpc.com';
+const INVESTMENT_WALLET_ADDRESS = '0x454d8a4261155621f603a275bb69b381d0513202';
 
 const POOL_POSITIONS = [
   { id: 'XYaDWC63das', label: 'WBTC / USDC — Uniswap V3 (0.05%)', link: 'https://defi.krystal.app/strategies/75416799' },
@@ -87,6 +85,10 @@ export interface TrackedWalletEntry {
   explorerBaseUrl?: string | null;
   chain?: string | null;
   assetSymbol?: string | null;
+  displayMode?: string | null;
+  isActive?: boolean;
+  valuePol?: number | null;
+  valueUsd?: number | null;
 }
 
 interface TransparencyApiResponse {
@@ -422,214 +424,155 @@ function EntryRow({ entry }: { entry: TransparencyEntry }) {
   );
 }
 
-function TrackedWalletsPanel({ wallets }: { wallets: TrackedWalletEntry[] }) {
-  if (!Array.isArray(wallets) || wallets.length === 0) return null;
-
-  return (
-    <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 overflow-hidden">
-      <div className="px-6 py-4 border-b border-sky-500/10 bg-sky-500/5 flex items-center gap-2">
-        <Wallet className="w-4 h-4 text-sky-300" aria-hidden="true" />
-        <p className="text-xs font-black text-sky-300 uppercase tracking-widest">
-          Carteiras rastreadas
-        </p>
-        <span className="ml-auto text-[10px] text-slate-500">
-          {wallets.length} carteira{wallets.length > 1 ? 's' : ''}
-        </span>
-      </div>
-      <div className="grid gap-4 p-6 md:grid-cols-2">
-        {wallets.map((wallet) => (
-          <div key={wallet.id || wallet.address} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-black text-white">{wallet.label || 'Carteira'}</p>
-                <p className="mt-1 break-all font-mono text-[11px] text-slate-400">{wallet.address}</p>
-              </div>
-              <a
-                href={`${wallet.explorerBaseUrl || 'https://polygonscan.com/address'}/${wallet.address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 rounded-lg bg-sky-500/10 p-2 text-sky-300 hover:bg-sky-500/20"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-widest">
-              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-300">{wallet.chain || 'polygon'}</span>
-              <span className="rounded-full bg-white/5 px-2 py-1 text-slate-400">{wallet.assetSymbol || 'POL'}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-interface WalletStatsResponse {
+interface WalletsLiveResponse {
   ok: boolean;
-  totalInPol?: number;
-  totalInUsd?: number | null;
-  movementCount?: number;
-  historyMayBeTruncated?: boolean;
-  apiKeyConfigured?: boolean;
+  polUsdPrice?: number | null;
+  wallets?: TrackedWalletEntry[];
 }
 
-/**
- * Investment wallet section showing on-chain POL balance via public RPC,
- * plus total deposits received fetched from the backend Etherscan cache.
- */
-function InvestmentWallet({ resolvedAddress }: { resolvedAddress: string | null | undefined }) {
-  const { t } = useTranslation();
-  const walletAddr = typeof resolvedAddress === 'string' && resolvedAddress.startsWith('0x') ? resolvedAddress : FALLBACK_INVESTMENT_WALLET;
-  const [polBalance, setPolBalance] = useState<number | null>(null);
-  const [loadingBal, setLoadingBal] = useState(true);
+const DISPLAY_MODE_CONFIG = {
+  total_received: {
+    label: 'Total Received',
+    border: 'border-emerald-500/20',
+    bg: 'bg-emerald-950/10',
+    headerBg: 'bg-emerald-500/5',
+    headerBorder: 'border-emerald-500/10',
+    iconBg: 'bg-emerald-500/15',
+    iconColor: 'text-emerald-400',
+    valueBadge: 'text-emerald-400',
+    chainBadge: 'bg-emerald-500/10 text-emerald-300',
+  },
+  current_balance: {
+    label: 'Current Balance',
+    border: 'border-violet-500/20',
+    bg: 'bg-violet-950/10',
+    headerBg: 'bg-violet-500/5',
+    headerBorder: 'border-violet-500/10',
+    iconBg: 'bg-violet-500/15',
+    iconColor: 'text-violet-400',
+    valueBadge: 'text-violet-400',
+    chainBadge: 'bg-violet-500/10 text-violet-300',
+  },
+  total_sent: {
+    label: 'Total Sent',
+    border: 'border-sky-500/20',
+    bg: 'bg-sky-950/10',
+    headerBg: 'bg-sky-500/5',
+    headerBorder: 'border-sky-500/10',
+    iconBg: 'bg-sky-500/15',
+    iconColor: 'text-sky-400',
+    valueBadge: 'text-sky-400',
+    chainBadge: 'bg-sky-500/10 text-sky-300',
+  },
+} as const;
+
+type DisplayModeKey = keyof typeof DISPLAY_MODE_CONFIG;
+
+function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: boolean }) {
   const [copied, setCopied] = useState(false);
-  const [walletStats, setWalletStats] = useState<WalletStatsResponse | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-
-  const fetchBalance = useCallback(async () => {
-    setLoadingBal(true);
-    try {
-      const res = await fetch(POLYGON_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [walletAddr, 'latest'] }),
-      });
-      if (!res.ok) throw new Error('RPC error');
-      const data: { result?: string } = await res.json();
-      if (data.result) setPolBalance(Number(BigInt(data.result)) / 1e18);
-      else setPolBalance(null);
-    } catch {
-      setPolBalance(null);
-    } finally {
-      setLoadingBal(false);
-    }
-  }, [walletAddr]);
-
-  const fetchStats = useCallback(async () => {
-    setLoadingStats(true);
-    try {
-      const res = await fetch('/api/transparency/wallet-stats');
-      if (res.ok) {
-        const data: WalletStatsResponse = await res.json();
-        setWalletStats(data.ok ? data : null);
-      }
-    } catch { /* silent fail */ } finally {
-      setLoadingStats(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchBalance(); }, [fetchBalance]);
-  useEffect(() => { void fetchStats(); }, [fetchStats]);
+  const mode = (wallet.displayMode ?? 'total_received') as DisplayModeKey;
+  const cfg = DISPLAY_MODE_CONFIG[mode] ?? DISPLAY_MODE_CONFIG.total_received;
+  const explorerUrl = `${wallet.explorerBaseUrl || 'https://polygonscan.com/address'}/${wallet.address}`;
+  const isInvestment = wallet.address.toLowerCase() === INVESTMENT_WALLET_ADDRESS.toLowerCase();
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(walletAddr).then(() => {
+    navigator.clipboard.writeText(wallet.address).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => {});
   };
 
   return (
-    <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/30 to-slate-900/50 overflow-hidden" data-testid="investment-wallet">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-emerald-500/10 bg-emerald-500/5">
-        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-          <Wallet className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+    <div className={`rounded-2xl border ${cfg.border} ${cfg.bg} overflow-hidden`}>
+      <div className={`flex items-center gap-3 px-5 py-3.5 border-b ${cfg.headerBorder} ${cfg.headerBg}`}>
+        <div className={`w-8 h-8 rounded-xl ${cfg.iconBg} flex items-center justify-center shrink-0`}>
+          <Wallet className={`w-4 h-4 ${cfg.iconColor}`} aria-hidden="true" />
         </div>
-        <div>
-          <p className="text-sm font-black text-white">{t('transparency.wallet.title')}</p>
-          <p className="text-[10px] text-gray-500">{t('transparency.wallet.subtitle')}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-black text-white leading-tight truncate">{wallet.label || 'Carteira'}</p>
+          <p className={`text-[10px] font-bold uppercase tracking-widest ${cfg.iconColor}`}>{cfg.label}</p>
         </div>
-        <button
-          onClick={fetchBalance}
-          aria-label="Refresh balance"
-          className="ml-auto p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-emerald-400 transition-colors"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loadingBal ? 'animate-spin' : ''}`} aria-hidden="true" />
-        </button>
+        {wallet.isActive === false && (
+          <span className="shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-400 uppercase tracking-wider">Inactive</span>
+        )}
       </div>
-      <div className="p-6 space-y-5">
-        <div className="flex items-center gap-3 bg-black/30 rounded-xl px-4 py-3">
-          <code className="text-xs text-gray-300 font-mono break-all flex-1 select-all" aria-label="Wallet address">
-            {walletAddr}
-          </code>
+
+      <div className="p-5 space-y-4">
+        <div className="flex items-center gap-2 bg-black/20 rounded-xl px-3 py-2">
+          <code className="text-[11px] text-gray-400 font-mono break-all flex-1 select-all">{wallet.address}</code>
           <button
             onClick={handleCopy}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-emerald-500/10 text-gray-400 hover:text-emerald-400 text-[11px] font-bold transition-colors"
+            className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-colors"
             aria-label={copied ? 'Copied' : 'Copy address'}
           >
             {copied ? <CheckIcon className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-            {copied ? t('common.copied') : t('common.copy')}
           </button>
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
-        {/* On-chain stats: balance + total deposits */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t('transparency.wallet.native_balance')}</p>
-            {loadingBal
-              ? <div className="h-7 w-32 bg-white/5 rounded-lg animate-pulse" aria-label="Loading balance" />
-              : polBalance !== null
-                ? <p className="text-2xl font-black text-white" data-testid="pol-balance">
-                    {polBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                    <span className="text-base text-emerald-400 ml-2">POL</span>
+
+        <div className="rounded-xl border border-white/8 bg-black/20 p-4">
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">{cfg.label} · Polygon</p>
+          {loading
+            ? <div className="h-8 w-40 bg-white/5 rounded-lg animate-pulse" />
+            : wallet.valuePol != null
+              ? <>
+                  <p className="text-2xl font-black text-white">
+                    {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                    <span className={`text-base ml-2 ${cfg.valueBadge}`}>{wallet.assetSymbol || 'POL'}</span>
                   </p>
-                : <p className="text-sm text-gray-600">{t('transparency.wallet.unavailable')}</p>
-            }
-            <p className="text-[10px] text-gray-600 mt-1">{t('transparency.wallet.balance_note')}</p>
-          </div>
-
-          <div className="rounded-xl border border-emerald-500/15 bg-emerald-950/20 p-4">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t('transparency.wallet.total_received')}</p>
-            {loadingStats
-              ? <div className="h-7 w-32 bg-white/5 rounded-lg animate-pulse" />
-              : walletStats?.totalInPol != null
-                ? <>
-                    <p className="text-2xl font-black text-white">
-                      {walletStats.totalInPol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                      <span className="text-base text-emerald-400 ml-2">POL</span>
+                  {wallet.valueUsd != null && (
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      ≈ ${wallet.valueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                     </p>
-                    {walletStats.totalInUsd != null && (
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        ≈ ${walletStats.totalInUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                      </p>
-                    )}
-                    {walletStats.historyMayBeTruncated && (
-                      <p className="text-[10px] text-amber-500/70 mt-1">{t('transparency.wallet.may_be_truncated')}</p>
-                    )}
-                  </>
-                : <p className="text-sm text-gray-600">{t('transparency.wallet.unavailable')}</p>
-            }
-          </div>
+                  )}
+                </>
+              : <p className="text-sm text-gray-600">Unavailable</p>
+          }
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          <a href={`https://debank.com/profile/${walletAddr}`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 text-blue-400 text-xs font-bold transition-colors">
-            <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('transparency.wallet.debank')}
-          </a>
-          <a href={`https://polygonscan.com/address/${walletAddr}`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 text-purple-400 text-xs font-bold transition-colors">
-            <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('transparency.wallet.polygonscan')}
-          </a>
+        <div className="flex flex-wrap gap-2">
+          <span className={`text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 ${cfg.chainBadge}`}>
+            {wallet.chain || 'polygon'}
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 bg-white/5 text-slate-400">
+            {wallet.assetSymbol || 'POL'}
+          </span>
+          {isInvestment && (
+            <a
+              href={`https://debank.com/profile/${wallet.address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+            >
+              DeBank <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          )}
         </div>
-        {POOL_POSITIONS.length > 0 && (
-          <div className="space-y-3">
+
+        {isInvestment && POOL_POSITIONS.length > 0 && (
+          <div className="space-y-2">
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-              <Activity className="w-3 h-3 text-emerald-400" aria-hidden="true" /> {t('transparency.wallet.active_pools')}
+              <Activity className="w-3 h-3 text-violet-400" aria-hidden="true" /> Active Pools
             </p>
-            <div className="flex flex-col gap-2">
-              {POOL_POSITIONS.map(pos => (
-                <a
-                  key={pos.id}
-                  href={pos.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-emerald-500/15 bg-emerald-950/20 hover:bg-emerald-950/40 hover:border-emerald-500/30 transition-colors group"
-                  aria-label={pos.label}
-                >
-                  <span className="text-xs font-bold text-emerald-300 group-hover:text-emerald-200">{pos.label}</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-emerald-600 group-hover:text-emerald-400 shrink-0 transition-colors" aria-hidden="true" />
-                </a>
-              ))}
-            </div>
+            {POOL_POSITIONS.map(pos => (
+              <a
+                key={pos.id}
+                href={pos.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-violet-500/15 bg-violet-950/20 hover:bg-violet-950/40 hover:border-violet-500/30 transition-colors group"
+              >
+                <span className="text-xs font-bold text-violet-300 group-hover:text-violet-200">{pos.label}</span>
+                <ExternalLink className="w-3.5 h-3.5 text-violet-600 group-hover:text-violet-400 shrink-0" aria-hidden="true" />
+              </a>
+            ))}
           </div>
         )}
       </div>
@@ -637,32 +580,18 @@ function InvestmentWallet({ resolvedAddress }: { resolvedAddress: string | null 
   );
 }
 
-// ─── Withdrawal wallet panel ─────────────────────────────────────────────────
-
-interface WithdrawalStatsResponse {
-  ok: boolean;
-  currency?: string;
-  network?: string;
-  totalPol?: number;
-  totalUsd?: number | null;
-  totalCount?: number;
-  polUsdPrice?: number | null;
-  senderWallets?: { address: string; totalPol: number; count: number }[];
-}
-
-function WithdrawalWalletPanel() {
-  const { t } = useTranslation();
-  const [stats, setStats] = useState<WithdrawalStatsResponse | null>(null);
+function WalletsLiveSection() {
+  const [data, setData] = useState<WalletsLiveResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch('/api/transparency/withdrawal-stats');
+        const res = await fetch('/api/transparency/wallets-live');
         if (!cancelled && res.ok) {
-          const data: WithdrawalStatsResponse = await res.json();
-          setStats(data.ok ? data : null);
+          const json: WalletsLiveResponse = await res.json();
+          if (json.ok) setData(json);
         }
       } catch { /* silent */ } finally {
         if (!cancelled) setLoading(false);
@@ -671,104 +600,34 @@ function WithdrawalWalletPanel() {
     return () => { cancelled = true; };
   }, []);
 
+  const wallets = data?.wallets ?? [];
+  const showSection = loading || wallets.length > 0;
+  if (!showSection) return null;
+
   return (
-    <div className="rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-950/30 to-slate-900/50 overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-sky-500/10 bg-sky-500/5">
-        <div className="w-8 h-8 rounded-xl bg-sky-500/15 flex items-center justify-center">
-          <ArrowUpRight className="w-4 h-4 text-sky-400" aria-hidden="true" />
-        </div>
-        <div>
-          <p className="text-sm font-black text-white">{t('transparency.withdrawals.title')}</p>
-          <p className="text-[10px] text-gray-500">{t('transparency.withdrawals.subtitle')}</p>
-        </div>
-        {stats && (
-          <div className="ml-auto flex gap-2">
-            <span className="text-[10px] font-black px-2 py-1 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20 uppercase tracking-widest">
-              {stats.currency ?? 'POL'}
-            </span>
-            <span className="text-[10px] font-black px-2 py-1 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20 uppercase tracking-widest">
-              {stats.network ?? 'Polygon'}
-            </span>
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Wallet className="w-4 h-4 text-gray-500" aria-hidden="true" />
+        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Project Wallets · Polygon</p>
+        {data?.polUsdPrice != null && (
+          <span className="ml-auto text-[10px] text-gray-600">
+            1 POL ≈ ${data.polUsdPrice.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} USD
+          </span>
         )}
       </div>
-
-      <div className="p-6 space-y-5">
-        {/* KPI row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t('transparency.withdrawals.total_paid')}</p>
-            {loading
-              ? <div className="h-7 w-32 bg-white/5 rounded-lg animate-pulse" />
-              : stats?.totalPol != null
-                ? <>
-                    <p className="text-2xl font-black text-white">
-                      {stats.totalPol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                      <span className="text-base text-sky-400 ml-2">POL</span>
-                    </p>
-                    {stats.totalUsd != null && (
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        ≈ ${stats.totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                      </p>
-                    )}
-                  </>
-                : <p className="text-sm text-gray-600">{t('transparency.wallet.unavailable')}</p>
-            }
-          </div>
-
-          <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t('transparency.withdrawals.total_count')}</p>
-            {loading
-              ? <div className="h-7 w-24 bg-white/5 rounded-lg animate-pulse" />
-              : <p className="text-2xl font-black text-white">
-                  {(stats?.totalCount ?? 0).toLocaleString('en-US')}
-                  <span className="text-sm text-gray-500 ml-2">{t('transparency.withdrawals.txs')}</span>
-                </p>
-            }
-          </div>
-
-          <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t('transparency.withdrawals.sender_wallets')}</p>
-            {loading
-              ? <div className="h-7 w-16 bg-white/5 rounded-lg animate-pulse" />
-              : <p className="text-2xl font-black text-white">
-                  {(stats?.senderWallets?.length ?? 0)}
-                  <span className="text-sm text-gray-500 ml-2">{t('transparency.withdrawals.hot_wallets')}</span>
-                </p>
-            }
-          </div>
+      {loading && !wallets.length ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="rounded-2xl border border-white/8 bg-white/2 h-48 animate-pulse" />
+          ))}
         </div>
-
-        {/* Sender wallets list */}
-        {!loading && stats?.senderWallets && stats.senderWallets.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-              <Wallet className="w-3 h-3 text-sky-400" aria-hidden="true" />
-              {t('transparency.withdrawals.sending_wallets_label')}
-            </p>
-            {stats.senderWallets.map((w) => (
-              <div key={w.address} className="flex items-center gap-3 rounded-xl border border-white/8 bg-black/20 px-4 py-3">
-                <code className="text-[11px] text-gray-300 font-mono break-all flex-1">{w.address}</code>
-                <div className="text-right shrink-0">
-                  <p className="text-xs font-black text-white">
-                    {w.totalPol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} POL
-                  </p>
-                  <p className="text-[10px] text-gray-500">{w.count.toLocaleString('en-US')} txs</p>
-                </div>
-                <a
-                  href={`https://polygonscan.com/address/${w.address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 rounded-lg bg-sky-500/10 p-2 text-sky-300 hover:bg-sky-500/20"
-                  aria-label="Ver no Polygonscan"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {wallets.map(w => (
+            <WalletCard key={w.id ?? w.address} wallet={w} loading={loading} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -787,8 +646,6 @@ function WithdrawalWalletPanel() {
 export default function Transparency() {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<TransparencyEntry[]>([]);
-  const [trackedWallet, setTrackedWallet] = useState<string | null>(null);
-  const [trackedWallets, setTrackedWallets] = useState<TrackedWalletEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -804,8 +661,6 @@ export default function Transparency() {
         const d = raw as TransparencyApiResponse;
         if (d.ok) {
           setEntries(d.entries ?? []);
-          setTrackedWallet(typeof d.trackedWallet === 'string' && d.trackedWallet.startsWith('0x') ? d.trackedWallet : null);
-          setTrackedWallets(Array.isArray(d.trackedWallets) ? d.trackedWallets : []);
         } else setErr(t('transparency.loading_error'));
       })
       .catch(() => {
@@ -1051,10 +906,8 @@ export default function Transparency() {
             </div>
           )}
 
-          {/* ── Investment wallet ──────────────────────────────────────── */}
-          <InvestmentWallet resolvedAddress={trackedWallet || FALLBACK_INVESTMENT_WALLET} />
-          <TrackedWalletsPanel wallets={trackedWallets} />
-          <WithdrawalWalletPanel />
+          {/* ── Project wallets (on-chain live data) ──────────────────── */}
+          <WalletsLiveSection />
 
           {/* ── Full expense breakdown ─────────────────────────────────── */}
           {expenses.length === 0 ? (

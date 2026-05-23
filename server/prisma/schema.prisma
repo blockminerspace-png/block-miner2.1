@@ -1894,6 +1894,7 @@ model TransparencyTrackedWallet {
   isActive        Boolean  @default(true) @map("is_active")
   isPublic        Boolean  @default(true) @map("is_public")
   includeInTotals Boolean  @default(true) @map("include_in_totals")
+  displayMode     String   @default("total_received") @map("display_mode")
   sortOrder       Int      @default(0) @map("sort_order")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")

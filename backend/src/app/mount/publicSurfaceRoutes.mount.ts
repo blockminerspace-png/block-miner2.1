@@ -23,6 +23,7 @@ export function mountPublicSurfaceRoutes(app: Express): void {
   app.get("/api/transparency", transparencyController.getPublicEntries);
   app.get("/api/transparency/wallet-stats", transparencyController.getPublicWalletStats);
   app.get("/api/transparency/withdrawal-stats", transparencyController.getPublicWithdrawalStats);
+  app.get("/api/transparency/wallets-live", transparencyController.getPublicTrackedWalletsLive);
 
   // Zerads PTC offerwall callback — called by Zerads server every ~5 min.
   // Security is handled inside the handler (IP + password guard).

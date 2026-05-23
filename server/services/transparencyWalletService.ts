@@ -346,6 +346,82 @@ export async function fetchTrackedWalletsSummary(wallets: unknown, opts: TxHisto
   };
 }
 
+type TrackedWalletLiveInput = {
+  id?: number | null;
+  label?: string | null;
+  address: string;
+  chain?: string | null;
+  assetSymbol?: string | null;
+  explorerBaseUrl?: string | null;
+  isActive?: boolean;
+  displayMode?: string | null;
+};
+
+export type WalletLiveEntry = {
+  id: number | null;
+  label: string;
+  address: string;
+  chain: string;
+  assetSymbol: string;
+  explorerBaseUrl: string;
+  isActive: boolean;
+  displayMode: string;
+  valuePol: number | null;
+  valueUsd: number | null;
+};
+
+export async function fetchTrackedWalletsLive(wallets: unknown[]) {
+  const list = wallets as TrackedWalletLiveInput[];
+  let polUsdPrice: number | null = null;
+  try {
+    polUsdPrice = Number(await getPolUsdPrice());
+  } catch {
+    polUsdPrice = null;
+  }
+
+  const results: WalletLiveEntry[] = [];
+
+  for (const wallet of list) {
+    const address = normalizeAddress(wallet.address);
+    const displayMode = String(wallet.displayMode || "total_received");
+    let valuePol: number | null = null;
+
+    try {
+      if (displayMode === "current_balance") {
+        const json = await etherscanV2Fetch({
+          module: "account",
+          action: "balance",
+          address,
+          tag: "latest",
+        });
+        const wei = BigInt(String(json?.result ?? "0"));
+        valuePol = Number(ethers.formatEther(wei));
+      } else {
+        const history = await fetchTxHistory("txlist", address, { pageSize: 100, maxPages: 100 });
+        const summary = buildMovementSummary(address, history.rows as unknown[]);
+        valuePol = displayMode === "total_sent" ? summary.totalOutPol : summary.totalInPol;
+      }
+    } catch {
+      valuePol = null;
+    }
+
+    results.push({
+      id: wallet.id ?? null,
+      label: String(wallet.label || "").trim() || address,
+      address,
+      chain: String(wallet.chain || "polygon"),
+      assetSymbol: String(wallet.assetSymbol || "POL"),
+      explorerBaseUrl: wallet.explorerBaseUrl || "https://polygonscan.com/address",
+      isActive: wallet.isActive !== false,
+      displayMode,
+      valuePol,
+      valueUsd: polUsdPrice != null && valuePol != null ? Number((valuePol * polUsdPrice).toFixed(2)) : null,
+    });
+  }
+
+  return { apiKeyConfigured: Boolean(getApiKey()), polUsdPrice, wallets: results };
+}
+
 export function assertValidTransparencyWalletAddress(raw: unknown): string | null {
   const s = String(raw || "").trim();
   if (!s) return null;
