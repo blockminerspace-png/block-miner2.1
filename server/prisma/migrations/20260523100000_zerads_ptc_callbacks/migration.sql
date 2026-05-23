@@ -1,5 +1,5 @@
 -- Create zerads PTC callback log table for history and idempotency
-CREATE TABLE "zerads_ptc_callbacks" (
+CREATE TABLE IF NOT EXISTS "zerads_ptc_callbacks" (
   "id"            SERIAL PRIMARY KEY,
   "user_id"       INTEGER NOT NULL,
   "username"      TEXT NOT NULL,
@@ -15,11 +15,11 @@ CREATE TABLE "zerads_ptc_callbacks" (
     FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE
 );
 
-CREATE UNIQUE INDEX "zerads_ptc_callbacks_callback_hash_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "zerads_ptc_callbacks_callback_hash_key"
   ON "zerads_ptc_callbacks"("callback_hash");
 
-CREATE INDEX "zerads_ptc_callbacks_user_id_idx"
+CREATE INDEX IF NOT EXISTS "zerads_ptc_callbacks_user_id_idx"
   ON "zerads_ptc_callbacks"("user_id");
 
-CREATE INDEX "zerads_ptc_callbacks_created_at_idx"
+CREATE INDEX IF NOT EXISTS "zerads_ptc_callbacks_created_at_idx"
   ON "zerads_ptc_callbacks"("created_at");
