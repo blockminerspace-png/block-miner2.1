@@ -278,11 +278,11 @@ type TokenMovementSummaryEntry = {
   totalOutUsd: number | null;
 };
 
-function buildTokenMovementSummary(
+async function buildTokenMovementSummary(
   address: string,
   tokenTxList: unknown[],
   prices: { pol: number | null; btc: number | null; eth: number | null },
-): { byToken: TokenMovementSummaryEntry[]; totalInUsd: number | null; totalOutUsd: number | null } {
+): Promise<{ byToken: TokenMovementSummaryEntry[]; totalInUsd: number | null; totalOutUsd: number | null }> {
   const addr = address.toLowerCase();
 
   const knownByAddr = new Map(
@@ -327,6 +327,8 @@ function buildTokenMovementSummary(
   let hasInUsd = false;
   let hasOutUsd = false;
   const byToken: TokenMovementSummaryEntry[] = [];
+  const unknownAddrs = Array.from(map.keys()).filter((contractAddress) => !knownByAddr.has(contractAddress));
+  const cgPrices = await fetchCoinGeckoBatchPrices(unknownAddrs);
 
   for (const [contractAddress, entry] of map) {
     const decimals  = entry.decimals;
@@ -340,6 +342,8 @@ function buildTokenMovementSummary(
       if (known.priceKey === "stable") usdPerToken = 1;
       else if (known.priceKey === "btc") usdPerToken = prices.btc;
       else if (known.priceKey === "eth") usdPerToken = prices.eth;
+    } else {
+      usdPerToken = cgPrices.get(contractAddress) ?? null;
     }
 
     const totalInTokenUsd  = usdPerToken != null ? totalIn  * usdPerToken : null;
@@ -865,7 +869,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
         const tokenHistory = await fetchTxHistory("tokentx", address, { pageSize: 100, maxPages: 100 });
 
         const nativeSummary = buildMovementSummary(address, normalHistory.rows as unknown[], internalHistory.rows as unknown[]);
-        const tokenSummary  = buildTokenMovementSummary(
+        const tokenSummary  = await buildTokenMovementSummary(
           address,
           tokenHistory.rows as unknown[],
           { pol: polUsdPrice, btc: btcPrice, eth: ethPrice },
