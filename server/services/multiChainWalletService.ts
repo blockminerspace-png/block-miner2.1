@@ -146,7 +146,7 @@ const CHAINS: ChainConfig[] = [
     nativePriceKey: "eth",
     explorerBase: "https://basescan.org",
     fetchNfts: false,
-    rpcUrl: "https://mainnet.base.org",
+    rpcUrl: process.env.BASE_RPC_URL || "https://base.llamarpc.com",
     uniV3NfpmAddress:    "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
     uniV3FactoryAddress: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
     knownTokens: [
@@ -517,13 +517,17 @@ async function fetchUniV3LpValue(
   // The ethers.js Contract wrapper has quirks on Base; provider.call() works reliably.
   // Note: some IDs may be stale (burned positions) — those fail at positions() and are skipped.
   // Staked positions are still in the enumerable list and positions() succeeds for them.
-  const tokenIds: bigint[] = [];
-  for (let i = 0; i < Number(nftCount); i++) {
-    try {
-      const [tid] = await call(nfpmAddress, nfpmIface, "tokenOfOwnerByIndex", [walletAddress, BigInt(i)]);
-      tokenIds.push(BigInt(tid.toString()));
-    } catch { /* skip */ }
-  }
+  const tokenIdResults = await Promise.all(
+    Array.from({ length: Number(nftCount) }, (_, i) =>
+      call(nfpmAddress, nfpmIface, "tokenOfOwnerByIndex", [walletAddress, BigInt(i)])
+        .then(([tid]) => BigInt(tid.toString()))
+        .catch((err: unknown) => {
+          console.warn(`[uniV3-lp] tokenOfOwnerByIndex(${i}) failed:`, String((err as Error)?.message).slice(0, 60));
+          return null;
+        }),
+    ),
+  );
+  const tokenIds = tokenIdResults.filter((tid): tid is bigint => tid !== null);
   console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… scanning ${tokenIds.length} position(s)`);
 
   // ─── Value each position ──────────────────────────────────────────────────
