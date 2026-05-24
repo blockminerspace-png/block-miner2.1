@@ -886,8 +886,14 @@ async function fetchChainSnapshot(
     nfts = [...lpNfts, ...nfts];
   }
 
-  const tokensUsd     = tokenHoldings.reduce((s, t) => s + (t.usdValue ?? 0), 0);
-  const totalChainUsd = (nativeUsd ?? 0) + tokensUsd + lpUsd || null;
+  const tokensUsd = tokenHoldings.reduce((s, t) => s + (t.usdValue ?? 0), 0);
+  const hasKnownUsdComponent =
+    nativeUsd != null ||
+    lpUsd > 0 ||
+    tokenHoldings.some((t) => t.usdValue != null);
+  const totalChainUsd = hasKnownUsdComponent
+    ? (nativeUsd ?? 0) + tokensUsd + lpUsd
+    : null;
 
   return { chainId: chain.chainId, name: chain.name, nativeSymbol: chain.nativeSymbol, nativeBalance: nativeBal, nativeUsd, tokens: tokenHoldings, nfts, lpUsd, totalChainUsd };
 }

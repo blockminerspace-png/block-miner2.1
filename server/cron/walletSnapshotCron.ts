@@ -133,7 +133,18 @@ async function runSnapshot(): Promise<void> {
           // Full multi-chain snapshot
           console.log(`[wallet-snapshot] multi-chain fetch for ${wallet.address}`);
           const snap = await fetchMultiChainSnapshot(wallet.address);
-          const nextTotalUsd = snap.totalUsd ?? existing?.totalUsd ?? undefined;
+          const hasFreshUsd =
+            snap.totalUsd != null ||
+            snap.chains.some((c) => c.totalChainUsd != null) ||
+            snap.tokens.some((t) => t.usdValue != null) ||
+            snap.nfts.some((n) => n.isLiquidityPosition && n.liquidityUsd != null);
+          const nextTotalUsd = hasFreshUsd
+            ? snap.totalUsd ?? existing?.totalUsd ?? undefined
+            : existing?.totalUsd ?? undefined;
+          const nextChains = snap.chains.length > 0 ? snap.chains : ((existing?.chains as object[]) ?? []);
+          const nextTokens = snap.tokens.length > 0 ? snap.tokens : ((existing?.tokens as object[]) ?? []);
+          const nextNfts = snap.nfts.length > 0 ? snap.nfts : ((existing?.nfts as object[]) ?? []);
+          const nextFetchedAt = hasFreshUsd ? snap.fetchedAt : (existing?.fetchedAt ?? snap.fetchedAt);
 
           await prisma.transparencyWalletSnapshot.upsert({
             where:  { walletId: wallet.id },
@@ -141,18 +152,18 @@ async function runSnapshot(): Promise<void> {
               walletId:  wallet.id,
               totalUsd:  nextTotalUsd,
               valuePol:  snap.valuePol ?? undefined,
-              chains:    snap.chains   as object[],
-              tokens:    snap.tokens   as object[],
-              nfts:      snap.nfts     as object[],
-              fetchedAt: snap.fetchedAt,
+              chains:    nextChains as object[],
+              tokens:    nextTokens as object[],
+              nfts:      nextNfts as object[],
+              fetchedAt: nextFetchedAt,
             },
             update: {
               totalUsd:  nextTotalUsd,
               valuePol:  snap.valuePol ?? undefined,
-              chains:    snap.chains   as object[],
-              tokens:    snap.tokens   as object[],
-              nfts:      snap.nfts     as object[],
-              fetchedAt: snap.fetchedAt,
+              chains:    nextChains as object[],
+              tokens:    nextTokens as object[],
+              nfts:      nextNfts as object[],
+              fetchedAt: nextFetchedAt,
             },
           });
 

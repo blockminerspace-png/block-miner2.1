@@ -91,6 +91,7 @@ export interface ChainSnapshotEntry {
   nativeBalance: number;
   nativeUsd: number | null;
   tokens: TokenHolding[];
+  lpUsd?: number | null;
   totalChainUsd: number | null;
 }
 
@@ -190,6 +191,17 @@ function fmtMaybe(n: unknown, digits = 2): string | null {
   const num = Number(n);
   if (!isFinite(num)) return null;
   return num.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function getInvestmentBreakdown(wallet: TrackedWalletEntry) {
+  const tokens = wallet.tokens ?? [];
+  const chains = wallet.chains ?? [];
+  const liquidStableUsd = tokens
+    .filter((t) => ['USDC', 'USDT', 'DAI', 'BUSD', 'USDC.E'].includes((t.symbol || '').toUpperCase()))
+    .reduce((sum, t) => sum + (t.usdValue ?? 0), 0);
+  const lpUsd = chains.reduce((sum, c) => sum + (c.lpUsd ?? 0), 0);
+  const liquidUsd = Math.max(0, (wallet.valueUsd ?? 0) - lpUsd);
+  return { liquidStableUsd, lpUsd, liquidUsd };
 }
 
 // ─── Chart tooltips ─────────────────────────────────────────────────────────
@@ -536,6 +548,7 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
   const modeLabel = t(`transparency.wallets.mode_${mode}`, cfg.label);
   const explorerUrl = `${wallet.explorerBaseUrl || 'https://polygonscan.com/address'}/${wallet.address}`;
   const isInvestment = wallet.address.toLowerCase() === INVESTMENT_WALLET_ADDRESS.toLowerCase();
+  const investmentBreakdown = isInvestment ? getInvestmentBreakdown(wallet) : null;
   const isDeprecated =
     wallet.isActive === false ||
     wallet.address.toLowerCase() === OLD_DEPOSIT_WALLET_ADDRESS.toLowerCase();
@@ -621,6 +634,30 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
                           <p className="text-[11px] text-gray-500 mt-0.5">
                             {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {t('transparency.wallets.pol_liquid')}
                           </p>
+                        )}
+                        {isInvestment && investmentBreakdown && (
+                          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <div className="rounded-lg bg-white/5 px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-widest text-gray-500">Saldo Liquido</p>
+                              <p className="text-sm font-black text-white">
+                                ${investmentBreakdown.liquidUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                            <div className="rounded-lg bg-white/5 px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-widest text-gray-500">LPs Ativas</p>
+                              <p className="text-sm font-black text-white">
+                                ${investmentBreakdown.lpUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                            {investmentBreakdown.liquidStableUsd > 0 && (
+                              <div className="rounded-lg bg-white/5 px-3 py-2 sm:col-span-2">
+                                <p className="text-[10px] uppercase tracking-widest text-gray-500">Stablecoins Liquidas</p>
+                                <p className="text-sm font-black text-white">
+                                  ${investmentBreakdown.liquidStableUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </>
                     : <p className="text-sm text-gray-600">{t('transparency.wallets.unavailable')}</p>
