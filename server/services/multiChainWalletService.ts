@@ -146,7 +146,7 @@ const CHAINS: ChainConfig[] = [
     nativePriceKey: "eth",
     explorerBase: "https://basescan.org",
     fetchNfts: false,
-    rpcUrl: process.env.BASE_RPC_URL || "https://base.llamarpc.com",
+    rpcUrl: process.env.BASE_RPC_URL || "https://base.drpc.org",
     uniV3NfpmAddress:    "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
     uniV3FactoryAddress: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
     knownTokens: [
