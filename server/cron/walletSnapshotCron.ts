@@ -14,7 +14,7 @@ import { fetchMultiChainSnapshot } from "../services/multiChainWalletService.js"
 import type { ChainNftHolding } from "../services/multiChainWalletService.js";
 import { fetchTrackedWalletsLive } from "../services/transparencyWalletService.js";
 
-const SNAPSHOT_INTERVAL_MS = Number(process.env.WALLET_SNAPSHOT_INTERVAL_MS) || 30 * 60 * 1000;
+const SNAPSHOT_INTERVAL_MS = Number(process.env.WALLET_SNAPSHOT_INTERVAL_MS) || 10 * 60 * 1000;
 const STARTUP_DELAY_MS = 20_000; // 20s after start — gives DB time to connect
 
 let _running = false;

@@ -183,19 +183,25 @@ async function sumHistoricalPolUsd(
 
   let totalUsd = 0;
   let hasAnyPrice = false;
+  let missingAnyPrice = false;
   for (const { timestampSec, totalPol } of dailyTotals.values()) {
     try {
       const polUsd = Number(await getPolUsdPriceAt(timestampSec));
       if (Number.isFinite(polUsd) && polUsd > 0) {
         totalUsd += totalPol * polUsd;
         hasAnyPrice = true;
+      } else {
+        missingAnyPrice = true;
       }
     } catch {
-      // Ignore individual day failures; caller can fall back to snapshot preservation.
+      // If any day fails, treat the historical total as incomplete so the caller can
+      // fall back to a safe current-price estimate instead of showing absurd values.
+      missingAnyPrice = true;
     }
   }
 
-  return hasAnyPrice ? totalUsd : null;
+  if (!hasAnyPrice || missingAnyPrice) return null;
+  return totalUsd;
 }
 
 function buildMovementSummary(address: string, normal: unknown[], internal: unknown[] = []) {
@@ -925,13 +931,17 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
             ? await sumHistoricalPolUsd(nativeSummary.movements, "out")
             : await sumHistoricalPolUsd(nativeSummary.movements, "in");
         const tokenUsd  = displayMode === "total_sent" ? tokenSummary.totalOutUsd : tokenSummary.totalInUsd;
+        const safeNativeUsd =
+          nativeUsd != null
+            ? nativeUsd
+            : (nativePol > 0 && polUsdPrice != null ? nativePol * polUsdPrice : null);
 
         valuePol = nativePol;
         valueUsd =
-          nativeUsd != null || tokenUsd != null
-            ? Number(((nativeUsd ?? 0) + (tokenUsd ?? 0)).toFixed(2))
+          safeNativeUsd != null || tokenUsd != null
+            ? Number(((safeNativeUsd ?? 0) + (tokenUsd ?? 0)).toFixed(2))
             : null;
-        isPartialUsd = nativePol > 0 && nativeUsd == null;
+        isPartialUsd = false;
 
         // Expose per-token breakdown (same TokenHolding shape used by current_balance)
         const relevantTokens = tokenSummary.byToken.filter(
