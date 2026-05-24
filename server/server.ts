@@ -44,6 +44,7 @@ import { verifyAccessToken } from "./utils/authTokens.js";
 import { attachSocketIoExplicitAuthMiddleware } from "./utils/socketHandshakeAuthPolicy.js";
 import { getOrCreateMinerProfile, persistMinerProfile, syncUserBaseHashRate } from "./models/minerProfileModel.js";
 import { ensureFaucetReward } from "./src/bootstrap/ensureFaucetReward.js";
+import { ensureDefaultTransparencyWallets } from "./src/bootstrap/ensureDefaultTransparencyWallets.js";
 import { startAuditOutboxWorker } from "./src/audit/index.js";
 import { applyTrustProxy, buildSocketIoCorsConfig } from "./utils/corsConfig.js";
 import { applyHttpServerTimeouts, buildSocketIoEngineOptions } from "./utils/runtimeTimeouts.js";
@@ -365,6 +366,9 @@ async function bootstrap() {
       const host = process.env.HOST || '0.0.0.0';
     await ensureFaucetReward().catch((err: unknown) =>
       logger.error("Failed to ensure faucet reward", { error: errMsg(err) }),
+    );
+    await ensureDefaultTransparencyWallets().catch((err: unknown) =>
+      logger.error("Failed to ensure default transparency wallets", { error: errMsg(err) }),
     );
     await refreshIframeHostAllowlistCache(prisma).catch((err) =>
       logger.error("Failed to warm internal offerwall iframe allowlist cache", {
