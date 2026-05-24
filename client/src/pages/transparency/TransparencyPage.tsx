@@ -10,7 +10,7 @@ import {
   Eye, Server, Wrench, Megaphone, Briefcase, Scale, Package,
   DollarSign, ExternalLink, TrendingUp, TrendingDown,
   CheckCircle2, Clock, Wallet, Copy, Check as CheckIcon, ShieldCheck,
-  BarChart2, Activity, ArrowUpRight, ImageIcon, AlertTriangle, Frame,
+  BarChart2, Activity, ArrowUpRight, ImageIcon, AlertTriangle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -648,93 +648,6 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
           </div>
         )}
 
-        {!loading && wallet.tokens && wallet.tokens.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-              {mode === 'current_balance'
-                ? t('transparency.wallets.token_holdings')
-                : mode === 'total_sent'
-                  ? t('transparency.wallets.tokens_sent')
-                  : t('transparency.wallets.tokens_received')}
-            </p>
-            {wallet.tokens.map(tok => (
-              <div key={tok.contractAddress} className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[10px] font-black text-white bg-white/8 rounded px-1.5 py-0.5 shrink-0">{tok.symbol}</span>
-                  <span className="text-[10px] text-gray-500 truncate">{tok.name}</span>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[11px] font-black text-white">
-                    {tok.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: tok.decimals > 8 ? 4 : 6 })}
-                  </p>
-                  {tok.usdValue != null
-                    ? <p className="text-[10px] text-gray-500">
-                        ${tok.usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    : <p className="text-[10px] text-gray-600">{t('transparency.wallets.price_unknown')}</p>
-                  }
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && wallet.nfts && wallet.nfts.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-              <Frame className="w-3 h-3 text-violet-400" aria-hidden="true" />
-              {t('transparency.wallets.nft_holdings')} · {wallet.nfts.length}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {wallet.nfts.map(nft => (
-                <div
-                  key={`${nft.contractAddress}:${nft.tokenId}`}
-                  className="rounded-xl border border-violet-500/15 bg-violet-950/20 overflow-hidden flex flex-col"
-                >
-                  {nft.imageUrl ? (
-                    <div className="w-full bg-black/30 overflow-hidden" style={{ aspectRatio: '1/1' }}>
-                      <img
-                        src={nft.imageUrl}
-                        alt={nft.name || `#${nft.tokenId}`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center bg-violet-950/40" style={{ aspectRatio: '1/1' }}>
-                      <ImageIcon className="w-8 h-8 text-violet-900" aria-hidden="true" />
-                    </div>
-                  )}
-                  <div className="p-2 flex flex-col gap-1 flex-1">
-                    <p className="text-[11px] font-black text-white leading-tight truncate">
-                      {nft.name || `${nft.contractName || nft.tokenSymbol} #${nft.tokenId}`}
-                    </p>
-                    <p className="text-[9px] text-gray-600 truncate">{nft.contractName || nft.contractAddress.slice(0, 10) + '…'}</p>
-                    <p className="text-[9px] text-violet-500 font-mono">#{nft.tokenId}</p>
-                    <div className="flex gap-1 mt-auto pt-1">
-                      <a
-                        href={nft.openseaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-0.5 text-[9px] font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 rounded px-1.5 py-0.5"
-                      >
-                        OpenSea <ExternalLink className="w-2 h-2" />
-                      </a>
-                      <a
-                        href={nft.explorerUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-0.5 text-[9px] font-bold text-gray-500 hover:text-gray-300 bg-white/5 rounded px-1.5 py-0.5"
-                      >
-                        Scan <ExternalLink className="w-2 h-2" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="flex flex-wrap gap-2">
           <span className={`text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 ${isDeprecated ? 'bg-red-500/10 text-red-400' : cfg.chainBadge}`}>
