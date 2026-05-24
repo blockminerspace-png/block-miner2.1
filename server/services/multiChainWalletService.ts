@@ -92,7 +92,7 @@ const CHAINS: ChainConfig[] = [
     nativePriceKey: "eth",
     explorerBase: "https://etherscan.io",
     fetchNfts: false,
-    rpcUrl: "https://eth.llamarpc.com",
+    rpcUrl: "https://ethereum.publicnode.com",
     uniV3NfpmAddress:     "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
     uniV3FactoryAddress:  "0x1F98431c8aD98523631AE4a59f267346ea31F984",
     knownTokens: [
@@ -147,7 +147,7 @@ const CHAINS: ChainConfig[] = [
     explorerBase: "https://basescan.org",
     fetchNfts: false,
     rpcUrl: "https://mainnet.base.org",
-    uniV3NfpmAddress:    "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f",
+    uniV3NfpmAddress:    "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
     uniV3FactoryAddress: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
     knownTokens: [
       { contractAddress: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
