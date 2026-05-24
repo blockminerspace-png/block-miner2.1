@@ -698,31 +698,47 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
 
 function LiquidityPoolsPanel({ wallets }: { wallets: TrackedWalletEntry[] }) {
   const { t } = useTranslation();
-  const lpPools = wallets.flatMap((wallet) =>
-    (wallet.liquidityPools ?? [])
-      .map((pool) => ({ ...pool, walletAddress: wallet.address })),
-  );
-  const activePools = lpPools.filter((pool) => pool.status === 'active');
-  const legacyPools = lpPools.filter((pool) => pool.status !== 'active');
 
-  const renderPoolGrid = (pools: Array<LiquidityPoolEntry & { walletAddress: string }>, tone: 'active' | 'legacy') => {
-    const grouped = pools.reduce<Record<string, Array<LiquidityPoolEntry & { walletAddress: string }>>>((acc, pool) => {
-      const key = (pool.chainName || 'unknown').toUpperCase();
-      acc[key] ||= [];
-      acc[key].push(pool);
-      return acc;
-    }, {});
+  // Only active pools — grouped by chain
+  const pools = wallets
+    .flatMap((w) => (w.liquidityPools ?? []).filter((p) => p.status === 'active').map((p) => ({ ...p, walletAddress: w.address })));
 
+  const grouped = pools.reduce<Record<string, Array<LiquidityPoolEntry & { walletAddress: string }>>>((acc, p) => {
+    const key = (p.chainName || 'unknown').toUpperCase();
+    acc[key] ||= [];
+    acc[key].push(p);
+    return acc;
+  }, {});
+
+  if (pools.length === 0) {
     return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="w-4 h-4 text-violet-400" aria-hidden="true" />
+          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+            {t('transparency.wallets.tab_liquidity_pools')}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-white/2 px-4 py-8 text-center text-sm text-gray-500">
+          {t('transparency.wallets.no_liquidity_pools')}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <ImageIcon className="w-4 h-4 text-violet-400" aria-hidden="true" />
+        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+          {t('transparency.wallets.tab_liquidity_pools')}
+        </p>
+      </div>
       <div className="space-y-5">
         {Object.entries(grouped).map(([chainName, chainPools]) => (
           <div key={chainName} className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className={`text-[10px] font-black uppercase tracking-widest rounded-full px-2.5 py-1 ${
-                tone === 'active'
-                  ? 'bg-emerald-500/10 text-emerald-300'
-                  : 'bg-amber-500/10 text-amber-300'
-              }`}>
+              <span className="text-[10px] font-black uppercase tracking-widest rounded-full px-2.5 py-1 bg-emerald-500/10 text-emerald-300">
                 {chainName}
               </span>
               <span className="text-[10px] text-gray-500">
@@ -732,55 +748,45 @@ function LiquidityPoolsPanel({ wallets }: { wallets: TrackedWalletEntry[] }) {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {chainPools.map((nft) => (
                 <a
-                  key={`${nft.contractAddress}:${nft.tokenId}:${nft.status}`}
+                  key={`${nft.contractAddress}:${nft.tokenId}`}
                   href={nft.explorerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`overflow-hidden rounded-3xl border transition-colors group shadow-lg ${
-                    tone === 'active'
-                      ? 'border-emerald-500/15 bg-gradient-to-b from-emerald-950/20 to-slate-950/40 hover:border-emerald-500/30 shadow-emerald-950/10'
-                      : 'border-amber-500/15 bg-gradient-to-b from-amber-950/20 to-slate-950/40 hover:border-amber-500/30 shadow-amber-950/10'
-                  }`}
+                  className="overflow-hidden rounded-3xl border border-emerald-500/15 bg-gradient-to-b from-emerald-950/20 to-slate-950/40 hover:border-emerald-500/30 shadow-lg shadow-emerald-950/10 transition-colors group"
                 >
                   <div className="p-3 pb-0">
-                  {nft.imageUrl ? (
-                    <div className="w-full overflow-hidden rounded-2xl border border-white/8 bg-black/20 flex items-center justify-center" style={{ minHeight: 320 }}>
-                      <div className="h-full w-full max-w-[220px] flex items-center justify-center" style={{ aspectRatio: '10 / 16' }}>
-                      <img
-                        src={nft.imageUrl}
-                        alt={nft.name || nft.poolLabel || `LP NFT #${nft.tokenId}`}
-                        className="max-w-full max-h-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.02]"
-                        onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                          const parent = e.currentTarget.parentElement;
-                          if (parent) parent.style.display = 'none';
-                        }}
-                      />
+                    {nft.imageUrl ? (
+                      <div className="w-full overflow-hidden rounded-2xl border border-white/8 bg-black/20 flex items-center justify-center" style={{ minHeight: 320 }}>
+                        <div className="h-full w-full max-w-[220px] flex items-center justify-center" style={{ aspectRatio: '10 / 16' }}>
+                          <img
+                            src={nft.imageUrl}
+                            alt={nft.name || nft.poolLabel || `LP NFT #${nft.tokenId}`}
+                            className="max-w-full max-h-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.02]"
+                            onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) parent.style.display = 'none';
+                            }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center rounded-2xl border border-white/8 bg-violet-950/20" style={{ minHeight: 320 }}>
-                      <div className="h-full w-full max-w-[220px] flex items-center justify-center" style={{ aspectRatio: '10 / 16' }}>
-                        <ImageIcon className="w-10 h-10 text-violet-900" aria-hidden="true" />
+                    ) : (
+                      <div className="flex items-center justify-center rounded-2xl border border-white/8 bg-violet-950/20" style={{ minHeight: 320 }}>
+                        <div className="h-full w-full max-w-[220px] flex items-center justify-center" style={{ aspectRatio: '10 / 16' }}>
+                          <ImageIcon className="w-10 h-10 text-violet-900" aria-hidden="true" />
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                   </div>
                   <div className="p-4 pt-3 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-[9px] font-black uppercase tracking-widest rounded-full px-2 py-1 ${
-                            tone === 'active'
-                              ? 'bg-emerald-500/10 text-emerald-300'
-                              : 'bg-amber-500/10 text-amber-300'
-                          }`}>
-                            {tone === 'active' ? t('transparency.wallets.active_pools') : t('transparency.wallets.legacy_pools')}
-                          </span>
-                        </div>
-                        <p className="text-base font-black text-violet-100 truncate">
+                        <span className="text-[9px] font-black uppercase tracking-widest rounded-full px-2 py-1 bg-emerald-500/10 text-emerald-300">
+                          {t('transparency.wallets.active_pools')}
+                        </span>
+                        <p className="text-base font-black text-violet-100 truncate mt-1">
                           {nft.poolLabel || nft.name || `LP NFT #${nft.tokenId}`}
                         </p>
-                        <p className="text-[11px] text-violet-200/60 truncate mt-1">
+                        <p className="text-[11px] text-violet-200/60 truncate mt-0.5">
                           NFT #{nft.tokenId}
                         </p>
                       </div>
@@ -792,18 +798,9 @@ function LiquidityPoolsPanel({ wallets }: { wallets: TrackedWalletEntry[] }) {
                       </p>
                     )}
                     <div className="rounded-xl bg-black/20 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-widest text-violet-200/40 mb-1">
-                        Wallet
-                      </p>
-                      <p className="text-[11px] text-violet-200/55 truncate font-mono">
-                        {nft.walletAddress}
-                      </p>
+                      <p className="text-[10px] uppercase tracking-widest text-violet-200/40 mb-1">Wallet</p>
+                      <p className="text-[11px] text-violet-200/55 truncate font-mono">{nft.walletAddress}</p>
                     </div>
-                    {nft.status !== 'active' && (
-                      <p className="text-[11px] text-amber-300/70">
-                        {nft.closedAt ? `${t('transparency.wallets.closed_on')} ${new Date(nft.closedAt).toLocaleDateString()}` : t('transparency.wallets.not_seen_anymore')}
-                      </p>
-                    )}
                   </div>
                 </a>
               ))}
@@ -811,52 +808,6 @@ function LiquidityPoolsPanel({ wallets }: { wallets: TrackedWalletEntry[] }) {
           </div>
         ))}
       </div>
-    );
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <ImageIcon className="w-4 h-4 text-violet-400" aria-hidden="true" />
-        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
-          {t('transparency.wallets.tab_liquidity_pools')}
-        </p>
-      </div>
-
-      {activePools.length === 0 && legacyPools.length === 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-white/2 px-4 py-8 text-center text-sm text-gray-500">
-          {t('transparency.wallets.no_liquidity_pools')}
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {activePools.length > 0 && (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">
-                {t('transparency.wallets.active_pools')}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {t('transparency.wallets.active_pools_description')}
-                </p>
-              </div>
-              {renderPoolGrid(activePools, 'active')}
-            </div>
-          )}
-          {legacyPools.length > 0 && (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-[10px] font-black text-amber-300 uppercase tracking-widest">
-                {t('transparency.wallets.legacy_pools')}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {t('transparency.wallets.legacy_pools_description')}
-                </p>
-              </div>
-              {renderPoolGrid(legacyPools, 'legacy')}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@
  * making the page load instant for end users.
  */
 import prisma from "../src/db/prisma.js";
-import { backfillHistoricalLiquidityPoolPositions, fetchMultiChainSnapshot } from "../services/multiChainWalletService.js";
+import { fetchMultiChainSnapshot } from "../services/multiChainWalletService.js";
 import type { ChainNftHolding } from "../services/multiChainWalletService.js";
 import { fetchTrackedWalletsLive } from "../services/transparencyWalletService.js";
 
@@ -19,6 +19,12 @@ const STARTUP_DELAY_MS = 20_000; // 20s after start — gives DB time to connect
 
 let _running = false;
 
+/**
+ * Sync active LP positions for a wallet.
+ * - Upserts every position currently detected on-chain.
+ * - Deletes any DB row that is no longer present on-chain (position removed/burned).
+ * No "legacy" status — positions either exist or are gone.
+ */
 async function syncLiquidityPoolPositions(walletId: number, nfts: ChainNftHolding[]): Promise<void> {
   const activePools = nfts.filter((nft) =>
     nft.isLiquidityPosition &&
@@ -78,68 +84,24 @@ async function syncLiquidityPoolPositions(walletId: number, nfts: ChainNftHoldin
     });
   }
 
-  const previous = await prisma.transparencyLiquidityPoolPosition.findMany({
-    where: { walletId, status: "active" },
+  // Delete rows no longer detected on-chain (position was removed or burned)
+  const stored = await prisma.transparencyLiquidityPoolPosition.findMany({
+    where: { walletId },
     select: { id: true, walletId: true, chainId: true, contractAddress: true, tokenId: true },
   });
 
-  for (const pool of previous) {
-    const key = `${pool.walletId}:${pool.chainId}:${pool.contractAddress.toLowerCase()}:${pool.tokenId}`;
-    if (seenKeys.has(key)) continue;
-    await prisma.transparencyLiquidityPoolPosition.update({
-      where: { id: pool.id },
-      data: {
-        status: "legacy",
-        closedAt: new Date(),
-      },
-    });
+  const toDelete = stored
+    .filter((p) => !seenKeys.has(`${p.walletId}:${p.chainId}:${p.contractAddress.toLowerCase()}:${p.tokenId}`))
+    .map((p) => p.id);
+
+  if (toDelete.length > 0) {
+    await prisma.transparencyLiquidityPoolPosition.deleteMany({ where: { id: { in: toDelete } } });
+    console.log(`[wallet-snapshot] removed ${toDelete.length} closed LP position(s) for wallet ${walletId}`);
   }
 }
 
-const BACKFILL_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // re-backfill if older than 7 days
-
-async function backfillLegacyLiquidityPoolPositions(wallet: { id: number; address: string; liquidityPoolsBackfilledAt: Date | null }): Promise<void> {
-  const age = wallet.liquidityPoolsBackfilledAt ? Date.now() - wallet.liquidityPoolsBackfilledAt.getTime() : Infinity;
-  if (age < BACKFILL_MAX_AGE_MS) return;
-  const legacyPools = await backfillHistoricalLiquidityPoolPositions(wallet.address);
-  for (const pool of legacyPools) {
-    if (pool.chainId == null) continue;
-    await prisma.transparencyLiquidityPoolPosition.upsert({
-      where: {
-        walletId_chainId_contractAddress_tokenId: {
-          walletId: wallet.id,
-          chainId: pool.chainId,
-          contractAddress: pool.contractAddress.toLowerCase(),
-          tokenId: pool.tokenId,
-        },
-      },
-      create: {
-        walletId: wallet.id,
-        chainId: pool.chainId,
-        chainName: pool.chainName ?? "unknown",
-        contractAddress: pool.contractAddress.toLowerCase(),
-        tokenId: pool.tokenId,
-        poolLabel: pool.poolLabel ?? undefined,
-        name: pool.name ?? undefined,
-        description: pool.description ?? undefined,
-        imageUrl: pool.imageUrl ?? undefined,
-        tokenUri: pool.tokenUri ?? undefined,
-        explorerUrl: pool.explorerUrl,
-        openseaUrl: pool.openseaUrl,
-        liquidityUsd: pool.liquidityUsd ?? undefined,
-        status: "legacy",
-        firstSeenAt: new Date(),
-        lastSeenAt: new Date(),
-        closedAt: new Date(),
-      },
-      update: {},
-    });
-  }
-  await prisma.transparencyTrackedWallet.update({
-    where: { id: wallet.id },
-    data: { liquidityPoolsBackfilledAt: new Date() },
-  });
-}
+// Legacy backfill removed: only active pools are tracked.
+// Positions appear when the cron detects them on-chain and disappear when removed.
 
 async function runSnapshot(): Promise<void> {
   if (_running) {
@@ -195,7 +157,6 @@ async function runSnapshot(): Promise<void> {
           });
 
           await syncLiquidityPoolPositions(wallet.id, snap.nfts);
-          await backfillLegacyLiquidityPoolPositions(wallet);
 
           console.log(`[wallet-snapshot] ${wallet.address} done — totalUsd=${snap.totalUsd?.toFixed(2)}, chains=${snap.chains.map(c => c.name).join(",")}`);
         } else {
