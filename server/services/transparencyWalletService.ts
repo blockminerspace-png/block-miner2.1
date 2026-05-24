@@ -3,7 +3,7 @@
  * Tracks native POL + all ERC20 token inflows/outflows for tracked wallets.
  */
 import { ethers } from "ethers";
-import { getPolUsdPrice, getBtcUsdPrice, getEthUsdPrice } from "../utils/cryptoPrice.js";
+import { getPolUsdPrice, getPolUsdPriceAt, getBtcUsdPrice, getEthUsdPrice } from "../utils/cryptoPrice.js";
 import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
 
 const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
@@ -161,6 +161,42 @@ type MovementRow = {
   valueWei: string;
   valuePol: number;
 };
+
+async function sumHistoricalPolUsd(
+  movements: MovementRow[],
+  direction: "in" | "out",
+): Promise<number | null> {
+  const dailyTotals = new Map<string, { timestampSec: number; totalPol: number }>();
+
+  for (const movement of movements) {
+    if (movement.direction !== direction) continue;
+    const dayKey = new Date(movement.timeStamp * 1000).toISOString().slice(0, 10);
+    const existing = dailyTotals.get(dayKey);
+    if (existing) {
+      existing.totalPol += movement.valuePol;
+    } else {
+      dailyTotals.set(dayKey, { timestampSec: movement.timeStamp, totalPol: movement.valuePol });
+    }
+  }
+
+  if (!dailyTotals.size) return 0;
+
+  let totalUsd = 0;
+  let hasAnyPrice = false;
+  for (const { timestampSec, totalPol } of dailyTotals.values()) {
+    try {
+      const polUsd = Number(await getPolUsdPriceAt(timestampSec));
+      if (Number.isFinite(polUsd) && polUsd > 0) {
+        totalUsd += totalPol * polUsd;
+        hasAnyPrice = true;
+      }
+    } catch {
+      // Ignore individual day failures; caller can fall back to snapshot preservation.
+    }
+  }
+
+  return hasAnyPrice ? totalUsd : null;
+}
 
 function buildMovementSummary(address: string, normal: unknown[], internal: unknown[] = []) {
   const addr = address.toLowerCase();
@@ -385,6 +421,10 @@ export async function fetchWalletNativeActivity(rawAddress: unknown, opts: TxHis
   } catch {
     polUsdPrice = null;
   }
+  const [totalInHistoricalUsd, totalOutHistoricalUsd] = await Promise.all([
+    sumHistoricalPolUsd(summary.movements, "in"),
+    sumHistoricalPolUsd(summary.movements, "out"),
+  ]);
 
   return {
     address,
@@ -402,8 +442,8 @@ export async function fetchWalletNativeActivity(rawAddress: unknown, opts: TxHis
     summary: {
       totalInPol: summary.totalInPol,
       totalOutPol: summary.totalOutPol,
-      totalInUsd: polUsdPrice != null ? Number((summary.totalInPol * polUsdPrice).toFixed(2)) : null,
-      totalOutUsd: polUsdPrice != null ? Number((summary.totalOutPol * polUsdPrice).toFixed(2)) : null,
+      totalInUsd: totalInHistoricalUsd != null ? Number(totalInHistoricalUsd.toFixed(2)) : null,
+      totalOutUsd: totalOutHistoricalUsd != null ? Number(totalOutHistoricalUsd.toFixed(2)) : null,
       movementCount: summary.movements.length,
       historyMayBeTruncated: history.mayBeTruncated,
       polUsdPrice,
@@ -476,6 +516,10 @@ export async function fetchTrackedWalletsSummary(wallets: unknown, opts: TxHisto
     const normal = history.rows as unknown[];
     const internal = internalHistory.rows as unknown[];
     const summary = buildMovementSummary(address, normal, internal);
+    const [totalInHistoricalUsd, totalOutHistoricalUsd] = await Promise.all([
+      sumHistoricalPolUsd(summary.movements, "in"),
+      sumHistoricalPolUsd(summary.movements, "out"),
+    ]);
     const includeInTotals = wallet.includeInTotals !== false;
     if (includeInTotals) {
       totalInWei += summary.totalInWei;
@@ -495,8 +539,8 @@ export async function fetchTrackedWalletsSummary(wallets: unknown, opts: TxHisto
       summary: {
         totalInPol: summary.totalInPol,
         totalOutPol: summary.totalOutPol,
-        totalInUsd: polUsdPrice != null ? Number((summary.totalInPol * polUsdPrice).toFixed(2)) : null,
-        totalOutUsd: polUsdPrice != null ? Number((summary.totalOutPol * polUsdPrice).toFixed(2)) : null,
+        totalInUsd: totalInHistoricalUsd != null ? Number(totalInHistoricalUsd.toFixed(2)) : null,
+        totalOutUsd: totalOutHistoricalUsd != null ? Number(totalOutHistoricalUsd.toFixed(2)) : null,
         movementCount: summary.movements.length,
         historyMayBeTruncated: history.mayBeTruncated || internalHistory.mayBeTruncated,
       },
@@ -876,7 +920,10 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
         );
 
         const nativePol = displayMode === "total_sent" ? nativeSummary.totalOutPol : nativeSummary.totalInPol;
-        const nativeUsd = polUsdPrice != null ? nativePol * polUsdPrice : null;
+        const nativeUsd =
+          displayMode === "total_sent"
+            ? await sumHistoricalPolUsd(nativeSummary.movements, "out")
+            : await sumHistoricalPolUsd(nativeSummary.movements, "in");
         const tokenUsd  = displayMode === "total_sent" ? tokenSummary.totalOutUsd : tokenSummary.totalInUsd;
 
         valuePol = nativePol;
