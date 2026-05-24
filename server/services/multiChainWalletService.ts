@@ -89,6 +89,15 @@ type ChainConfig = {
   uniV3FactoryAddress?: string;
 };
 
+export type HistoricalLiquidityPoolPosition = ChainNftHolding & {
+  status: "active" | "legacy";
+};
+
+type NftHistoryRow = {
+  contractAddress?: string;
+  tokenID?: string;
+};
+
 const CHAINS: ChainConfig[] = [
   {
     chainId: 1,
@@ -330,6 +339,11 @@ function resolveIpfs(uri: string): string {
   return uri.startsWith("ipfs://") ? "https://ipfs.io/ipfs/" + uri.slice(7) : uri;
 }
 
+function resolveNftImageUri(uri: string): string {
+  if (uri.startsWith("data:image/")) return uri;
+  return resolveIpfs(uri);
+}
+
 function parseInlineMeta(uri: string): { name?: string; description?: string; image?: string } | null {
   try {
     if (uri.startsWith("data:application/json;base64,"))
@@ -350,6 +364,23 @@ async function fetchNftMeta(uri: string): Promise<{ name?: string; description?:
     if (!res.ok) return null;
     return res.json();
   } catch { return null; }
+}
+
+async function fetchErc721TokenUri(
+  provider: ethers.JsonRpcProvider,
+  contractAddress: string,
+  tokenId: bigint,
+): Promise<string | null> {
+  try {
+    const contract = new ethers.Contract(contractAddress, ERC721_ABI, provider);
+    const uri: string = await Promise.race([
+      contract.tokenURI(tokenId) as Promise<string>,
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 8_000)),
+    ]);
+    return uri;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveNfts(address: string, rpcUrl: string, explorerBase: string, nftRows: unknown[]): Promise<ChainNftHolding[]> {
@@ -399,7 +430,7 @@ async function resolveNfts(address: string, rpcUrl: string, explorerBase: string
         if (meta) {
           base.name        = meta.name        ?? null;
           base.description = meta.description ?? null;
-          if (meta.image)  base.imageUrl = resolveIpfs(meta.image);
+          if (meta.image)  base.imageUrl = resolveNftImageUri(meta.image);
         }
       } catch { /* tokenURI not available */ }
       return base;
@@ -428,6 +459,8 @@ const ERC20_META_ABI = [
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
 ];
+
+const ERC721_TRANSFER_TOPIC = ethers.id("Transfer(address,address,uint256)");
 
 const STABLE_SYMS = new Set(["USDC", "USDT", "DAI", "BUSD", "FRAX", "LUSD", "USDC.E", "BRIDGED USDC"]);
 
@@ -606,6 +639,8 @@ async function fetchUniV3LpValue(
 
       console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(8)} usd=$${posUsd.toFixed(2)}`);
       if (posUsd > 0) {
+        const tokenUri = await fetchErc721TokenUri(provider, nfpmAddress, tokenId);
+        const meta = tokenUri ? await fetchNftMeta(tokenUri) : null;
         totalUsd += posUsd;
         nftPositions.push({
           contractAddress: nfpmAddress.toLowerCase(),
@@ -613,10 +648,10 @@ async function fetchUniV3LpValue(
           contractName: "Uniswap V3 Position NFT",
           tokenSymbol: "UNI-V3-POS",
           standard: "ERC-721",
-          name: `${sym0}/${sym1} LP Position`,
-          description: `Active liquidity position on ${chain.name} (${sym0}/${sym1}, fee ${fee.toString()}).`,
-          imageUrl: null,
-          tokenUri: null,
+          name: meta?.name ?? `${sym0}/${sym1} LP Position`,
+          description: meta?.description ?? `Active liquidity position on ${chain.name} (${sym0}/${sym1}, fee ${fee.toString()}).`,
+          imageUrl: meta?.image ? resolveNftImageUri(meta.image) : null,
+          tokenUri,
           explorerUrl: `${chain.explorerBase}/token/${nfpmAddress}?a=${tokenId.toString()}`,
           openseaUrl: chain.chainId === 137
             ? `https://opensea.io/assets/matic/${nfpmAddress}/${tokenId.toString()}`
@@ -633,6 +668,175 @@ async function fetchUniV3LpValue(
     }
   }
   return { totalUsd, nftPositions };
+}
+
+async function buildLiquidityPositionNft(
+  rpcUrl: string,
+  chain: Pick<ChainConfig, "chainId" | "name" | "explorerBase">,
+  nfpmAddress: string,
+  factoryAddress: string,
+  tokenId: bigint,
+  prices: Prices,
+  status: "active" | "legacy",
+): Promise<ChainNftHolding | null> {
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const nfpmIface = new ethers.Interface(NFPM_ABI);
+  const poolIface = new ethers.Interface(POOL_SLOT0_ABI);
+  const factoryIface = new ethers.Interface(FACTORY_GETPOOL_ABI);
+  const erc20Iface = new ethers.Interface(ERC20_META_ABI);
+
+  const call = async (to: string, iface: ethers.Interface, fn: string, args: unknown[]): Promise<ethers.Result> => {
+    const data = iface.encodeFunctionData(fn, args);
+    const raw = await provider.call({ to, data });
+    return iface.decodeFunctionResult(fn, raw);
+  };
+
+  try {
+    const posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId]);
+    const token0    = String(posResult[2]);
+    const token1    = String(posResult[3]);
+    const fee       = BigInt(posResult[4].toString());
+    const tickLower = Number(posResult[5]);
+    const tickUpper = Number(posResult[6]);
+    const liquidity = BigInt(posResult[7].toString());
+    const tokensOwed0 = BigInt(posResult[10].toString());
+    const tokensOwed1 = BigInt(posResult[11].toString());
+
+    const [[dec0Res], [dec1Res], [sym0Res], [sym1Res]] = await Promise.all([
+      call(token0, erc20Iface, "decimals", []),
+      call(token1, erc20Iface, "decimals", []),
+      call(token0, erc20Iface, "symbol",   []),
+      call(token1, erc20Iface, "symbol",   []),
+    ]);
+    const dec0 = Number(dec0Res);
+    const dec1 = Number(dec1Res);
+    const sym0 = String(sym0Res);
+    const sym1 = String(sym1Res);
+
+    const [poolAddr] = await call(factoryAddress, factoryIface, "getPool", [token0, token1, fee]);
+    if (String(poolAddr) === ethers.ZeroAddress) return null;
+
+    const [sqrtPriceX96Res] = await call(String(poolAddr), poolIface, "slot0", []);
+    const sqrtPriceX96 = BigInt(sqrtPriceX96Res.toString());
+    const { amount0: pa0, amount1: pa1 } = calcUniV3Amounts(sqrtPriceX96, tickLower, tickUpper, liquidity);
+    const total0 = pa0 + Number(tokensOwed0);
+    const total1 = pa1 + Number(tokensOwed1);
+    const h0 = total0 / Math.pow(10, dec0);
+    const h1 = total1 / Math.pow(10, dec1);
+    const Q96 = 2 ** 96;
+    const sqrtF = Number(sqrtPriceX96) / Q96;
+    const p0in1 = sqrtF * sqrtF * Math.pow(10, dec0) / Math.pow(10, dec1);
+    const s0 = sym0.toUpperCase();
+    const s1 = sym1.toUpperCase();
+
+    let posUsd = 0;
+    if (STABLE_SYMS.has(s1)) {
+      posUsd = h0 * p0in1 + h1;
+    } else if (STABLE_SYMS.has(s0)) {
+      posUsd = h0 + (p0in1 > 0 ? h1 / p0in1 : 0);
+    } else {
+      const usd0 = knownPriceBySymbol(s0, prices);
+      const usd1 = knownPriceBySymbol(s1, prices);
+      if (usd0 != null) posUsd += h0 * usd0;
+      else if (usd1 != null && p0in1 > 0) posUsd += h0 * (usd1 / p0in1);
+      if (usd1 != null) posUsd += h1 * usd1;
+      else if (usd0 != null && p0in1 > 0) posUsd += h1 * (usd0 * p0in1);
+    }
+
+    const tokenUri = await fetchErc721TokenUri(provider, nfpmAddress, tokenId);
+    const meta = tokenUri ? await fetchNftMeta(tokenUri) : null;
+
+    return {
+      contractAddress: nfpmAddress.toLowerCase(),
+      tokenId: tokenId.toString(),
+      contractName: "Uniswap V3 Position NFT",
+      tokenSymbol: "UNI-V3-POS",
+      standard: "ERC-721",
+      name: meta?.name ?? `${sym0}/${sym1} LP Position`,
+      description: meta?.description ?? `${status === "legacy" ? "Legacy" : "Active"} liquidity position on ${chain.name} (${sym0}/${sym1}, fee ${fee.toString()}).`,
+      imageUrl: meta?.image ? resolveNftImageUri(meta.image) : null,
+      tokenUri,
+      explorerUrl: `${chain.explorerBase}/token/${nfpmAddress}?a=${tokenId.toString()}`,
+      openseaUrl: chain.chainId === 137
+        ? `https://opensea.io/assets/matic/${nfpmAddress}/${tokenId.toString()}`
+        : `https://opensea.io/assets/${chain.name}/${nfpmAddress}/${tokenId.toString()}`,
+      chainName: chain.name,
+      chainId: chain.chainId,
+      isLiquidityPosition: true,
+      liquidityUsd: posUsd > 0 ? Number(posUsd.toFixed(2)) : null,
+      poolLabel: `${sym0}/${sym1}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function backfillHistoricalLiquidityPoolPositions(address: string): Promise<HistoricalLiquidityPoolPosition[]> {
+  const walletAddress = address.toLowerCase();
+  const prices = await fetchAllBasePrices();
+  const current = await fetchMultiChainSnapshot(address);
+  const activeKeys = new Set(
+    current.nfts
+      .filter((nft) => nft.isLiquidityPosition && nft.chainId != null)
+      .map((nft) => `${nft.chainId}:${nft.contractAddress.toLowerCase()}:${nft.tokenId}`),
+  );
+
+  const discovered: HistoricalLiquidityPoolPosition[] = [];
+
+  for (const chain of CHAINS) {
+    if (!chain.uniV3NfpmAddress || !chain.uniV3FactoryAddress) continue;
+    try {
+      const tokenIds = new Set<string>();
+      const nftHistory = await fetchNftTxHistory(chain.chainId, address, 100);
+      for (const row of nftHistory as NftHistoryRow[]) {
+        if ((row.contractAddress || "").toLowerCase() !== chain.uniV3NfpmAddress.toLowerCase()) continue;
+        if (!row.tokenID) continue;
+        tokenIds.add(String(row.tokenID));
+      }
+
+      if (!tokenIds.size) {
+        const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+        const latest = await provider.getBlockNumber();
+        const range = chain.chainId === 8453 ? 10 : chain.chainId === 137 ? 10_000 : 50_000;
+        const walletTopic = ethers.zeroPadValue(walletAddress, 32).toLowerCase();
+        for (let from = 0; from <= latest; from += range + 1) {
+          const to = Math.min(latest, from + range);
+          const logs = await provider.getLogs({
+            address: chain.uniV3NfpmAddress,
+            fromBlock: from,
+            toBlock: to,
+            topics: [ERC721_TRANSFER_TOPIC, null, walletTopic],
+          });
+          for (const log of logs) {
+            const topic = log.topics?.[3];
+            if (!topic) continue;
+            try {
+              tokenIds.add(BigInt(topic).toString());
+            } catch { /* ignore */ }
+          }
+        }
+      }
+
+      for (const tokenId of tokenIds) {
+        const key = `${chain.chainId}:${chain.uniV3NfpmAddress.toLowerCase()}:${tokenId}`;
+        if (activeKeys.has(key)) continue;
+        const built = await buildLiquidityPositionNft(
+          chain.rpcUrl,
+          chain,
+          chain.uniV3NfpmAddress,
+          chain.uniV3FactoryAddress,
+          BigInt(tokenId),
+          prices,
+          "legacy",
+        );
+        if (built) discovered.push({ ...built, status: "legacy" });
+      }
+    } catch (err) {
+      console.warn(`[uniV3-lp-backfill] ${chain.name}:`, (err as Error)?.message);
+    }
+  }
+
+  return discovered;
 }
 
 // ─── Single-chain snapshot ───────────────────────────────────────────────────

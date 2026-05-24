@@ -1896,10 +1896,12 @@ model TransparencyTrackedWallet {
   includeInTotals Boolean  @default(true) @map("include_in_totals")
   displayMode     String   @default("total_received") @map("display_mode")
   sortOrder       Int      @default(0) @map("sort_order")
+  liquidityPoolsBackfilledAt DateTime? @map("liquidity_pools_backfilled_at")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   snapshot        TransparencyWalletSnapshot?
+  liquidityPools  TransparencyLiquidityPoolPosition[]
 
   @@unique([chain, address])
   @@index([isActive, sortOrder])
@@ -1923,6 +1925,39 @@ model TransparencyWalletSnapshot {
   wallet    TransparencyTrackedWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@map("transparency_wallet_snapshots")
+}
+
+/// Historical liquidity pool positions discovered for a tracked wallet.
+/// Active positions remain visible in the wallet today; legacy positions were
+/// previously seen but no longer appear in the current on-chain snapshot.
+model TransparencyLiquidityPoolPosition {
+  id              Int      @id @default(autoincrement())
+  walletId        Int      @map("wallet_id")
+  chainId         Int      @map("chain_id")
+  chainName       String   @map("chain_name")
+  contractAddress String   @map("contract_address")
+  tokenId         String   @map("token_id")
+  poolLabel       String?  @map("pool_label")
+  name            String?
+  description     String?
+  imageUrl        String?  @map("image_url")
+  tokenUri        String?  @map("token_uri")
+  explorerUrl     String   @map("explorer_url")
+  openseaUrl      String   @map("opensea_url")
+  liquidityUsd    Float?   @map("liquidity_usd")
+  status          String   @default("active")
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at")
+  closedAt        DateTime? @map("closed_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  wallet          TransparencyTrackedWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@unique([walletId, chainId, contractAddress, tokenId])
+  @@index([walletId, status, chainId])
+  @@index([status, updatedAt])
+  @@map("transparency_liquidity_pool_positions")
 }
 
 /// Singleton (id = 1): user app sidebar visibility, order, and nesting under Rewards group.

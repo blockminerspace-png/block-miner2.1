@@ -618,7 +618,12 @@ async function buildResponseFromDb(): Promise<unknown | null> {
   const wallets = await prisma.transparencyTrackedWallet.findMany({
     where: { isPublic: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    include: { snapshot: true },
+    include: {
+      snapshot: true,
+      liquidityPools: {
+        orderBy: [{ status: "asc" }, { chainId: "asc" }, { tokenId: "asc" }],
+      },
+    },
   });
 
   if (!wallets.length) return { ok: true, polUsdPrice: null, wallets: [] };
@@ -648,6 +653,7 @@ async function buildResponseFromDb(): Promise<unknown | null> {
       valueUsd:       snap?.totalUsd ?? null,
       tokens:         snap?.tokens ?? [],
       nfts:           snap?.nfts ?? [],
+      liquidityPools: w.liquidityPools ?? [],
       chains:         snap?.chains ?? [],   // multi-chain breakdown
       fetchedAt:      snap?.fetchedAt ?? null,
     };

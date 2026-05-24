@@ -10,13 +10,133 @@
  * making the page load instant for end users.
  */
 import prisma from "../src/db/prisma.js";
-import { fetchMultiChainSnapshot } from "../services/multiChainWalletService.js";
+import { backfillHistoricalLiquidityPoolPositions, fetchMultiChainSnapshot } from "../services/multiChainWalletService.js";
+import type { ChainNftHolding } from "../services/multiChainWalletService.js";
 import { fetchTrackedWalletsLive } from "../services/transparencyWalletService.js";
 
 const SNAPSHOT_INTERVAL_MS = Number(process.env.WALLET_SNAPSHOT_INTERVAL_MS) || 30 * 60 * 1000;
 const STARTUP_DELAY_MS = 20_000; // 20s after start — gives DB time to connect
 
 let _running = false;
+
+async function syncLiquidityPoolPositions(walletId: number, nfts: ChainNftHolding[]): Promise<void> {
+  const activePools = nfts.filter((nft) =>
+    nft.isLiquidityPosition &&
+    nft.chainId != null &&
+    nft.chainName &&
+    nft.contractAddress &&
+    nft.tokenId,
+  );
+
+  const seenKeys = new Set(
+    activePools.map((nft) => `${walletId}:${nft.chainId}:${nft.contractAddress.toLowerCase()}:${nft.tokenId}`),
+  );
+
+  for (const nft of activePools) {
+    await prisma.transparencyLiquidityPoolPosition.upsert({
+      where: {
+        walletId_chainId_contractAddress_tokenId: {
+          walletId,
+          chainId: nft.chainId!,
+          contractAddress: nft.contractAddress.toLowerCase(),
+          tokenId: nft.tokenId,
+        },
+      },
+      create: {
+        walletId,
+        chainId: nft.chainId!,
+        chainName: nft.chainName!,
+        contractAddress: nft.contractAddress.toLowerCase(),
+        tokenId: nft.tokenId,
+        poolLabel: nft.poolLabel ?? undefined,
+        name: nft.name ?? undefined,
+        description: nft.description ?? undefined,
+        imageUrl: nft.imageUrl ?? undefined,
+        tokenUri: nft.tokenUri ?? undefined,
+        explorerUrl: nft.explorerUrl,
+        openseaUrl: nft.openseaUrl,
+        liquidityUsd: nft.liquidityUsd ?? undefined,
+        status: "active",
+        firstSeenAt: new Date(),
+        lastSeenAt: new Date(),
+        closedAt: null,
+      },
+      update: {
+        chainName: nft.chainName!,
+        poolLabel: nft.poolLabel ?? undefined,
+        name: nft.name ?? undefined,
+        description: nft.description ?? undefined,
+        imageUrl: nft.imageUrl ?? undefined,
+        tokenUri: nft.tokenUri ?? undefined,
+        explorerUrl: nft.explorerUrl,
+        openseaUrl: nft.openseaUrl,
+        liquidityUsd: nft.liquidityUsd ?? undefined,
+        status: "active",
+        lastSeenAt: new Date(),
+        closedAt: null,
+      },
+    });
+  }
+
+  const previous = await prisma.transparencyLiquidityPoolPosition.findMany({
+    where: { walletId, status: "active" },
+    select: { id: true, walletId: true, chainId: true, contractAddress: true, tokenId: true },
+  });
+
+  for (const pool of previous) {
+    const key = `${pool.walletId}:${pool.chainId}:${pool.contractAddress.toLowerCase()}:${pool.tokenId}`;
+    if (seenKeys.has(key)) continue;
+    await prisma.transparencyLiquidityPoolPosition.update({
+      where: { id: pool.id },
+      data: {
+        status: "legacy",
+        closedAt: new Date(),
+      },
+    });
+  }
+}
+
+async function backfillLegacyLiquidityPoolPositions(wallet: { id: number; address: string; liquidityPoolsBackfilledAt: Date | null }): Promise<void> {
+  if (wallet.liquidityPoolsBackfilledAt) return;
+  const legacyPools = await backfillHistoricalLiquidityPoolPositions(wallet.address);
+  for (const pool of legacyPools) {
+    if (pool.chainId == null) continue;
+    await prisma.transparencyLiquidityPoolPosition.upsert({
+      where: {
+        walletId_chainId_contractAddress_tokenId: {
+          walletId: wallet.id,
+          chainId: pool.chainId,
+          contractAddress: pool.contractAddress.toLowerCase(),
+          tokenId: pool.tokenId,
+        },
+      },
+      create: {
+        walletId: wallet.id,
+        chainId: pool.chainId,
+        chainName: pool.chainName ?? "unknown",
+        contractAddress: pool.contractAddress.toLowerCase(),
+        tokenId: pool.tokenId,
+        poolLabel: pool.poolLabel ?? undefined,
+        name: pool.name ?? undefined,
+        description: pool.description ?? undefined,
+        imageUrl: pool.imageUrl ?? undefined,
+        tokenUri: pool.tokenUri ?? undefined,
+        explorerUrl: pool.explorerUrl,
+        openseaUrl: pool.openseaUrl,
+        liquidityUsd: pool.liquidityUsd ?? undefined,
+        status: "legacy",
+        firstSeenAt: new Date(),
+        lastSeenAt: new Date(),
+        closedAt: new Date(),
+      },
+      update: {},
+    });
+  }
+  await prisma.transparencyTrackedWallet.update({
+    where: { id: wallet.id },
+    data: { liquidityPoolsBackfilledAt: new Date() },
+  });
+}
 
 async function runSnapshot(): Promise<void> {
   if (_running) {
@@ -70,6 +190,9 @@ async function runSnapshot(): Promise<void> {
               fetchedAt: snap.fetchedAt,
             },
           });
+
+          await syncLiquidityPoolPositions(wallet.id, snap.nfts);
+          await backfillLegacyLiquidityPoolPositions(wallet);
 
           console.log(`[wallet-snapshot] ${wallet.address} done — totalUsd=${snap.totalUsd?.toFixed(2)}, chains=${snap.chains.map(c => c.name).join(",")}`);
         } else {
