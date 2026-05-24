@@ -470,9 +470,14 @@ function calcUniV3Amounts(
 }
 
 /**
- * Fetch total USD value of all Uniswap V3 positions held by a wallet on one chain.
- * Prices the position using known stablecoin / ETH / BTC / etc. as one leg,
- * deriving the unknown token's price from the pool's current sqrtPriceX96.
+ * Fetch total USD value of all Uniswap V3 positions associated with a wallet on one chain.
+ *
+ * Strategy:
+ *  1. Use provider.call() (raw eth_call) for all contract reads — avoids ethers.js
+ *     Contract wrapper quirks where tokenOfOwnerByIndex can return stale/bad data.
+ *  2. Enumerate token IDs via chunked Transfer(→wallet) logs so we capture staked
+ *     positions (wallet is beneficial owner but not direct ERC-721 holder).
+ *  3. For each token ID, call positions() directly; if liquidity or fees > 0, value it.
  */
 async function fetchUniV3LpValue(
   rpcUrl: string,
@@ -482,127 +487,149 @@ async function fetchUniV3LpValue(
   prices: Prices,
 ): Promise<number> {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const nfpm     = new ethers.Contract(nfpmAddress,    NFPM_ABI,           provider);
-  const factory  = new ethers.Contract(factoryAddress, FACTORY_GETPOOL_ABI, provider);
 
+  // Build interface objects for ABI encoding/decoding
+  const nfpmIface    = new ethers.Interface(NFPM_ABI);
+  const poolIface    = new ethers.Interface(POOL_SLOT0_ABI);
+  const factoryIface = new ethers.Interface(FACTORY_GETPOOL_ABI);
+  const erc20Iface   = new ethers.Interface(ERC20_META_ABI);
+
+  // Helper: direct eth_call via provider.call() — no gas estimation, no wrapping quirks
+  const call = async (to: string, iface: ethers.Interface, fn: string, args: unknown[]): Promise<ethers.Result> => {
+    const data   = iface.encodeFunctionData(fn, args);
+    const raw    = await provider.call({ to, data });
+    return iface.decodeFunctionResult(fn, raw);
+  };
+
+  // ─── Quick balance check ──────────────────────────────────────────────────
   let nftCount = 0n;
   try {
-    nftCount = BigInt(((await nfpm.balanceOf(walletAddress)) as bigint | string).toString());
+    const [bal] = await call(nfpmAddress, nfpmIface, "balanceOf", [walletAddress]);
+    nftCount = BigInt(bal.toString());
     console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… balanceOf → ${nftCount}`);
   } catch (err) {
     console.warn(`[uniV3-lp] balanceOf failed (${nfpmAddress.slice(0,10)}…):`, (err as Error)?.message?.slice(0, 80));
     return 0;
   }
-
   if (nftCount === 0n) return 0;
 
-  // ─── Enumerate token IDs ──────────────────────────────────────────────────
-  // Primary: ERC-721 Enumerable tokenOfOwnerByIndex.
-  // Fallback: scan Transfer events to wallet and verify ownerOf.
-  const tokenIds: bigint[] = [];
+  // ─── Enumerate token IDs via Transfer events ──────────────────────────────
+  // Transfer(from=any, to=wallet) captures mints AND incoming transfers.
+  // We include staked positions (sent wallet→staking) by checking ALL received IDs.
+  const receivedIds = new Set<bigint>();
+  const TRANSFER_SIG = ethers.id("Transfer(address,address,uint256)");
+  const paddedWallet = ethers.zeroPadValue(walletAddress.toLowerCase(), 32);
 
-  for (let i = 0; i < Number(nftCount); i++) {
-    try {
-      const tid = BigInt(((await nfpm.tokenOfOwnerByIndex(walletAddress, BigInt(i))) as bigint | string).toString());
-      tokenIds.push(tid);
-    } catch { /* will use fallback */ }
+  try {
+    const latestBlock = await provider.getBlockNumber();
+    // Chunk getLogs to stay within Base RPC limits (2000 blocks per call)
+    const CHUNK = 2_000;
+    const LOOK_BACK = Math.min(latestBlock, 400_000); // ~9 days on Base
+    const startBlock = latestBlock - LOOK_BACK;
+
+    for (let from = startBlock; from <= latestBlock; from += CHUNK) {
+      const toBlock = Math.min(from + CHUNK - 1, latestBlock);
+      try {
+        const logs = await provider.getLogs({
+          address: nfpmAddress,
+          topics:  [TRANSFER_SIG, null, paddedWallet],
+          fromBlock: from,
+          toBlock,
+        });
+        for (const log of logs) {
+          if (log.topics[3]) receivedIds.add(BigInt(log.topics[3]));
+        }
+      } catch { /* skip chunk if RPC errors */ }
+    }
+  } catch (err) {
+    console.warn(`[uniV3-lp] getLogs error:`, (err as Error)?.message?.slice(0, 60));
   }
 
-  if (tokenIds.length < Number(nftCount)) {
-    const TRANSFER_SIG = ethers.id("Transfer(address,address,uint256)");
-    const paddedWallet  = ethers.zeroPadValue(walletAddress.toLowerCase(), 32);
-    try {
-      const latestBlock = await provider.getBlockNumber();
-      const fromBlock   = Math.max(0, latestBlock - 3_000_000);
-      const [rcvd, sent] = await Promise.all([
-        provider.getLogs({ address: nfpmAddress, topics: [TRANSFER_SIG, null, paddedWallet], fromBlock, toBlock: latestBlock }),
-        provider.getLogs({ address: nfpmAddress, topics: [TRANSFER_SIG, paddedWallet, null], fromBlock, toBlock: latestBlock }),
-      ]);
-      const sentIds = new Set(sent.map(l => BigInt(l.topics[3] ?? "0")));
-      for (const log of rcvd) {
-        const tid = BigInt(log.topics[3] ?? "0");
-        if (sentIds.has(tid) || tokenIds.includes(tid)) continue;
-        try {
-          const owner = String(await nfpm.ownerOf(tid)).toLowerCase();
-          if (owner === walletAddress.toLowerCase()) tokenIds.push(tid);
-        } catch { /* burned or not owned */ }
-      }
-    } catch (err) {
-      console.warn(`[uniV3-lp] log fallback failed:`, (err as Error)?.message?.slice(0, 60));
+  // If logs found nothing, fall back to tokenOfOwnerByIndex (direct eth_call)
+  if (receivedIds.size === 0) {
+    for (let i = 0; i < Number(nftCount); i++) {
+      try {
+        const [tid] = await call(nfpmAddress, nfpmIface, "tokenOfOwnerByIndex", [walletAddress, BigInt(i)]);
+        receivedIds.add(BigInt(tid.toString()));
+      } catch { /* skip */ }
     }
   }
 
-  console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… found ${tokenIds.length} position(s) to value`);
+  const tokenIds = Array.from(receivedIds);
+  console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… scanning ${tokenIds.length} position(s)`);
 
+  // ─── Value each position ──────────────────────────────────────────────────
   let totalUsd = 0;
-  for (let i = 0; i < tokenIds.length; i++) {
+  for (const tokenId of tokenIds) {
     try {
-      const tokenId = tokenIds[i];
-
-      type PosResult = { token0: string; token1: string; fee: bigint; tickLower: bigint; tickUpper: bigint; liquidity: bigint; tokensOwed0: bigint; tokensOwed1: bigint };
-      const pos = await nfpm.positions(tokenId) as PosResult;
-
-      const liquidity   = BigInt(pos.liquidity.toString());
-      const tokensOwed0 = BigInt(pos.tokensOwed0.toString());
-      const tokensOwed1 = BigInt(pos.tokensOwed1.toString());
+      const posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId]);
+      const token0    = String(posResult[2]);
+      const token1    = String(posResult[3]);
+      const fee       = BigInt(posResult[4].toString());
+      const tickLower = Number(posResult[5]);
+      const tickUpper = Number(posResult[6]);
+      const liquidity  = BigInt(posResult[7].toString());
+      const tokensOwed0 = BigInt(posResult[10].toString());
+      const tokensOwed1 = BigInt(posResult[11].toString());
 
       if (liquidity === 0n && tokensOwed0 === 0n && tokensOwed1 === 0n) continue;
 
-      const erc20 = (addr: string) => new ethers.Contract(addr, ERC20_META_ABI, provider);
-      const [dec0, dec1, sym0, sym1] = await Promise.all([
-        (erc20(pos.token0).decimals() as Promise<bigint>).then(v => Number(v)),
-        (erc20(pos.token1).decimals() as Promise<bigint>).then(v => Number(v)),
-        erc20(pos.token0).symbol() as Promise<string>,
-        erc20(pos.token1).symbol() as Promise<string>,
+      // Get token metadata (decimals + symbol)
+      const [[dec0Res], [dec1Res], [sym0Res], [sym1Res]] = await Promise.all([
+        call(token0, erc20Iface, "decimals", []),
+        call(token1, erc20Iface, "decimals", []),
+        call(token0, erc20Iface, "symbol",   []),
+        call(token1, erc20Iface, "symbol",   []),
       ]);
+      const dec0 = Number(dec0Res);
+      const dec1 = Number(dec1Res);
+      const sym0 = String(sym0Res);
+      const sym1 = String(sym1Res);
 
-      const poolAddr = String(await factory.getPool(pos.token0, pos.token1, pos.fee));
-      if (poolAddr === ethers.ZeroAddress) continue;
+      // Get pool address and current price
+      const [poolAddr] = await call(factoryAddress, factoryIface, "getPool", [token0, token1, fee]);
+      if (String(poolAddr) === ethers.ZeroAddress) continue;
 
-      const pool  = new ethers.Contract(poolAddr, POOL_SLOT0_ABI, provider);
-      const slot0 = await pool.slot0() as [bigint, ...unknown[]];
-      const sqrtPriceX96 = BigInt(slot0[0].toString());
+      const [sqrtPriceX96Res] = await call(String(poolAddr), poolIface, "slot0", []);
+      const sqrtPriceX96 = BigInt(sqrtPriceX96Res.toString());
 
-      // Position amounts (atomic units)
-      const { amount0: pa0, amount1: pa1 } = calcUniV3Amounts(
-        sqrtPriceX96, Number(pos.tickLower), Number(pos.tickUpper), liquidity,
-      );
+      // Calculate position amounts (atomic units)
+      const { amount0: pa0, amount1: pa1 } = calcUniV3Amounts(sqrtPriceX96, tickLower, tickUpper, liquidity);
 
-      // Add uncollected fees
+      // Total including uncollected fees
       const total0 = pa0 + Number(tokensOwed0);
       const total1 = pa1 + Number(tokensOwed1);
-
-      // Convert to human units
       const h0 = total0 / Math.pow(10, dec0);
       const h1 = total1 / Math.pow(10, dec1);
 
-      // Price of token0 in terms of token1 (human units / human units)
-      const Q96    = 2 ** 96;
-      const sqrtF  = Number(sqrtPriceX96) / Q96;
-      const p0in1  = sqrtF * sqrtF * Math.pow(10, dec0) / Math.pow(10, dec1);
+      // Pool-derived price: token0 in terms of token1 (human units)
+      const Q96   = 2 ** 96;
+      const sqrtF = Number(sqrtPriceX96) / Q96;
+      const p0in1 = sqrtF * sqrtF * Math.pow(10, dec0) / Math.pow(10, dec1);
 
-      const s0 = String(sym0).toUpperCase();
-      const s1 = String(sym1).toUpperCase();
+      const s0 = sym0.toUpperCase();
+      const s1 = sym1.toUpperCase();
 
-      // Price the position using one known leg
       let posUsd = 0;
       if (STABLE_SYMS.has(s1)) {
         posUsd = h0 * p0in1 + h1;
       } else if (STABLE_SYMS.has(s0)) {
-        posUsd = h0 + h1 * (p0in1 > 0 ? 1 / p0in1 : 0);
+        posUsd = h0 + (p0in1 > 0 ? h1 / p0in1 : 0);
       } else {
         const usd0 = knownPriceBySymbol(s0, prices);
         const usd1 = knownPriceBySymbol(s1, prices);
         if (usd0 != null) posUsd += h0 * usd0;
-        else if (usd1 != null && p0in1 > 0) posUsd += h0 * (usd1 / p0in1);  // derive token0 price
+        else if (usd1 != null && p0in1 > 0) posUsd += h0 * (usd1 / p0in1);
         if (usd1 != null) posUsd += h1 * usd1;
-        else if (usd0 != null && p0in1 > 0) posUsd += h1 * (usd0 * p0in1);  // derive token1 price
+        else if (usd0 != null && p0in1 > 0) posUsd += h1 * (usd0 * p0in1);
       }
 
-      console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(6)} posUsd=$${posUsd.toFixed(2)}`);
-      totalUsd += posUsd;
+      if (posUsd > 0) {
+        console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(6)} usd=$${posUsd.toFixed(2)}`);
+        totalUsd += posUsd;
+      }
     } catch (err) {
-      console.warn(`[uniV3-lp] position ${i} error:`, String((err as Error)?.message).slice(0, 120));
+      console.warn(`[uniV3-lp] pos#${tokenId} error:`, String((err as Error)?.message).slice(0, 100));
     }
   }
   return totalUsd;
