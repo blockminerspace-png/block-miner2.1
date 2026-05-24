@@ -657,22 +657,23 @@ async function buildResponseFromDb(): Promise<unknown | null> {
 export async function getPublicTrackedWalletsLive(_req: Request, res: Response): Promise<void> {
   const now = Date.now();
 
-  // Fast path: in-memory cache (5 min TTL on top of DB reads)
-  if (_walletsLiveCache && _walletsLiveCache.expiresAt > now) {
-    res.json(_walletsLiveCache.result);
-    return;
-  }
-
   try {
     const dbResult = await buildResponseFromDb();
     if (dbResult) {
-      // Populate in-memory cache for 5 min to avoid repeated DB reads
+      // Always prefer the latest DB snapshot so cron updates appear immediately.
       _walletsLiveCache = { result: dbResult, expiresAt: now + 5 * 60 * 1000 };
       res.json(dbResult);
       return;
     }
   } catch (err) {
     console.warn("[wallets-live] DB read failed, falling back:", (err as Error)?.message);
+  }
+
+  // Fast path only after DB fallback fails, so stale in-memory data never masks
+  // a newer snapshot that already includes fresh LP values.
+  if (_walletsLiveCache && _walletsLiveCache.expiresAt > now) {
+    res.json(_walletsLiveCache.result);
+    return;
   }
 
   // No DB data yet — kick off background refresh and tell frontend to retry
