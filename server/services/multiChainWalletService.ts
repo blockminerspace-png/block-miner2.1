@@ -69,6 +69,9 @@ export type HistoricalLiquidityPoolPosition = ChainNftHolding & {
 type NftHistoryRow = {
   contractAddress?: string;
   tokenID?: string;
+  blockNumber?: string;
+  from?: string;
+  to?: string;
 };
 
 // ─── Etherscan V2 helper (chainId-aware) ─────────────────────────────────────
@@ -658,14 +661,23 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
     const results: HistoricalLiquidityPoolPosition[] = [];
     const tokenIds = new Set<string>();
 
+    // mintBlocks: earliest observed block per tokenId for historical eth_call fallback.
+    const mintBlocks = new Map<string, number>();
+
     // Strategy 1: Etherscan tokennfttx filtered by NFPM contractaddress.
     // Filtering by contractaddress ensures all 100 slots per page are LP transfers,
     // not diluted by game/NFT transfers from the same wallet.
+    // Also extracts blockNumber so burned tokenIds get a fallback mint block.
     try {
       const nftHistory = await fetchNftTxHistory(chain.chainId, address, 100, chain.uniV3NfpmAddress);
       for (const row of nftHistory as NftHistoryRow[]) {
         if (!row.tokenID) continue;
-        tokenIds.add(String(row.tokenID));
+        const tid = String(row.tokenID);
+        tokenIds.add(tid);
+        const blk = Number(row.blockNumber || 0);
+        if (blk > 0 && (!mintBlocks.has(tid) || blk < (mintBlocks.get(tid) ?? Infinity))) {
+          mintBlocks.set(tid, blk);
+        }
       }
       console.log(`[uniV3-backfill] ${chain.name}: Etherscan found ${tokenIds.size} tokenId(s)`);
     } catch (err) {
@@ -673,9 +685,7 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
     }
 
     // Strategy 2: chunked eth_getLogs — run in parallel with Etherscan, union results.
-    // Also records the mint block (Transfer from 0x0 → wallet) so burned NFTs can
-    // be queried via historical eth_call at buildLiquidityPositionNft time.
-    const mintBlocks = new Map<string, number>();
+    // Refines mintBlocks with exact block numbers from on-chain Transfer events.
     try {
       const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
       const latest = await provider.getBlockNumber();
