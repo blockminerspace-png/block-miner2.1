@@ -18,12 +18,12 @@ type DefaultTrackedWallet = {
 
 const DEFAULT_TRACKED_WALLETS: readonly DefaultTrackedWallet[] = [
   {
-    label: "Legacy Withdrawal Wallet",
+    label: "Withdrawal Wallet",
     address: "0xaDEa1f8BfbC075d9CF124f1dF74b99b4ebA15142",
     chain: "polygon",
     assetSymbol: "POL",
     explorerBaseUrl: "https://polygonscan.com/address",
-    isActive: false,
+    isActive: true,
     isPublic: true,
     includeInTotals: true,
     displayMode: "total_sent",
