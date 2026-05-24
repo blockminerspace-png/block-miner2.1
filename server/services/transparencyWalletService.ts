@@ -520,6 +520,7 @@ export type WalletLiveEntry = {
   displayMode: string;
   valuePol: number | null;
   valueUsd: number | null;
+  isPartialUsd?: boolean;
   tokens?: TokenHolding[];
   nfts?: NftHolding[];
 };
@@ -769,6 +770,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
     const displayMode = String(wallet.displayMode || "total_received");
     let valuePol: number | null = null;
     let valueUsd: number | null = null;
+    let isPartialUsd = false;
     let tokens: TokenHolding[] | undefined;
     let nfts: NftHolding[] | undefined;
 
@@ -824,6 +826,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
           nativeUsd != null || tokenUsd != null
             ? Number(((nativeUsd ?? 0) + (tokenUsd ?? 0)).toFixed(2))
             : null;
+        isPartialUsd = nativePol > 0 && nativeUsd == null;
 
         // Expose per-token breakdown (same TokenHolding shape used by current_balance)
         const relevantTokens = tokenSummary.byToken.filter(
@@ -857,6 +860,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
       displayMode,
       valuePol,
       valueUsd,
+      ...(isPartialUsd ? { isPartialUsd: true } : {}),
       ...(tokens !== undefined ? { tokens } : {}),
       ...(nfts   !== undefined ? { nfts   } : {}),
     });

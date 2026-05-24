@@ -40,16 +40,21 @@ async function runSnapshot(): Promise<void> {
 
     for (const wallet of wallets) {
       try {
+        const existing = await prisma.transparencyWalletSnapshot.findUnique({
+          where: { walletId: wallet.id },
+        });
+
         if (wallet.displayMode === "current_balance") {
           // Full multi-chain snapshot
           console.log(`[wallet-snapshot] multi-chain fetch for ${wallet.address}`);
           const snap = await fetchMultiChainSnapshot(wallet.address);
+          const nextTotalUsd = snap.totalUsd ?? existing?.totalUsd ?? undefined;
 
           await prisma.transparencyWalletSnapshot.upsert({
             where:  { walletId: wallet.id },
             create: {
               walletId:  wallet.id,
-              totalUsd:  snap.totalUsd ?? undefined,
+              totalUsd:  nextTotalUsd,
               valuePol:  snap.valuePol ?? undefined,
               chains:    snap.chains   as object[],
               tokens:    snap.tokens   as object[],
@@ -57,7 +62,7 @@ async function runSnapshot(): Promise<void> {
               fetchedAt: snap.fetchedAt,
             },
             update: {
-              totalUsd:  snap.totalUsd ?? undefined,
+              totalUsd:  nextTotalUsd,
               valuePol:  snap.valuePol ?? undefined,
               chains:    snap.chains   as object[],
               tokens:    snap.tokens   as object[],
@@ -72,10 +77,10 @@ async function runSnapshot(): Promise<void> {
           const data = await fetchTrackedWalletsLive([wallet]);
           const entry = data.wallets[0];
           if (!entry) continue;
-          const existing = await prisma.transparencyWalletSnapshot.findUnique({
-            where: { walletId: wallet.id },
-          });
-          const nextTotalUsd = entry.valueUsd ?? existing?.totalUsd ?? undefined;
+          const nextTotalUsd =
+            entry.isPartialUsd
+              ? existing?.totalUsd ?? undefined
+              : entry.valueUsd ?? existing?.totalUsd ?? undefined;
 
           await prisma.transparencyWalletSnapshot.upsert({
             where:  { walletId: wallet.id },
@@ -98,7 +103,9 @@ async function runSnapshot(): Promise<void> {
             },
           });
 
-          console.log(`[wallet-snapshot] ${wallet.address} (${wallet.displayMode}) done — usd=${entry.valueUsd?.toFixed(2)}`);
+          console.log(
+            `[wallet-snapshot] ${wallet.address} (${wallet.displayMode}) done — usd=${nextTotalUsd?.toFixed?.(2) ?? "preserved"}${entry.isPartialUsd ? " partial-usd" : ""}`,
+          );
         }
       } catch (err) {
         console.error(`[wallet-snapshot] wallet ${wallet.address} failed:`, (err as Error)?.message);
