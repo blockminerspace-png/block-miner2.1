@@ -487,7 +487,11 @@ async function fetchUniV3LpValue(
   let nftCount = 0n;
   try {
     nftCount = BigInt(((await nfpm.balanceOf(walletAddress)) as bigint | string).toString());
-  } catch { return 0; }
+    console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… balanceOf → ${nftCount}`);
+  } catch (err) {
+    console.warn(`[uniV3-lp] balanceOf failed (${nfpmAddress.slice(0,10)}…):`, (err as Error)?.message?.slice(0, 80));
+    return 0;
+  }
 
   if (nftCount === 0n) return 0;
 
@@ -643,13 +647,25 @@ async function fetchChainSnapshot(
   }
 
   // 4. Uniswap V3 LP positions
+  // Try chain-specific NFPM first, then the canonical Uniswap V3 NFPM as fallback.
+  const CANONICAL_NFPM    = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
+  const CANONICAL_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
   let lpUsd = 0;
   if (chain.uniV3NfpmAddress && chain.uniV3FactoryAddress) {
     lpUsd = await fetchUniV3LpValue(
       chain.rpcUrl, address,
       chain.uniV3NfpmAddress, chain.uniV3FactoryAddress,
       prices,
-    ).catch(err => { console.warn(`[uniV3-lp] ${chain.name}:`, (err as Error)?.message); return 0; });
+    ).catch(err => { console.warn(`[uniV3-lp] ${chain.name} primary:`, (err as Error)?.message); return 0; });
+
+    // If primary returned 0, try canonical NFPM (different deployment address)
+    if (lpUsd === 0 && chain.uniV3NfpmAddress !== CANONICAL_NFPM) {
+      lpUsd = await fetchUniV3LpValue(
+        chain.rpcUrl, address,
+        CANONICAL_NFPM, CANONICAL_FACTORY,
+        prices,
+      ).catch(() => 0);
+    }
   }
 
   const tokensUsd     = tokenHoldings.reduce((s, t) => s + (t.usdValue ?? 0), 0);
