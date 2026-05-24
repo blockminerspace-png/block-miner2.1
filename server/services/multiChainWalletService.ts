@@ -33,6 +33,11 @@ export type ChainNftHolding = {
   tokenUri: string | null;
   explorerUrl: string;
   openseaUrl: string;
+  chainName?: string;
+  chainId?: number;
+  isLiquidityPosition?: boolean;
+  liquidityUsd?: number | null;
+  poolLabel?: string | null;
 };
 
 export type ChainSnapshot = {
@@ -485,7 +490,8 @@ async function fetchUniV3LpValue(
   nfpmAddress: string,
   factoryAddress: string,
   prices: Prices,
-): Promise<number> {
+  chain: Pick<ChainConfig, "chainId" | "name" | "explorerBase">,
+): Promise<{ totalUsd: number; nftPositions: ChainNftHolding[] }> {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
 
   // Build interface objects for ABI encoding/decoding
@@ -509,9 +515,9 @@ async function fetchUniV3LpValue(
     console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… balanceOf → ${nftCount}`);
   } catch (err) {
     console.warn(`[uniV3-lp] balanceOf failed (${nfpmAddress.slice(0,10)}…):`, (err as Error)?.message?.slice(0, 80));
-    return 0;
+    return { totalUsd: 0, nftPositions: [] };
   }
-  if (nftCount === 0n) return 0;
+  if (nftCount === 0n) return { totalUsd: 0, nftPositions: [] };
 
   // ─── Enumerate token IDs via tokenOfOwnerByIndex (direct provider.call) ──
   // The ethers.js Contract wrapper has quirks on Base; provider.call() works reliably.
@@ -532,6 +538,7 @@ async function fetchUniV3LpValue(
 
   // ─── Value each position ──────────────────────────────────────────────────
   let totalUsd = 0;
+  const nftPositions: ChainNftHolding[] = [];
   for (const tokenId of tokenIds) {
     try {
       const posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId]);
@@ -598,12 +605,34 @@ async function fetchUniV3LpValue(
       }
 
       console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(8)} usd=$${posUsd.toFixed(2)}`);
-      if (posUsd > 0) totalUsd += posUsd;
+      if (posUsd > 0) {
+        totalUsd += posUsd;
+        nftPositions.push({
+          contractAddress: nfpmAddress.toLowerCase(),
+          tokenId: tokenId.toString(),
+          contractName: "Uniswap V3 Position NFT",
+          tokenSymbol: "UNI-V3-POS",
+          standard: "ERC-721",
+          name: `${sym0}/${sym1} LP Position`,
+          description: `Active liquidity position on ${chain.name} (${sym0}/${sym1}, fee ${fee.toString()}).`,
+          imageUrl: null,
+          tokenUri: null,
+          explorerUrl: `${chain.explorerBase}/token/${nfpmAddress}?a=${tokenId.toString()}`,
+          openseaUrl: chain.chainId === 137
+            ? `https://opensea.io/assets/matic/${nfpmAddress}/${tokenId.toString()}`
+            : `https://opensea.io/assets/${chain.name}/${nfpmAddress}/${tokenId.toString()}`,
+          chainName: chain.name,
+          chainId: chain.chainId,
+          isLiquidityPosition: true,
+          liquidityUsd: Number(posUsd.toFixed(2)),
+          poolLabel: `${sym0}/${sym1}`,
+        });
+      }
     } catch (err) {
       console.warn(`[uniV3-lp] pos#${tokenId} error:`, String((err as Error)?.message).slice(0, 100));
     }
   }
-  return totalUsd;
+  return { totalUsd, nftPositions };
 }
 
 // ─── Single-chain snapshot ───────────────────────────────────────────────────
@@ -688,21 +717,35 @@ async function fetchChainSnapshot(
   const CANONICAL_NFPM    = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
   const CANONICAL_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
   let lpUsd = 0;
+  let lpNfts: ChainNftHolding[] = [];
   if (chain.uniV3NfpmAddress && chain.uniV3FactoryAddress) {
-    lpUsd = await fetchUniV3LpValue(
+    const primaryLp = await fetchUniV3LpValue(
       chain.rpcUrl, address,
       chain.uniV3NfpmAddress, chain.uniV3FactoryAddress,
       prices,
-    ).catch(err => { console.warn(`[uniV3-lp] ${chain.name} primary:`, (err as Error)?.message); return 0; });
+      chain,
+    ).catch(err => {
+      console.warn(`[uniV3-lp] ${chain.name} primary:`, (err as Error)?.message);
+      return { totalUsd: 0, nftPositions: [] };
+    });
+    lpUsd = primaryLp.totalUsd;
+    lpNfts = primaryLp.nftPositions;
 
     // If primary returned 0, try canonical NFPM (different deployment address)
     if (lpUsd === 0 && chain.uniV3NfpmAddress !== CANONICAL_NFPM) {
-      lpUsd = await fetchUniV3LpValue(
+      const fallbackLp = await fetchUniV3LpValue(
         chain.rpcUrl, address,
         CANONICAL_NFPM, CANONICAL_FACTORY,
         prices,
-      ).catch(() => 0);
+        chain,
+      ).catch(() => ({ totalUsd: 0, nftPositions: [] }));
+      lpUsd = fallbackLp.totalUsd;
+      lpNfts = fallbackLp.nftPositions;
     }
+  }
+
+  if (lpNfts.length > 0) {
+    nfts = [...lpNfts, ...nfts];
   }
 
   const tokensUsd     = tokenHoldings.reduce((s, t) => s + (t.usdValue ?? 0), 0);

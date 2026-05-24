@@ -19,8 +19,6 @@ import type { LucideIcon } from 'lucide-react';
 const INVESTMENT_WALLET_ADDRESS = '0x454d8a4261155621f603a275bb69b381d0513202';
 const OLD_DEPOSIT_WALLET_ADDRESS  = '0x1CA03755C5132e238aE4E0f50d4929EA0D58b897';
 
-const POOL_POSITIONS: { id: string; label: string; link: string }[] = [];
-
 const CATEGORY_ICONS = {
   infrastructure: Server,
   tooling:        Wrench,
@@ -108,6 +106,11 @@ export interface NftHoldingEntry {
   tokenUri: string | null;
   explorerUrl: string;
   openseaUrl: string;
+  chainName?: string;
+  chainId?: number;
+  isLiquidityPosition?: boolean;
+  liquidityUsd?: number | null;
+  poolLabel?: string | null;
 }
 
 export interface TrackedWalletEntry {
@@ -516,6 +519,7 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
   const isDeprecated =
     wallet.isActive === false ||
     wallet.address.toLowerCase() === OLD_DEPOSIT_WALLET_ADDRESS.toLowerCase();
+  const lpNfts = (wallet.nfts ?? []).filter((nft) => nft.isLiquidityPosition);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(wallet.address).then(() => {
@@ -670,23 +674,33 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
           )}
         </div>
 
-        {isInvestment && POOL_POSITIONS.length > 0 && (
+        {isInvestment && lpNfts.length > 0 && (
           <div className="space-y-2">
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-              <Activity className="w-3 h-3 text-violet-400" aria-hidden="true" /> {t('transparency.wallets.active_pools')}
+              <ImageIcon className="w-3 h-3 text-violet-400" aria-hidden="true" /> {t('transparency.wallets.nft_holdings')}
             </p>
-            {POOL_POSITIONS.map(pos => (
-              <a
-                key={pos.id}
-                href={pos.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-violet-500/15 bg-violet-950/20 hover:bg-violet-950/40 hover:border-violet-500/30 transition-colors group"
-              >
-                <span className="text-xs font-bold text-violet-300 group-hover:text-violet-200">{pos.label}</span>
-                <ExternalLink className="w-3.5 h-3.5 text-violet-600 group-hover:text-violet-400 shrink-0" aria-hidden="true" />
-              </a>
-            ))}
+            <div className="grid grid-cols-1 gap-2">
+              {lpNfts.map((nft) => (
+                <a
+                  key={`${nft.contractAddress}:${nft.tokenId}`}
+                  href={nft.explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-3 rounded-xl border border-violet-500/15 bg-violet-950/20 hover:bg-violet-950/40 hover:border-violet-500/30 transition-colors group"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-violet-300 group-hover:text-violet-200 truncate">
+                      {nft.poolLabel || nft.name || `LP NFT #${nft.tokenId}`}
+                    </p>
+                    <p className="text-[10px] text-violet-200/60 truncate">
+                      {(nft.chainName || 'chain').toUpperCase()} · #{nft.tokenId}
+                      {nft.liquidityUsd != null ? ` · $${nft.liquidityUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+                    </p>
+                  </div>
+                  <ExternalLink className="w-3.5 h-3.5 text-violet-600 group-hover:text-violet-400 shrink-0" aria-hidden="true" />
+                </a>
+              ))}
+            </div>
           </div>
         )}
       </div>
