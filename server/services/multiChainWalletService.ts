@@ -689,8 +689,23 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
     try {
       const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
       const latest = await provider.getBlockNumber();
-      const range = chain.chainId === 8453 ? 500 : chain.chainId === 137 ? 10_000 : 50_000;
-      const scanFrom = Math.max(0, latest - 3_000_000);
+      // chunk = max blocks per getLogs call supported by each RPC provider
+      // depth = how far back to scan (in blocks)
+      // Arbitrum: ~4 blocks/sec → 15M blocks ≈ 43 days  (chunk 100k, 150 iterations)
+      // Polygon:  ~0.5 blocks/sec → 10M blocks ≈ 231 days (chunk 10k, 1000 iterations)
+      // Base:     ~0.5 blocks/sec → 5M blocks ≈ 115 days  (chunk 2000, 2500 iterations)
+      // Others:   1 block/sec → 5M blocks ≈ 57 days        (chunk 50k, 100 iterations)
+      const rangeMap: Record<number, { chunk: number; depth: number }> = {
+        42161: { chunk: 100_000, depth: 15_000_000 },
+        137:   { chunk:  10_000, depth: 10_000_000 },
+        8453:  { chunk:   2_000, depth:  5_000_000 },
+        1:     { chunk:  50_000, depth:  5_000_000 },
+        10:    { chunk:  50_000, depth:  5_000_000 },
+        56:    { chunk:  50_000, depth:  5_000_000 },
+        43114: { chunk:  50_000, depth:  3_000_000 },
+      };
+      const { chunk: range, depth } = rangeMap[chain.chainId] ?? { chunk: 50_000, depth: 5_000_000 };
+      const scanFrom = Math.max(0, latest - depth);
       const walletTopic = ethers.zeroPadValue(walletAddress, 32).toLowerCase();
       const zeroTopic   = ethers.zeroPadValue("0x0000000000000000000000000000000000000000", 32).toLowerCase();
       for (let from = scanFrom; from <= latest; from += range + 1) {
