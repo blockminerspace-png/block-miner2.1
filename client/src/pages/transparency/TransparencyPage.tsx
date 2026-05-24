@@ -548,15 +548,19 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
                     : <p className="text-sm text-gray-600">Unavailable</p>
                   }
                 </>
-              : wallet.valuePol != null
+              : wallet.valueUsd != null || wallet.valuePol != null
                 ? <>
-                    <p className="text-2xl font-black text-white">
-                      {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                      <span className={`text-base ml-2 ${cfg.valueBadge}`}>{wallet.assetSymbol || 'POL'}</span>
-                    </p>
-                    {wallet.valueUsd != null && (
+                    {wallet.valueUsd != null
+                      ? <p className="text-2xl font-black text-white">
+                          ${wallet.valueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className="text-sm text-gray-500 ml-2">USD</span>
+                        </p>
+                      : null
+                    }
+                    {wallet.valuePol != null && (
                       <p className="text-[11px] text-gray-500 mt-0.5">
-                        ≈ ${wallet.valueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                        {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        <span className={`ml-1 ${cfg.valueBadge}`}>{wallet.assetSymbol || 'POL'}</span>
                       </p>
                     )}
                   </>
