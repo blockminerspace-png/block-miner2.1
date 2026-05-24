@@ -72,12 +72,16 @@ async function runSnapshot(): Promise<void> {
           const data = await fetchTrackedWalletsLive([wallet]);
           const entry = data.wallets[0];
           if (!entry) continue;
+          const existing = await prisma.transparencyWalletSnapshot.findUnique({
+            where: { walletId: wallet.id },
+          });
+          const nextTotalUsd = entry.valueUsd ?? existing?.totalUsd ?? undefined;
 
           await prisma.transparencyWalletSnapshot.upsert({
             where:  { walletId: wallet.id },
             create: {
               walletId:  wallet.id,
-              totalUsd:  entry.valueUsd  ?? undefined,
+              totalUsd:  nextTotalUsd,
               valuePol:  entry.valuePol  ?? undefined,
               chains:    [],
               tokens:    (entry.tokens ?? []) as object[],
@@ -85,7 +89,7 @@ async function runSnapshot(): Promise<void> {
               fetchedAt: new Date(),
             },
             update: {
-              totalUsd:  entry.valueUsd  ?? undefined,
+              totalUsd:  nextTotalUsd,
               valuePol:  entry.valuePol  ?? undefined,
               chains:    [],
               tokens:    (entry.tokens ?? []) as object[],

@@ -238,7 +238,7 @@ function buildTokenMovementSummary(
   address: string,
   tokenTxList: unknown[],
   prices: { pol: number | null; btc: number | null; eth: number | null },
-): { byToken: TokenMovementSummaryEntry[]; totalInUsd: number; totalOutUsd: number } {
+): { byToken: TokenMovementSummaryEntry[]; totalInUsd: number | null; totalOutUsd: number | null } {
   const addr = address.toLowerCase();
 
   const knownByAddr = new Map(
@@ -280,6 +280,8 @@ function buildTokenMovementSummary(
 
   let totalInUsd  = 0;
   let totalOutUsd = 0;
+  let hasInUsd = false;
+  let hasOutUsd = false;
   const byToken: TokenMovementSummaryEntry[] = [];
 
   for (const [contractAddress, entry] of map) {
@@ -299,15 +301,25 @@ function buildTokenMovementSummary(
     const totalInTokenUsd  = usdPerToken != null ? totalIn  * usdPerToken : null;
     const totalOutTokenUsd = usdPerToken != null ? totalOut * usdPerToken : null;
 
-    if (totalInTokenUsd  != null) totalInUsd  += totalInTokenUsd;
-    if (totalOutTokenUsd != null) totalOutUsd += totalOutTokenUsd;
+    if (totalInTokenUsd  != null) {
+      totalInUsd += totalInTokenUsd;
+      hasInUsd = true;
+    }
+    if (totalOutTokenUsd != null) {
+      totalOutUsd += totalOutTokenUsd;
+      hasOutUsd = true;
+    }
 
     byToken.push({ contractAddress, symbol: entry.symbol, name: entry.name, decimals, totalIn, totalOut, totalInUsd: totalInTokenUsd, totalOutUsd: totalOutTokenUsd });
   }
 
   byToken.sort((a, b) => (b.totalInUsd ?? 0) - (a.totalInUsd ?? 0));
 
-  return { byToken, totalInUsd, totalOutUsd };
+  return {
+    byToken,
+    totalInUsd: hasInUsd ? totalInUsd : null,
+    totalOutUsd: hasOutUsd ? totalOutUsd : null,
+  };
 }
 
 export async function fetchWalletNativeActivity(rawAddress: unknown, opts: TxHistoryOpts = {}) {
@@ -779,9 +791,13 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
         tokens = allTokens;
         nfts   = nftHoldings;
 
-        const polUsd    = polUsdPrice != null ? valuePol * polUsdPrice : 0;
+        const polUsd = polUsdPrice != null ? valuePol * polUsdPrice : null;
         const tokensUsd = tokens.reduce((s, t) => s + (t.usdValue ?? 0), 0);
-        valueUsd = Number((polUsd + tokensUsd).toFixed(2));
+        const hasTokenUsd = tokens.some((t) => t.usdValue != null);
+        valueUsd =
+          polUsd != null || hasTokenUsd
+            ? Number(((polUsd ?? 0) + tokensUsd).toFixed(2))
+            : null;
       } else {
         // Fetch native POL history + ERC20 token transfers in parallel with price lookups.
         // Rate limiter serialises the Etherscan pages internally; price calls hit CoinGecko.
@@ -800,11 +816,14 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
         );
 
         const nativePol = displayMode === "total_sent" ? nativeSummary.totalOutPol : nativeSummary.totalInPol;
-        const nativeUsd = polUsdPrice != null ? nativePol * polUsdPrice : 0;
+        const nativeUsd = polUsdPrice != null ? nativePol * polUsdPrice : null;
         const tokenUsd  = displayMode === "total_sent" ? tokenSummary.totalOutUsd : tokenSummary.totalInUsd;
 
         valuePol = nativePol;
-        valueUsd = Number((nativeUsd + tokenUsd).toFixed(2));
+        valueUsd =
+          nativeUsd != null || tokenUsd != null
+            ? Number(((nativeUsd ?? 0) + (tokenUsd ?? 0)).toFixed(2))
+            : null;
 
         // Expose per-token breakdown (same TokenHolding shape used by current_balance)
         const relevantTokens = tokenSummary.byToken.filter(
