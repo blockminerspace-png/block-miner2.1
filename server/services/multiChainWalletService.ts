@@ -513,49 +513,17 @@ async function fetchUniV3LpValue(
   }
   if (nftCount === 0n) return 0;
 
-  // ─── Enumerate token IDs via Transfer events ──────────────────────────────
-  // Transfer(from=any, to=wallet) captures mints AND incoming transfers.
-  // We include staked positions (sent wallet→staking) by checking ALL received IDs.
-  const receivedIds = new Set<bigint>();
-  const TRANSFER_SIG = ethers.id("Transfer(address,address,uint256)");
-  const paddedWallet = ethers.zeroPadValue(walletAddress.toLowerCase(), 32);
-
-  try {
-    const latestBlock = await provider.getBlockNumber();
-    // Chunk getLogs to stay within Base RPC limits (2000 blocks per call)
-    const CHUNK = 2_000;
-    const LOOK_BACK = Math.min(latestBlock, 400_000); // ~9 days on Base
-    const startBlock = latestBlock - LOOK_BACK;
-
-    for (let from = startBlock; from <= latestBlock; from += CHUNK) {
-      const toBlock = Math.min(from + CHUNK - 1, latestBlock);
-      try {
-        const logs = await provider.getLogs({
-          address: nfpmAddress,
-          topics:  [TRANSFER_SIG, null, paddedWallet],
-          fromBlock: from,
-          toBlock,
-        });
-        for (const log of logs) {
-          if (log.topics[3]) receivedIds.add(BigInt(log.topics[3]));
-        }
-      } catch { /* skip chunk if RPC errors */ }
-    }
-  } catch (err) {
-    console.warn(`[uniV3-lp] getLogs error:`, (err as Error)?.message?.slice(0, 60));
+  // ─── Enumerate token IDs via tokenOfOwnerByIndex (direct provider.call) ──
+  // The ethers.js Contract wrapper has quirks on Base; provider.call() works reliably.
+  // Note: some IDs may be stale (burned positions) — those fail at positions() and are skipped.
+  // Staked positions are still in the enumerable list and positions() succeeds for them.
+  const tokenIds: bigint[] = [];
+  for (let i = 0; i < Number(nftCount); i++) {
+    try {
+      const [tid] = await call(nfpmAddress, nfpmIface, "tokenOfOwnerByIndex", [walletAddress, BigInt(i)]);
+      tokenIds.push(BigInt(tid.toString()));
+    } catch { /* skip */ }
   }
-
-  // If logs found nothing, fall back to tokenOfOwnerByIndex (direct eth_call)
-  if (receivedIds.size === 0) {
-    for (let i = 0; i < Number(nftCount); i++) {
-      try {
-        const [tid] = await call(nfpmAddress, nfpmIface, "tokenOfOwnerByIndex", [walletAddress, BigInt(i)]);
-        receivedIds.add(BigInt(tid.toString()));
-      } catch { /* skip */ }
-    }
-  }
-
-  const tokenIds = Array.from(receivedIds);
   console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… scanning ${tokenIds.length} position(s)`);
 
   // ─── Value each position ──────────────────────────────────────────────────
