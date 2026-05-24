@@ -539,6 +539,8 @@ async function buildLiquidityPositionNft(
   tokenId: bigint,
   prices: Prices,
   status: "active" | "legacy",
+  /** Block at which the NFT was minted. Used for historical eth_call if the NFT was burned. */
+  mintBlock?: number,
 ): Promise<ChainNftHolding | null> {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const nfpmIface = new ethers.Interface(NFPM_ABI);
@@ -546,14 +548,22 @@ async function buildLiquidityPositionNft(
   const factoryIface = new ethers.Interface(FACTORY_GETPOOL_ABI);
   const erc20Iface = new ethers.Interface(ERC20_META_ABI);
 
-  const call = async (to: string, iface: ethers.Interface, fn: string, args: unknown[]): Promise<ethers.Result> => {
+  const call = async (to: string, iface: ethers.Interface, fn: string, args: unknown[], blockTag?: number): Promise<ethers.Result> => {
     const data = iface.encodeFunctionData(fn, args);
-    const raw = await provider.call({ to, data });
+    const raw = await provider.call({ to, data, ...(blockTag != null ? { blockTag } : {}) });
     return iface.decodeFunctionResult(fn, raw);
   };
 
   try {
-    const posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId]);
+    // Try current state first; if the NFT was burned, fall back to historical call at mint block.
+    let posResult: ethers.Result;
+    try {
+      posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId]);
+    } catch {
+      if (mintBlock == null) return null;
+      console.log(`[uniV3-backfill] pos#${tokenId} burned — retrying at block ${mintBlock}`);
+      posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId], mintBlock);
+    }
     const token0    = String(posResult[2]);
     const token1    = String(posResult[3]);
     const fee       = BigInt(posResult[4].toString());
@@ -663,33 +673,41 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
     }
 
     // Strategy 2: chunked eth_getLogs — run in parallel with Etherscan, union results.
-    // Limited to recent blocks on chains with tiny block ranges (Base=10, Polygon=10k).
-    // On Ethereum/Arbitrum/Optimism (50k range), this covers a ~2-year window quickly.
+    // Also records the mint block (Transfer from 0x0 → wallet) so burned NFTs can
+    // be queried via historical eth_call at buildLiquidityPositionNft time.
+    const mintBlocks = new Map<string, number>();
     try {
       const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
       const latest = await provider.getBlockNumber();
       const range = chain.chainId === 8453 ? 500 : chain.chainId === 137 ? 10_000 : 50_000;
-      // Scan last 3M blocks max (avoids scanning from genesis on high-block chains)
       const scanFrom = Math.max(0, latest - 3_000_000);
       const walletTopic = ethers.zeroPadValue(walletAddress, 32).toLowerCase();
+      const zeroTopic   = ethers.zeroPadValue("0x0000000000000000000000000000000000000000", 32).toLowerCase();
       for (let from = scanFrom; from <= latest; from += range + 1) {
         const to = Math.min(latest, from + range);
         try {
-          const logs = await provider.getLogs({
-            address: chain.uniV3NfpmAddress,
-            fromBlock: from,
-            toBlock: to,
-            topics: [ERC721_TRANSFER_TOPIC, null, walletTopic],
-          });
-          for (const log of logs) {
+          // Fetch both: mints (from=0, to=wallet) and all incoming transfers (to=wallet)
+          const [mintLogs, recvLogs] = await Promise.all([
+            provider.getLogs({ address: chain.uniV3NfpmAddress, fromBlock: from, toBlock: to,
+              topics: [ERC721_TRANSFER_TOPIC, zeroTopic, walletTopic] }),
+            provider.getLogs({ address: chain.uniV3NfpmAddress, fromBlock: from, toBlock: to,
+              topics: [ERC721_TRANSFER_TOPIC, null, walletTopic] }),
+          ]);
+          for (const log of [...mintLogs, ...recvLogs]) {
             const topic = log.topics?.[3];
-            if (topic) {
-              try { tokenIds.add(BigInt(topic).toString()); } catch { /* ignore */ }
-            }
+            if (!topic) continue;
+            try {
+              const tid = BigInt(topic).toString();
+              tokenIds.add(tid);
+              // Record earliest seen block as mint block (for historical fallback)
+              if (!mintBlocks.has(tid) || Number(log.blockNumber) < (mintBlocks.get(tid) ?? Infinity)) {
+                mintBlocks.set(tid, Number(log.blockNumber));
+              }
+            } catch { /* ignore */ }
           }
         } catch { /* chunk failed, continue */ }
       }
-      console.log(`[uniV3-backfill] ${chain.name}: after eth_getLogs union → ${tokenIds.size} tokenId(s)`);
+      console.log(`[uniV3-backfill] ${chain.name}: after eth_getLogs union → ${tokenIds.size} tokenId(s), ${mintBlocks.size} with mint block`);
     } catch (err) {
       console.warn(`[uniV3-backfill] ${chain.name} eth_getLogs failed:`, (err as Error)?.message?.slice(0, 60));
     }
@@ -706,6 +724,7 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
           BigInt(tokenId),
           prices,
           "legacy",
+          mintBlocks.get(tokenId),
         );
         if (built) results.push({ ...built, status: "legacy" });
       } catch (err) {
