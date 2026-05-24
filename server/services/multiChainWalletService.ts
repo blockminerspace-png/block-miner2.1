@@ -43,6 +43,7 @@ export type ChainSnapshot = {
   nativeUsd: number | null;
   tokens: ChainTokenHolding[];
   nfts: ChainNftHolding[];
+  lpUsd: number;          // Uniswap V3 LP positions value
   totalChainUsd: number | null;
 };
 
@@ -77,6 +78,10 @@ type ChainConfig = {
   knownTokens: readonly KnownToken[];
   fetchNfts: boolean;
   rpcUrl: string;
+  /** Uniswap V3 NonfungiblePositionManager address (enables LP tracking on this chain). */
+  uniV3NfpmAddress?: string;
+  /** Uniswap V3 Factory address (needed to resolve pool addresses). */
+  uniV3FactoryAddress?: string;
 };
 
 const CHAINS: ChainConfig[] = [
@@ -88,6 +93,8 @@ const CHAINS: ChainConfig[] = [
     explorerBase: "https://etherscan.io",
     fetchNfts: false,
     rpcUrl: "https://eth.llamarpc.com",
+    uniV3NfpmAddress:     "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+    uniV3FactoryAddress:  "0x1F98431c8aD98523631AE4a59f267346ea31F984",
     knownTokens: [
       { contractAddress: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
       { contractAddress: "0xdac17f958d2ee523a2206206994597c13d831ec7", symbol: "USDT",  name: "Tether USD",    decimals: 6,  priceKey: "stable" },
@@ -104,6 +111,8 @@ const CHAINS: ChainConfig[] = [
     explorerBase: "https://polygonscan.com",
     fetchNfts: true,
     rpcUrl: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
+    uniV3NfpmAddress:    "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+    uniV3FactoryAddress: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
     knownTokens: [
       { contractAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", symbol: "USDC",   name: "USD Coin",        decimals: 6,  priceKey: "stable" },
       { contractAddress: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", symbol: "USDC.e", name: "Bridged USDC",    decimals: 6,  priceKey: "stable" },
@@ -121,6 +130,8 @@ const CHAINS: ChainConfig[] = [
     explorerBase: "https://arbiscan.io",
     fetchNfts: false,
     rpcUrl: "https://arb1.arbitrum.io/rpc",
+    uniV3NfpmAddress:    "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+    uniV3FactoryAddress: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
     knownTokens: [
       { contractAddress: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
       { contractAddress: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9", symbol: "USDT",  name: "Tether USD",    decimals: 6,  priceKey: "stable" },
@@ -136,6 +147,8 @@ const CHAINS: ChainConfig[] = [
     explorerBase: "https://basescan.org",
     fetchNfts: false,
     rpcUrl: "https://mainnet.base.org",
+    uniV3NfpmAddress:    "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f",
+    uniV3FactoryAddress: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
     knownTokens: [
       { contractAddress: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
       { contractAddress: "0x4200000000000000000000000000000000000006", symbol: "WETH",  name: "Wrapped Ether", decimals: 18, priceKey: "eth"    },
@@ -389,6 +402,169 @@ async function resolveNfts(address: string, rpcUrl: string, explorerBase: string
   );
 }
 
+// ─── Uniswap V3 LP position tracking ─────────────────────────────────────────
+
+const NFPM_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
+  "function positions(uint256 tokenId) view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)",
+];
+
+const POOL_SLOT0_ABI = [
+  "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
+];
+
+const FACTORY_GETPOOL_ABI = [
+  "function getPool(address tokenA, address tokenB, uint24 fee) view returns (address pool)",
+];
+
+const ERC20_META_ABI = [
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+];
+
+const STABLE_SYMS = new Set(["USDC", "USDT", "DAI", "BUSD", "FRAX", "LUSD", "USDC.E", "BRIDGED USDC"]);
+
+function knownPriceBySymbol(sym: string, prices: Prices): number | null {
+  const s = sym.toUpperCase();
+  if (STABLE_SYMS.has(s))                     return 1;
+  if (["ETH", "WETH"].includes(s))             return prices.eth;
+  if (["BTC", "WBTC", "BTCB"].includes(s))     return prices.btc;
+  if (["POL", "MATIC", "WPOL"].includes(s))    return prices.pol;
+  if (["BNB", "WBNB"].includes(s))             return prices.bnb;
+  if (["AVAX", "WAVAX"].includes(s))           return prices.avax;
+  return null;
+}
+
+/**
+ * Calculate token amounts held in a Uniswap V3 position.
+ * Uses floating-point for simplicity (±0.1% accuracy is fine for USD display).
+ * Amounts are in ATOMIC units.
+ */
+function calcUniV3Amounts(
+  sqrtPriceX96: bigint,
+  tickLower: number,
+  tickUpper: number,
+  liquidity: bigint,
+): { amount0: number; amount1: number } {
+  if (liquidity === 0n) return { amount0: 0, amount1: 0 };
+  const L = Number(liquidity);
+  const Q96 = 2 ** 96;
+  const sqrtP  = Number(sqrtPriceX96) / Q96;
+  const sqrtPa = Math.pow(1.0001, tickLower / 2);
+  const sqrtPb = Math.pow(1.0001, tickUpper / 2);
+
+  if (sqrtP <= sqrtPa) {
+    // Below range — all in token0
+    return { amount0: L * (1 / sqrtPa - 1 / sqrtPb), amount1: 0 };
+  } else if (sqrtP >= sqrtPb) {
+    // Above range — all in token1
+    return { amount0: 0, amount1: L * (sqrtPb - sqrtPa) };
+  }
+  // In range
+  return {
+    amount0: L * (1 / sqrtP - 1 / sqrtPb),
+    amount1: L * (sqrtP - sqrtPa),
+  };
+}
+
+/**
+ * Fetch total USD value of all Uniswap V3 positions held by a wallet on one chain.
+ * Prices the position using known stablecoin / ETH / BTC / etc. as one leg,
+ * deriving the unknown token's price from the pool's current sqrtPriceX96.
+ */
+async function fetchUniV3LpValue(
+  rpcUrl: string,
+  walletAddress: string,
+  nfpmAddress: string,
+  factoryAddress: string,
+  prices: Prices,
+): Promise<number> {
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const nfpm     = new ethers.Contract(nfpmAddress,    NFPM_ABI,           provider);
+  const factory  = new ethers.Contract(factoryAddress, FACTORY_GETPOOL_ABI, provider);
+
+  let nftCount = 0n;
+  try {
+    nftCount = BigInt(((await nfpm.balanceOf(walletAddress)) as bigint | string).toString());
+  } catch { return 0; }
+
+  if (nftCount === 0n) return 0;
+
+  let totalUsd = 0;
+  for (let i = 0; i < Number(nftCount); i++) {
+    try {
+      const tokenId = BigInt(((await nfpm.tokenOfOwnerByIndex(walletAddress, BigInt(i))) as bigint | string).toString());
+
+      type PosResult = { token0: string; token1: string; fee: bigint; tickLower: bigint; tickUpper: bigint; liquidity: bigint; tokensOwed0: bigint; tokensOwed1: bigint };
+      const pos = await nfpm.positions(tokenId) as PosResult;
+
+      const liquidity   = BigInt(pos.liquidity.toString());
+      const tokensOwed0 = BigInt(pos.tokensOwed0.toString());
+      const tokensOwed1 = BigInt(pos.tokensOwed1.toString());
+
+      if (liquidity === 0n && tokensOwed0 === 0n && tokensOwed1 === 0n) continue;
+
+      const erc20 = (addr: string) => new ethers.Contract(addr, ERC20_META_ABI, provider);
+      const [dec0, dec1, sym0, sym1] = await Promise.all([
+        (erc20(pos.token0).decimals() as Promise<bigint>).then(v => Number(v)),
+        (erc20(pos.token1).decimals() as Promise<bigint>).then(v => Number(v)),
+        erc20(pos.token0).symbol() as Promise<string>,
+        erc20(pos.token1).symbol() as Promise<string>,
+      ]);
+
+      const poolAddr = String(await factory.getPool(pos.token0, pos.token1, pos.fee));
+      if (poolAddr === ethers.ZeroAddress) continue;
+
+      const pool  = new ethers.Contract(poolAddr, POOL_SLOT0_ABI, provider);
+      const slot0 = await pool.slot0() as [bigint, ...unknown[]];
+      const sqrtPriceX96 = BigInt(slot0[0].toString());
+
+      // Position amounts (atomic units)
+      const { amount0: pa0, amount1: pa1 } = calcUniV3Amounts(
+        sqrtPriceX96, Number(pos.tickLower), Number(pos.tickUpper), liquidity,
+      );
+
+      // Add uncollected fees
+      const total0 = pa0 + Number(tokensOwed0);
+      const total1 = pa1 + Number(tokensOwed1);
+
+      // Convert to human units
+      const h0 = total0 / Math.pow(10, dec0);
+      const h1 = total1 / Math.pow(10, dec1);
+
+      // Price of token0 in terms of token1 (human units / human units)
+      const Q96    = 2 ** 96;
+      const sqrtF  = Number(sqrtPriceX96) / Q96;
+      const p0in1  = sqrtF * sqrtF * Math.pow(10, dec0) / Math.pow(10, dec1);
+
+      const s0 = String(sym0).toUpperCase();
+      const s1 = String(sym1).toUpperCase();
+
+      // Price the position using one known leg
+      let posUsd = 0;
+      if (STABLE_SYMS.has(s1)) {
+        posUsd = h0 * p0in1 + h1;
+      } else if (STABLE_SYMS.has(s0)) {
+        posUsd = h0 + h1 * (p0in1 > 0 ? 1 / p0in1 : 0);
+      } else {
+        const usd0 = knownPriceBySymbol(s0, prices);
+        const usd1 = knownPriceBySymbol(s1, prices);
+        if (usd0 != null) posUsd += h0 * usd0;
+        else if (usd1 != null && p0in1 > 0) posUsd += h0 * (usd1 / p0in1);  // derive token0 price
+        if (usd1 != null) posUsd += h1 * usd1;
+        else if (usd0 != null && p0in1 > 0) posUsd += h1 * (usd0 * p0in1);  // derive token1 price
+      }
+
+      console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(6)} posUsd=$${posUsd.toFixed(2)}`);
+      totalUsd += posUsd;
+    } catch (err) {
+      console.warn(`[uniV3-lp] position ${i} error:`, String((err as Error)?.message).slice(0, 120));
+    }
+  }
+  return totalUsd;
+}
+
 // ─── Single-chain snapshot ───────────────────────────────────────────────────
 
 async function fetchChainSnapshot(
@@ -466,10 +642,20 @@ async function fetchChainSnapshot(
     nfts = await resolveNfts(address, chain.rpcUrl, chain.explorerBase, nftRows);
   }
 
-  const tokensUsd  = tokenHoldings.reduce((s, t) => s + (t.usdValue ?? 0), 0);
-  const totalChainUsd = nativeUsd != null ? nativeUsd + tokensUsd : tokensUsd || null;
+  // 4. Uniswap V3 LP positions
+  let lpUsd = 0;
+  if (chain.uniV3NfpmAddress && chain.uniV3FactoryAddress) {
+    lpUsd = await fetchUniV3LpValue(
+      chain.rpcUrl, address,
+      chain.uniV3NfpmAddress, chain.uniV3FactoryAddress,
+      prices,
+    ).catch(err => { console.warn(`[uniV3-lp] ${chain.name}:`, (err as Error)?.message); return 0; });
+  }
 
-  return { chainId: chain.chainId, name: chain.name, nativeSymbol: chain.nativeSymbol, nativeBalance: nativeBal, nativeUsd, tokens: tokenHoldings, nfts, totalChainUsd };
+  const tokensUsd     = tokenHoldings.reduce((s, t) => s + (t.usdValue ?? 0), 0);
+  const totalChainUsd = (nativeUsd ?? 0) + tokensUsd + lpUsd || null;
+
+  return { chainId: chain.chainId, name: chain.name, nativeSymbol: chain.nativeSymbol, nativeBalance: nativeBal, nativeUsd, tokens: tokenHoldings, nfts, lpUsd, totalChainUsd };
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -509,8 +695,8 @@ export async function fetchMultiChainSnapshot(address: string): Promise<MultiCha
   for (const chain of CHAINS) {
     try {
       const snap = await fetchChainSnapshot(chain, address, prices);
-      const hasBalance = snap.nativeBalance > 0 || snap.tokens.length > 0 || snap.nfts.length > 0;
-      console.log(`[multi-chain] ${chain.name} — native=${snap.nativeBalance.toFixed(4)} ${chain.nativeSymbol}, tokens=${snap.tokens.length}, nfts=${snap.nfts.length}, usd=${snap.totalChainUsd?.toFixed(2) ?? "0"}, hasBalance=${hasBalance}`);
+      const hasBalance = snap.nativeBalance > 0 || snap.tokens.length > 0 || snap.nfts.length > 0 || snap.lpUsd > 0;
+      console.log(`[multi-chain] ${chain.name} — native=${snap.nativeBalance.toFixed(4)} ${chain.nativeSymbol}, tokens=${snap.tokens.length}, lp=$${snap.lpUsd.toFixed(2)}, usd=${snap.totalChainUsd?.toFixed(2) ?? "0"}, hasBalance=${hasBalance}`);
       if (hasBalance) chainSnapshots.push(snap);
     } catch (err) {
       console.warn(`[multi-chain] chain ${chain.name} failed for ${address}:`, (err as Error)?.message);
