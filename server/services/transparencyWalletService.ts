@@ -154,6 +154,7 @@ function normalizeAddress(raw: unknown): string {
 type MovementRow = {
   kind: string;
   hash: unknown;
+  traceId?: string;
   timeStamp: number;
   direction: "in" | "out";
   counterparty: unknown;
@@ -161,11 +162,12 @@ type MovementRow = {
   valuePol: number;
 };
 
-function buildMovementSummary(address: string, normal: unknown[]) {
+function buildMovementSummary(address: string, normal: unknown[], internal: unknown[] = []) {
   const addr = address.toLowerCase();
   const movements: MovementRow[] = [];
   let totalInWei = 0n;
   let totalOutWei = 0n;
+  const seenInternal = new Set<string>();
 
   for (const tx of normal) {
     if (!receiptOk(tx)) continue;
@@ -191,6 +193,48 @@ function buildMovementSummary(address: string, normal: unknown[]) {
     movements.push({
       kind: "normal",
       hash: t.hash,
+      timeStamp: Number(t.timeStamp) || 0,
+      direction,
+      counterparty,
+      valueWei: value.toString(),
+      valuePol: Number(ethers.formatEther(value)),
+    });
+  }
+
+  for (const tx of internal) {
+    const t = tx as Record<string, unknown>;
+    const isError = String(t.isError ?? "0");
+    const errCode = String(t.errCode ?? "");
+    if (isError === "1" || errCode) continue;
+
+    const value = weiFromTx(tx);
+    if (value === 0n) continue;
+
+    const from = String(t.from || "").toLowerCase();
+    const to = String(t.to || "").toLowerCase();
+    const hash = String(t.hash || "");
+    const traceId = String(t.traceId ?? t.index ?? t.blockNumber ?? "");
+    const dedupeKey = `${hash}:${traceId}:${from}:${to}:${value.toString()}`;
+    if (seenInternal.has(dedupeKey)) continue;
+    seenInternal.add(dedupeKey);
+
+    let direction: "in" | "out" | null = null;
+    let counterparty: unknown = "";
+    if (to === addr && from !== addr) {
+      direction = "in";
+      counterparty = t.from;
+      totalInWei += value;
+    } else if (from === addr) {
+      direction = "out";
+      counterparty = t.to || "";
+      totalOutWei += value;
+    }
+    if (!direction) continue;
+
+    movements.push({
+      kind: "internal",
+      hash: t.hash,
+      traceId,
       timeStamp: Number(t.timeStamp) || 0,
       direction,
       counterparty,
@@ -324,9 +368,13 @@ function buildTokenMovementSummary(
 
 export async function fetchWalletNativeActivity(rawAddress: unknown, opts: TxHistoryOpts = {}) {
   const address = normalizeAddress(rawAddress);
-  const history = await fetchTxHistory("txlist", address, opts);
+  const [history, internalHistory] = await Promise.all([
+    fetchTxHistory("txlist", address, opts),
+    fetchTxHistory("txlistinternal", address, opts),
+  ]);
   const normal = history.rows as unknown[];
-  const summary = buildMovementSummary(address, normal);
+  const internal = internalHistory.rows as unknown[];
+  const summary = buildMovementSummary(address, normal, internal);
   let polUsdPrice: number | null = null;
   try {
     polUsdPrice = Number(await getPolUsdPrice());
@@ -338,13 +386,14 @@ export async function fetchWalletNativeActivity(rawAddress: unknown, opts: TxHis
     address,
     apiKeyConfigured: Boolean(getApiKey()),
     note: history.mayBeTruncated
-      ? "POL native transfers from normal transactions (Polygon). The API pagination scan may be capped at 10,000 source records for very busy wallets."
-      : "POL native transfers from normal transactions (Polygon).",
+      || internalHistory.mayBeTruncated
+      ? "POL transfers include normal + internal transactions (Polygon). The API pagination scan may be capped at 10,000 source records per source for very busy wallets."
+      : "POL transfers include normal + internal transactions (Polygon).",
     history: {
-      scannedPages: history.scannedPages,
+      scannedPages: Math.max(history.scannedPages, internalHistory.scannedPages),
       pageSize: history.pageSize,
-      sourceRecordCount: normal.length,
-      mayBeTruncated: history.mayBeTruncated,
+      sourceRecordCount: normal.length + internal.length,
+      mayBeTruncated: history.mayBeTruncated || internalHistory.mayBeTruncated,
     },
     summary: {
       totalInPol: summary.totalInPol,
@@ -416,15 +465,19 @@ export async function fetchTrackedWalletsSummary(wallets: unknown, opts: TxHisto
 
   for (const wallet of activeWallets) {
     const address = normalizeAddress(wallet.address);
-    const history = await fetchTxHistory("txlist", address, opts);
+    const [history, internalHistory] = await Promise.all([
+      fetchTxHistory("txlist", address, opts),
+      fetchTxHistory("txlistinternal", address, opts),
+    ]);
     const normal = history.rows as unknown[];
-    const summary = buildMovementSummary(address, normal);
+    const internal = internalHistory.rows as unknown[];
+    const summary = buildMovementSummary(address, normal, internal);
     const includeInTotals = wallet.includeInTotals !== false;
     if (includeInTotals) {
       totalInWei += summary.totalInWei;
       totalOutWei += summary.totalOutWei;
       totalMovementCount += summary.movements.length;
-      historyMayBeTruncated ||= history.mayBeTruncated;
+      historyMayBeTruncated ||= history.mayBeTruncated || internalHistory.mayBeTruncated;
     }
 
     perWallet.push({
@@ -441,13 +494,13 @@ export async function fetchTrackedWalletsSummary(wallets: unknown, opts: TxHisto
         totalInUsd: polUsdPrice != null ? Number((summary.totalInPol * polUsdPrice).toFixed(2)) : null,
         totalOutUsd: polUsdPrice != null ? Number((summary.totalOutPol * polUsdPrice).toFixed(2)) : null,
         movementCount: summary.movements.length,
-        historyMayBeTruncated: history.mayBeTruncated,
+        historyMayBeTruncated: history.mayBeTruncated || internalHistory.mayBeTruncated,
       },
       history: {
-        scannedPages: history.scannedPages,
+        scannedPages: Math.max(history.scannedPages, internalHistory.scannedPages),
         pageSize: history.pageSize,
-        sourceRecordCount: normal.length,
-        mayBeTruncated: history.mayBeTruncated,
+        sourceRecordCount: normal.length + internal.length,
+        mayBeTruncated: history.mayBeTruncated || internalHistory.mayBeTruncated,
       },
       movements: summary.movements.slice(0, previewLimit),
     });
@@ -803,14 +856,15 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
       } else {
         // Fetch native POL history + ERC20 token transfers in parallel with price lookups.
         // Rate limiter serialises the Etherscan pages internally; price calls hit CoinGecko.
-        const [nativeHistory, btcPrice, ethPrice] = await Promise.all([
+        const [normalHistory, internalHistory, btcPrice, ethPrice] = await Promise.all([
           fetchTxHistory("txlist", address, { pageSize: 100, maxPages: 100 }),
+          fetchTxHistory("txlistinternal", address, { pageSize: 100, maxPages: 100 }),
           getBtcUsdPrice().catch((): number | null => null),
           getEthUsdPrice().catch((): number | null => null),
         ]);
         const tokenHistory = await fetchTxHistory("tokentx", address, { pageSize: 100, maxPages: 100 });
 
-        const nativeSummary = buildMovementSummary(address, nativeHistory.rows as unknown[]);
+        const nativeSummary = buildMovementSummary(address, normalHistory.rows as unknown[], internalHistory.rows as unknown[]);
         const tokenSummary  = buildTokenMovementSummary(
           address,
           tokenHistory.rows as unknown[],

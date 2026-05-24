@@ -513,7 +513,9 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
   const modeLabel = t(`transparency.wallets.mode_${mode}`, cfg.label);
   const explorerUrl = `${wallet.explorerBaseUrl || 'https://polygonscan.com/address'}/${wallet.address}`;
   const isInvestment = wallet.address.toLowerCase() === INVESTMENT_WALLET_ADDRESS.toLowerCase();
-  const isDeprecated = wallet.address.toLowerCase() === OLD_DEPOSIT_WALLET_ADDRESS.toLowerCase();
+  const isDeprecated =
+    wallet.isActive === false ||
+    wallet.address.toLowerCase() === OLD_DEPOSIT_WALLET_ADDRESS.toLowerCase();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(wallet.address).then(() => {
