@@ -616,23 +616,25 @@ setInterval(() => { void _refreshWalletsLive(); }, WALLETS_LIVE_CACHE_TTL_MS);
  */
 async function buildResponseFromDb(): Promise<unknown | null> {
   const wallets = await prisma.transparencyTrackedWallet.findMany({
-    where: { isPublic: true, isActive: true },
+    where: { isPublic: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     include: { snapshot: true },
   });
 
   if (!wallets.length) return { ok: true, polUsdPrice: null, wallets: [] };
 
-  // If any wallet has no snapshot yet, treat as warming
-  const anyMissing = wallets.some(w => !w.snapshot);
+  const activeWallets = wallets.filter(w => w.isActive);
+
+  // If any active wallet has no snapshot yet, treat as warming
+  const anyMissing = activeWallets.some(w => !w.snapshot);
   if (anyMissing) return null;
 
   const MAX_SNAPSHOT_AGE_MS = 90 * 60 * 1000; // 90 min — cron runs every 30 min
-  const tooOld = wallets.some(w => w.snapshot && Date.now() - w.snapshot.fetchedAt.getTime() > MAX_SNAPSHOT_AGE_MS);
+  const tooOld = activeWallets.some(w => w.snapshot && Date.now() - w.snapshot.fetchedAt.getTime() > MAX_SNAPSHOT_AGE_MS);
   if (tooOld) return null;
 
   const mapped = wallets.map(w => {
-    const snap = w.snapshot!;
+    const snap = w.snapshot;
     return {
       id:             w.id,
       label:          w.label,
@@ -642,12 +644,12 @@ async function buildResponseFromDb(): Promise<unknown | null> {
       explorerBaseUrl: w.explorerBaseUrl ?? "https://polygonscan.com/address",
       isActive:       w.isActive,
       displayMode:    w.displayMode,
-      valuePol:       snap.valuePol,
-      valueUsd:       snap.totalUsd,
-      tokens:         snap.tokens,
-      nfts:           snap.nfts,
-      chains:         snap.chains,   // multi-chain breakdown
-      fetchedAt:      snap.fetchedAt,
+      valuePol:       snap?.valuePol ?? null,
+      valueUsd:       snap?.totalUsd ?? null,
+      tokens:         snap?.tokens ?? [],
+      nfts:           snap?.nfts ?? [],
+      chains:         snap?.chains ?? [],   // multi-chain breakdown
+      fetchedAt:      snap?.fetchedAt ?? null,
     };
   });
 

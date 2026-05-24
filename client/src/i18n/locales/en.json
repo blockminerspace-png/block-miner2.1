@@ -2647,6 +2647,7 @@
       "chains_breakdown": "By Chain",
       "multi_chain": "Multi-Chain",
       "updated": "Updated at",
+      "legacy_section_title": "Legacy Wallets",
       "deprecated_badge": "Deactivated — No longer in use",
       "deprecated_description": "This wallet has been retired. Deposits to this address are no longer processed. Please use only the current active deposit address shown on the platform."
     }

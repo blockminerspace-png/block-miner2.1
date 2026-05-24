@@ -735,6 +735,8 @@ function WalletsLiveSection() {
   }, []);
 
   const wallets = data?.wallets ?? [];
+  const activeWallets = wallets.filter(w => w.isActive !== false);
+  const legacyWallets = wallets.filter(w => w.isActive === false);
   const showSection = loading || warming || wallets.length > 0;
   if (!showSection) return null;
 
@@ -762,10 +764,30 @@ function WalletsLiveSection() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {wallets.map(w => (
-            <WalletCard key={w.id ?? w.address} wallet={w} loading={loading} />
-          ))}
+        <div className="space-y-6">
+          {activeWallets.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {activeWallets.map(w => (
+                <WalletCard key={w.id ?? w.address} wallet={w} loading={loading} />
+              ))}
+            </div>
+          )}
+
+          {legacyWallets.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                  {t('transparency.wallets.legacy_section_title')}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {legacyWallets.map(w => (
+                  <WalletCard key={w.id ?? w.address} wallet={w} loading={loading} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

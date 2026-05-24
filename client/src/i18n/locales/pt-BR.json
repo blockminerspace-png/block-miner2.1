@@ -2652,6 +2652,7 @@
       "chains_breakdown": "Por Rede",
       "multi_chain": "Multi-Chain",
       "updated": "Atualizado às",
+      "legacy_section_title": "Carteiras Legadas",
       "deprecated_badge": "Desativada — Não usamos mais",
       "deprecated_description": "Esta carteira foi desativada. Depósitos para este endereço não são mais processados. Por favor, utilize apenas o endereço de depósito ativo atual exibido na plataforma."
     }
