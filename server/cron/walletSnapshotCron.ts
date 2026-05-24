@@ -29,7 +29,7 @@ async function runSnapshot(): Promise<void> {
 
   try {
     const wallets = await prisma.transparencyTrackedWallet.findMany({
-      where: { isPublic: true, isActive: true },
+      where: { isPublic: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 
