@@ -604,13 +604,11 @@ async function _refreshWalletsLive(): Promise<void> {
   }
 }
 
-/** Background refresh every 60 min — decoupled from HTTP requests so users never wait for Etherscan. */
+// In-memory cache is now just a fast path on top of the DB snapshot written
+// by walletSnapshotCron. No background polling from the controller — the cron
+// owns the update schedule. We keep a passive 60-min interval only as a last-
+// resort fallback for wallets that are NOT picked up by the new cron (legacy).
 setInterval(() => { void _refreshWalletsLive(); }, WALLETS_LIVE_CACHE_TTL_MS);
-/**
- * Warm-up 15 s after startup — DB is ready well before that, and the HD scanner
- * only starts after 2 min, so there is no contention with the rate limiter.
- */
-setTimeout(() => { void _refreshWalletsLive(); }, 15_000);
 
 /**
  * Build a wallets-live response from DB snapshots.

@@ -2,14 +2,13 @@
  * Multi-chain wallet snapshot service.
  *
  * Fetches native balances + ERC-20 token holdings + NFTs across
- * Ethereum, Polygon, Arbitrum, Base and Optimism for a single address.
+ * Ethereum, Polygon, Arbitrum, Base, Optimism, BSC and Avalanche.
  *
  * All Etherscan V2 calls share the global rate limiter so they never
  * contend with the HD scanner or deposits cron on the same API key.
  */
 import { ethers } from "ethers";
 import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
-import { getPolUsdPrice, getBtcUsdPrice, getEthUsdPrice } from "../utils/cryptoPrice.js";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -469,37 +468,36 @@ async function fetchChainSnapshot(
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-async function fetchCoinGeckoSimplePrice(...coinIds: string[]): Promise<Map<string, number>> {
-  const prices = new Map<string, number>();
+/** Single CoinGecko call for all native-currency prices (avoids rate-limit from parallel calls). */
+async function fetchAllBasePrices(): Promise<Prices> {
+  const ids = ["polygon-ecosystem-token", "matic-network", "ethereum", "bitcoin", "binancecoin", "avalanche-2"];
   try {
-    const ids = coinIds.join(",");
     const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
-      { signal: AbortSignal.timeout(10_000) },
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=usd`,
+      { signal: AbortSignal.timeout(15_000) },
     );
-    if (!res.ok) return prices;
+    if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
     const json = (await res.json()) as Record<string, { usd?: number }>;
-    for (const [id, data] of Object.entries(json)) {
-      if (data?.usd != null) prices.set(id, data.usd);
-    }
-  } catch { /* ignore */ }
-  return prices;
+    const get = (key: string) => {
+      const v = json[key]?.usd;
+      return v != null && Number.isFinite(v) && v > 0 ? v : null;
+    };
+    return {
+      pol:  get("polygon-ecosystem-token") ?? get("matic-network"),
+      eth:  get("ethereum"),
+      btc:  get("bitcoin"),
+      bnb:  get("binancecoin"),
+      avax: get("avalanche-2"),
+    };
+  } catch (err) {
+    console.warn("[multi-chain] base price fetch failed:", (err as Error)?.message);
+    return { pol: null, eth: null, btc: null, bnb: null, avax: null };
+  }
 }
 
 export async function fetchMultiChainSnapshot(address: string): Promise<MultiChainSnapshot> {
-  const [ethPrice, polPrice, btcPrice, altPrices] = await Promise.all([
-    getEthUsdPrice().catch((): number | null => null),
-    getPolUsdPrice().catch((): number | null => null),
-    getBtcUsdPrice().catch((): number | null => null),
-    fetchCoinGeckoSimplePrice("binancecoin", "avalanche-2"),
-  ]);
-  const prices: Prices = {
-    eth:  ethPrice,
-    pol:  polPrice,
-    btc:  btcPrice,
-    bnb:  altPrices.get("binancecoin")  ?? null,
-    avax: altPrices.get("avalanche-2")  ?? null,
-  };
+  const prices = await fetchAllBasePrices();
+  console.log(`[multi-chain] prices — POL=$${prices.pol?.toFixed(4)}, ETH=$${prices.eth?.toFixed(2)}, BTC=$${prices.btc?.toFixed(0)}, BNB=$${prices.bnb?.toFixed(2)}, AVAX=$${prices.avax?.toFixed(2)}`);
 
   const chainSnapshots: ChainSnapshot[] = [];
   for (const chain of CHAINS) {
