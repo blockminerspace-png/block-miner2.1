@@ -245,22 +245,26 @@ async function fetchCoinGeckoBatchFor(contractAddresses: string[], network: stri
 
 // ─── Per-chain fetch ─────────────────────────────────────────────────────────
 
-async function fetchNativeBalance(chainId: number, address: string): Promise<bigint> {
+const ERC20_ABI_BALANCE = ["function balanceOf(address owner) view returns (uint256)"];
+
+/** Fetch native balance via RPC (reliable, no API-key restriction). */
+async function fetchNativeBalanceRpc(rpcUrl: string, address: string): Promise<bigint> {
   try {
-    const json = await escanFetch(chainId, { module: "account", action: "balance", address, tag: "latest" });
-    return BigInt(String(json?.result ?? "0"));
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    return (await provider.getBalance(address)).toBigInt();
   } catch { return 0n; }
 }
 
-async function fetchTokenBalance(chainId: number, address: string, contractAddress: string): Promise<bigint> {
+/** Fetch ERC-20 token balance via RPC eth_call (no API-key restriction). */
+async function fetchTokenBalanceRpc(rpcUrl: string, tokenAddress: string, walletAddress: string): Promise<bigint> {
   try {
-    const json = await escanFetch(chainId, {
-      module: "account", action: "tokenbalance",
-      contractaddress: contractAddress, address, tag: "latest",
-    });
-    return BigInt(String(json?.result ?? "0"));
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const contract = new ethers.Contract(tokenAddress, ERC20_ABI_BALANCE, provider);
+    const raw = await (contract.balanceOf(walletAddress) as Promise<bigint>);
+    return raw;
   } catch { return 0n; }
 }
+
 
 async function fetchTokenTxHistory(chainId: number, address: string, maxPages = 10) {
   const pageSize = 100;
@@ -392,34 +396,35 @@ async function fetchChainSnapshot(
   address: string,
   prices: Prices,
 ): Promise<ChainSnapshot> {
-  // 1. Native balance
-  const nativeWei  = await fetchNativeBalance(chain.chainId, address);
+  // 1. Native balance via RPC (always reliable — no API-key restriction)
+  const nativeWei  = await fetchNativeBalanceRpc(chain.rpcUrl, address);
   const nativeBal  = Number(ethers.formatEther(nativeWei));
   const nativeUsd  = tokenUsd(nativeBal, chain.nativePriceKey, prices);
 
-  // 2. Known token balances
+  // 2. Token holdings
   const knownByAddr = new Map(chain.knownTokens.map(t => [t.contractAddress.toLowerCase(), t]));
   const tokenHoldings: ChainTokenHolding[] = [];
 
-  // Discover tokens via tokentx history for all chains
+  // For Polygon: discover additional tokens via Etherscan tokentx history
   const metaMap = new Map<string, { symbol: string; name: string; decimals: number }>();
-  const maxPages = chain.chainId === 137 ? 10 : 5;
-  const history = await fetchTokenTxHistory(chain.chainId, address, maxPages);
-  type TxMeta = { contractAddress?: string; tokenSymbol?: string; tokenName?: string; tokenDecimal?: string };
-  for (const tx of history) {
-    const t = tx as TxMeta;
-    if (!t.contractAddress) continue;
-    const ca = t.contractAddress.toLowerCase();
-    if (!metaMap.has(ca)) {
-      metaMap.set(ca, {
-        symbol:   String(t.tokenSymbol   || ""),
-        name:     String(t.tokenName     || ""),
-        decimals: Math.max(0, Math.min(36, Number(t.tokenDecimal || "18") || 18)),
-      });
+  if (chain.chainId === 137) {
+    const history = await fetchTokenTxHistory(chain.chainId, address, 10);
+    type TxMeta = { contractAddress?: string; tokenSymbol?: string; tokenName?: string; tokenDecimal?: string };
+    for (const tx of history) {
+      const t = tx as TxMeta;
+      if (!t.contractAddress) continue;
+      const ca = t.contractAddress.toLowerCase();
+      if (!metaMap.has(ca)) {
+        metaMap.set(ca, {
+          symbol:   String(t.tokenSymbol   || ""),
+          name:     String(t.tokenName     || ""),
+          decimals: Math.max(0, Math.min(36, Number(t.tokenDecimal || "18") || 18)),
+        });
+      }
     }
   }
 
-  // Seed known tokens into metaMap (won't override discovered metadata)
+  // Seed known tokens (highest priority — reliable metadata + price mapping)
   for (const kt of chain.knownTokens) {
     const ca = kt.contractAddress.toLowerCase();
     if (!metaMap.has(ca)) metaMap.set(ca, { symbol: kt.symbol, name: kt.name, decimals: kt.decimals });
@@ -428,14 +433,15 @@ async function fetchChainSnapshot(
   const contractsToCheck = Array.from(metaMap.keys());
   const withBalance: { contractAddress: string; rawBalance: bigint }[] = [];
   for (const ca of contractsToCheck) {
-    const raw = await fetchTokenBalance(chain.chainId, address, ca);
+    // Use RPC for all chains — avoids API-key restrictions per chain
+    const raw = await fetchTokenBalanceRpc(chain.rpcUrl, ca, address);
     if (raw > 0n) withBalance.push({ contractAddress: ca, rawBalance: raw });
   }
 
-  // Batch-price unknown tokens via CoinGecko (supported for EVM tokens)
+  // Batch-price unknown tokens via CoinGecko (only where network is supported)
   const unknownAddrs = withBalance.map(r => r.contractAddress).filter(ca => !knownByAddr.has(ca));
   const cgNetwork = chain.chainId === 137 ? "polygon-pos" : chain.chainId === 1 ? "ethereum" : chain.chainId === 56 ? "binance-smart-chain" : null;
-  const cgPrices = cgNetwork ? await fetchCoinGeckoBatchFor(unknownAddrs, cgNetwork) : new Map<string, number>();
+  const cgPrices = cgNetwork && unknownAddrs.length ? await fetchCoinGeckoBatchFor(unknownAddrs, cgNetwork) : new Map<string, number>();
 
   for (const { contractAddress, rawBalance } of withBalance) {
     const meta    = metaMap.get(contractAddress) ?? { symbol: "?", name: "", decimals: 18 };
@@ -453,9 +459,9 @@ async function fetchChainSnapshot(
 
   tokenHoldings.sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
 
-  // 3. NFTs (only for chains configured to fetch them)
+  // 3. NFTs — only via Etherscan (Polygon key works there)
   let nfts: ChainNftHolding[] = [];
-  if (chain.fetchNfts) {
+  if (chain.fetchNfts && chain.chainId === 137) {
     const nftRows = await fetchNftTxHistory(chain.chainId, address);
     nfts = await resolveNfts(address, chain.rpcUrl, chain.explorerBase, nftRows);
   }
