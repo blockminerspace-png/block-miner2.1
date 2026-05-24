@@ -7,6 +7,7 @@ import {
   normalizeAddr,
   rpcCall
 } from "../../services/checkinChain.js";
+import { etherscanRateLimitWait } from "../../utils/etherscanRateLimiter.js";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 const CHECKIN_IFACE = new Interface(["function checkIn() payable"]);
@@ -55,6 +56,7 @@ async function getTxWithFallback(txHash: string) {
   const apiKey = String(process.env.POLYGONSCAN_API_KEY ?? "").trim();
   if (apiKey) {
     try {
+      await etherscanRateLimitWait();
       const scanUrl = new URL("https://api.etherscan.io/v2/api");
       scanUrl.searchParams.set("chainid", String(getExpectedCheckinChainId()));
       scanUrl.searchParams.set("module", "proxy");
@@ -78,6 +80,7 @@ async function getReceiptWithFallback(txHash: string, source: "etherscan" | "rpc
   const apiKey = String(process.env.POLYGONSCAN_API_KEY ?? "").trim();
   if (source === "etherscan" && apiKey) {
     try {
+      await etherscanRateLimitWait();
       const scanUrl = new URL("https://api.etherscan.io/v2/api");
       scanUrl.searchParams.set("chainid", String(getExpectedCheckinChainId()));
       scanUrl.searchParams.set("module", "proxy");

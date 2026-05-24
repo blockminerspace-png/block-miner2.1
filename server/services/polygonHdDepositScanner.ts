@@ -7,6 +7,7 @@ import axios from "axios";
 import { ethers } from "ethers";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
+import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
 import { getRequiredBlockConfirmations } from "./polygonDepositConfig.js";
 import { isPolygonHdFeatureFlagged } from "./polygonHdConfig.js";
 import { getSharedPolygonProvider } from "./polygonProvider.js";
@@ -28,8 +29,10 @@ function isAutoScanEnabled() {
 }
 
 function scanIntervalMs() {
-  const raw = parseInt(process.env.POLYGON_HD_DEPOSIT_SCAN_INTERVAL_MS || "300000", 10);
-  return Number.isFinite(raw) && raw >= 60_000 ? raw : 300_000;
+  // Default: 15 min (was 5 min). Keeps the scan well within Etherscan free-tier limits
+  // when shared with the transparency wallet background refresh.
+  const raw = parseInt(process.env.POLYGON_HD_DEPOSIT_SCAN_INTERVAL_MS || "900000", 10);
+  return Number.isFinite(raw) && raw >= 60_000 ? raw : 900_000;
 }
 
 function lookbackBlocks() {
@@ -48,6 +51,7 @@ export async function fetchPolygonNativeTxList(address, startBlock, endBlock) {
   if (!apiKey) {
     throw new Error("missing_polygonscan_api_key");
   }
+  await etherscanRateLimitWait();
   const url =
     `https://api.etherscan.io/v2/api?chainid=137&module=account&action=txlist` +
     `&address=${encodeURIComponent(address)}&startblock=${startBlock}&endblock=${endBlock}` +
@@ -245,9 +249,12 @@ export function startPolygonHdDepositScanner() {
       })
       .catch((err: unknown) => logger.error("Polygon HD deposit scan error", { error: errMsg(err) }));
   };
-  tick();
+  // Delay the first scan by 2 min so the transparency warm-up (T+30s) can acquire
+  // the Etherscan rate-limiter budget before the HD scanner burst starts.
+  const STARTUP_DELAY_MS = 2 * 60 * 1000;
+  setTimeout(tick, STARTUP_DELAY_MS);
   _interval = setInterval(tick, ms);
-  logger.info(`PolygonHdDepositScanner started — interval ${ms}ms`);
+  logger.info(`PolygonHdDepositScanner started — first scan in ${STARTUP_DELAY_MS / 1000}s, interval ${ms}ms`);
 }
 
 export default {

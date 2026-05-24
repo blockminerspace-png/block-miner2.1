@@ -247,6 +247,8 @@ function asBodyRecord(req: Request): Record<string, unknown> {
 
 const FALLBACK_GAME_WALLET = "0x9da76e16147cc728ab46f4403e6c1d4d718ea289";
 const WALLET_STATS_CACHE_TTL_MS = 10 * 60 * 1000;
+/** Transparency wallets are on-chain; 60 min is plenty — reduces Etherscan rate-limit pressure. */
+const WALLETS_LIVE_CACHE_TTL_MS = 60 * 60 * 1000;
 let _walletStatsCache: { result: unknown; expiresAt: number } | null = null;
 
 export async function getPublicWalletStats(_req: Request, res: Response): Promise<void> {
@@ -540,6 +542,61 @@ export async function adminWalletGetActivity(req: Request, res: Response): Promi
 }
 
 let _walletsLiveCache: { result: unknown; expiresAt: number } | null = null;
+/** Per-wallet last-good values — merged into partial results so no card ever shows null if we've seen a value before. */
+const _walletLastGoodMap = new Map<string, { valuePol: number | null; valueUsd: number | null; tokens?: unknown }>();
+let _walletsLiveFetching = false;
+
+type WalletEntry = {
+  id?: number | null;
+  address: string;
+  valuePol: number | null;
+  valueUsd: number | null;
+  tokens?: unknown;
+  [key: string]: unknown;
+};
+
+function mergeWithLastGood(wallets: WalletEntry[]): WalletEntry[] {
+  return wallets.map((w) => {
+    if (w.valuePol != null) {
+      _walletLastGoodMap.set(w.address.toLowerCase(), { valuePol: w.valuePol, valueUsd: w.valueUsd, tokens: w.tokens });
+      return w;
+    }
+    const saved = _walletLastGoodMap.get(w.address.toLowerCase());
+    if (saved) return { ...w, valuePol: saved.valuePol, valueUsd: saved.valueUsd, ...(saved.tokens !== undefined ? { tokens: saved.tokens } : {}) };
+    return w;
+  });
+}
+
+async function _refreshWalletsLive(): Promise<void> {
+  if (_walletsLiveFetching) return;
+  _walletsLiveFetching = true;
+  try {
+    const wallets = await prisma.transparencyTrackedWallet.findMany({
+      where: { isPublic: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+    if (!wallets.length) return;
+    const data = await fetchTrackedWalletsLive(wallets);
+    const merged = mergeWithLastGood(data.wallets as WalletEntry[]);
+    const someNull = merged.some((w: WalletEntry) => w.valuePol == null);
+    const ttl = someNull ? 5 * 60 * 1000 : WALLETS_LIVE_CACHE_TTL_MS;
+    const result = { ok: true, ...data, wallets: merged };
+    _walletsLiveCache = { result, expiresAt: Date.now() + ttl };
+    // Reschedule a retry when some wallets failed — avoid coinciding with the HD scanner burst.
+    if (someNull) setTimeout(() => { void _refreshWalletsLive(); }, ttl + 30_000);
+  } catch {
+    /* keep serving the old cache */
+  } finally {
+    _walletsLiveFetching = false;
+  }
+}
+
+/** Background refresh every 60 min — decoupled from HTTP requests so users never wait for Etherscan. */
+setInterval(() => { void _refreshWalletsLive(); }, WALLETS_LIVE_CACHE_TTL_MS);
+/** Warm the cache on startup after 90s — gives the DB time to connect and
+ * avoids competing with the HD deposit scanner's startup scan (which now
+ * starts 2 min after startup, so there is a clear 30s window). */
+setTimeout(() => { void _refreshWalletsLive(); }, 90_000);
 
 export async function getPublicTrackedWalletsLive(_req: Request, res: Response): Promise<void> {
   const now = Date.now();
@@ -548,6 +605,15 @@ export async function getPublicTrackedWalletsLive(_req: Request, res: Response):
     return;
   }
 
+  // Cache expired — trigger a background refresh and return the stale result immediately.
+  void _refreshWalletsLive();
+
+  if (_walletsLiveCache) {
+    res.json(_walletsLiveCache.result);
+    return;
+  }
+
+  // Very first request (cache never populated yet): wait for the fetch.
   try {
     const wallets = await prisma.transparencyTrackedWallet.findMany({
       where: { isPublic: true },
@@ -560,8 +626,9 @@ export async function getPublicTrackedWalletsLive(_req: Request, res: Response):
     }
 
     const data = await fetchTrackedWalletsLive(wallets);
-    const result = { ok: true, ...data };
-    _walletsLiveCache = { result, expiresAt: now + WALLET_STATS_CACHE_TTL_MS };
+    const merged = mergeWithLastGood(data.wallets as WalletEntry[]);
+    const result = { ok: true, ...data, wallets: merged };
+    _walletsLiveCache = { result, expiresAt: now + WALLETS_LIVE_CACHE_TTL_MS };
     res.json(result);
   } catch (e: unknown) {
     res.status(502).json({ ok: false, message: errMsg(e) || "Erro ao buscar carteiras." });

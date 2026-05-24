@@ -4,6 +4,7 @@
  */
 import { ethers } from "ethers";
 import { getPolUsdPrice, getBtcUsdPrice, getEthUsdPrice } from "../utils/cryptoPrice.js";
+import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
 
 const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 const POLYGON_CHAIN_ID_STR = "137";
@@ -21,7 +22,9 @@ function getApiKey(): string {
   return String(process.env.POLYGONSCAN_API_KEY || "").trim();
 }
 
-async function etherscanV2Fetch(params: Record<string, unknown>) {
+async function etherscanV2FetchOnce(params: Record<string, unknown>) {
+  await etherscanRateLimitWait();
+
   const apiKey = getApiKey();
   const url = new URL(ETHERSCAN_V2_BASE);
   url.searchParams.set("chainid", POLYGON_CHAIN_ID_STR);
@@ -46,6 +49,20 @@ async function etherscanV2Fetch(params: Record<string, unknown>) {
     throw err;
   }
   return json;
+}
+
+/** Retry once on rate-limit errors — helps when multiple background jobs share the same key. */
+async function etherscanV2Fetch(params: Record<string, unknown>) {
+  try {
+    return await etherscanV2FetchOnce(params);
+  } catch (err: unknown) {
+    const msg = String((err as Error)?.message || "");
+    if (msg.includes("rate limit") || msg.includes("NOTOK")) {
+      await new Promise<void>((r) => setTimeout(r, 3_000));
+      return await etherscanV2FetchOnce(params);
+    }
+    throw err;
+  }
 }
 
 function clampInt(

@@ -6,6 +6,7 @@ import prismaDefault from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import { createCronActionRunner } from "./cronActionRunner.js";
 import { errMsg } from "../types/tsNarrowing.js";
+import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
 
 const logger = loggerLib.child("DepositsCron");
 
@@ -61,6 +62,7 @@ type PolygonscanTx = {
 async function fetchTxs(address: string): Promise<PolygonscanTx[]> {
   const apiKey = getPolygonscanKey();
   if (!apiKey) return [];
+  await etherscanRateLimitWait();
   const url = `https://api.etherscan.io/v2/api?chainid=137&module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
   try {
     const resp = await axios.get<{ status?: string; result?: PolygonscanTx[] }>(url);

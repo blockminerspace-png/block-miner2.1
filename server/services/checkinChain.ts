@@ -35,8 +35,11 @@ export function normalizeAddr(a) {
 }
 
 // ─── Etherscan API V2 ────────────────────────────────────────────────────────
+import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
 
 async function etherscanV2Fetch(params: Record<string, string>) {
+  await etherscanRateLimitWait();
+
   const apiKey = getPolygonscanApiKey();
   const url = new URL(ETHERSCAN_V2_BASE);
   // V2 requires chainid parameter
