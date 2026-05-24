@@ -251,7 +251,7 @@ const ERC20_ABI_BALANCE = ["function balanceOf(address owner) view returns (uint
 async function fetchNativeBalanceRpc(rpcUrl: string, address: string): Promise<bigint> {
   try {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    return (await provider.getBalance(address)).toBigInt();
+    return BigInt((await provider.getBalance(address)).toString());
   } catch { return 0n; }
 }
 
