@@ -170,14 +170,16 @@ async function fetchTokenTxHistory(chainId: number, address: string, maxPages = 
   return rows;
 }
 
-async function fetchNftTxHistory(chainId: number, address: string, maxPages = 50) {
+async function fetchNftTxHistory(chainId: number, address: string, maxPages = 50, contractAddress?: string) {
   const pageSize = 100;
   const rows: unknown[] = [];
   for (let page = 1; page <= maxPages; page++) {
     try {
       const json = await escanFetch(chainId, {
         module: "account", action: "tokennfttx",
-        address, startblock: 0, endblock: 99999999,
+        address,
+        ...(contractAddress ? { contractaddress: contractAddress } : {}),
+        startblock: 0, endblock: 99999999,
         page, offset: pageSize, sort: "asc",
       });
       const list = json?.result;
@@ -646,11 +648,12 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
     const results: HistoricalLiquidityPoolPosition[] = [];
     const tokenIds = new Set<string>();
 
-    // Strategy 1: Etherscan tokennfttx (faster, no block-range limits)
+    // Strategy 1: Etherscan tokennfttx filtered by NFPM contractaddress.
+    // Filtering by contractaddress ensures all 100 slots per page are LP transfers,
+    // not diluted by game/NFT transfers from the same wallet.
     try {
-      const nftHistory = await fetchNftTxHistory(chain.chainId, address, 100);
+      const nftHistory = await fetchNftTxHistory(chain.chainId, address, 100, chain.uniV3NfpmAddress);
       for (const row of nftHistory as NftHistoryRow[]) {
-        if ((row.contractAddress || "").toLowerCase() !== chain.uniV3NfpmAddress.toLowerCase()) continue;
         if (!row.tokenID) continue;
         tokenIds.add(String(row.tokenID));
       }
@@ -659,15 +662,19 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
       console.warn(`[uniV3-backfill] ${chain.name} Etherscan failed:`, (err as Error)?.message?.slice(0, 60));
     }
 
-    // Strategy 2: chunked eth_getLogs fallback if Etherscan returned nothing
-    if (!tokenIds.size) {
-      try {
-        const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
-        const latest = await provider.getBlockNumber();
-        const range = chain.chainId === 8453 ? 10 : chain.chainId === 137 ? 10_000 : 50_000;
-        const walletTopic = ethers.zeroPadValue(walletAddress, 32).toLowerCase();
-        for (let from = 0; from <= latest; from += range + 1) {
-          const to = Math.min(latest, from + range);
+    // Strategy 2: chunked eth_getLogs — run in parallel with Etherscan, union results.
+    // Limited to recent blocks on chains with tiny block ranges (Base=10, Polygon=10k).
+    // On Ethereum/Arbitrum/Optimism (50k range), this covers a ~2-year window quickly.
+    try {
+      const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+      const latest = await provider.getBlockNumber();
+      const range = chain.chainId === 8453 ? 500 : chain.chainId === 137 ? 10_000 : 50_000;
+      // Scan last 3M blocks max (avoids scanning from genesis on high-block chains)
+      const scanFrom = Math.max(0, latest - 3_000_000);
+      const walletTopic = ethers.zeroPadValue(walletAddress, 32).toLowerCase();
+      for (let from = scanFrom; from <= latest; from += range + 1) {
+        const to = Math.min(latest, from + range);
+        try {
           const logs = await provider.getLogs({
             address: chain.uniV3NfpmAddress,
             fromBlock: from,
@@ -680,11 +687,11 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
               try { tokenIds.add(BigInt(topic).toString()); } catch { /* ignore */ }
             }
           }
-        }
-        console.log(`[uniV3-backfill] ${chain.name}: eth_getLogs found ${tokenIds.size} tokenId(s)`);
-      } catch (err) {
-        console.warn(`[uniV3-backfill] ${chain.name} eth_getLogs failed:`, (err as Error)?.message?.slice(0, 60));
+        } catch { /* chunk failed, continue */ }
       }
+      console.log(`[uniV3-backfill] ${chain.name}: after eth_getLogs union → ${tokenIds.size} tokenId(s)`);
+    } catch (err) {
+      console.warn(`[uniV3-backfill] ${chain.name} eth_getLogs failed:`, (err as Error)?.message?.slice(0, 60));
     }
 
     for (const tokenId of tokenIds) {
