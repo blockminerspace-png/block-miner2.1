@@ -1899,9 +1899,30 @@ model TransparencyTrackedWallet {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  snapshot        TransparencyWalletSnapshot?
+
   @@unique([chain, address])
   @@index([isActive, sortOrder])
   @@map("transparency_tracked_wallets")
+}
+
+/// Multi-chain on-chain snapshot for a tracked wallet.
+/// Populated by walletSnapshotCron every 30 min; served instantly to users.
+model TransparencyWalletSnapshot {
+  id        Int      @id @default(autoincrement())
+  walletId  Int      @unique @map("wallet_id")
+  totalUsd  Float?   @map("total_usd")
+  valuePol  Float?   @map("value_pol")
+  chains    Json
+  tokens    Json
+  nfts      Json
+  fetchedAt DateTime @map("fetched_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  wallet    TransparencyTrackedWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@map("transparency_wallet_snapshots")
 }
 
 /// Singleton (id = 1): user app sidebar visibility, order, and nesting under Rewards group.

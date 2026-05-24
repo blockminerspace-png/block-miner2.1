@@ -543,7 +543,7 @@ export async function adminWalletGetActivity(req: Request, res: Response): Promi
 
 let _walletsLiveCache: { result: unknown; expiresAt: number } | null = null;
 /** Per-wallet last-good values — merged into partial results so no card ever shows null if we've seen a value before. */
-const _walletLastGoodMap = new Map<string, { valuePol: number | null; valueUsd: number | null; tokens?: unknown }>();
+const _walletLastGoodMap = new Map<string, { valuePol: number | null; valueUsd: number | null; tokens?: unknown; nfts?: unknown }>();
 let _walletsLiveFetching = false;
 
 type WalletEntry = {
@@ -552,17 +552,31 @@ type WalletEntry = {
   valuePol: number | null;
   valueUsd: number | null;
   tokens?: unknown;
+  nfts?: unknown;
   [key: string]: unknown;
 };
 
 function mergeWithLastGood(wallets: WalletEntry[]): WalletEntry[] {
   return wallets.map((w) => {
     if (w.valuePol != null) {
-      _walletLastGoodMap.set(w.address.toLowerCase(), { valuePol: w.valuePol, valueUsd: w.valueUsd, tokens: w.tokens });
+      _walletLastGoodMap.set(w.address.toLowerCase(), {
+        valuePol: w.valuePol,
+        valueUsd: w.valueUsd,
+        tokens:   w.tokens,
+        nfts:     w.nfts,
+      });
       return w;
     }
     const saved = _walletLastGoodMap.get(w.address.toLowerCase());
-    if (saved) return { ...w, valuePol: saved.valuePol, valueUsd: saved.valueUsd, ...(saved.tokens !== undefined ? { tokens: saved.tokens } : {}) };
+    if (saved) {
+      return {
+        ...w,
+        valuePol: saved.valuePol,
+        valueUsd: saved.valueUsd,
+        ...(saved.tokens !== undefined ? { tokens: saved.tokens } : {}),
+        ...(saved.nfts   !== undefined ? { nfts:   saved.nfts   } : {}),
+      };
+    }
     return w;
   });
 }
@@ -582,7 +596,6 @@ async function _refreshWalletsLive(): Promise<void> {
     const ttl = someNull ? 5 * 60 * 1000 : WALLETS_LIVE_CACHE_TTL_MS;
     const result = { ok: true, ...data, wallets: merged };
     _walletsLiveCache = { result, expiresAt: Date.now() + ttl };
-    // Reschedule a retry when some wallets failed — avoid coinciding with the HD scanner burst.
     if (someNull) setTimeout(() => { void _refreshWalletsLive(); }, ttl + 30_000);
   } catch {
     /* keep serving the old cache */
@@ -593,46 +606,80 @@ async function _refreshWalletsLive(): Promise<void> {
 
 /** Background refresh every 60 min — decoupled from HTTP requests so users never wait for Etherscan. */
 setInterval(() => { void _refreshWalletsLive(); }, WALLETS_LIVE_CACHE_TTL_MS);
-/** Warm the cache on startup after 90s — gives the DB time to connect and
- * avoids competing with the HD deposit scanner's startup scan (which now
- * starts 2 min after startup, so there is a clear 30s window). */
-setTimeout(() => { void _refreshWalletsLive(); }, 90_000);
+/**
+ * Warm-up 15 s after startup — DB is ready well before that, and the HD scanner
+ * only starts after 2 min, so there is no contention with the rate limiter.
+ */
+setTimeout(() => { void _refreshWalletsLive(); }, 15_000);
+
+/**
+ * Build a wallets-live response from DB snapshots.
+ * Returns null if no snapshots exist yet (cache still warming).
+ */
+async function buildResponseFromDb(): Promise<unknown | null> {
+  const wallets = await prisma.transparencyTrackedWallet.findMany({
+    where: { isPublic: true, isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: { snapshot: true },
+  });
+
+  if (!wallets.length) return { ok: true, polUsdPrice: null, wallets: [] };
+
+  // If any wallet has no snapshot yet, treat as warming
+  const anyMissing = wallets.some(w => !w.snapshot);
+  if (anyMissing) return null;
+
+  const MAX_SNAPSHOT_AGE_MS = 90 * 60 * 1000; // 90 min — cron runs every 30 min
+  const tooOld = wallets.some(w => w.snapshot && Date.now() - w.snapshot.fetchedAt.getTime() > MAX_SNAPSHOT_AGE_MS);
+  if (tooOld) return null;
+
+  const mapped = wallets.map(w => {
+    const snap = w.snapshot!;
+    return {
+      id:             w.id,
+      label:          w.label,
+      address:        w.address,
+      chain:          w.chain,
+      assetSymbol:    w.assetSymbol,
+      explorerBaseUrl: w.explorerBaseUrl ?? "https://polygonscan.com/address",
+      isActive:       w.isActive,
+      displayMode:    w.displayMode,
+      valuePol:       snap.valuePol,
+      valueUsd:       snap.totalUsd,
+      tokens:         snap.tokens,
+      nfts:           snap.nfts,
+      chains:         snap.chains,   // multi-chain breakdown
+      fetchedAt:      snap.fetchedAt,
+    };
+  });
+
+  return { ok: true, polUsdPrice: null, wallets: mapped };
+}
 
 export async function getPublicTrackedWalletsLive(_req: Request, res: Response): Promise<void> {
   const now = Date.now();
+
+  // Fast path: in-memory cache (5 min TTL on top of DB reads)
   if (_walletsLiveCache && _walletsLiveCache.expiresAt > now) {
     res.json(_walletsLiveCache.result);
     return;
   }
 
-  // Cache expired — trigger a background refresh and return the stale result immediately.
-  void _refreshWalletsLive();
-
-  if (_walletsLiveCache) {
-    res.json(_walletsLiveCache.result);
-    return;
-  }
-
-  // Very first request (cache never populated yet): wait for the fetch.
   try {
-    const wallets = await prisma.transparencyTrackedWallet.findMany({
-      where: { isPublic: true },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    });
-
-    if (!wallets.length) {
-      res.json({ ok: true, apiKeyConfigured: false, polUsdPrice: null, wallets: [] });
+    const dbResult = await buildResponseFromDb();
+    if (dbResult) {
+      // Populate in-memory cache for 5 min to avoid repeated DB reads
+      _walletsLiveCache = { result: dbResult, expiresAt: now + 5 * 60 * 1000 };
+      res.json(dbResult);
       return;
     }
-
-    const data = await fetchTrackedWalletsLive(wallets);
-    const merged = mergeWithLastGood(data.wallets as WalletEntry[]);
-    const result = { ok: true, ...data, wallets: merged };
-    _walletsLiveCache = { result, expiresAt: now + WALLETS_LIVE_CACHE_TTL_MS };
-    res.json(result);
-  } catch (e: unknown) {
-    res.status(502).json({ ok: false, message: errMsg(e) || "Erro ao buscar carteiras." });
+  } catch (err) {
+    console.warn("[wallets-live] DB read failed, falling back:", (err as Error)?.message);
   }
+
+  // No DB data yet — kick off background refresh and tell frontend to retry
+  void _refreshWalletsLive();
+  res.json({ ok: true, warming: true, apiKeyConfigured: false, polUsdPrice: null, wallets: [] });
 }
 
 export async function adminTrackedWalletActivity(_req: Request, res: Response): Promise<void> {

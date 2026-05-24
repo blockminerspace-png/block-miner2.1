@@ -1,0 +1,124 @@
+/**
+ * Wallet Snapshot Cron
+ *
+ * Runs every 30 minutes (default). For each public tracked wallet:
+ *   - current_balance → full multi-chain snapshot (all EVM chains)
+ *   - total_received / total_sent → Polygon-only (existing service)
+ *
+ * Results are stored in TransparencyWalletSnapshot (one row per wallet,
+ * upserted). The transparency controller serves data directly from DB,
+ * making the page load instant for end users.
+ */
+import prisma from "../src/db/prisma.js";
+import { fetchMultiChainSnapshot } from "../services/multiChainWalletService.js";
+import { fetchTrackedWalletsLive } from "../services/transparencyWalletService.js";
+
+const SNAPSHOT_INTERVAL_MS = Number(process.env.WALLET_SNAPSHOT_INTERVAL_MS) || 30 * 60 * 1000;
+const STARTUP_DELAY_MS = 20_000; // 20s after start — gives DB time to connect
+
+let _running = false;
+
+async function runSnapshot(): Promise<void> {
+  if (_running) {
+    console.log("[wallet-snapshot] already running — skipped");
+    return;
+  }
+  _running = true;
+  console.log("[wallet-snapshot] starting multi-chain snapshot run");
+  const started = Date.now();
+
+  try {
+    const wallets = await prisma.transparencyTrackedWallet.findMany({
+      where: { isPublic: true, isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+
+    if (!wallets.length) {
+      console.log("[wallet-snapshot] no public wallets configured");
+      return;
+    }
+
+    for (const wallet of wallets) {
+      try {
+        if (wallet.displayMode === "current_balance") {
+          // Full multi-chain snapshot
+          console.log(`[wallet-snapshot] multi-chain fetch for ${wallet.address}`);
+          const snap = await fetchMultiChainSnapshot(wallet.address);
+
+          await prisma.transparencyWalletSnapshot.upsert({
+            where:  { walletId: wallet.id },
+            create: {
+              walletId:  wallet.id,
+              totalUsd:  snap.totalUsd ?? undefined,
+              valuePol:  snap.valuePol ?? undefined,
+              chains:    snap.chains   as object[],
+              tokens:    snap.tokens   as object[],
+              nfts:      snap.nfts     as object[],
+              fetchedAt: snap.fetchedAt,
+            },
+            update: {
+              totalUsd:  snap.totalUsd ?? undefined,
+              valuePol:  snap.valuePol ?? undefined,
+              chains:    snap.chains   as object[],
+              tokens:    snap.tokens   as object[],
+              nfts:      snap.nfts     as object[],
+              fetchedAt: snap.fetchedAt,
+            },
+          });
+
+          console.log(`[wallet-snapshot] ${wallet.address} done — totalUsd=${snap.totalUsd?.toFixed(2)}, chains=${snap.chains.map(c => c.name).join(",")}`);
+        } else {
+          // Polygon-only (total_received / total_sent)
+          const data = await fetchTrackedWalletsLive([wallet]);
+          const entry = data.wallets[0];
+          if (!entry) continue;
+
+          await prisma.transparencyWalletSnapshot.upsert({
+            where:  { walletId: wallet.id },
+            create: {
+              walletId:  wallet.id,
+              totalUsd:  entry.valueUsd  ?? undefined,
+              valuePol:  entry.valuePol  ?? undefined,
+              chains:    [],
+              tokens:    (entry.tokens ?? []) as object[],
+              nfts:      (entry.nfts   ?? []) as object[],
+              fetchedAt: new Date(),
+            },
+            update: {
+              totalUsd:  entry.valueUsd  ?? undefined,
+              valuePol:  entry.valuePol  ?? undefined,
+              chains:    [],
+              tokens:    (entry.tokens ?? []) as object[],
+              nfts:      (entry.nfts   ?? []) as object[],
+              fetchedAt: new Date(),
+            },
+          });
+
+          console.log(`[wallet-snapshot] ${wallet.address} (${wallet.displayMode}) done — usd=${entry.valueUsd?.toFixed(2)}`);
+        }
+      } catch (err) {
+        console.error(`[wallet-snapshot] wallet ${wallet.address} failed:`, (err as Error)?.message);
+      }
+    }
+  } finally {
+    _running = false;
+    const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+    console.log(`[wallet-snapshot] run complete in ${elapsed}s`);
+  }
+}
+
+export function startWalletSnapshotCron(): Record<string, unknown> {
+  const startupTimer = setTimeout(() => {
+    void runSnapshot();
+  }, STARTUP_DELAY_MS);
+
+  const intervalTimer = setInterval(() => {
+    void runSnapshot();
+  }, SNAPSHOT_INTERVAL_MS);
+
+  console.log(`[wallet-snapshot] cron scheduled — interval ${SNAPSHOT_INTERVAL_MS / 60000}min, startup delay ${STARTUP_DELAY_MS / 1000}s`);
+
+  return { walletSnapshotStartup: startupTimer, walletSnapshotInterval: intervalTimer };
+}
+
+export { runSnapshot as runWalletSnapshotNow };

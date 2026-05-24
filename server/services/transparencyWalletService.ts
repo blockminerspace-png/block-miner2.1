@@ -1,6 +1,6 @@
 /**
- * Polygon native (POL) transparency wallet helpers.
- * Supports one-off lookups and multi-wallet admin summaries.
+ * Polygon transparency wallet helpers.
+ * Tracks native POL + all ERC20 token inflows/outflows for tracked wallets.
  */
 import { ethers } from "ethers";
 import { getPolUsdPrice, getBtcUsdPrice, getEthUsdPrice } from "../utils/cryptoPrice.js";
@@ -210,6 +210,106 @@ function buildMovementSummary(address: string, normal: unknown[]) {
   };
 }
 
+type TokenTransferRow = {
+  contractAddress: string;
+  tokenSymbol: string;
+  tokenName: string;
+  tokenDecimal: string;
+  from: string;
+  to: string;
+  value: string;
+  hash: string;
+  timeStamp: string;
+  isError?: string;
+};
+
+type TokenMovementSummaryEntry = {
+  contractAddress: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  totalIn: number;
+  totalOut: number;
+  totalInUsd: number | null;
+  totalOutUsd: number | null;
+};
+
+function buildTokenMovementSummary(
+  address: string,
+  tokenTxList: unknown[],
+  prices: { pol: number | null; btc: number | null; eth: number | null },
+): { byToken: TokenMovementSummaryEntry[]; totalInUsd: number; totalOutUsd: number } {
+  const addr = address.toLowerCase();
+
+  const knownByAddr = new Map(
+    POLYGON_KNOWN_TOKENS.map((t) => [t.contractAddress.toLowerCase(), t]),
+  );
+
+  const map = new Map<string, { symbol: string; name: string; decimals: number; totalIn: bigint; totalOut: bigint }>();
+
+  for (const tx of tokenTxList) {
+    const t = tx as TokenTransferRow;
+    if (t.isError === "1") continue;
+    let value: bigint;
+    try {
+      value = BigInt(String(t.value || "0"));
+    } catch {
+      continue;
+    }
+    if (value === 0n) continue;
+
+    const from = String(t.from || "").toLowerCase();
+    const to   = String(t.to   || "").toLowerCase();
+    const contractAddr = String(t.contractAddress || "").toLowerCase();
+    if (!contractAddr) continue;
+
+    if (!map.has(contractAddr)) {
+      map.set(contractAddr, {
+        symbol:   String(t.tokenSymbol || "UNKNOWN"),
+        name:     String(t.tokenName   || ""),
+        decimals: Math.max(0, Math.min(36, Number(t.tokenDecimal || "18") || 18)),
+        totalIn:  0n,
+        totalOut: 0n,
+      });
+    }
+
+    const entry = map.get(contractAddr)!;
+    if (to === addr && from !== addr) entry.totalIn  += value;
+    else if (from === addr)           entry.totalOut += value;
+  }
+
+  let totalInUsd  = 0;
+  let totalOutUsd = 0;
+  const byToken: TokenMovementSummaryEntry[] = [];
+
+  for (const [contractAddress, entry] of map) {
+    const decimals  = entry.decimals;
+    const totalIn  = Number(ethers.formatUnits(entry.totalIn,  decimals));
+    const totalOut = Number(ethers.formatUnits(entry.totalOut, decimals));
+    if (totalIn === 0 && totalOut === 0) continue;
+
+    const known = knownByAddr.get(contractAddress);
+    let usdPerToken: number | null = null;
+    if (known) {
+      if (known.priceKey === "stable") usdPerToken = 1;
+      else if (known.priceKey === "btc") usdPerToken = prices.btc;
+      else if (known.priceKey === "eth") usdPerToken = prices.eth;
+    }
+
+    const totalInTokenUsd  = usdPerToken != null ? totalIn  * usdPerToken : null;
+    const totalOutTokenUsd = usdPerToken != null ? totalOut * usdPerToken : null;
+
+    if (totalInTokenUsd  != null) totalInUsd  += totalInTokenUsd;
+    if (totalOutTokenUsd != null) totalOutUsd += totalOutTokenUsd;
+
+    byToken.push({ contractAddress, symbol: entry.symbol, name: entry.name, decimals, totalIn, totalOut, totalInUsd: totalInTokenUsd, totalOutUsd: totalOutTokenUsd });
+  }
+
+  byToken.sort((a, b) => (b.totalInUsd ?? 0) - (a.totalInUsd ?? 0));
+
+  return { byToken, totalInUsd, totalOutUsd };
+}
+
 export async function fetchWalletNativeActivity(rawAddress: unknown, opts: TxHistoryOpts = {}) {
   const address = normalizeAddress(rawAddress);
   const history = await fetchTxHistory("txlist", address, opts);
@@ -383,6 +483,20 @@ export type TokenHolding = {
   usdValue: number | null;
 };
 
+export type NftHolding = {
+  contractAddress: string;
+  tokenId: string;
+  contractName: string;
+  tokenSymbol: string;
+  standard: "ERC-721";
+  name: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  tokenUri: string | null;
+  explorerUrl: string;
+  openseaUrl: string;
+};
+
 export type WalletLiveEntry = {
   id: number | null;
   label: string;
@@ -395,56 +509,235 @@ export type WalletLiveEntry = {
   valuePol: number | null;
   valueUsd: number | null;
   tokens?: TokenHolding[];
+  nfts?: NftHolding[];
 };
 
-// Polygon mainnet addresses for major DeFi tokens (6 fixed calls, no discovery needed)
+// ─── NFT helpers ─────────────────────────────────────────────────────────────
+
+const ERC721_ABI_MINIMAL = ["function tokenURI(uint256 tokenId) view returns (string)"];
+
+function resolveIpfsUrl(uri: string): string {
+  if (uri.startsWith("ipfs://")) return "https://ipfs.io/ipfs/" + uri.slice(7);
+  return uri;
+}
+
+type NftMeta = { name?: string; description?: string; image?: string };
+
+function parseInlineNftMeta(tokenUri: string): NftMeta | null {
+  try {
+    if (tokenUri.startsWith("data:application/json;base64,")) {
+      return JSON.parse(Buffer.from(tokenUri.slice(29), "base64").toString("utf8")) as NftMeta;
+    }
+    if (tokenUri.startsWith("data:application/json,")) {
+      return JSON.parse(decodeURIComponent(tokenUri.slice(22))) as NftMeta;
+    }
+    if (tokenUri.startsWith("data:application/json;utf8,")) {
+      return JSON.parse(tokenUri.slice(27)) as NftMeta;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+async function fetchNftMeta(tokenUri: string): Promise<NftMeta | null> {
+  const inline = parseInlineNftMeta(tokenUri);
+  if (inline) return inline;
+  const url = resolveIpfsUrl(tokenUri);
+  if (!url.startsWith("http")) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
+    if (!res.ok) return null;
+    return (await res.json()) as NftMeta;
+  } catch { return null; }
+}
+
+async function fetchNftHoldings721(address: string): Promise<NftHolding[]> {
+  const txList = await fetchTxHistory("tokennfttx", address, { pageSize: 100, maxPages: 50 });
+  if (!txList.rows.length) return [];
+
+  const addr = address.toLowerCase();
+
+  // Compute currently-held NFTs: process transfers chronologically, track receives/sends
+  type HeldInfo = { contractAddress: string; tokenId: string; contractName: string; tokenSymbol: string };
+  const held = new Map<string, HeldInfo>();
+  const sorted = (txList.rows as Record<string, unknown>[]).sort(
+    (a, b) => Number(a.timeStamp || 0) - Number(b.timeStamp || 0),
+  );
+
+  for (const t of sorted) {
+    const from = String(t.from || "").toLowerCase();
+    const to   = String(t.to   || "").toLowerCase();
+    const ca   = String(t.contractAddress || "").toLowerCase();
+    const tid  = String(t.tokenID || "");
+    const key  = `${ca}:${tid}`;
+    if (to === addr) {
+      held.set(key, { contractAddress: ca, tokenId: tid, contractName: String(t.tokenName || ""), tokenSymbol: String(t.tokenSymbol || "") });
+    } else if (from === addr) {
+      held.delete(key);
+    }
+  }
+
+  if (held.size === 0) return [];
+
+  const provider = new ethers.JsonRpcProvider(
+    process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
+  );
+
+  const results = await Promise.all(
+    Array.from(held.values()).map(async (info): Promise<NftHolding> => {
+      const base: NftHolding = {
+        contractAddress: info.contractAddress,
+        tokenId:         info.tokenId,
+        contractName:    info.contractName,
+        tokenSymbol:     info.tokenSymbol,
+        standard:        "ERC-721",
+        name:            null,
+        description:     null,
+        imageUrl:        null,
+        tokenUri:        null,
+        explorerUrl:     `https://polygonscan.com/token/${info.contractAddress}?a=${info.tokenId}`,
+        openseaUrl:      `https://opensea.io/assets/matic/${info.contractAddress}/${info.tokenId}`,
+      };
+      try {
+        const contract = new ethers.Contract(info.contractAddress, ERC721_ABI_MINIMAL, provider);
+        const uri: string = await Promise.race([
+          contract.tokenURI(BigInt(info.tokenId)) as Promise<string>,
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 8_000)),
+        ]);
+        base.tokenUri = uri;
+        const meta = await fetchNftMeta(uri);
+        if (meta) {
+          base.name        = meta.name        ?? null;
+          base.description = meta.description ?? null;
+          if (meta.image) base.imageUrl = resolveIpfsUrl(meta.image);
+        }
+      } catch { /* tokenURI unavailable — still include the NFT without image */ }
+      return base;
+    }),
+  );
+
+  return results;
+}
+
+// Well-known Polygon mainnet tokens with hardcoded price resolution.
+// Used as a seed so the wallet always checks these even if tokentx history is empty.
 const POLYGON_KNOWN_TOKENS = [
-  { contractAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", symbol: "USDC",   name: "USD Coin",          decimals: 6,  priceKey: "stable"  },
-  { contractAddress: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", symbol: "USDC.e", name: "Bridged USDC",     decimals: 6,  priceKey: "stable"  },
-  { contractAddress: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", symbol: "USDT",   name: "Tether USD",       decimals: 6,  priceKey: "stable"  },
-  { contractAddress: "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063", symbol: "DAI",    name: "Dai Stablecoin",   decimals: 18, priceKey: "stable"  },
-  { contractAddress: "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6", symbol: "WBTC",   name: "Wrapped BTC",      decimals: 8,  priceKey: "btc"     },
-  { contractAddress: "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619", symbol: "WETH",   name: "Wrapped Ether",    decimals: 18, priceKey: "eth"     },
+  { contractAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", symbol: "USDC",   name: "USD Coin",        decimals: 6,  priceKey: "stable" },
+  { contractAddress: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", symbol: "USDC.e", name: "Bridged USDC",   decimals: 6,  priceKey: "stable" },
+  { contractAddress: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", symbol: "USDT",   name: "Tether USD",     decimals: 6,  priceKey: "stable" },
+  { contractAddress: "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063", symbol: "DAI",    name: "Dai Stablecoin", decimals: 18, priceKey: "stable" },
+  { contractAddress: "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6", symbol: "WBTC",   name: "Wrapped BTC",    decimals: 8,  priceKey: "btc"    },
+  { contractAddress: "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619", symbol: "WETH",   name: "Wrapped Ether",  decimals: 18, priceKey: "eth"    },
 ] as const;
 
 type PriceKey = "stable" | "btc" | "eth";
 
-function resolveTokenUsd(
-  priceKey: PriceKey,
-  balance: number,
-  prices: { btc: number | null; eth: number | null }
-): number | null {
+function knownUsd(priceKey: PriceKey, balance: number, prices: { btc: number | null; eth: number | null }): number | null {
   if (priceKey === "stable") return balance;
-  if (priceKey === "btc") return prices.btc != null ? balance * prices.btc : null;
-  if (priceKey === "eth") return prices.eth != null ? balance * prices.eth : null;
+  if (priceKey === "btc")    return prices.btc != null ? balance * prices.btc : null;
+  if (priceKey === "eth")    return prices.eth != null ? balance * prices.eth : null;
   return null;
 }
 
-async function fetchKnownTokenBalances(
+/**
+ * Fetch current USD prices for a batch of token contract addresses via CoinGecko
+ * Polygon token price endpoint (free tier, no key required).
+ */
+async function fetchCoinGeckoBatchPrices(contractAddresses: string[]): Promise<Map<string, number>> {
+  const prices = new Map<string, number>();
+  if (contractAddresses.length === 0) return prices;
+  try {
+    const addrs = contractAddresses.map((a) => a.toLowerCase()).join(",");
+    const url = `https://api.coingecko.com/api/v3/simple/token_price/polygon-pos?contract_addresses=${addrs}&vs_currencies=usd`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+    if (!res.ok) return prices;
+    const json = (await res.json()) as Record<string, { usd?: number }>;
+    for (const [addr, data] of Object.entries(json)) {
+      const p = data?.usd;
+      if (p != null && Number.isFinite(p) && p > 0) prices.set(addr.toLowerCase(), p);
+    }
+  } catch { /* ignore — caller treats missing price as null */ }
+  return prices;
+}
+
+/**
+ * Discover every ERC-20 token ever held in `address` via tokentx history,
+ * check its current on-chain balance, then price it via:
+ *   1. Hardcoded POLYGON_KNOWN_TOKENS (stable / BTC / ETH)
+ *   2. CoinGecko Polygon token-price batch call for everything else
+ *
+ * Always seeds with POLYGON_KNOWN_TOKENS so major tokens are never missed.
+ */
+async function fetchAllTokenBalances(
   address: string,
-  prices: { btc: number | null; eth: number | null }
+  prices: { btc: number | null; eth: number | null },
 ): Promise<TokenHolding[]> {
-  const results = await Promise.all(
-    POLYGON_KNOWN_TOKENS.map(async (token) => {
-      try {
-        const json = await etherscanV2Fetch({
-          module: "account",
-          action: "tokenbalance",
-          contractaddress: token.contractAddress,
-          address,
-          tag: "latest",
-        });
-        const raw = BigInt(String(json?.result ?? "0"));
-        if (raw === 0n) return null;
-        const balance = Number(raw) / 10 ** token.decimals;
-        const usdValue = resolveTokenUsd(token.priceKey, balance, prices);
-        return { contractAddress: token.contractAddress, symbol: token.symbol, name: token.name, decimals: token.decimals, balance, usdValue } as TokenHolding;
-      } catch {
-        return null;
-      }
-    })
-  );
-  return results.filter((t): t is TokenHolding => t !== null && t.balance > 0)
+  // Discover token contracts from ERC-20 history (up to 10 pages = 1 000 txs)
+  const tokenHistory = await fetchTxHistory("tokentx", address, { pageSize: 100, maxPages: 10 });
+
+  type TxMeta = { contractAddress?: string; tokenSymbol?: string; tokenName?: string; tokenDecimal?: string };
+  const metaMap = new Map<string, { symbol: string; name: string; decimals: number }>();
+
+  for (const tx of tokenHistory.rows) {
+    const t = tx as TxMeta;
+    if (!t.contractAddress) continue;
+    const ca = t.contractAddress.toLowerCase();
+    if (!metaMap.has(ca)) {
+      metaMap.set(ca, {
+        symbol:   String(t.tokenSymbol   || ""),
+        name:     String(t.tokenName     || ""),
+        decimals: Math.max(0, Math.min(36, Number(t.tokenDecimal || "18") || 18)),
+      });
+    }
+  }
+
+  // Seed well-known tokens so we always check them even if not in recent history
+  const knownByAddr = new Map(POLYGON_KNOWN_TOKENS.map((t) => [t.contractAddress.toLowerCase(), t]));
+  for (const kt of POLYGON_KNOWN_TOKENS) {
+    const ca = kt.contractAddress.toLowerCase();
+    if (!metaMap.has(ca)) metaMap.set(ca, { symbol: kt.symbol, name: kt.name, decimals: kt.decimals });
+  }
+
+  const contracts = Array.from(metaMap.keys());
+
+  // Fetch current on-chain balance for each contract (sequential via rate-limiter)
+  const withBalance: { contractAddress: string; rawBalance: bigint }[] = [];
+  for (const ca of contracts) {
+    try {
+      const json = await etherscanV2Fetch({
+        module: "account", action: "tokenbalance",
+        contractaddress: ca, address, tag: "latest",
+      });
+      const raw = BigInt(String(json?.result ?? "0"));
+      if (raw > 0n) withBalance.push({ contractAddress: ca, rawBalance: raw });
+    } catch { /* skip */ }
+  }
+
+  // Batch-price unknown tokens via CoinGecko
+  const unknownAddrs = withBalance
+    .map((r) => r.contractAddress)
+    .filter((ca) => !knownByAddr.has(ca));
+  const cgPrices = await fetchCoinGeckoBatchPrices(unknownAddrs);
+
+  // Build TokenHolding list
+  const holdings: TokenHolding[] = [];
+  for (const { contractAddress, rawBalance } of withBalance) {
+    const meta     = metaMap.get(contractAddress) ?? { symbol: "?", name: "", decimals: 18 };
+    const known    = knownByAddr.get(contractAddress);
+    const balance  = Number(ethers.formatUnits(rawBalance, meta.decimals));
+    let usdValue: number | null = null;
+
+    if (known) {
+      usdValue = knownUsd(known.priceKey, balance, prices);
+    } else {
+      const cgPrice = cgPrices.get(contractAddress);
+      if (cgPrice != null) usdValue = balance * cgPrice;
+    }
+
+    holdings.push({ contractAddress, symbol: meta.symbol, name: meta.name, decimals: meta.decimals, balance, usdValue });
+  }
+
+  return holdings
+    .filter((h) => h.balance > 0)
     .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
 }
 
@@ -465,28 +758,68 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
     let valuePol: number | null = null;
     let valueUsd: number | null = null;
     let tokens: TokenHolding[] | undefined;
+    let nfts: NftHolding[] | undefined;
 
     try {
       if (displayMode === "current_balance") {
         const [balJson, btcPrice, ethPrice] = await Promise.all([
           etherscanV2Fetch({ module: "account", action: "balance", address, tag: "latest" }),
-          getBtcUsdPrice().catch(() => null as number | null),
-          getEthUsdPrice().catch(() => null as number | null),
+          getBtcUsdPrice().catch((): number | null => null),
+          getEthUsdPrice().catch((): number | null => null),
         ]);
 
         const wei = BigInt(String(balJson?.result ?? "0"));
         valuePol = Number(ethers.formatEther(wei));
 
-        tokens = await fetchKnownTokenBalances(address, { btc: btcPrice, eth: ethPrice });
+        // Discover and price ALL tokens + NFTs in the wallet
+        const [allTokens, nftHoldings] = await Promise.all([
+          fetchAllTokenBalances(address, { btc: btcPrice, eth: ethPrice }),
+          fetchNftHoldings721(address),
+        ]);
+        tokens = allTokens;
+        nfts   = nftHoldings;
 
-        const polUsd = polUsdPrice != null ? valuePol * polUsdPrice : 0;
+        const polUsd    = polUsdPrice != null ? valuePol * polUsdPrice : 0;
         const tokensUsd = tokens.reduce((s, t) => s + (t.usdValue ?? 0), 0);
         valueUsd = Number((polUsd + tokensUsd).toFixed(2));
       } else {
-        const history = await fetchTxHistory("txlist", address, { pageSize: 100, maxPages: 100 });
-        const summary = buildMovementSummary(address, history.rows as unknown[]);
-        valuePol = displayMode === "total_sent" ? summary.totalOutPol : summary.totalInPol;
-        valueUsd = polUsdPrice != null ? Number((valuePol * polUsdPrice).toFixed(2)) : null;
+        // Fetch native POL history + ERC20 token transfers in parallel with price lookups.
+        // Rate limiter serialises the Etherscan pages internally; price calls hit CoinGecko.
+        const [nativeHistory, btcPrice, ethPrice] = await Promise.all([
+          fetchTxHistory("txlist", address, { pageSize: 100, maxPages: 100 }),
+          getBtcUsdPrice().catch((): number | null => null),
+          getEthUsdPrice().catch((): number | null => null),
+        ]);
+        const tokenHistory = await fetchTxHistory("tokentx", address, { pageSize: 100, maxPages: 100 });
+
+        const nativeSummary = buildMovementSummary(address, nativeHistory.rows as unknown[]);
+        const tokenSummary  = buildTokenMovementSummary(
+          address,
+          tokenHistory.rows as unknown[],
+          { pol: polUsdPrice, btc: btcPrice, eth: ethPrice },
+        );
+
+        const nativePol = displayMode === "total_sent" ? nativeSummary.totalOutPol : nativeSummary.totalInPol;
+        const nativeUsd = polUsdPrice != null ? nativePol * polUsdPrice : 0;
+        const tokenUsd  = displayMode === "total_sent" ? tokenSummary.totalOutUsd : tokenSummary.totalInUsd;
+
+        valuePol = nativePol;
+        valueUsd = Number((nativeUsd + tokenUsd).toFixed(2));
+
+        // Expose per-token breakdown (same TokenHolding shape used by current_balance)
+        const relevantTokens = tokenSummary.byToken.filter(
+          (t) => (displayMode === "total_sent" ? t.totalOut : t.totalIn) > 0,
+        );
+        if (relevantTokens.length > 0) {
+          tokens = relevantTokens.map((t) => ({
+            contractAddress: t.contractAddress,
+            symbol:          t.symbol,
+            name:            t.name,
+            decimals:        t.decimals,
+            balance:         displayMode === "total_sent" ? t.totalOut : t.totalIn,
+            usdValue:        displayMode === "total_sent" ? t.totalOutUsd : t.totalInUsd,
+          }));
+        }
       }
     } catch (err) {
       console.error("[wallets-live] wallet fetch error", { walletId: wallet.id, address: String(wallet.address || ""), displayMode, error: String((err as Error)?.message || err) });
@@ -506,6 +839,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
       valuePol,
       valueUsd,
       ...(tokens !== undefined ? { tokens } : {}),
+      ...(nfts   !== undefined ? { nfts   } : {}),
     });
   }
 

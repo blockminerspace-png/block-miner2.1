@@ -2624,6 +2624,31 @@
       "wallet_col_tx": "Tx",
       "wallet_dir_in": "In",
       "wallet_dir_out": "Out"
+    },
+    "wallets": {
+      "section_title": "Project Wallets · Polygon",
+      "label_fallback": "Wallet",
+      "inactive_badge": "Inactive",
+      "copy_address": "Copy address",
+      "copied": "Copied",
+      "unavailable": "Unavailable",
+      "token_holdings": "Token Holdings",
+      "active_pools": "Active Pools",
+      "pol_liquid": "POL liquid",
+      "mode_total_received": "Total Received",
+      "mode_current_balance": "Current Balance",
+      "mode_total_sent": "Total Sent",
+      "token_holdings": "Token Holdings",
+      "tokens_received": "Tokens Received",
+      "tokens_sent": "Tokens Sent",
+      "price_unknown": "Price unknown",
+      "nft_holdings": "NFT Holdings",
+      "warming": "Loading on-chain data…",
+      "chains_breakdown": "By Chain",
+      "multi_chain": "Multi-Chain",
+      "updated": "Updated at",
+      "deprecated_badge": "Deactivated — No longer in use",
+      "deprecated_description": "This wallet has been retired. Deposits to this address are no longer processed. Please use only the current active deposit address shown on the platform."
     }
   },
   "adminCheckinMilestones": {

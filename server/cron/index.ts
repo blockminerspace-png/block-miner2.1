@@ -8,6 +8,7 @@ import { startDepositMonitoring } from "./depositsCron.js";
 import { startCheckinPendingCron } from "./checkinPendingCron.js";
 import { startOfferEventsExpireCron } from "./offerEventsExpireCron.js";
 import { startSecurityArtifactCleanupCron } from "./securityArtifactCleanupCron.js";
+import { startWalletSnapshotCron } from "./walletSnapshotCron.js";
 
 export type StartCronTasksParams = {
   engine: MiningEngineLike;
@@ -42,6 +43,7 @@ export function startCronTasks({
   const checkinPendingTimers = startCheckinPendingCron();
   const offerEventsExpireTimers = startOfferEventsExpireCron();
   const securityArtifactTimers = startSecurityArtifactCleanupCron();
+  const walletSnapshotTimers   = startWalletSnapshotCron();
 
   // Run full site backup on startup (includes DB + all files)
   // runFullSiteBackupOnStartup();
@@ -57,5 +59,6 @@ export function startCronTasks({
     ...checkinPendingTimers,
     ...offerEventsExpireTimers,
     ...securityArtifactTimers,
+    ...walletSnapshotTimers,
   };
 }

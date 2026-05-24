@@ -10,17 +10,16 @@ import {
   Eye, Server, Wrench, Megaphone, Briefcase, Scale, Package,
   DollarSign, ExternalLink, TrendingUp, TrendingDown,
   CheckCircle2, Clock, Wallet, Copy, Check as CheckIcon, ShieldCheck,
-  BarChart2, Activity, ArrowUpRight, ImageIcon, AlertTriangle,
+  BarChart2, Activity, ArrowUpRight, ImageIcon, AlertTriangle, Frame,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const INVESTMENT_WALLET_ADDRESS = '0x454d8a4261155621f603a275bb69b381d0513202';
+const OLD_DEPOSIT_WALLET_ADDRESS  = '0x1CA03755C5132e238aE4E0f50d4929EA0D58b897';
 
-const POOL_POSITIONS = [
-  { id: 'XYaDWC63das', label: 'WBTC / USDC — Uniswap V3 (0.05%)', link: 'https://defi.krystal.app/strategies/75416799' },
-];
+const POOL_POSITIONS: { id: string; label: string; link: string }[] = [];
 
 const CATEGORY_ICONS = {
   infrastructure: Server,
@@ -87,6 +86,30 @@ export interface TokenHolding {
   usdValue: number | null;
 }
 
+export interface ChainSnapshotEntry {
+  chainId: number;
+  name: string;
+  nativeSymbol: string;
+  nativeBalance: number;
+  nativeUsd: number | null;
+  tokens: TokenHolding[];
+  totalChainUsd: number | null;
+}
+
+export interface NftHoldingEntry {
+  contractAddress: string;
+  tokenId: string;
+  contractName: string;
+  tokenSymbol: string;
+  standard: string;
+  name: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  tokenUri: string | null;
+  explorerUrl: string;
+  openseaUrl: string;
+}
+
 export interface TrackedWalletEntry {
   id?: string | number;
   address: string;
@@ -99,6 +122,9 @@ export interface TrackedWalletEntry {
   valuePol?: number | null;
   valueUsd?: number | null;
   tokens?: TokenHolding[];
+  nfts?: NftHoldingEntry[];
+  chains?: ChainSnapshotEntry[];
+  fetchedAt?: string;
 }
 
 interface TransparencyApiResponse {
@@ -436,6 +462,7 @@ function EntryRow({ entry }: { entry: TransparencyEntry }) {
 
 interface WalletsLiveResponse {
   ok: boolean;
+  warming?: boolean;
   polUsdPrice?: number | null;
   wallets?: TrackedWalletEntry[];
 }
@@ -479,11 +506,14 @@ const DISPLAY_MODE_CONFIG = {
 type DisplayModeKey = keyof typeof DISPLAY_MODE_CONFIG;
 
 function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: boolean }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const mode = (wallet.displayMode ?? 'total_received') as DisplayModeKey;
   const cfg = DISPLAY_MODE_CONFIG[mode] ?? DISPLAY_MODE_CONFIG.total_received;
+  const modeLabel = t(`transparency.wallets.mode_${mode}`, cfg.label);
   const explorerUrl = `${wallet.explorerBaseUrl || 'https://polygonscan.com/address'}/${wallet.address}`;
   const isInvestment = wallet.address.toLowerCase() === INVESTMENT_WALLET_ADDRESS.toLowerCase();
+  const isDeprecated = wallet.address.toLowerCase() === OLD_DEPOSIT_WALLET_ADDRESS.toLowerCase();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(wallet.address).then(() => {
@@ -493,19 +523,35 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
   };
 
   return (
-    <div className={`rounded-2xl border ${cfg.border} ${cfg.bg} overflow-hidden`}>
-      <div className={`flex items-center gap-3 px-5 py-3.5 border-b ${cfg.headerBorder} ${cfg.headerBg}`}>
-        <div className={`w-8 h-8 rounded-xl ${cfg.iconBg} flex items-center justify-center shrink-0`}>
-          <Wallet className={`w-4 h-4 ${cfg.iconColor}`} aria-hidden="true" />
+    <div className={`rounded-2xl border ${isDeprecated ? 'border-red-500/40' : cfg.border} ${isDeprecated ? 'bg-red-950/10' : cfg.bg} overflow-hidden`}>
+      <div className={`flex items-center gap-3 px-5 py-3.5 border-b ${isDeprecated ? 'border-red-500/20 bg-red-500/5' : `${cfg.headerBorder} ${cfg.headerBg}`}`}>
+        <div className={`w-8 h-8 rounded-xl ${isDeprecated ? 'bg-red-500/15' : cfg.iconBg} flex items-center justify-center shrink-0`}>
+          <Wallet className={`w-4 h-4 ${isDeprecated ? 'text-red-400' : cfg.iconColor}`} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-black text-white leading-tight truncate">{wallet.label || 'Carteira'}</p>
-          <p className={`text-[10px] font-bold uppercase tracking-widest ${cfg.iconColor}`}>{cfg.label}</p>
+          <p className="text-sm font-black text-white leading-tight truncate">{wallet.label || t('transparency.wallets.label_fallback')}</p>
+          <p className={`text-[10px] font-bold uppercase tracking-widest ${isDeprecated ? 'text-red-400' : cfg.iconColor}`}>{modeLabel}</p>
         </div>
-        {wallet.isActive === false && (
-          <span className="shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-400 uppercase tracking-wider">Inactive</span>
+        {isDeprecated && (
+          <span className="shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 uppercase tracking-wider flex items-center gap-1">
+            <AlertTriangle className="w-2.5 h-2.5" aria-hidden="true" />
+            {t('transparency.wallets.deprecated_badge')}
+          </span>
+        )}
+        {!isDeprecated && wallet.isActive === false && (
+          <span className="shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-400 uppercase tracking-wider">{t('transparency.wallets.inactive_badge')}</span>
         )}
       </div>
+
+      {isDeprecated && (
+        <div className="mx-4 mt-4 rounded-xl border border-red-500/30 bg-red-950/40 px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" aria-hidden="true" />
+          <div>
+            <p className="text-xs font-black text-red-300 uppercase tracking-wider mb-0.5">{t('transparency.wallets.deprecated_badge')}</p>
+            <p className="text-[11px] text-red-300/70 leading-relaxed">{t('transparency.wallets.deprecated_description')}</p>
+          </div>
+        </div>
+      )}
 
       <div className="p-5 space-y-4">
         <div className="flex items-center gap-2 bg-black/20 rounded-xl px-3 py-2">
@@ -513,7 +559,7 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
           <button
             onClick={handleCopy}
             className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-colors"
-            aria-label={copied ? 'Copied' : 'Copy address'}
+            aria-label={copied ? t('transparency.wallets.copied') : t('transparency.wallets.copy_address')}
           >
             {copied ? <CheckIcon className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
           </button>
@@ -527,8 +573,15 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
           </a>
         </div>
 
-        <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">{cfg.label} · Polygon</p>
+        <div className={`rounded-xl border ${isDeprecated ? 'border-red-500/15' : 'border-white/8'} bg-black/20 p-4`}>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">
+            {modeLabel} · {mode === 'current_balance' && wallet.chains && wallet.chains.length > 1 ? t('transparency.wallets.multi_chain') : 'Polygon'}
+            {mode === 'current_balance' && wallet.fetchedAt && (
+              <span className="ml-2 text-gray-700 normal-case tracking-normal font-normal">
+                · {t('transparency.wallets.updated')} {new Date(wallet.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </p>
           {loading
             ? <div className="h-8 w-40 bg-white/5 rounded-lg animate-pulse" />
             : mode === 'current_balance'
@@ -541,11 +594,11 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
                         </p>
                         {wallet.valuePol != null && (
                           <p className="text-[11px] text-gray-500 mt-0.5">
-                            {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} POL liquid
+                            {wallet.valuePol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {t('transparency.wallets.pol_liquid')}
                           </p>
                         )}
                       </>
-                    : <p className="text-sm text-gray-600">Unavailable</p>
+                    : <p className="text-sm text-gray-600">{t('transparency.wallets.unavailable')}</p>
                   }
                 </>
               : wallet.valueUsd != null || wallet.valuePol != null
@@ -564,36 +617,127 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
                       </p>
                     )}
                   </>
-                : <p className="text-sm text-gray-600">Unavailable</p>
+                : <p className="text-sm text-gray-600">{t('transparency.wallets.unavailable')}</p>
           }
         </div>
 
-        {!loading && mode === 'current_balance' && wallet.tokens && wallet.tokens.length > 0 && (
+        {!loading && mode === 'current_balance' && wallet.chains && wallet.chains.length > 1 && (
           <div className="space-y-1.5">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Token Holdings</p>
-            {wallet.tokens.map(t => (
-              <div key={t.contractAddress} className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-2">
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+              <Activity className="w-3 h-3 text-amber-400" aria-hidden="true" />
+              {t('transparency.wallets.chains_breakdown')}
+            </p>
+            {wallet.chains.map(c => (
+              <div key={c.chainId} className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[10px] font-black text-white bg-white/8 rounded px-1.5 py-0.5 shrink-0">{t.symbol}</span>
-                  <span className="text-[10px] text-gray-500 truncate">{t.name}</span>
+                  <span className="text-[10px] font-black text-white bg-white/8 rounded px-1.5 py-0.5 shrink-0 uppercase">{c.name}</span>
+                  <span className="text-[10px] text-gray-500">
+                    {c.nativeBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {c.nativeSymbol}
+                  </span>
+                  {c.tokens.length > 0 && (
+                    <span className="text-[9px] text-gray-700">+{c.tokens.length} token{c.tokens.length !== 1 ? 's' : ''}</span>
+                  )}
+                </div>
+                <span className="text-[11px] font-black text-white shrink-0">
+                  {c.totalChainUsd != null
+                    ? `$${c.totalChainUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : '—'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && wallet.tokens && wallet.tokens.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+              {mode === 'current_balance'
+                ? t('transparency.wallets.token_holdings')
+                : mode === 'total_sent'
+                  ? t('transparency.wallets.tokens_sent')
+                  : t('transparency.wallets.tokens_received')}
+            </p>
+            {wallet.tokens.map(tok => (
+              <div key={tok.contractAddress} className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-black text-white bg-white/8 rounded px-1.5 py-0.5 shrink-0">{tok.symbol}</span>
+                  <span className="text-[10px] text-gray-500 truncate">{tok.name}</span>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[11px] font-black text-white">
-                    {t.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: t.decimals > 8 ? 4 : 6 })}
+                    {tok.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: tok.decimals > 8 ? 4 : 6 })}
                   </p>
-                  {t.usdValue != null && (
-                    <p className="text-[10px] text-gray-500">
-                      ${t.usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  )}
+                  {tok.usdValue != null
+                    ? <p className="text-[10px] text-gray-500">
+                        ${tok.usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    : <p className="text-[10px] text-gray-600">{t('transparency.wallets.price_unknown')}</p>
+                  }
                 </div>
               </div>
             ))}
           </div>
         )}
 
+        {!loading && wallet.nfts && wallet.nfts.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+              <Frame className="w-3 h-3 text-violet-400" aria-hidden="true" />
+              {t('transparency.wallets.nft_holdings')} · {wallet.nfts.length}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {wallet.nfts.map(nft => (
+                <div
+                  key={`${nft.contractAddress}:${nft.tokenId}`}
+                  className="rounded-xl border border-violet-500/15 bg-violet-950/20 overflow-hidden flex flex-col"
+                >
+                  {nft.imageUrl ? (
+                    <div className="w-full bg-black/30 overflow-hidden" style={{ aspectRatio: '1/1' }}>
+                      <img
+                        src={nft.imageUrl}
+                        alt={nft.name || `#${nft.tokenId}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center bg-violet-950/40" style={{ aspectRatio: '1/1' }}>
+                      <ImageIcon className="w-8 h-8 text-violet-900" aria-hidden="true" />
+                    </div>
+                  )}
+                  <div className="p-2 flex flex-col gap-1 flex-1">
+                    <p className="text-[11px] font-black text-white leading-tight truncate">
+                      {nft.name || `${nft.contractName || nft.tokenSymbol} #${nft.tokenId}`}
+                    </p>
+                    <p className="text-[9px] text-gray-600 truncate">{nft.contractName || nft.contractAddress.slice(0, 10) + '…'}</p>
+                    <p className="text-[9px] text-violet-500 font-mono">#{nft.tokenId}</p>
+                    <div className="flex gap-1 mt-auto pt-1">
+                      <a
+                        href={nft.openseaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-0.5 text-[9px] font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 rounded px-1.5 py-0.5"
+                      >
+                        OpenSea <ExternalLink className="w-2 h-2" />
+                      </a>
+                      <a
+                        href={nft.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-0.5 text-[9px] font-bold text-gray-500 hover:text-gray-300 bg-white/5 rounded px-1.5 py-0.5"
+                      >
+                        Scan <ExternalLink className="w-2 h-2" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
-          <span className={`text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 ${cfg.chainBadge}`}>
+          <span className={`text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 ${isDeprecated ? 'bg-red-500/10 text-red-400' : cfg.chainBadge}`}>
             {wallet.chain || 'polygon'}
           </span>
           <span className="text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 bg-white/5 text-slate-400">
@@ -614,7 +758,7 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
         {isInvestment && POOL_POSITIONS.length > 0 && (
           <div className="space-y-2">
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-              <Activity className="w-3 h-3 text-violet-400" aria-hidden="true" /> Active Pools
+              <Activity className="w-3 h-3 text-violet-400" aria-hidden="true" /> {t('transparency.wallets.active_pools')}
             </p>
             {POOL_POSITIONS.map(pos => (
               <a
@@ -635,42 +779,70 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
   );
 }
 
+const WALLETS_POLL_INTERVAL_MS = 12_000;
+const WALLETS_MAX_RETRIES = 10;
+
 function WalletsLiveSection() {
+  const { t } = useTranslation();
   const [data, setData] = useState<WalletsLiveResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [warming, setWarming] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    let retries = 0;
+
+    const fetchWallets = async () => {
       try {
         const res = await fetch('/api/transparency/wallets-live');
-        if (!cancelled && res.ok) {
-          const json: WalletsLiveResponse = await res.json();
-          if (json.ok) setData(json);
+        if (cancelled || !res.ok) return;
+        const json: WalletsLiveResponse = await res.json();
+        if (!json.ok) return;
+
+        if (json.warming || !json.wallets?.length) {
+          // Server cache is still warming — show indicator and schedule retry
+          setWarming(true);
+          setLoading(false);
+          if (retries < WALLETS_MAX_RETRIES) {
+            retries++;
+            setTimeout(() => { if (!cancelled) void fetchWallets(); }, WALLETS_POLL_INTERVAL_MS);
+          }
+          return;
         }
+
+        setWarming(false);
+        setData(json);
       } catch { /* silent */ } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+
+    void fetchWallets();
     return () => { cancelled = true; };
   }, []);
 
   const wallets = data?.wallets ?? [];
-  const showSection = loading || wallets.length > 0;
+  const showSection = loading || warming || wallets.length > 0;
   if (!showSection) return null;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Wallet className="w-4 h-4 text-gray-500" aria-hidden="true" />
-        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Project Wallets · Polygon</p>
+        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{t('transparency.wallets.section_title')}</p>
+        {warming && (
+          <span className="ml-2 flex items-center gap-1.5 text-[10px] text-amber-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            {t('transparency.wallets.warming')}
+          </span>
+        )}
         {data?.polUsdPrice != null && (
           <span className="ml-auto text-[10px] text-gray-600">
             1 POL ≈ ${data.polUsdPrice.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} USD
           </span>
         )}
       </div>
-      {loading && !wallets.length ? (
+      {(loading || warming) && !wallets.length ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="rounded-2xl border border-white/8 bg-white/2 h-48 animate-pulse" />

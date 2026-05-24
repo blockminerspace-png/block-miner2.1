@@ -2629,6 +2629,31 @@
       "wallet_col_tx": "Tx",
       "wallet_dir_in": "Entrada",
       "wallet_dir_out": "Saída"
+    },
+    "wallets": {
+      "section_title": "Carteiras do Projeto · Polygon",
+      "label_fallback": "Carteira",
+      "inactive_badge": "Inativa",
+      "copy_address": "Copiar endereço",
+      "copied": "Copiado",
+      "unavailable": "Indisponível",
+      "token_holdings": "Tokens",
+      "active_pools": "Pools Ativas",
+      "pol_liquid": "POL líquido",
+      "mode_total_received": "Total Recebido",
+      "mode_current_balance": "Saldo Atual",
+      "mode_total_sent": "Total Enviado",
+      "token_holdings": "Tokens em Carteira",
+      "tokens_received": "Tokens Recebidos",
+      "tokens_sent": "Tokens Enviados",
+      "price_unknown": "Preço desconhecido",
+      "nft_holdings": "NFTs em Carteira",
+      "warming": "Carregando dados on-chain…",
+      "chains_breakdown": "Por Rede",
+      "multi_chain": "Multi-Chain",
+      "updated": "Atualizado às",
+      "deprecated_badge": "Desativada — Não usamos mais",
+      "deprecated_description": "Esta carteira foi desativada. Depósitos para este endereço não são mais processados. Por favor, utilize apenas o endereço de depósito ativo atual exibido na plataforma."
     }
   },
   "adminCheckinMilestones": {
