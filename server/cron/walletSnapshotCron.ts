@@ -96,8 +96,11 @@ async function syncLiquidityPoolPositions(walletId: number, nfts: ChainNftHoldin
   }
 }
 
+const BACKFILL_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // re-backfill if older than 7 days
+
 async function backfillLegacyLiquidityPoolPositions(wallet: { id: number; address: string; liquidityPoolsBackfilledAt: Date | null }): Promise<void> {
-  if (wallet.liquidityPoolsBackfilledAt) return;
+  const age = wallet.liquidityPoolsBackfilledAt ? Date.now() - wallet.liquidityPoolsBackfilledAt.getTime() : Infinity;
+  if (age < BACKFILL_MAX_AGE_MS) return;
   const legacyPools = await backfillHistoricalLiquidityPoolPositions(wallet.address);
   for (const pool of legacyPools) {
     if (pool.chainId == null) continue;

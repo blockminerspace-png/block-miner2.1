@@ -1,14 +1,14 @@
 /**
  * Multi-chain wallet snapshot service.
  *
- * Fetches native balances + ERC-20 token holdings + NFTs across
- * Ethereum, Polygon, Arbitrum, Base, Optimism, BSC and Avalanche.
- *
- * All Etherscan V2 calls share the global rate limiter so they never
- * contend with the HD scanner or deposits cron on the same API key.
+ * Chain configurations live in ./chains/ (one file per network).
+ * This service only contains the generic fetching + LP-valuation logic.
+ * Failures on individual chains are isolated via Promise.allSettled.
  */
 import { ethers } from "ethers";
 import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
+import { CHAINS } from "./chains/index.js";
+import type { ChainConfig, PriceKey } from "./chains/index.js";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ export type ChainSnapshot = {
   nativeUsd: number | null;
   tokens: ChainTokenHolding[];
   nfts: ChainNftHolding[];
-  lpUsd: number;          // Uniswap V3 LP positions value
+  lpUsd: number;
   totalChainUsd: number | null;
 };
 
@@ -56,37 +56,10 @@ export type MultiChainSnapshot = {
   address: string;
   fetchedAt: Date;
   totalUsd: number | null;
-  valuePol: number | null;      // native POL on Polygon (kept for display compat)
+  valuePol: number | null;
   chains: ChainSnapshot[];
-  tokens: ChainTokenHolding[];  // all tokens aggregated across chains
-  nfts: ChainNftHolding[];      // all NFTs
-};
-
-// ─── Chain configuration ─────────────────────────────────────────────────────
-
-type PriceKey = "stable" | "btc" | "eth" | "pol" | "bnb" | "avax";
-
-type KnownToken = {
-  contractAddress: string;
-  symbol: string;
-  name: string;
-  decimals: number;
-  priceKey: PriceKey;
-};
-
-type ChainConfig = {
-  chainId: number;
-  name: string;
-  nativeSymbol: string;
-  nativePriceKey: PriceKey;
-  explorerBase: string;
-  knownTokens: readonly KnownToken[];
-  fetchNfts: boolean;
-  rpcUrl: string;
-  /** Uniswap V3 NonfungiblePositionManager address (enables LP tracking on this chain). */
-  uniV3NfpmAddress?: string;
-  /** Uniswap V3 Factory address (needed to resolve pool addresses). */
-  uniV3FactoryAddress?: string;
+  tokens: ChainTokenHolding[];
+  nfts: ChainNftHolding[];
 };
 
 export type HistoricalLiquidityPoolPosition = ChainNftHolding & {
@@ -97,122 +70,6 @@ type NftHistoryRow = {
   contractAddress?: string;
   tokenID?: string;
 };
-
-const CHAINS: ChainConfig[] = [
-  {
-    chainId: 1,
-    name: "ethereum",
-    nativeSymbol: "ETH",
-    nativePriceKey: "eth",
-    explorerBase: "https://etherscan.io",
-    fetchNfts: false,
-    rpcUrl: "https://ethereum.publicnode.com",
-    uniV3NfpmAddress:     "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
-    uniV3FactoryAddress:  "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-    knownTokens: [
-      { contractAddress: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0xdac17f958d2ee523a2206206994597c13d831ec7", symbol: "USDT",  name: "Tether USD",    decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x6b175474e89094c44da98b954eedeac495271d0f", symbol: "DAI",   name: "Dai",           decimals: 18, priceKey: "stable" },
-      { contractAddress: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", symbol: "WBTC",  name: "Wrapped BTC",   decimals: 8,  priceKey: "btc"    },
-      { contractAddress: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", symbol: "WETH",  name: "Wrapped Ether", decimals: 18, priceKey: "eth"    },
-    ],
-  },
-  {
-    chainId: 137,
-    name: "polygon",
-    nativeSymbol: "POL",
-    nativePriceKey: "pol",
-    explorerBase: "https://polygonscan.com",
-    fetchNfts: true,
-    rpcUrl: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
-    uniV3NfpmAddress:    "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
-    uniV3FactoryAddress: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-    knownTokens: [
-      { contractAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", symbol: "USDC",   name: "USD Coin",        decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", symbol: "USDC.e", name: "Bridged USDC",    decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", symbol: "USDT",   name: "Tether USD",      decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063", symbol: "DAI",    name: "Dai Stablecoin",  decimals: 18, priceKey: "stable" },
-      { contractAddress: "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6", symbol: "WBTC",   name: "Wrapped BTC",     decimals: 8,  priceKey: "btc"    },
-      { contractAddress: "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619", symbol: "WETH",   name: "Wrapped Ether",   decimals: 18, priceKey: "eth"    },
-    ],
-  },
-  {
-    chainId: 42161,
-    name: "arbitrum",
-    nativeSymbol: "ETH",
-    nativePriceKey: "eth",
-    explorerBase: "https://arbiscan.io",
-    fetchNfts: false,
-    rpcUrl: "https://arb1.arbitrum.io/rpc",
-    uniV3NfpmAddress:    "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
-    uniV3FactoryAddress: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-    knownTokens: [
-      { contractAddress: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9", symbol: "USDT",  name: "Tether USD",    decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f", symbol: "WBTC",  name: "Wrapped BTC",   decimals: 8,  priceKey: "btc"    },
-      { contractAddress: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1", symbol: "WETH",  name: "Wrapped Ether", decimals: 18, priceKey: "eth"    },
-    ],
-  },
-  {
-    chainId: 8453,
-    name: "base",
-    nativeSymbol: "ETH",
-    nativePriceKey: "eth",
-    explorerBase: "https://basescan.org",
-    fetchNfts: false,
-    rpcUrl: process.env.BASE_RPC_URL || "https://base-mainnet.public.blastapi.io",
-    uniV3NfpmAddress:    "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
-    uniV3FactoryAddress: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
-    knownTokens: [
-      { contractAddress: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x4200000000000000000000000000000000000006", symbol: "WETH",  name: "Wrapped Ether", decimals: 18, priceKey: "eth"    },
-    ],
-  },
-  {
-    chainId: 10,
-    name: "optimism",
-    nativeSymbol: "ETH",
-    nativePriceKey: "eth",
-    explorerBase: "https://optimistic.etherscan.io",
-    fetchNfts: false,
-    rpcUrl: "https://mainnet.optimism.io",
-    knownTokens: [
-      { contractAddress: "0x0b2c639c533813f4aa9d7837caf62653d097ff85", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58", symbol: "USDT",  name: "Tether USD",    decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x4200000000000000000000000000000000000006", symbol: "WETH",  name: "Wrapped Ether", decimals: 18, priceKey: "eth"    },
-    ],
-  },
-  {
-    chainId: 56,
-    name: "bsc",
-    nativeSymbol: "BNB",
-    nativePriceKey: "bnb",
-    explorerBase: "https://bscscan.com",
-    fetchNfts: false,
-    rpcUrl: "https://bsc-dataseed.binance.org",
-    knownTokens: [
-      { contractAddress: "0x55d398326f99059ff775485246999027b3197955", symbol: "USDT",  name: "Tether USD",      decimals: 18, priceKey: "stable" },
-      { contractAddress: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", symbol: "USDC",  name: "USD Coin",        decimals: 18, priceKey: "stable" },
-      { contractAddress: "0xe9e7cea3dedca5984780bafc599bd69add087d56", symbol: "BUSD",  name: "Binance USD",     decimals: 18, priceKey: "stable" },
-      { contractAddress: "0x2170ed0880ac9a755fd29b2688956bd959f933f8", symbol: "WETH",  name: "Wrapped Ether",   decimals: 18, priceKey: "eth"    },
-      { contractAddress: "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c", symbol: "BTCB",  name: "Bitcoin BEP2",    decimals: 18, priceKey: "btc"    },
-    ],
-  },
-  {
-    chainId: 43114,
-    name: "avalanche",
-    nativeSymbol: "AVAX",
-    nativePriceKey: "avax",
-    explorerBase: "https://snowtrace.io",
-    fetchNfts: false,
-    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
-    knownTokens: [
-      { contractAddress: "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7", symbol: "USDT",  name: "Tether USD",    decimals: 6,  priceKey: "stable" },
-      { contractAddress: "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab", symbol: "WETH.e", name: "Wrapped Ether", decimals: 18, priceKey: "eth"   },
-    ],
-  },
-];
 
 // ─── Etherscan V2 helper (chainId-aware) ─────────────────────────────────────
 
@@ -239,7 +96,7 @@ async function escanFetch(chainId: number, params: Record<string, unknown>) {
 
 // ─── Price helpers ───────────────────────────────────────────────────────────
 
-type Prices = { eth: number | null; pol: number | null; btc: number | null; bnb: number | null; avax: number | null };
+type Prices = { eth: number | null; pol: number | null; btc: number | null; bnb: number | null; avax: number | null; brl: number | null };
 
 function tokenUsd(balance: number, priceKey: PriceKey, prices: Prices): number | null {
   if (priceKey === "stable") return balance;
@@ -247,6 +104,7 @@ function tokenUsd(balance: number, priceKey: PriceKey, prices: Prices): number |
   if (priceKey === "eth")    return prices.eth  != null ? balance * prices.eth  : null;
   if (priceKey === "pol")    return prices.pol  != null ? balance * prices.pol  : null;
   if (priceKey === "bnb")    return prices.bnb  != null ? balance * prices.bnb  : null;
+  if (priceKey === "brl")    return prices.brl  != null ? balance * prices.brl  : null;
   if (priceKey === "avax")   return prices.avax != null ? balance * prices.avax : null;
   return null;
 }
@@ -466,12 +324,13 @@ const STABLE_SYMS = new Set(["USDC", "USDT", "DAI", "BUSD", "FRAX", "LUSD", "USD
 
 function knownPriceBySymbol(sym: string, prices: Prices): number | null {
   const s = sym.toUpperCase();
-  if (STABLE_SYMS.has(s))                     return 1;
-  if (["ETH", "WETH"].includes(s))             return prices.eth;
-  if (["BTC", "WBTC", "BTCB"].includes(s))     return prices.btc;
-  if (["POL", "MATIC", "WPOL"].includes(s))    return prices.pol;
-  if (["BNB", "WBNB"].includes(s))             return prices.bnb;
-  if (["AVAX", "WAVAX"].includes(s))           return prices.avax;
+  if (STABLE_SYMS.has(s))                               return 1;
+  if (["ETH", "WETH"].includes(s))                      return prices.eth;
+  if (["BTC", "WBTC", "BTCB", "CBBTC"].includes(s))    return prices.btc;
+  if (["POL", "MATIC", "WPOL"].includes(s))             return prices.pol;
+  if (["BNB", "WBNB"].includes(s))                      return prices.bnb;
+  if (["AVAX", "WAVAX"].includes(s))                    return prices.avax;
+  if (["BRLA", "BRL"].includes(s))                      return prices.brl;
   return null;
 }
 
@@ -781,20 +640,28 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
       .map((nft) => `${nft.chainId}:${nft.contractAddress.toLowerCase()}:${nft.tokenId}`),
   );
 
-  const discovered: HistoricalLiquidityPoolPosition[] = [];
+  /** Scan one chain for historical LP positions — returns array (may be empty on failure). */
+  const scanChain = async (chain: ChainConfig): Promise<HistoricalLiquidityPoolPosition[]> => {
+    if (!chain.uniV3NfpmAddress || !chain.uniV3FactoryAddress) return [];
+    const results: HistoricalLiquidityPoolPosition[] = [];
+    const tokenIds = new Set<string>();
 
-  for (const chain of CHAINS) {
-    if (!chain.uniV3NfpmAddress || !chain.uniV3FactoryAddress) continue;
+    // Strategy 1: Etherscan tokennfttx (faster, no block-range limits)
     try {
-      const tokenIds = new Set<string>();
       const nftHistory = await fetchNftTxHistory(chain.chainId, address, 100);
       for (const row of nftHistory as NftHistoryRow[]) {
         if ((row.contractAddress || "").toLowerCase() !== chain.uniV3NfpmAddress.toLowerCase()) continue;
         if (!row.tokenID) continue;
         tokenIds.add(String(row.tokenID));
       }
+      console.log(`[uniV3-backfill] ${chain.name}: Etherscan found ${tokenIds.size} tokenId(s)`);
+    } catch (err) {
+      console.warn(`[uniV3-backfill] ${chain.name} Etherscan failed:`, (err as Error)?.message?.slice(0, 60));
+    }
 
-      if (!tokenIds.size) {
+    // Strategy 2: chunked eth_getLogs fallback if Etherscan returned nothing
+    if (!tokenIds.size) {
+      try {
         const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
         const latest = await provider.getBlockNumber();
         const range = chain.chainId === 8453 ? 10 : chain.chainId === 137 ? 10_000 : 50_000;
@@ -809,17 +676,21 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
           });
           for (const log of logs) {
             const topic = log.topics?.[3];
-            if (!topic) continue;
-            try {
-              tokenIds.add(BigInt(topic).toString());
-            } catch { /* ignore */ }
+            if (topic) {
+              try { tokenIds.add(BigInt(topic).toString()); } catch { /* ignore */ }
+            }
           }
         }
+        console.log(`[uniV3-backfill] ${chain.name}: eth_getLogs found ${tokenIds.size} tokenId(s)`);
+      } catch (err) {
+        console.warn(`[uniV3-backfill] ${chain.name} eth_getLogs failed:`, (err as Error)?.message?.slice(0, 60));
       }
+    }
 
-      for (const tokenId of tokenIds) {
-        const key = `${chain.chainId}:${chain.uniV3NfpmAddress.toLowerCase()}:${tokenId}`;
-        if (activeKeys.has(key)) continue;
+    for (const tokenId of tokenIds) {
+      const key = `${chain.chainId}:${chain.uniV3NfpmAddress.toLowerCase()}:${tokenId}`;
+      if (activeKeys.has(key)) continue;
+      try {
         const built = await buildLiquidityPositionNft(
           chain.rpcUrl,
           chain,
@@ -829,13 +700,25 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
           prices,
           "legacy",
         );
-        if (built) discovered.push({ ...built, status: "legacy" });
+        if (built) results.push({ ...built, status: "legacy" });
+      } catch (err) {
+        console.warn(`[uniV3-backfill] ${chain.name} pos#${tokenId}:`, (err as Error)?.message?.slice(0, 60));
       }
-    } catch (err) {
-      console.warn(`[uniV3-lp-backfill] ${chain.name}:`, (err as Error)?.message);
     }
-  }
 
+    return results;
+  };
+
+  // Run all chains in parallel; a failure on one chain never blocks others.
+  const settled = await Promise.allSettled(
+    CHAINS.filter((c) => c.uniV3NfpmAddress && c.uniV3FactoryAddress).map(scanChain),
+  );
+
+  const discovered: HistoricalLiquidityPoolPosition[] = [];
+  for (const result of settled) {
+    if (result.status === "fulfilled") discovered.push(...result.value);
+    else console.warn("[uniV3-backfill] chain task rejected:", result.reason);
+  }
   return discovered;
 }
 
@@ -962,7 +845,7 @@ async function fetchChainSnapshot(
 
 /** Single CoinGecko call for all native-currency prices (avoids rate-limit from parallel calls). */
 async function fetchAllBasePrices(): Promise<Prices> {
-  const ids = ["polygon-ecosystem-token", "matic-network", "ethereum", "bitcoin", "binancecoin", "avalanche-2"];
+  const ids = ["polygon-ecosystem-token", "matic-network", "ethereum", "bitcoin", "binancecoin", "avalanche-2", "brla-digital"];
   try {
     const res = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=usd`,
@@ -980,27 +863,35 @@ async function fetchAllBasePrices(): Promise<Prices> {
       btc:  get("bitcoin"),
       bnb:  get("binancecoin"),
       avax: get("avalanche-2"),
+      brl:  get("brla-digital"),
     };
   } catch (err) {
     console.warn("[multi-chain] base price fetch failed:", (err as Error)?.message);
-    return { pol: null, eth: null, btc: null, bnb: null, avax: null };
+    return { pol: null, eth: null, btc: null, bnb: null, avax: null, brl: null };
   }
 }
 
 export async function fetchMultiChainSnapshot(address: string): Promise<MultiChainSnapshot> {
   const prices = await fetchAllBasePrices();
-  console.log(`[multi-chain] prices — POL=$${prices.pol?.toFixed(4)}, ETH=$${prices.eth?.toFixed(2)}, BTC=$${prices.btc?.toFixed(0)}, BNB=$${prices.bnb?.toFixed(2)}, AVAX=$${prices.avax?.toFixed(2)}`);
+  console.log(`[multi-chain] prices — POL=$${prices.pol?.toFixed(4)}, ETH=$${prices.eth?.toFixed(2)}, BTC=$${prices.btc?.toFixed(0)}, BNB=$${prices.bnb?.toFixed(2)}, AVAX=$${prices.avax?.toFixed(2)}, BRL=$${prices.brl?.toFixed(4)}`);
+
+  // Run all chains in parallel; settled so a single slow/broken RPC never blocks the rest.
+  const settled = await Promise.allSettled(
+    CHAINS.map((chain) => fetchChainSnapshot(chain, address, prices)),
+  );
 
   const chainSnapshots: ChainSnapshot[] = [];
-  for (const chain of CHAINS) {
-    try {
-      const snap = await fetchChainSnapshot(chain, address, prices);
-      const hasBalance = snap.nativeBalance > 0 || snap.tokens.length > 0 || snap.nfts.length > 0 || snap.lpUsd > 0;
-      console.log(`[multi-chain] ${chain.name} — native=${snap.nativeBalance.toFixed(4)} ${chain.nativeSymbol}, tokens=${snap.tokens.length}, lp=$${snap.lpUsd.toFixed(2)}, usd=${snap.totalChainUsd?.toFixed(2) ?? "0"}, hasBalance=${hasBalance}`);
-      if (hasBalance) chainSnapshots.push(snap);
-    } catch (err) {
-      console.warn(`[multi-chain] chain ${chain.name} failed for ${address}:`, (err as Error)?.message);
+  for (let i = 0; i < settled.length; i++) {
+    const chain = CHAINS[i];
+    const result = settled[i];
+    if (result.status === "rejected") {
+      console.warn(`[multi-chain] ${chain.name} failed for ${address}:`, result.reason?.message);
+      continue;
     }
+    const snap = result.value;
+    const hasBalance = snap.nativeBalance > 0 || snap.tokens.length > 0 || snap.nfts.length > 0 || snap.lpUsd > 0;
+    console.log(`[multi-chain] ${chain.name} — native=${snap.nativeBalance.toFixed(4)} ${chain.nativeSymbol}, tokens=${snap.tokens.length}, lp=$${snap.lpUsd.toFixed(2)}, usd=${snap.totalChainUsd?.toFixed(2) ?? "0"}`);
+    if (hasBalance) chainSnapshots.push(snap);
   }
 
   const totalUsd   = chainSnapshots.reduce((s, c) => s + (c.totalChainUsd ?? 0), 0) || null;
