@@ -59,7 +59,7 @@ export type MultiChainSnapshot = {
 
 // ─── Chain configuration ─────────────────────────────────────────────────────
 
-type PriceKey = "stable" | "btc" | "eth" | "pol";
+type PriceKey = "stable" | "btc" | "eth" | "pol" | "bnb" | "avax";
 
 type KnownToken = {
   contractAddress: string;
@@ -73,7 +73,7 @@ type ChainConfig = {
   chainId: number;
   name: string;
   nativeSymbol: string;
-  nativePriceKey: "eth" | "pol";
+  nativePriceKey: PriceKey;
   explorerBase: string;
   knownTokens: readonly KnownToken[];
   fetchNfts: boolean;
@@ -156,6 +156,36 @@ const CHAINS: ChainConfig[] = [
       { contractAddress: "0x4200000000000000000000000000000000000006", symbol: "WETH",  name: "Wrapped Ether", decimals: 18, priceKey: "eth"    },
     ],
   },
+  {
+    chainId: 56,
+    name: "bsc",
+    nativeSymbol: "BNB",
+    nativePriceKey: "bnb",
+    explorerBase: "https://bscscan.com",
+    fetchNfts: false,
+    rpcUrl: "https://bsc-dataseed.binance.org",
+    knownTokens: [
+      { contractAddress: "0x55d398326f99059ff775485246999027b3197955", symbol: "USDT",  name: "Tether USD",      decimals: 18, priceKey: "stable" },
+      { contractAddress: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", symbol: "USDC",  name: "USD Coin",        decimals: 18, priceKey: "stable" },
+      { contractAddress: "0xe9e7cea3dedca5984780bafc599bd69add087d56", symbol: "BUSD",  name: "Binance USD",     decimals: 18, priceKey: "stable" },
+      { contractAddress: "0x2170ed0880ac9a755fd29b2688956bd959f933f8", symbol: "WETH",  name: "Wrapped Ether",   decimals: 18, priceKey: "eth"    },
+      { contractAddress: "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c", symbol: "BTCB",  name: "Bitcoin BEP2",    decimals: 18, priceKey: "btc"    },
+    ],
+  },
+  {
+    chainId: 43114,
+    name: "avalanche",
+    nativeSymbol: "AVAX",
+    nativePriceKey: "avax",
+    explorerBase: "https://snowtrace.io",
+    fetchNfts: false,
+    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+    knownTokens: [
+      { contractAddress: "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", symbol: "USDC",  name: "USD Coin",      decimals: 6,  priceKey: "stable" },
+      { contractAddress: "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7", symbol: "USDT",  name: "Tether USD",    decimals: 6,  priceKey: "stable" },
+      { contractAddress: "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab", symbol: "WETH.e", name: "Wrapped Ether", decimals: 18, priceKey: "eth"   },
+    ],
+  },
 ];
 
 // ─── Etherscan V2 helper (chainId-aware) ─────────────────────────────────────
@@ -183,23 +213,25 @@ async function escanFetch(chainId: number, params: Record<string, unknown>) {
 
 // ─── Price helpers ───────────────────────────────────────────────────────────
 
-type Prices = { eth: number | null; pol: number | null; btc: number | null };
+type Prices = { eth: number | null; pol: number | null; btc: number | null; bnb: number | null; avax: number | null };
 
 function tokenUsd(balance: number, priceKey: PriceKey, prices: Prices): number | null {
   if (priceKey === "stable") return balance;
-  if (priceKey === "btc")    return prices.btc != null ? balance * prices.btc : null;
-  if (priceKey === "eth")    return prices.eth != null ? balance * prices.eth : null;
-  if (priceKey === "pol")    return prices.pol != null ? balance * prices.pol : null;
+  if (priceKey === "btc")    return prices.btc  != null ? balance * prices.btc  : null;
+  if (priceKey === "eth")    return prices.eth  != null ? balance * prices.eth  : null;
+  if (priceKey === "pol")    return prices.pol  != null ? balance * prices.pol  : null;
+  if (priceKey === "bnb")    return prices.bnb  != null ? balance * prices.bnb  : null;
+  if (priceKey === "avax")   return prices.avax != null ? balance * prices.avax : null;
   return null;
 }
 
-async function fetchCoinGeckoBatch(contractAddresses: string[]): Promise<Map<string, number>> {
+async function fetchCoinGeckoBatchFor(contractAddresses: string[], network: string): Promise<Map<string, number>> {
   const prices = new Map<string, number>();
   if (!contractAddresses.length) return prices;
   try {
     const addrs = contractAddresses.map(a => a.toLowerCase()).join(",");
     const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/token_price/polygon-pos?contract_addresses=${addrs}&vs_currencies=usd`,
+      `https://api.coingecko.com/api/v3/simple/token_price/${network}?contract_addresses=${addrs}&vs_currencies=usd`,
       { signal: AbortSignal.timeout(12_000) },
     );
     if (!res.ok) return prices;
@@ -370,26 +402,25 @@ async function fetchChainSnapshot(
   const knownByAddr = new Map(chain.knownTokens.map(t => [t.contractAddress.toLowerCase(), t]));
   const tokenHoldings: ChainTokenHolding[] = [];
 
-  // For Polygon: also discover via tokentx history
+  // Discover tokens via tokentx history for all chains
   const metaMap = new Map<string, { symbol: string; name: string; decimals: number }>();
-  if (chain.chainId === 137) {
-    const history = await fetchTokenTxHistory(chain.chainId, address, 10);
-    type TxMeta = { contractAddress?: string; tokenSymbol?: string; tokenName?: string; tokenDecimal?: string };
-    for (const tx of history) {
-      const t = tx as TxMeta;
-      if (!t.contractAddress) continue;
-      const ca = t.contractAddress.toLowerCase();
-      if (!metaMap.has(ca)) {
-        metaMap.set(ca, {
-          symbol:   String(t.tokenSymbol   || ""),
-          name:     String(t.tokenName     || ""),
-          decimals: Math.max(0, Math.min(36, Number(t.tokenDecimal || "18") || 18)),
-        });
-      }
+  const maxPages = chain.chainId === 137 ? 10 : 5;
+  const history = await fetchTokenTxHistory(chain.chainId, address, maxPages);
+  type TxMeta = { contractAddress?: string; tokenSymbol?: string; tokenName?: string; tokenDecimal?: string };
+  for (const tx of history) {
+    const t = tx as TxMeta;
+    if (!t.contractAddress) continue;
+    const ca = t.contractAddress.toLowerCase();
+    if (!metaMap.has(ca)) {
+      metaMap.set(ca, {
+        symbol:   String(t.tokenSymbol   || ""),
+        name:     String(t.tokenName     || ""),
+        decimals: Math.max(0, Math.min(36, Number(t.tokenDecimal || "18") || 18)),
+      });
     }
   }
 
-  // Seed known tokens into metaMap
+  // Seed known tokens into metaMap (won't override discovered metadata)
   for (const kt of chain.knownTokens) {
     const ca = kt.contractAddress.toLowerCase();
     if (!metaMap.has(ca)) metaMap.set(ca, { symbol: kt.symbol, name: kt.name, decimals: kt.decimals });
@@ -402,9 +433,10 @@ async function fetchChainSnapshot(
     if (raw > 0n) withBalance.push({ contractAddress: ca, rawBalance: raw });
   }
 
-  // Batch-price unknown tokens via CoinGecko (Polygon only for now)
+  // Batch-price unknown tokens via CoinGecko (supported for EVM tokens)
   const unknownAddrs = withBalance.map(r => r.contractAddress).filter(ca => !knownByAddr.has(ca));
-  const cgPrices = chain.chainId === 137 ? await fetchCoinGeckoBatch(unknownAddrs) : new Map<string, number>();
+  const cgNetwork = chain.chainId === 137 ? "polygon-pos" : chain.chainId === 1 ? "ethereum" : chain.chainId === 56 ? "binance-smart-chain" : null;
+  const cgPrices = cgNetwork ? await fetchCoinGeckoBatchFor(unknownAddrs, cgNetwork) : new Map<string, number>();
 
   for (const { contractAddress, rawBalance } of withBalance) {
     const meta    = metaMap.get(contractAddress) ?? { symbol: "?", name: "", decimals: 18 };
@@ -437,22 +469,45 @@ async function fetchChainSnapshot(
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
+async function fetchCoinGeckoSimplePrice(...coinIds: string[]): Promise<Map<string, number>> {
+  const prices = new Map<string, number>();
+  try {
+    const ids = coinIds.join(",");
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+    if (!res.ok) return prices;
+    const json = (await res.json()) as Record<string, { usd?: number }>;
+    for (const [id, data] of Object.entries(json)) {
+      if (data?.usd != null) prices.set(id, data.usd);
+    }
+  } catch { /* ignore */ }
+  return prices;
+}
+
 export async function fetchMultiChainSnapshot(address: string): Promise<MultiChainSnapshot> {
-  const [ethPrice, polPrice, btcPrice] = await Promise.all([
+  const [ethPrice, polPrice, btcPrice, altPrices] = await Promise.all([
     getEthUsdPrice().catch((): number | null => null),
     getPolUsdPrice().catch((): number | null => null),
     getBtcUsdPrice().catch((): number | null => null),
+    fetchCoinGeckoSimplePrice("binancecoin", "avalanche-2"),
   ]);
-  const prices: Prices = { eth: ethPrice, pol: polPrice, btc: btcPrice };
+  const prices: Prices = {
+    eth:  ethPrice,
+    pol:  polPrice,
+    btc:  btcPrice,
+    bnb:  altPrices.get("binancecoin")  ?? null,
+    avax: altPrices.get("avalanche-2")  ?? null,
+  };
 
   const chainSnapshots: ChainSnapshot[] = [];
   for (const chain of CHAINS) {
     try {
       const snap = await fetchChainSnapshot(chain, address, prices);
-      // Only include chains where the wallet has any balance
-      if (snap.nativeBalance > 0 || snap.tokens.length > 0 || snap.nfts.length > 0) {
-        chainSnapshots.push(snap);
-      }
+      const hasBalance = snap.nativeBalance > 0 || snap.tokens.length > 0 || snap.nfts.length > 0;
+      console.log(`[multi-chain] ${chain.name} — native=${snap.nativeBalance.toFixed(4)} ${chain.nativeSymbol}, tokens=${snap.tokens.length}, nfts=${snap.nfts.length}, usd=${snap.totalChainUsd?.toFixed(2) ?? "0"}, hasBalance=${hasBalance}`);
+      if (hasBalance) chainSnapshots.push(snap);
     } catch (err) {
       console.warn(`[multi-chain] chain ${chain.name} failed for ${address}:`, (err as Error)?.message);
     }
