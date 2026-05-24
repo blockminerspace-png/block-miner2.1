@@ -408,6 +408,7 @@ const NFPM_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
   "function positions(uint256 tokenId) view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
 ];
 
 const POOL_SLOT0_ABI = [
@@ -495,10 +496,48 @@ async function fetchUniV3LpValue(
 
   if (nftCount === 0n) return 0;
 
-  let totalUsd = 0;
+  // ─── Enumerate token IDs ──────────────────────────────────────────────────
+  // Primary: ERC-721 Enumerable tokenOfOwnerByIndex.
+  // Fallback: scan Transfer events to wallet and verify ownerOf.
+  const tokenIds: bigint[] = [];
+
   for (let i = 0; i < Number(nftCount); i++) {
     try {
-      const tokenId = BigInt(((await nfpm.tokenOfOwnerByIndex(walletAddress, BigInt(i))) as bigint | string).toString());
+      const tid = BigInt(((await nfpm.tokenOfOwnerByIndex(walletAddress, BigInt(i))) as bigint | string).toString());
+      tokenIds.push(tid);
+    } catch { /* will use fallback */ }
+  }
+
+  if (tokenIds.length < Number(nftCount)) {
+    const TRANSFER_SIG = ethers.id("Transfer(address,address,uint256)");
+    const paddedWallet  = ethers.zeroPadValue(walletAddress.toLowerCase(), 32);
+    try {
+      const latestBlock = await provider.getBlockNumber();
+      const fromBlock   = Math.max(0, latestBlock - 3_000_000);
+      const [rcvd, sent] = await Promise.all([
+        provider.getLogs({ address: nfpmAddress, topics: [TRANSFER_SIG, null, paddedWallet], fromBlock, toBlock: latestBlock }),
+        provider.getLogs({ address: nfpmAddress, topics: [TRANSFER_SIG, paddedWallet, null], fromBlock, toBlock: latestBlock }),
+      ]);
+      const sentIds = new Set(sent.map(l => BigInt(l.topics[3] ?? "0")));
+      for (const log of rcvd) {
+        const tid = BigInt(log.topics[3] ?? "0");
+        if (sentIds.has(tid) || tokenIds.includes(tid)) continue;
+        try {
+          const owner = String(await nfpm.ownerOf(tid)).toLowerCase();
+          if (owner === walletAddress.toLowerCase()) tokenIds.push(tid);
+        } catch { /* burned or not owned */ }
+      }
+    } catch (err) {
+      console.warn(`[uniV3-lp] log fallback failed:`, (err as Error)?.message?.slice(0, 60));
+    }
+  }
+
+  console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… found ${tokenIds.length} position(s) to value`);
+
+  let totalUsd = 0;
+  for (let i = 0; i < tokenIds.length; i++) {
+    try {
+      const tokenId = tokenIds[i];
 
       type PosResult = { token0: string; token1: string; fee: bigint; tickLower: bigint; tickUpper: bigint; liquidity: bigint; tokensOwed0: bigint; tokensOwed1: bigint };
       const pos = await nfpm.positions(tokenId) as PosResult;
