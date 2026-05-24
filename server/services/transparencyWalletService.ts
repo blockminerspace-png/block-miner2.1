@@ -941,7 +941,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
           safeNativeUsd != null || tokenUsd != null
             ? Number(((safeNativeUsd ?? 0) + (tokenUsd ?? 0)).toFixed(2))
             : null;
-        isPartialUsd = false;
+        isPartialUsd = nativePol > 0 && safeNativeUsd == null;
 
         // Expose per-token breakdown (same TokenHolding shape used by current_balance)
         const relevantTokens = tokenSummary.byToken.filter(

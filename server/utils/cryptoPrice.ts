@@ -16,6 +16,17 @@ async function fetchCoinGeckoPrice(ids: string, key: string): Promise<number | n
   return data[key]?.usd ?? null;
 }
 
+async function fetchBinanceTickerPrice(symbol: string): Promise<number | null> {
+  const res = await fetch(
+    `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`,
+    { signal: AbortSignal.timeout(8_000) }
+  );
+  if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
+  const data = await res.json() as { price?: string };
+  const price = Number(data?.price);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
 function toHistoryDateParam(timestampSec: number): string {
   const d = new Date(timestampSec * 1000);
   const day = String(d.getUTCDate()).padStart(2, "0");
@@ -104,6 +115,8 @@ export async function getPolUsdPrice(): Promise<number> {
   return getCachedPrice("POL", async () => {
     let price = await fetchCoinGeckoPrice("polygon-ecosystem-token", "polygon-ecosystem-token");
     if (!price) price = await fetchCoinGeckoPrice("matic-network", "matic-network");
+    if (!price) price = await fetchBinanceTickerPrice("POLUSDT");
+    if (!price) price = await fetchBinanceTickerPrice("MATICUSDT");
     return price;
   });
 }
