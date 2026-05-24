@@ -540,6 +540,7 @@ async function fetchUniV3LpValue(
       const tokensOwed0 = BigInt(posResult[10].toString());
       const tokensOwed1 = BigInt(posResult[11].toString());
 
+      console.log(`[uniV3-lp] pos#${tokenId}: liq=${liquidity} owed0=${tokensOwed0} owed1=${tokensOwed1} t0=${token0.slice(0,8)} t1=${token1.slice(0,8)} fee=${fee}`);
       if (liquidity === 0n && tokensOwed0 === 0n && tokensOwed1 === 0n) continue;
 
       // Get token metadata (decimals + symbol)
@@ -592,10 +593,8 @@ async function fetchUniV3LpValue(
         else if (usd0 != null && p0in1 > 0) posUsd += h1 * (usd0 * p0in1);
       }
 
-      if (posUsd > 0) {
-        console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(6)} usd=$${posUsd.toFixed(2)}`);
-        totalUsd += posUsd;
-      }
+      console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(8)} usd=$${posUsd.toFixed(2)}`);
+      if (posUsd > 0) totalUsd += posUsd;
     } catch (err) {
       console.warn(`[uniV3-lp] pos#${tokenId} error:`, String((err as Error)?.message).slice(0, 100));
     }
