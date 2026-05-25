@@ -223,9 +223,10 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
   tournaments: {
     path: "/tournaments",
     labelKey: "sidebar.tournaments",
-    icon: "Trophy",
-    section: "social",
-    defaultParentItemId: null
+    icon: "Crosshair",
+    section: "earn",
+    defaultParentItemId: null,
+    parentLocked: true
   }
 };
 
@@ -367,6 +368,7 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "taxes", visible: true, sortOrder: 65, section: "main", parentItemId: null },
     { itemId: "support", visible: true, sortOrder: 70, section: "main", parentItemId: null },
 
+    { itemId: "tournaments", visible: true, sortOrder: 105, section: "earn", parentItemId: null },
     { itemId: "checkin", visible: true, sortOrder: 110, section: "earn", parentItemId: null },
     { itemId: "mini_pass", visible: true, sortOrder: 115, section: "earn", parentItemId: null },
     { itemId: "daily_tasks", visible: true, sortOrder: 118, section: "earn", parentItemId: null },
@@ -384,7 +386,6 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "calculator", visible: true, sortOrder: 220, section: "social", parentItemId: null },
     { itemId: "manual", visible: true, sortOrder: 230, section: "social", parentItemId: null },
     { itemId: "ranking", visible: true, sortOrder: 240, section: "social", parentItemId: null },
-    { itemId: "tournaments", visible: true, sortOrder: 245, section: "social", parentItemId: null },
     { itemId: "roadmap", visible: true, sortOrder: 250, section: "social", parentItemId: null },
     { itemId: "transparency", visible: true, sortOrder: 260, section: "social", parentItemId: null }
   ];
