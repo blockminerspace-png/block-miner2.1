@@ -44,9 +44,9 @@ export default function OfferwallMePage() {
       <div className="flex items-start gap-2.5 bg-violet-950/30 border border-violet-500/20 rounded-xl p-3">
         <Info className="w-4 h-4 text-violet-400 flex-shrink-0 mt-0.5" />
         <p className="text-[11px] text-gray-400 leading-relaxed">
-          Complete ofertas abaixo para ganhar POL. Cada oferta completa também conta para
+          Complete ofertas abaixo para ganhar POL. Cada oferta completa aqui (ou em qualquer offerwall externa) também conta para
           <span className="text-violet-300 font-black"> isenção da taxa de saque</span>{' '}
-          — complete 10 ofertas no dia para sacar sem taxa.
+          — 10 ofertas externas no dia = saque sem taxa.
         </p>
       </div>
 
