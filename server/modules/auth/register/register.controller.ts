@@ -153,17 +153,19 @@ export async function registerPost(req: Request, res: Response): Promise<void> {
       const welcomeMiner = await ensureWelcomeMiner();
 
       const regNow = new Date();
-      await createInventoryWithOwnedMachineTx(tx, {
-        userId: user.id,
-        minerId: welcomeMiner.id,
-        minerName: welcomeMiner.name,
-        level: 1,
-        hashRate: welcomeMiner.baseHashRate,
-        slotSize: welcomeMiner.slotSize,
-        imageUrl: welcomeMiner.imageUrl,
-        acquiredAt: regNow,
-        updatedAt: regNow,
-      });
+      for (let i = 0; i < 8; i++) {
+        await createInventoryWithOwnedMachineTx(tx, {
+          userId: user.id,
+          minerId: welcomeMiner.id,
+          minerName: welcomeMiner.name,
+          level: 1,
+          hashRate: welcomeMiner.baseHashRate,
+          slotSize: welcomeMiner.slotSize,
+          imageUrl: welcomeMiner.imageUrl,
+          acquiredAt: regNow,
+          updatedAt: regNow,
+        });
+      }
 
       const racksPerRoom = parseInt(process.env.RACKS_PER_ROOM || "192", 10);
       const sala1 = await tx.userRoom.create({
