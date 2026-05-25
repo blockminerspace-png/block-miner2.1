@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { trafficRouter } from "#server/modules/traffic/index.js";
 import * as publicLiveStatsController from "#server/controllers/publicLiveStatsController.js";
 import * as publicStatsController from "#server/controllers/publicStatsController.js";
 import * as bannerController from "#server/controllers/bannerController.js";
@@ -16,6 +17,7 @@ export function mountPublicSurfaceRoutes(app: Express): void {
 
   app.get("/api/public-stats", publicStatsController.getPublicStats);
   app.get("/api/public-feed", publicStatsController.getPublicFeed);
+  app.use("/api/track", trafficRouter);
 
   app.use("/health", healthRouter);
 

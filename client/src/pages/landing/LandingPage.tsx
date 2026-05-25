@@ -289,7 +289,29 @@ export default function Landing() {
 
   useEffect(() => {
     persistUtmParams(location.search);
-  }, [location.search]);
+    const utm = (() => {
+      try {
+        const raw = sessionStorage.getItem('blockminer_utm');
+        return raw ? JSON.parse(raw) as Record<string, string> : {};
+      } catch { return {}; }
+    })();
+    const referrerDomain = (() => {
+      try { return document.referrer ? new URL(document.referrer).hostname : null; } catch { return null; }
+    })();
+    fetch('/api/track/hit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: '/',
+        referrerDomain: referrerDomain || 'direct',
+        utmSource: utm.utm_source ?? null,
+        utmMedium: utm.utm_medium ?? null,
+        utmCampaign: utm.utm_campaign ?? null,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const run = () => initMetaPixel();

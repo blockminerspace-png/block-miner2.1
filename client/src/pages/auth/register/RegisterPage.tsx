@@ -29,6 +29,7 @@ import {
   validateEmailShape,
   safeInlineMessage,
 } from '../../../shared/utils/registerInputGuards';
+import { readStoredUtm } from '../../../shared/utils/landingAnalytics';
 
 const FIELD_MAX_LEN: Record<string, number> = {
   username: REGISTER_USERNAME_MAX,
@@ -173,6 +174,10 @@ export default function Register() {
     if (registerSubmitLockRef.current) return;
     registerSubmitLockRef.current = true;
     try {
+      const utm = readStoredUtm();
+      const referrerDomain = (() => {
+        try { return document.referrer ? new URL(document.referrer).hostname : undefined; } catch { return undefined; }
+      })();
       const result = await register({
         username: u,
         email: em,
@@ -180,6 +185,10 @@ export default function Register() {
         refCode: ref,
         acceptTerms: formData.acceptTerms,
         cfTurnstileToken: cfTurnstileToken || undefined,
+        utmSource: utm.utm_source || undefined,
+        utmMedium: utm.utm_medium || undefined,
+        utmCampaign: utm.utm_campaign || undefined,
+        referrerDomain: referrerDomain || undefined,
       });
 
       if (!result.success) {

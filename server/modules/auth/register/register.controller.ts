@@ -39,12 +39,22 @@ const logger = loggerLib.child("RegisterController");
 
 export async function registerPost(req: Request, res: Response): Promise<void> {
   try {
-    const { username, email, password, refCode: refCodeInput, acceptTerms } = req.body as {
+    const { username, email, password, refCode: refCodeInput, acceptTerms,
+      utmSource, utmMedium, utmCampaign, referrerDomain } = req.body as {
       username?: unknown;
       email?: unknown;
       password?: unknown;
       refCode?: unknown;
       acceptTerms?: unknown;
+      utmSource?: unknown;
+      utmMedium?: unknown;
+      utmCampaign?: unknown;
+      referrerDomain?: unknown;
+    };
+    const sanitizeAttr = (v: unknown) => {
+      if (!v || typeof v !== "string") return null;
+      const s = v.trim().slice(0, 255);
+      return s || null;
     };
     const normalizedUsername = normalizeIdentifier(username);
     const normalizedEmail = normalizeEmail(email);
@@ -131,7 +141,7 @@ export async function registerPost(req: Request, res: Response): Promise<void> {
       : ipContext;
 
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const user = await tx.user.create({
+      const user = await (tx.user as any).create({
         data: {
           name: String(username ?? ""),
           username: normalizedUsername,
@@ -143,6 +153,10 @@ export async function registerPost(req: Request, res: Response): Promise<void> {
           userAgent: req.headers["user-agent"] || null,
           polBalance: 0,
           usdcBalance: 0,
+          utmSource: sanitizeAttr(utmSource),
+          utmMedium: sanitizeAttr(utmMedium),
+          utmCampaign: sanitizeAttr(utmCampaign),
+          referrerDomain: sanitizeAttr(referrerDomain),
         },
       });
 

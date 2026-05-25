@@ -119,12 +119,34 @@ model User {
   youtuberProfile                YoutuberProfile?
   videoSubmissions               YoutubeVideoSubmission[]
 
+  // Traffic attribution (captured at registration)
+  utmSource      String? @map("utm_source")
+  utmMedium      String? @map("utm_medium")
+  utmCampaign    String? @map("utm_campaign")
+  referrerDomain String? @map("referrer_domain")
+
   @@index([registrationIp])
   @@index([ip])
   @@index([walletAddress])
   @@index([createdAt])
   @@index([lastLoginAt])
   @@map("users")
+}
+
+/// Lightweight page-view hit for traffic analytics (landing page + key entry points).
+model PageView {
+  id             Int      @id @default(autoincrement())
+  path           String   @default("/")
+  referrerDomain String?  @map("referrer_domain")
+  utmSource      String?  @map("utm_source")
+  utmMedium      String?  @map("utm_medium")
+  utmCampaign    String?  @map("utm_campaign")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([referrerDomain])
+  @@index([utmSource])
+  @@map("page_views")
 }
 
 model IpIntelligenceCache {

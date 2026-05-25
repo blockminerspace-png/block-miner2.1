@@ -27,6 +27,10 @@ export interface RegisterPayload {
   refCode?: string;
   acceptTerms?: boolean;
   cfTurnstileToken?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  referrerDomain?: string;
 }
 
 export interface RegisterFailureResult {
