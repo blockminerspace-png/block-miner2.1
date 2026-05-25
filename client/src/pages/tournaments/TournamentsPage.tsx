@@ -176,7 +176,7 @@ export default function TournamentsPage() {
     setLoadingList(true);
     setError(null);
     try {
-      const res = await api.get<{ ok: boolean; tournaments: TournamentSummary[] }>('/api/tournaments');
+      const res = await api.get<{ ok: boolean; tournaments: TournamentSummary[] }>('/tournaments');
       setTournaments(res.data.tournaments);
     } catch {
       setError('Erro ao carregar torneios.');
@@ -188,7 +188,7 @@ export default function TournamentsPage() {
   const loadDetail = useCallback(async (id: number) => {
     setLoadingDetail(true);
     try {
-      const res = await api.get<TournamentDetail>(`/api/tournaments/${id}`);
+      const res = await api.get<TournamentDetail>(`/tournaments/${id}`);
       setSelected(res.data);
     } catch {
       setError('Erro ao carregar detalhes.');
