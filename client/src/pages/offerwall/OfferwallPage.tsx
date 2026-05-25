@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Coins,
   Clock,
+  Store,
 } from 'lucide-react';
 import { api, useAuthStore } from '../../store/auth';
 
@@ -243,6 +244,59 @@ function ZeradsDetail({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ─── Offerwall.me provider detail ─────────────────────────────────────────
+
+const OFFERWALLME_API_KEY = 'yyu8i3jt58by9do1fbdr0fyn60yn5u';
+
+function OfferwallMeDetail({ onBack }: { onBack: () => void }) {
+  const { user } = useAuthStore();
+  if (!user) return null;
+  const iframeUrl = `https://offerwall.me/offerwall/${OFFERWALLME_API_KEY}/${user.id}`;
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Voltar ao Offerwall
+      </button>
+
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
+            <Store className="w-6 h-6 text-violet-400" />
+          </div>
+          <div>
+            <p className="font-bold text-white">Offerwall.me</p>
+            <p className="text-xs text-gray-400 mt-0.5">Complete ofertas e ganhe POL — 10 ofertas/dia = saque sem taxa</p>
+          </div>
+        </div>
+        <a
+          href={iframeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white text-[11px] font-black uppercase transition-colors shrink-0"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          Nova aba
+        </a>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <iframe
+          src={iframeUrl}
+          scrolling="yes"
+          frameBorder="0"
+          title="Offerwall.me"
+          style={{ width: '100%', height: '800px', border: 0, display: 'block' }}
+          allow="fullscreen"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Provider card (mural item) ────────────────────────────────────────────
 
 type ProviderDef = {
@@ -265,6 +319,15 @@ const PROVIDERS: ProviderDef[] = [
     accentColor: 'purple',
     Icon: MousePointerClick,
   },
+  {
+    id: 'offerwallme',
+    name: 'Offerwall.me',
+    description: 'Complete ofertas de anunciantes e ganhe POL instantaneamente. 10 ofertas/dia = saque sem taxa.',
+    rewardLabel: 'POL por oferta',
+    creditTime: 'Instantâneo',
+    accentColor: 'violet',
+    Icon: Store,
+  },
 ];
 
 const ACCENT: Record<string, { border: string; bg: string; icon: string; badge: string }> = {
@@ -273,6 +336,12 @@ const ACCENT: Record<string, { border: string; bg: string; icon: string; badge: 
     bg: 'bg-purple-500/10',
     icon: 'text-purple-400',
     badge: 'bg-purple-500/15 text-purple-300 border border-purple-500/25',
+  },
+  violet: {
+    border: 'border-violet-500/25',
+    bg: 'bg-violet-500/10',
+    icon: 'text-violet-400',
+    badge: 'bg-violet-500/15 text-violet-300 border border-violet-500/25',
   },
 };
 
@@ -328,6 +397,10 @@ export default function OfferwallPage() {
         <ZeradsDetail onBack={() => setSelected(null)} />
       </div>
     );
+  }
+
+  if (selected === 'offerwallme') {
+    return <OfferwallMeDetail onBack={() => setSelected(null)} />;
   }
 
   return (

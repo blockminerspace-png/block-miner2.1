@@ -169,13 +169,6 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "earn",
     defaultParentItemId: "rewards_group"
   },
-  offerwallme: {
-    path: "/offerwallme",
-    labelKey: "sidebar.offerwallme",
-    icon: "Store",
-    section: "earn",
-    defaultParentItemId: "rewards_group"
-  },
   daily_tasks: {
     path: "/tasks",
     labelKey: "sidebar.daily_tasks",
@@ -383,7 +376,6 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "internal_offerwall", visible: true, sortOrder: 125, section: "earn", parentItemId: "rewards_group" },
     { itemId: "offerwall", visible: true, sortOrder: 127, section: "earn", parentItemId: "rewards_group" },
     { itemId: "zerads", visible: false, sortOrder: 128, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "offerwallme", visible: true, sortOrder: 129, section: "earn", parentItemId: "rewards_group" },
     { itemId: "faucet", visible: true, sortOrder: 130, section: "earn", parentItemId: "rewards_group" },
     { itemId: "shortlinks", visible: true, sortOrder: 140, section: "earn", parentItemId: "rewards_group" },
     { itemId: "auto_mining", visible: true, sortOrder: 150, section: "earn", parentItemId: "rewards_group" },
