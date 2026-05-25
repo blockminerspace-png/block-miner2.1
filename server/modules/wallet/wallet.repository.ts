@@ -148,3 +148,18 @@ export async function findAnyDepositByHash(txHash: string) {
     where: { txHash, type: "deposit" },
   });
 }
+
+export const WITHDRAWAL_FEE_PERCENT = 2.5;
+export const WITHDRAWAL_FEE_WAIVER_REQUIRED = 10;
+
+export async function countTodayOfferwallCompletions(userId: number): Promise<number> {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  return prisma.internalOfferwallAttempt.count({
+    where: {
+      userId,
+      status: "COMPLETED",
+      completedAt: { gte: startOfDay },
+    },
+  });
+}

@@ -4,6 +4,7 @@ import type { Transaction } from "@prisma/client";
 export type WalletWithdrawalPublicDto = {
   id: number;
   amount: number;
+  fee: number | null;
   status: string;
   type: string;
   userId: number;
@@ -15,6 +16,7 @@ export function toWalletWithdrawalPublicDto(tx: Transaction): WalletWithdrawalPu
   return {
     id: tx.id,
     amount: Number(tx.amount),
+    fee: tx.fee != null ? Number(tx.fee) : null,
     status: tx.status,
     type: tx.type,
     userId: tx.userId,

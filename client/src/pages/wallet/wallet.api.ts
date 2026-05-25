@@ -13,6 +13,7 @@ import type {
   WalletTransactionsResponse,
   WalletWithdrawRequestBody,
   WalletWithdrawResponse,
+  WithdrawFeeInfo,
 } from './wallet.types';
 
 /** Cliente da Carteira — paths relativos a `/api` (axios `baseURL`). */
@@ -41,4 +42,6 @@ export const walletApi = {
     api.post('/wallet/deposit/submit', body),
   postWithdraw: (body: WalletWithdrawRequestBody): Promise<AxiosResponse<WalletWithdrawResponse>> =>
     api.post('/wallet/withdraw', body),
+  getWithdrawFeeInfo: (): Promise<AxiosResponse<WithdrawFeeInfo>> =>
+    api.get('/wallet/withdraw-fee-info'),
 };

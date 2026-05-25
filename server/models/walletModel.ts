@@ -182,7 +182,7 @@ async function hasPendingWithdrawal(userId) {
   return !!pending;
 }
 
-async function createWithdrawal(userId, amount, address) {
+async function createWithdrawal(userId, amount, address, feeAmount = 0) {
   return prisma.$transaction(async (tx) => {
     const pending = await tx.transaction.findFirst({
       where: { userId, type: 'withdrawal', status: 'pending' }
@@ -201,11 +201,13 @@ async function createWithdrawal(userId, amount, address) {
       data: { polBalance: { decrement: amount } }
     });
 
+    const netAmount = feeAmount > 0 ? amount - feeAmount : amount;
     const transaction = await tx.transaction.create({
       data: {
         userId,
         type: 'withdrawal',
-        amount,
+        amount: netAmount,
+        fee: feeAmount > 0 ? feeAmount : null,
         address,
         status: 'pending',
         fundsReserved: true

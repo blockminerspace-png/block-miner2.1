@@ -2,6 +2,11 @@ import crypto from "node:crypto";
 import { getAddress, verifyMessage } from "ethers";
 import walletModel from "../../models/walletModel.js";
 import * as walletRepo from "./wallet.repository.js";
+import {
+  WITHDRAWAL_FEE_PERCENT,
+  WITHDRAWAL_FEE_WAIVER_REQUIRED,
+  countTodayOfferwallCompletions,
+} from "./wallet.repository.js";
 import { WALLET_ERROR } from "./wallet.errors.js";
 import {
   WALLET_LINK_ALLOWED_CHAIN_IDS,
@@ -9,8 +14,25 @@ import {
   type SavedWalletDto,
 } from "./wallet.types.js";
 
+export async function getWithdrawalFeeInfo(userId: number): Promise<{
+  feePercent: number;
+  feeWaived: boolean;
+  completionsToday: number;
+  requiredForWaiver: number;
+}> {
+  const completionsToday = await countTodayOfferwallCompletions(userId);
+  return {
+    feePercent: WITHDRAWAL_FEE_PERCENT,
+    feeWaived: completionsToday >= WITHDRAWAL_FEE_WAIVER_REQUIRED,
+    completionsToday,
+    requiredForWaiver: WITHDRAWAL_FEE_WAIVER_REQUIRED,
+  };
+}
+
 export async function submitWithdrawalRequest(userId: number, amountPol: number, destinationAddress: string) {
-  return walletModel.createWithdrawal(userId, amountPol, destinationAddress);
+  const feeInfo = await getWithdrawalFeeInfo(userId);
+  const feeAmount = feeInfo.feeWaived ? 0 : Math.round(amountPol * (feeInfo.feePercent / 100) * 1e8) / 1e8;
+  return walletModel.createWithdrawal(userId, amountPol, destinationAddress, feeAmount);
 }
 
 function normalizeAddressInput(address: string): string {

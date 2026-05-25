@@ -91,6 +91,14 @@ export type WalletWithdrawResponse = {
   reason?: string;
 };
 
+export type WithdrawFeeInfo = {
+  ok: boolean;
+  feePercent: number;
+  feeWaived: boolean;
+  completionsToday: number;
+  requiredForWaiver: number;
+};
+
 export type SavedWalletState = {
   walletAddress: `0x${string}` | null;
   chainId: number | null;

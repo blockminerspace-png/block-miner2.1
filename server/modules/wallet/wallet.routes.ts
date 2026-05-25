@@ -48,6 +48,7 @@ const blkConvertLimiter = createDistributedRateLimiter({
   secondaryKeyGenerator: (req) => (req.user?.id ? `uid:${req.user.id}` : null),
 });
 
+walletRouter.get("/withdraw-fee-info", requireAuth, walletReadLimiter, walletController.getWithdrawFeeInfo);
 walletRouter.get("/me", requireAuth, walletReadLimiter, walletController.getWalletMe);
 walletRouter.get("/balance", requireAuth, walletReadLimiter, walletController.getBalance);
 walletRouter.get("/pol-usd", requireAuth, walletReadLimiter, walletController.getWalletPolUsdPrice);

@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../store/auth';
 import { walletApi } from './wallet.api';
-import type { PendingDepositRow, WalletTransactionRow } from './wallet.types';
+import type { PendingDepositRow, WalletTransactionRow, WithdrawFeeInfo } from './wallet.types';
 import { WALLET_MIN_WITHDRAW_POL, isValidPolygonWithdrawAddress } from './wallet.validation';
 import { parseEther, isAddress, getAddress, Interface } from 'ethers';
 import { BLOCK_MINER_DEPOSIT_ABI } from '../../web3/blockMinerDepositAbi';
@@ -243,6 +243,7 @@ export default function Wallet() {
     const [minDepositPol, setMinDepositPol] = useState(0.01);
     const [blockConfirmations, setBlockConfirmations] = useState(3);
     const [depositVerifyMaxAttempts, setDepositVerifyMaxAttempts] = useState(96);
+    const [withdrawFeeInfo, setWithdrawFeeInfo] = useState<WithdrawFeeInfo | null>(null);
 
     // Depósitos assíncronos pendentes
     const [pendingDeposits, setPendingDeposits] = useState<PendingDepositRow[]>([]);
@@ -299,6 +300,13 @@ export default function Wallet() {
             console.error("Error fetching price", err);
         }
     };
+
+    const fetchFeeInfo = useCallback(async () => {
+        try {
+            const res = await walletApi.getWithdrawFeeInfo();
+            if (res.data?.ok) setWithdrawFeeInfo(res.data);
+        } catch {}
+    }, []);
 
     const clearBalancePollTimer = useCallback(() => {
         if (balancePollTimerRef.current) {
@@ -425,6 +433,7 @@ export default function Wallet() {
         balanceBackoffMsRef.current = WALLET_BALANCE_POLL_MS;
         void fetchWalletData();
         fetchPrice();
+        void fetchFeeInfo();
         fetchPendingDeposits();
         scheduleBalancePoll();
         const priceInterval = setInterval(fetchPrice, 60000);
@@ -436,6 +445,7 @@ export default function Wallet() {
     }, [
         fetchWalletData,
         fetchPendingDeposits,
+        fetchFeeInfo,
         stopPendingPoll,
         scheduleBalancePoll,
         clearBalancePollTimer,
@@ -1192,21 +1202,65 @@ export default function Wallet() {
                                         </div>
                                     </div>
 
+                                    {/* Fee info banner */}
+                                    {withdrawFeeInfo && (
+                                        <div className={`rounded-2xl p-4 border ${withdrawFeeInfo.feeWaived ? 'border-emerald-500/30 bg-emerald-950/30' : 'border-amber-500/30 bg-amber-950/20'}`}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Taxa de Saque</p>
+                                                    {withdrawFeeInfo.feeWaived ? (
+                                                        <p className="text-emerald-400 text-xs font-black uppercase">Isenta ✓</p>
+                                                    ) : (
+                                                        <p className="text-amber-400 text-xs font-black">{withdrawFeeInfo.feePercent}% aplicada</p>
+                                                    )}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">
+                                                        Ofertas hoje
+                                                    </p>
+                                                    <p className={`text-xs font-black ${withdrawFeeInfo.feeWaived ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                                        {withdrawFeeInfo.completionsToday}/{withdrawFeeInfo.requiredForWaiver}
+                                                    </p>
+                                                    {!withdrawFeeInfo.feeWaived && (
+                                                        <p className="text-[9px] text-slate-600 mt-0.5">
+                                                            +{withdrawFeeInfo.requiredForWaiver - withdrawFeeInfo.completionsToday} para isenção
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {!withdrawFeeInfo.feeWaived && (
+                                                <div className="mt-2 w-full bg-slate-800 rounded-full h-1">
+                                                    <div
+                                                        className="bg-amber-500 h-1 rounded-full transition-all"
+                                                        style={{ width: `${Math.min(100, (withdrawFeeInfo.completionsToday / withdrawFeeInfo.requiredForWaiver) * 100)}%` }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div className="bg-slate-900/50 rounded-3xl p-3 sm:p-6 border border-slate-800/50 flex items-center justify-between">
                                         <div className="space-y-1">
                                             <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Network protocol fee</p>
                                             <p className="text-emerald-400 text-xs font-black uppercase">Gas Covered by Pool</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Total Transfer</p>
-                                            <p className="text-xl font-black text-white italic">
-                                                {(parseFloat(withdrawForm.amount) || 0).toFixed(4)} POL
-                                                {polPrice > 0 && (
-                                                    <span className="block text-[10px] text-slate-500 not-italic font-bold">
-                                                        ≈ ${((parseFloat(withdrawForm.amount) || 0) * polPrice).toFixed(2)} USD
-                                                    </span>
-                                                )}
-                                            </p>
+                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Você recebe</p>
+                                            {(() => {
+                                                const gross = parseFloat(withdrawForm.amount) || 0;
+                                                const feeRate = withdrawFeeInfo && !withdrawFeeInfo.feeWaived ? withdrawFeeInfo.feePercent / 100 : 0;
+                                                const net = gross * (1 - feeRate);
+                                                return (
+                                                    <p className="text-xl font-black text-white italic">
+                                                        {net.toFixed(4)} POL
+                                                        {polPrice > 0 && (
+                                                            <span className="block text-[10px] text-slate-500 not-italic font-bold">
+                                                                ≈ ${(net * polPrice).toFixed(2)} USD
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
 

@@ -34,6 +34,7 @@ import * as walletRepo from "./wallet.repository.js";
 import {
   createWalletLinkChallengeForUser,
   getWalletMeForUser,
+  getWithdrawalFeeInfo,
   submitWithdrawalRequest,
   unlinkWalletForUser,
   verifyAndLinkWalletForUser,
@@ -719,6 +720,18 @@ export async function setMiningPayoutMode(req: Request, res: Response) {
   } catch (err: unknown) {
     logger.error("setMiningPayoutMode error", { error: readErrorMessage(err) });
     return res.status(500).json({ ok: false, message: "Não foi possível atualizar a preferência." });
+  }
+}
+
+export async function getWithdrawFeeInfo(req: Request, res: Response) {
+  try {
+    const user = requireSessionUser(req, res);
+    if (!user) return;
+    const info = await getWithdrawalFeeInfo(user.id);
+    return res.json({ ok: true, ...info });
+  } catch (err: unknown) {
+    logger.error("getWithdrawFeeInfo error", { error: readErrorMessage(err) });
+    return res.status(500).json({ ok: false, message: "Unable to fetch fee info." });
   }
 }
 
