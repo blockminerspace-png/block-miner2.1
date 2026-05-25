@@ -706,7 +706,8 @@
     "inventario": "Inventário",
     "taxes": "Impostos e Taxas",
     "zerads": "Zerads PTC",
-    "offerwall": "Offerwall"
+    "offerwall": "Offerwall",
+    "tournaments": "Torneios"
   },
   "taxes": {
     "title": "Impostos e Taxas",

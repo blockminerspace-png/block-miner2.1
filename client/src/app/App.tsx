@@ -73,6 +73,7 @@ const AdminStreaming = lazy(() => import('../pages/admin/AdminStreaming'));
 const AdminMiniPass = lazy(() => import('../pages/admin/AdminMiniPass'));
 const AdminMiniPassSeason = lazy(() => import('../pages/admin/AdminMiniPassSeason'));
 const AdminSocial = lazy(() => import('../pages/admin/AdminSocial'));
+const AdminTournaments = lazy(() => import('../pages/admin/AdminTournaments'));
 const ReadEarn = lazy(() => import('../pages/read-earn'));
 const InternalOfferwall = lazy(() => import('../pages/internal-offerwall'));
 const Zerads = lazy(() => import('../pages/zerads'));
@@ -83,6 +84,7 @@ const LiveServer = lazy(() => import('../pages/live-server'));
 const DashboardCryptoStream = lazy(() => import('../pages/crypto-stream'));
 const PrivacyPolicy = lazy(() => import('../pages/legal/privacy-policy'));
 const TermsOfUse = lazy(() => import('../pages/legal/terms-of-use'));
+const Tournaments = lazy(() => import('../pages/tournaments'));
 import Web3Boundary from '../shared/web3/Web3Boundary';
 import { clearChunkReloadMarkers } from '../shared/utils/chunkLoadError';
 
@@ -251,6 +253,7 @@ function App() {
             <Route path="/roadmap" element={<Roadmap />} />
             <Route path="/manual" element={<Manual />} />
             <Route path="/calculator" element={<CalculatorPage />} />
+            <Route path="/tournaments" element={<Tournaments />} />
             <Route path="/transparency" element={<TransparencyErrorBoundary><Transparency /></TransparencyErrorBoundary>} />
             <Route path="/shortlink/internal-shortlink/step/:step" element={<ShortlinkStep />} />
           </Route>
@@ -285,6 +288,7 @@ function App() {
             <Route path="/admin/mini-pass" element={<AdminMiniPass />} />
             <Route path="/admin/mini-pass/:id" element={<AdminMiniPassSeason />} />
             <Route path="/admin/social" element={<AdminSocial />} />
+            <Route path="/admin/tournaments" element={<AdminTournaments />} />
           </Route>
         </Routes>
       </Suspense>

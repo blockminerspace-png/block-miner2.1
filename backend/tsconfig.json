@@ -176,6 +176,9 @@
       ],
       "#server/modules/social/social.routes.js": [
         "./src/types/stubs/stub-server-modules-social-routes.d.ts"
+      ],
+      "#server/modules/tournaments/index.js": [
+        "./src/types/stubs/stub-server-modules-tournaments-index.d.ts"
       ]
     }
   },

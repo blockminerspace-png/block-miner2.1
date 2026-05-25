@@ -34,6 +34,7 @@ import { rewardInboxRouter } from "#server/routes/reward-inbox.js";
 import { zeradsRouter } from "#server/modules/zerads/zerads.routes.js";
 import { powerBoostRouter } from "#server/modules/powerBoost/powerBoost.routes.js";
 import { socialRouter } from "#server/modules/social/social.routes.js";
+import { tournamentsRouter } from "#server/modules/tournaments/index.js";
 
 export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/auth", authRouter);
@@ -71,4 +72,5 @@ export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/zerads", zeradsRouter);
   app.use("/api/power-boost", powerBoostRouter);
   app.use("/api/social", socialRouter);
+  app.use("/api/tournaments", tournamentsRouter);
 }

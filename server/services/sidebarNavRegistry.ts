@@ -219,6 +219,13 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     icon: "Eye",
     section: "social",
     defaultParentItemId: null
+  },
+  tournaments: {
+    path: "/tournaments",
+    labelKey: "sidebar.tournaments",
+    icon: "Trophy",
+    section: "social",
+    defaultParentItemId: null
   }
 };
 
@@ -377,6 +384,7 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "calculator", visible: true, sortOrder: 220, section: "social", parentItemId: null },
     { itemId: "manual", visible: true, sortOrder: 230, section: "social", parentItemId: null },
     { itemId: "ranking", visible: true, sortOrder: 240, section: "social", parentItemId: null },
+    { itemId: "tournaments", visible: true, sortOrder: 245, section: "social", parentItemId: null },
     { itemId: "roadmap", visible: true, sortOrder: 250, section: "social", parentItemId: null },
     { itemId: "transparency", visible: true, sortOrder: 260, section: "social", parentItemId: null }
   ];

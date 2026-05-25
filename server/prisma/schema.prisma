@@ -113,6 +113,7 @@ model User {
   game2048Sessions               Game2048Session[]
   polygonHdAddress               PolygonHdAddress?
   rewardInbox                    UserRewardInbox[]
+  tournamentEntries              TournamentEntry[]
   checkinStreakRecoveries         CheckinStreakRecovery[]
   zeradsCallbacks                ZeradsCallback[]
   youtuberProfile                YoutuberProfile?
@@ -418,6 +419,7 @@ model Miner {
   checkinStreakMilestones CheckinStreakMilestone[]
   videoSubmissionRewards  YoutubeVideoSubmission[]
   youtuberRewardSettings  YoutuberRewardSettings[]
+  tournamentPrizes       TournamentPrize[]
 
   @@index([isActive, showInShop])
   @@index([isArchived])
@@ -2070,4 +2072,93 @@ model YoutuberRewardSettings {
   miner Miner? @relation(fields: [minerId], references: [id], onDelete: SetNull)
 
   @@map("youtuber_reward_settings")
+}
+
+// ─── TOURNAMENTS ────────────────────────────────────────────────────────────
+
+enum TournamentType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum TournamentMetric {
+  HASHRATE
+  BLOCKS_MINED
+  CHECKINS
+  TASKS_COMPLETED
+  DEPOSITS_POL
+}
+
+enum TournamentStatus {
+  SCHEDULED
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum TournamentPrizeType {
+  POL
+  BLK
+  MINING_BOOST
+  MACHINE
+}
+
+model Tournament {
+  id          Int                @id @default(autoincrement())
+  name        String
+  description String?
+  type        TournamentType
+  metric      TournamentMetric
+  startsAt    DateTime           @map("starts_at")
+  endsAt      DateTime           @map("ends_at")
+  status      TournamentStatus   @default(SCHEDULED)
+  prizes      TournamentPrize[]
+  entries     TournamentEntry[]
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt     @map("updated_at")
+
+  @@index([status, startsAt])
+  @@index([status, endsAt])
+  @@map("tournaments")
+}
+
+model TournamentPrize {
+  id           Int                @id @default(autoincrement())
+  tournamentId Int                @map("tournament_id")
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  rankFrom     Int                @map("rank_from")
+  rankTo       Int                @map("rank_to")
+  prizeType    TournamentPrizeType @map("prize_type")
+  polAmount    Decimal?           @map("pol_amount")  @db.Decimal(20, 8)
+  blkAmount    Decimal?           @map("blk_amount")  @db.Decimal(20, 8)
+  boostHashRate Float?            @map("boost_hash_rate")
+  boostHours   Int?               @map("boost_hours")
+  minerId      Int?               @map("miner_id")
+  minerCount   Int                @default(1) @map("miner_count")
+
+  miner Miner? @relation(fields: [minerId], references: [id], onDelete: SetNull)
+
+  @@index([tournamentId])
+  @@map("tournament_prizes")
+}
+
+model TournamentEntry {
+  id              Int        @id @default(autoincrement())
+  tournamentId    Int        @map("tournament_id")
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId          Int        @map("user_id")
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score           Float      @default(0)
+  rank            Int?
+  rewardGranted   Boolean    @default(false) @map("reward_granted")
+  rewardGrantedAt DateTime?  @map("reward_granted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt      @map("updated_at")
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, score(sort: Desc)])
+  @@index([userId])
+  @@map("tournament_entries")
 }
