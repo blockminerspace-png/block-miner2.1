@@ -1216,14 +1216,14 @@ export default function Wallet() {
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">
-                                                        Ofertas hoje
+                                                        Offerwall.me hoje
                                                     </p>
                                                     <p className={`text-xs font-black ${withdrawFeeInfo.feeWaived ? 'text-emerald-400' : 'text-slate-300'}`}>
                                                         {withdrawFeeInfo.completionsToday}/{withdrawFeeInfo.requiredForWaiver}
                                                     </p>
                                                     {!withdrawFeeInfo.feeWaived && (
                                                         <p className="text-[9px] text-slate-600 mt-0.5">
-                                                            +{withdrawFeeInfo.requiredForWaiver - withdrawFeeInfo.completionsToday} para isenção
+                                                            +{withdrawFeeInfo.requiredForWaiver - withdrawFeeInfo.completionsToday} offerwall.me p/ isenção
                                                         </p>
                                                     )}
                                                 </div>

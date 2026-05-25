@@ -152,14 +152,15 @@ export async function findAnyDepositByHash(txHash: string) {
 export const WITHDRAWAL_FEE_PERCENT = 2.5;
 export const WITHDRAWAL_FEE_WAIVER_REQUIRED = 10;
 
+/** Counts completed offerwall.me offers today (UTC) — used for withdrawal fee waiver. */
 export async function countTodayOfferwallCompletions(userId: number): Promise<number> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
-  return prisma.internalOfferwallAttempt.count({
+  return (prisma as any).offerwallMeCallback.count({
     where: {
       userId,
-      status: "COMPLETED",
-      completedAt: { gte: startOfDay },
+      status: 1,
+      createdAt: { gte: startOfDay },
     },
   });
 }

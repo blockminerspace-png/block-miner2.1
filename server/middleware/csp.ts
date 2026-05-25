@@ -74,6 +74,7 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
       "https://www.youtube-nocookie.com",
       "https://ad.a-ads.com",
       "https://zerads.com",
+      "https://offerwall.me",
       "https://www.tradingview.com",
       "https://s.tradingview.com",
       "https://widget.tradingview.com",

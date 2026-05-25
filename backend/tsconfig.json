@@ -182,6 +182,9 @@
       ],
       "#server/modules/traffic/index.js": [
         "./src/types/stubs/stub-server-modules-traffic-index.d.ts"
+      ],
+      "#server/modules/offerwallme/index.js": [
+        "./src/types/stubs/stub-server-modules-offerwallme-index.d.ts"
       ]
     }
   },

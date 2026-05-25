@@ -116,6 +116,7 @@ model User {
   tournamentEntries              TournamentEntry[]
   checkinStreakRecoveries         CheckinStreakRecovery[]
   zeradsCallbacks                ZeradsCallback[]
+  offerwallMeCallbacks           OfferwallMeCallback[]
   youtuberProfile                YoutuberProfile?
   videoSubmissions               YoutubeVideoSubmission[]
 
@@ -1238,6 +1239,26 @@ model ZeradsCallback {
   @@index([userId])
   @@index([createdAt])
   @@map("zerads_ptc_callbacks")
+}
+
+model OfferwallMeCallback {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  transId     String   @unique @map("trans_id")
+  offerName   String?  @map("offer_name") @db.Text
+  offerType   String?  @map("offer_type")
+  payoutUsd   Float    @map("payout_usd")
+  polCredited Float    @map("pol_credited")
+  polPrice    Float    @map("pol_price")
+  status      Int
+  requestIp   String?  @map("request_ip")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("offerwallme_callbacks")
 }
 
 model AutoMiningReward {

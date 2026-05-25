@@ -79,6 +79,7 @@ const ReadEarn = lazy(() => import('../pages/read-earn'));
 const InternalOfferwall = lazy(() => import('../pages/internal-offerwall'));
 const Zerads = lazy(() => import('../pages/zerads'));
 const Offerwall = lazy(() => import('../pages/offerwall'));
+const OfferwallMe = lazy(() => import('../pages/offerwallme/OfferwallMePage'));
 const MiniPass = lazy(() => import('../pages/mini-pass'));
 const Transparency = lazy(() => import('../pages/transparency'));
 const LiveServer = lazy(() => import('../pages/live-server'));
@@ -237,6 +238,7 @@ function App() {
             <Route path="/internal-offerwall" element={<InternalOfferwall />} />
             <Route path="/offerwall" element={<Offerwall />} />
             <Route path="/zerads" element={<Navigate to="/offerwall" replace />} />
+            <Route path="/offerwallme" element={<OfferwallMe />} />
             <Route path="/mini-pass" element={<MiniPass />} />
             <Route path="/mini-pass/:seasonId" element={<MiniPass />} />
             <Route path="/tasks" element={<DailyTasks />} />

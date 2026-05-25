@@ -1,0 +1,187 @@
+import crypto from "node:crypto";
+import type { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
+import _prisma from "../../src/db/prisma.js";
+const prisma = _prisma as any;
+import { getPolUsdPrice } from "../../utils/cryptoPrice.js";
+import { createAuditLogBestEffort } from "../../models/auditLogModel.js";
+import loggerLib from "../../utils/logger.js";
+
+const logger = loggerLib.child("OfferwallMeController");
+
+export const OFFERWALLME_API_KEY = "yyu8i3jt58by9do1fbdr0fyn60yn5u";
+const SECRET_KEY = "53ef7ec6bf3dac68f4c5528e057059e5";
+const PAYOUT_MULTIPLIER = 0.80;
+const FALLBACK_POL_PRICE = 0.20;
+
+const ALLOWED_IPS = new Set(["95.216.65.163", "2a01:4f9:2b:1dc::2"]);
+
+function getClientIp(req: Request): string {
+  const cfIp = req.headers["cf-connecting-ip"];
+  if (cfIp && typeof cfIp === "string") return cfIp.trim();
+  return String(req.ip ?? "").replace("::ffff:", "");
+}
+
+function verifySignature(subId: string, transId: string, reward: string, signature: string): boolean {
+  const expected = crypto
+    .createHash("md5")
+    .update(subId + transId + reward + SECRET_KEY)
+    .digest("hex");
+  return expected === signature;
+}
+
+/**
+ * POST /api/offerwallme/postback
+ * Called by offerwall.me servers when a user completes an offer.
+ * Must respond "ok" on success.
+ */
+export async function offerwallMePostback(req: Request, res: Response): Promise<void> {
+  const clientIp = getClientIp(req);
+
+  // IP whitelist — offerwall.me sends from known IPs
+  if (!ALLOWED_IPS.has(clientIp)) {
+    logger.warn("offerwallme.postback.ip_rejected", { ip: clientIp });
+    res.status(403).send("ERROR: Invalid source");
+    return;
+  }
+
+  const body = req.method === "POST" ? req.body : req.query;
+  const subId     = String(body.subId     ?? "").trim();
+  const transId   = String(body.transId   ?? "").trim();
+  const reward    = String(body.reward    ?? "").trim();
+  const payout    = String(body.payout    ?? "0").trim();
+  const offerName = String(body.offer_name ?? "").trim();
+  const offerType = String(body.offer_type ?? "").trim();
+  const status    = parseInt(String(body.status ?? "1"), 10);
+  const debug     = String(body.debug     ?? "0").trim();
+  const signature = String(body.signature ?? "").trim();
+
+  if (!subId || !transId || !reward || !signature) {
+    logger.warn("offerwallme.postback.missing_params", { subId, transId });
+    res.status(400).send("ERROR: Missing parameters");
+    return;
+  }
+
+  if (!verifySignature(subId, transId, reward, signature)) {
+    logger.warn("offerwallme.postback.bad_signature", { subId, transId, ip: clientIp });
+    res.status(403).send("ERROR: Signature doesn't match");
+    return;
+  }
+
+  const userId = parseInt(subId, 10);
+  if (!Number.isFinite(userId) || userId <= 0) {
+    logger.warn("offerwallme.postback.invalid_user_id", { subId });
+    res.status(400).send("ERROR: Invalid user");
+    return;
+  }
+
+  const payoutUsd = parseFloat(payout) || 0;
+
+  // Debug/test postbacks — acknowledge but don't credit
+  if (debug === "1") {
+    logger.info("offerwallme.postback.test_ignored", { subId, transId, payoutUsd });
+    res.send("ok");
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, isBanned: true },
+  });
+
+  if (!user) {
+    logger.warn("offerwallme.postback.user_not_found", { userId });
+    res.status(404).send("ERROR: User not found");
+    return;
+  }
+
+  if (user.isBanned) {
+    logger.warn("offerwallme.postback.user_banned", { userId });
+    res.send("ok"); // Acknowledge to avoid retries but don't credit
+    return;
+  }
+
+  let polPrice: number;
+  try {
+    polPrice = await getPolUsdPrice();
+    if (!polPrice || polPrice <= 0) polPrice = FALLBACK_POL_PRICE;
+  } catch {
+    polPrice = FALLBACK_POL_PRICE;
+  }
+
+  const userShare = payoutUsd * PAYOUT_MULTIPLIER;
+  const polToCredit = status === 2
+    ? -(userShare / polPrice)
+    : userShare / polPrice;
+
+  const polDecimal = new Prisma.Decimal(String(Math.max(0, polToCredit).toFixed(8)));
+  const polDebit   = new Prisma.Decimal(String(Math.abs(polToCredit).toFixed(8)));
+
+  try {
+    if (status === 2) {
+      // Chargeback: deduct but don't go negative
+      await prisma.$transaction([
+        prisma.offerwallMeCallback.create({
+          data: {
+            userId,
+            transId,
+            offerName: offerName || null,
+            offerType: offerType || null,
+            payoutUsd,
+            polCredited: -Math.abs(polToCredit),
+            polPrice,
+            status,
+            requestIp: clientIp,
+          },
+        }),
+        prisma.$executeRaw`
+          UPDATE users
+          SET pol_balance = GREATEST(pol_balance - ${polDebit}, 0)
+          WHERE id = ${userId}
+        `,
+      ]);
+    } else {
+      await prisma.$transaction([
+        prisma.offerwallMeCallback.create({
+          data: {
+            userId,
+            transId,
+            offerName: offerName || null,
+            offerType: offerType || null,
+            payoutUsd,
+            polCredited: Number(polDecimal),
+            polPrice,
+            status,
+            requestIp: clientIp,
+          },
+        }),
+        prisma.user.update({
+          where: { id: userId },
+          data: { polBalance: { increment: polDecimal } },
+        }),
+      ]);
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Unique constraint") && msg.includes("trans_id")) {
+      logger.warn("offerwallme.postback.duplicate_ignored", { transId, userId });
+      res.send("ok");
+      return;
+    }
+    logger.error("offerwallme.postback.transaction_failed", { transId, userId, error: msg });
+    res.status(500).send("ERROR: Internal");
+    return;
+  }
+
+  void createAuditLogBestEffort({
+    userId,
+    action: "OFFERWALLME_REWARD",
+    source: "system",
+    severity: "info",
+    ip: clientIp,
+    details: { transId, offerName, offerType, payoutUsd, polCredited: polToCredit.toFixed(8), polPrice, status },
+  });
+
+  logger.info("offerwallme.postback.credited", { userId, transId, payoutUsd, polCredited: polToCredit.toFixed(8), status });
+  res.send("ok");
+}

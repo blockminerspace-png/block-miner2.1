@@ -7,6 +7,7 @@ import * as transparencyController from "#server/controllers/transparencyControl
 import { createRateLimiter } from "#server/middleware/rateLimit.js";
 import { healthRouter } from "../../modules/health/health.routes.js";
 import { zeradsCallbackHandler } from "#server/modules/zerads/zerads.controller.js";
+import { offerwallMeRouter } from "#server/modules/offerwallme/index.js";
 
 export function mountPublicSurfaceRoutes(app: Express): void {
   const publicLiveStatsLimiter = createRateLimiter({
@@ -31,4 +32,7 @@ export function mountPublicSurfaceRoutes(app: Express): void {
   // Zerads PTC offerwall callback — called by Zerads server every ~5 min.
   // Security is handled inside the handler (IP + password guard).
   app.get("/zeradsptc.php", zeradsCallbackHandler);
+
+  // offerwall.me S2S postback — IP + MD5 signature verified inside handler.
+  app.use("/api/offerwallme", offerwallMeRouter);
 }
