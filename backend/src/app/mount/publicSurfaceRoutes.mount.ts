@@ -15,6 +15,7 @@ export function mountPublicSurfaceRoutes(app: Express): void {
   app.get("/api/live-server-stats", publicLiveStatsLimiter, publicLiveStatsController.getLiveStats);
 
   app.get("/api/public-stats", publicStatsController.getPublicStats);
+  app.get("/api/public-feed", publicStatsController.getPublicFeed);
 
   app.use("/health", healthRouter);
 

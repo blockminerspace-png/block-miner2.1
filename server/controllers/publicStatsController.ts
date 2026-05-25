@@ -4,6 +4,12 @@ import loggerLib from "../utils/logger.js";
 
 const logger = loggerLib.child("PublicStats");
 
+function maskUsername(name: string | null | undefined): string {
+  const s = name ?? "user";
+  if (s.length <= 2) return s + "***";
+  return s.slice(0, 2) + "***";
+}
+
 function decimalToNumber(value: unknown): number {
   if (value == null) return 0;
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -80,4 +86,49 @@ export async function getPublicStats(_req: Request, res: Response): Promise<void
     launchDate: "2026-03-05T00:00:00.000Z",
     ...(failures.length > 0 ? { degraded: true } : {}),
   });
+}
+
+/**
+ * GET /api/public-feed — last 10 payments + last 10 deposits for landing page trust feed.
+ * Usernames are masked (first 2 chars + ***).
+ */
+export async function getPublicFeed(_req: Request, res: Response): Promise<void> {
+  try {
+    const [withdrawals, deposits] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { type: "withdrawal", status: "completed" },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          amount: true,
+          createdAt: true,
+          user: { select: { username: true } },
+        },
+      }),
+      prisma.transaction.findMany({
+        where: { type: "deposit", status: "completed" },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          amount: true,
+          createdAt: true,
+          user: { select: { username: true } },
+        },
+      }),
+    ]);
+
+    const mapRow = (r: { id: number; amount: unknown; createdAt: Date; user: { username: string | null } }) => ({
+      id: r.id,
+      user: maskUsername(r.user?.username),
+      amount: decimalToNumber(r.amount),
+      at: r.createdAt.toISOString(),
+    });
+
+    res.json({ ok: true, withdrawals: withdrawals.map(mapRow), deposits: deposits.map(mapRow) });
+  } catch (err) {
+    logger.warn("public-feed failed", { err: err instanceof Error ? err.message : String(err) });
+    res.json({ ok: true, withdrawals: [], deposits: [] });
+  }
 }

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { LucideIcon } from 'lucide-react';
 import {
   ArrowRight,
+  ArrowUpRight,
   CalendarDays,
   ChevronDown,
   Clock,
@@ -207,11 +208,82 @@ function FaqItem({ id, question, answer }: { id: string; question: string; answe
   );
 }
 
+// ─── Public feed ────────────────────────────────────────────────────────────
+
+type FeedRow = { id: number; user: string; amount: number; at: string };
+type PublicFeed = { withdrawals: FeedRow[]; deposits: FeedRow[] };
+
+function usePublicFeed() {
+  const [feed, setFeed] = useState<PublicFeed>({ withdrawals: [], deposits: [] });
+  const fetchFeed = useCallback(async () => {
+    try {
+      const r = await fetch('/api/public-feed');
+      if (r.ok) {
+        const d = (await r.json()) as PublicFeed & { ok?: boolean };
+        setFeed({ withdrawals: d.withdrawals ?? [], deposits: d.deposits ?? [] });
+      }
+    } catch { /* best-effort */ }
+  }, []);
+  useEffect(() => {
+    void fetchFeed();
+    const id = setInterval(fetchFeed, 30_000);
+    return () => clearInterval(id);
+  }, [fetchFeed]);
+  return feed;
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return 'agora';
+  if (m < 60) return `${m}min atrás`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h atrás`;
+  return `${Math.floor(h / 24)}d atrás`;
+}
+
+function FeedPanel({ title, rows, color }: { title: string; rows: FeedRow[]; color: 'emerald' | 'sky' }) {
+  const border = color === 'emerald' ? 'border-emerald-500/20' : 'border-sky-500/20';
+  const dot = color === 'emerald' ? 'bg-emerald-400' : 'bg-sky-400';
+  const amtCls = color === 'emerald' ? 'text-emerald-400' : 'text-sky-400';
+  const icon = color === 'emerald' ? <ArrowUpRight className="h-3 w-3" aria-hidden /> : <Wallet className="h-3 w-3" aria-hidden />;
+
+  return (
+    <div className={`rounded-2xl border ${border} bg-slate-900/60 backdrop-blur-sm overflow-hidden`}>
+      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-white/[0.06]">
+        <span className={`h-2 w-2 rounded-full ${dot} animate-pulse`} aria-hidden />
+        <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 font-mono">{title}</span>
+      </div>
+      <ul className="divide-y divide-white/[0.04]">
+        {rows.length === 0 ? (
+          <li className="px-5 py-8 text-center text-xs text-slate-600 font-mono">sem dados</li>
+        ) : (
+          rows.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-white/[0.02] transition-colors">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 ${amtCls}`}>{icon}</span>
+                <span className="text-xs text-slate-300 font-mono truncate">{r.user}</span>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className={`text-xs font-bold font-mono ${amtCls}`}>{r.amount.toFixed(4)} POL</span>
+                <span className="text-[10px] text-slate-600 font-mono whitespace-nowrap">{timeAgo(r.at)}</span>
+              </div>
+            </li>
+          ))
+        )}
+      </ul>
+    </div>
+  );
+}
+
+// ─── Landing page ────────────────────────────────────────────────────────────
+
 export default function Landing() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
   const { isAuthenticated } = useAuthStore();
   const publicStats = usePublicStatsPoll();
+  const publicFeed = usePublicFeed();
 
   useLandingScrollDepth();
 
@@ -715,6 +787,19 @@ export default function Landing() {
               ))}
             </div>
             <p className="mt-5 text-xs text-slate-600">{t('landing.crypto.more')}</p>
+          </div>
+        </section>
+
+        {/* ── RECENT ACTIVITY FEED ── */}
+        <section className="mx-auto max-w-6xl px-5 sm:px-8 py-16 sm:py-20">
+          <div className="text-center mb-10">
+            <p className="text-xs uppercase tracking-[0.32em] text-sky-400 font-mono">Atividade Real</p>
+            <h2 className="mt-3 text-2xl font-black text-white sm:text-3xl">Pagamentos &amp; Depósitos Recentes</h2>
+            <p className="mt-2 text-sm text-slate-500">Transações reais da plataforma, atualizadas a cada 30 segundos.</p>
+          </div>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <FeedPanel title="Pagamentos Recentes" rows={publicFeed.withdrawals} color="emerald" />
+            <FeedPanel title="Depósitos Recentes" rows={publicFeed.deposits} color="sky" />
           </div>
         </section>
 
