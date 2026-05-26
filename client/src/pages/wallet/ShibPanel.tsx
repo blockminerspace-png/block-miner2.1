@@ -5,6 +5,17 @@ import { api } from '../../store/auth';
 
 const SHIB_WITHDRAW_FEE = 7800;
 
+function fmtPOL(n: number): string {
+    if (n <= 0) return '0';
+    if (n >= 0.001) return parseFloat(n.toFixed(3)).toString();
+    if (n >= 0.0001) return parseFloat(n.toFixed(4)).toString();
+    return parseFloat(n.toFixed(6)).toString();
+}
+
+function fmtSHIB(n: number): string {
+    return Math.floor(n).toString();
+}
+
 interface Props {
     balance: number;
     polBalance: number;
@@ -136,7 +147,7 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                 <div>
                     <p className="text-orange-200/50 font-black uppercase tracking-widest text-[9px] mb-0.5">Saldo SHIBA INU</p>
                     <p className="text-3xl font-black tabular-nums text-orange-100">
-                        {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        {parseFloat(balance.toFixed(2)).toString()}
                         <span className="text-lg text-orange-300/70 ml-2">SHIB</span>
                     </p>
                 </div>
@@ -251,13 +262,13 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs text-slate-400">1 POL =</span>
                                     <span className="text-sm font-black text-orange-300 tabular-nums">
-                                        {Math.floor(prices.POL / prices.SHIB).toLocaleString()} SHIB
+                                        {Math.floor(prices.POL / prices.SHIB).toString()} SHIB
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-xs text-slate-400">1 SHIB =</span>
+                                    <span className="text-xs text-slate-400">10.000 SHIB =</span>
                                     <span className="text-sm font-black text-primary tabular-nums">
-                                        {(prices.SHIB / prices.POL).toFixed(8)} POL
+                                        {fmtPOL((10000 * prices.SHIB) / prices.POL)} POL
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center pt-1 border-t border-slate-700/50">
@@ -296,8 +307,8 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                         />
                         <p className="text-xs text-slate-500 mt-1.5 font-medium">
                             Saldo disponível: {swapDir === 'shib_to_pol'
-                                ? <span className="text-orange-300 font-black">{Math.floor(balance).toLocaleString()} SHIB</span>
-                                : <span className="text-primary font-black">{polBalance.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })} POL</span>}
+                                ? <span className="text-orange-300 font-black">{fmtSHIB(balance)} SHIB</span>
+                                : <span className="text-primary font-black">{fmtPOL(polBalance)} POL</span>}
                         </p>
                     </div>
 
@@ -307,11 +318,11 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Você receberá (estimativa)</p>
                             {swapDir === 'shib_to_pol' ? (
                                 <p className="text-2xl font-black tabular-nums text-primary">
-                                    ≈ {swapOut.toFixed(6)} <span className="text-base text-primary/70 ml-1">POL</span>
+                                    ≈ {fmtPOL(swapOut)} <span className="text-base text-primary/70 ml-1">POL</span>
                                 </p>
                             ) : (
                                 <p className="text-2xl font-black tabular-nums text-orange-300">
-                                    ≈ {Math.floor(swapOut).toLocaleString()} <span className="text-base text-orange-300/70 ml-1">SHIB</span>
+                                    ≈ {fmtSHIB(swapOut)} <span className="text-base text-orange-300/70 ml-1">SHIB</span>
                                 </p>
                             )}
                         </div>
