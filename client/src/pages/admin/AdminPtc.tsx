@@ -127,7 +127,7 @@ export default function AdminPtc() {
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-black text-white uppercase italic tracking-tight">Admin — PTC</h2>
                 <div className="flex items-center gap-2">
-                    <img src="/shib.svg" alt="" className="w-6 h-6 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                    <img src="/shib.png" alt="" className="w-6 h-6 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                     <span className="text-orange-300 font-black text-xs uppercase tracking-widest">SHIB</span>
                 </div>
             </div>

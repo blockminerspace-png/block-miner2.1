@@ -91,7 +91,7 @@ export function ShibPanel({ balance, onRefresh }: Props) {
         <div className="space-y-6">
             {/* Balance Card */}
             <div className="flex items-center gap-4 p-5 bg-orange-500/10 border border-orange-500/20 rounded-2xl">
-                <img src="/shib.svg" alt="SHIB" className="w-12 h-12 rounded-full shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                <img src="/shib.png" alt="SHIB" className="w-12 h-12 rounded-full shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                 <div>
                     <p className="text-orange-200/50 font-black uppercase tracking-widest text-[9px] mb-0.5">Saldo SHIBA INU</p>
                     <p className="text-3xl font-black tabular-nums text-orange-100">

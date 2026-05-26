@@ -1085,7 +1085,7 @@ export default function Wallet() {
                                 </div>
                                 {/* SHIB balance */}
                                 <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-3">
-                                    <img src="/shib.svg" alt="SHIB" className="w-7 h-7 rounded-full shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                                    <img src="/shib.png" alt="SHIB" className="w-7 h-7 rounded-full shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                                     <div>
                                         <p className="text-orange-200/50 font-black uppercase tracking-[0.25em] text-[8px] mb-0.5">SHIBA INU</p>
                                         <p className="text-xl font-black tabular-nums tracking-tight text-orange-100">
@@ -1122,7 +1122,7 @@ export default function Wallet() {
                                 onClick={() => setActiveTab('shib')}
                                 className={`flex-1 py-2.5 sm:py-4 text-[8px] sm:text-xs font-black uppercase tracking-tight sm:tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent flex items-center justify-center gap-1.5 ${activeTab === 'shib' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
-                                <img src="/shib.svg" alt="" className="w-3.5 h-3.5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                                <img src="/shib.png" alt="" className="w-3.5 h-3.5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                                 SHIB
                             </button>
                         </div>

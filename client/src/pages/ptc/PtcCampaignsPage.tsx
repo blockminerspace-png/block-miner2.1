@@ -254,7 +254,7 @@ export default function PtcCampaignsPage() {
 
                         {/* Cost preview */}
                         <div className="flex items-center gap-3 p-4 bg-orange-500/5 border border-orange-500/15 rounded-xl">
-                            <img src="/shib.svg" alt="" className="w-5 h-5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                            <img src="/shib.png" alt="" className="w-5 h-5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                             <div>
                                 <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Custo total estimado</p>
                                 <p className="text-orange-300 font-black text-lg">{costPreview} SHIB</p>
@@ -310,7 +310,7 @@ export default function PtcCampaignsPage() {
                                     <div className="text-right shrink-0 space-y-1">
                                         <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">{c.views.toLocaleString()} / {c.targetViews.toLocaleString()} views</p>
                                         <div className="flex items-center gap-1.5">
-                                            <img src="/shib.svg" alt="" className="w-3.5 h-3.5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                                            <img src="/shib.png" alt="" className="w-3.5 h-3.5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                                             <span className="text-orange-300 font-black text-xs">{Number(c.costShib).toLocaleString(undefined, { maximumFractionDigits: 2 })} SHIB</span>
                                         </div>
                                     </div>

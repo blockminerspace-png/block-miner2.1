@@ -128,7 +128,7 @@ export default function PtcViewPage() {
             {/* Reward info bar */}
             {settings && (
                 <div className="flex items-center gap-3 p-4 bg-orange-500/5 border border-orange-500/15 rounded-2xl">
-                    <img src="/shib.svg" alt="" className="w-5 h-5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                    <img src="/shib.png" alt="" className="w-5 h-5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                     <div>
                         <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Recompensa por visualização</p>
                         <p className="text-orange-300 font-black text-sm">
@@ -169,7 +169,7 @@ export default function PtcViewPage() {
                             </div>
                             <div className="flex flex-col items-end gap-1 shrink-0">
                                 <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-xl px-3 py-1.5">
-                                    <img src="/shib.svg" alt="" className="w-4 h-4 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                                    <img src="/shib.png" alt="" className="w-4 h-4 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
                                     <span className="text-orange-300 font-black text-xs">
                                         +{Number(ad.rewardPerViewShib).toLocaleString(undefined, { maximumFractionDigits: 4 })} SHIB
                                     </span>
