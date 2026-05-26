@@ -105,5 +105,21 @@ export async function refreshIframeHostAllowlistCache(prisma) {
     }
   }
 
+  // Partner games: every iframe URL of a visible partner game must be on the
+  // CSP frame-src allowlist; otherwise the browser blocks the iframe load.
+  const partnerGames = await prisma.partnerGame.findMany({
+    where: { isVisible: true },
+    select: { iframeUrl: true }
+  });
+  for (const g of partnerGames) {
+    try {
+      const u = new URL(String(g.iframeUrl));
+      const h = u.hostname.toLowerCase();
+      if (h && h !== "localhost") set.add(h);
+    } catch {
+      /* ignore bad URL — admin validation should have caught it */
+    }
+  }
+
   cachedAllowlist = set;
 }

@@ -858,7 +858,8 @@
       "broadcast": "Notificações",
       "user_app_sidebar": "Sidebar do usuário",
       "public_support": "Suporte Pré-login",
-      "ptc": "PTC"
+      "ptc": "PTC",
+      "partner_games": "Jogos Parceiros"
     },
     "logout": "Encerrar sessão"
   },
@@ -2396,6 +2397,10 @@
     "block_stack_desc": "Empilhe 10 blocos. Cada erro encolhe o próximo — pura precisão.",
     "mining_tap_title": "Mining Tap",
     "mining_tap_desc": "Toque rápido por 30 segundos. Pare quando o glitch surgir — ou perca pontos.",
+    "tabs": {
+      "ours": "Nossos Jogos",
+      "partners": "Jogos Parceiros"
+    },
     "cooldown_label": "Espera: {{seconds}}s",
     "cta_start": "Iniciar link",
     "time_value_seconds": "{{seconds}}s",
@@ -2431,6 +2436,21 @@
       "short_term": "Bônus de +50 H/s ativo por 24 horas! Faça check-in para até {{days}} dias.",
       "persist_ok": "Bônus registrado com sucesso."
     }
+  },
+  "partnerGames": {
+    "empty": "Nenhum jogo parceiro disponível ainda.",
+    "play": "Jogar",
+    "open_aria": "Abrir {{title}}",
+    "visit_partner": "Visitar Parceiro",
+    "like_aria": "Curtir",
+    "dislike_aria": "Não curtir",
+    "modal_subtitle": "Jogo externo incorporado de um site parceiro.",
+    "fullscreen": "Tela cheia",
+    "fullscreen_aria": "Entrar em tela cheia",
+    "close_aria": "Fechar",
+    "iframe_failed_title": "O jogo não carregou incorporado",
+    "iframe_failed_desc": "O site parceiro pode bloquear o iframe. Abra diretamente em uma nova aba.",
+    "open_in_new_tab": "Abrir em nova aba"
   },
   "autoMiningGpuPage": {
     "loading": "Sincronizando sessão…",

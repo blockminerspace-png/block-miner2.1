@@ -7,7 +7,8 @@ import type { LucideIcon } from "lucide-react";
 import { useAuthStore, api } from "../../store/auth";
 import { formatHashrate } from "../../shared/utils/machine";
 import { Link } from "react-router-dom";
-import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car, Layers, Hand } from "lucide-react";
+import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car, Layers, Hand, Gamepad2 } from "lucide-react";
+import PartnerGamesTab from "./PartnerGamesTab";
 import { toast } from "sonner";
 import {
   MINER_GAMES_LOGICAL_SIZE,
@@ -287,6 +288,12 @@ export default function Games() {
   const [cartCooldown, setCartCooldown] = useState(0);
   const [stackCooldown, setStackCooldown] = useState(0);
   const [tapCooldown, setTapCooldown] = useState(0);
+
+  /**
+   * Which tab is open in the games index: our minigames or the curated
+   * partner-games catalog. Tabs only render when no game is active.
+   */
+  const [gamesTab, setGamesTab] = useState<"ours" | "partners">("ours");
 
   // Block Stack state (DOM-rendered, no canvas — simpler + lighter).
   const [stackState, setStackState] = useState<{
@@ -2467,6 +2474,38 @@ export default function Games() {
         </div>
 
         {!activeGame ? (
+          <>
+            {/* Tab toggle: our games vs partner games */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setGamesTab("ours")}
+                className={`flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+                  gamesTab === "ours"
+                    ? "bg-primary text-white shadow-lg shadow-primary/30"
+                    : "border border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700 hover:text-white"
+                }`}
+              >
+                <Zap className="h-4 w-4" />
+                {t("minerGames.tabs.ours")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setGamesTab("partners")}
+                className={`flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+                  gamesTab === "partners"
+                    ? "bg-primary text-white shadow-lg shadow-primary/30"
+                    : "border border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700 hover:text-white"
+                }`}
+              >
+                <Gamepad2 className="h-4 w-4" />
+                {t("minerGames.tabs.partners")}
+              </button>
+            </div>
+
+            {gamesTab === "partners" ? (
+              <PartnerGamesTab t={t} />
+            ) : (
           <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
             <GameCard
               title={t("minerGames.memory_sync_title")}
@@ -2529,6 +2568,8 @@ export default function Games() {
               cooldownMinutes={chain2048CdSec > 0 ? Math.max(1, Math.ceil(chain2048CdSec / 60)) : 0}
             />
           </div>
+            )}
+          </>
         ) : (
           <div className="relative">
             <div className="relative flex flex-col items-center overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-4 shadow-2xl sm:rounded-[3rem]">

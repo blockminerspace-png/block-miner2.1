@@ -36,6 +36,7 @@ import { powerBoostRouter } from "#server/modules/powerBoost/powerBoost.routes.j
 import { socialRouter } from "#server/modules/social/social.routes.js";
 import { tournamentsRouter } from "#server/modules/tournaments/index.js";
 import { ptcRouter } from "#server/modules/ptc/ptc.routes.js";
+import { partnerGamesRouter } from "#server/modules/partnerGames/index.js";
 
 export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/auth", authRouter);
@@ -75,4 +76,5 @@ export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/social", socialRouter);
   app.use("/api/tournaments", tournamentsRouter);
   app.use("/api/ptc", ptcRouter);
+  app.use("/api/partner-games", partnerGamesRouter);
 }

@@ -121,6 +121,7 @@ model User {
   youtuberProfile                YoutuberProfile?
   videoSubmissions               YoutubeVideoSubmission[]
   videoVotes                     YoutubeVideoVote[]
+  partnerGameVotes               PartnerGameVote[]
 
   // Traffic attribution (captured at registration)
   utmSource      String? @map("utm_source")
@@ -2177,6 +2178,50 @@ model YoutuberRewardSettings {
   miner Miner? @relation(fields: [minerId], references: [id], onDelete: SetNull)
 
   @@map("youtuber_reward_settings")
+}
+
+// ─── PARTNER GAMES ──────────────────────────────────────────────────────────
+//
+// Curated external games we embed in /games via iframe. Admin manages the
+// catalog (title, description, cover, iframe URL, fallback URL, affiliate
+// link). The frame URL host must be on the CSP allowlist; we maintain that
+// dynamically through the existing internal-offerwall iframe-host service.
+//
+/// External (partner) game shown alongside our own minigames in /games.
+model PartnerGame {
+  id            Int      @id @default(autoincrement())
+  title         String
+  description   String?
+  coverImageUrl String?  @map("cover_image_url")
+  iframeUrl     String   @map("iframe_url")
+  fallbackUrl   String?  @map("fallback_url")
+  partnerUrl    String?  @map("partner_url") // affiliate / "Visit partner" link
+  isVisible     Boolean  @default(true) @map("is_visible")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  votes PartnerGameVote[]
+
+  @@index([isVisible, sortOrder])
+  @@map("partner_games")
+}
+
+/// Community vote on a partner game (1 = like, -1 = dislike, one row per user/game).
+model PartnerGameVote {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  partnerGameId Int      @map("partner_game_id")
+  value         Int
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerGame PartnerGame @relation(fields: [partnerGameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, partnerGameId])
+  @@index([partnerGameId])
+  @@map("partner_game_votes")
 }
 
 // ─── TOURNAMENTS ────────────────────────────────────────────────────────────

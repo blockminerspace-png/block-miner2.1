@@ -857,7 +857,8 @@
       "broadcast": "Notifications",
       "user_app_sidebar": "User sidebar",
       "public_support": "Pre-login Support",
-      "ptc": "PTC"
+      "ptc": "PTC",
+      "partner_games": "Partner Games"
     },
     "logout": "Sign out"
   },
@@ -2391,6 +2392,10 @@
     "block_stack_desc": "Stack 10 blocks. Each miss shrinks the next one — pure precision.",
     "mining_tap_title": "Mining Tap",
     "mining_tap_desc": "Tap fast for 30 seconds. Hands off when the glitch hits or lose points.",
+    "tabs": {
+      "ours": "Our Games",
+      "partners": "Partner Games"
+    },
     "cooldown_label": "Cooldown: {{seconds}}s",
     "cta_start": "Start link",
     "time_value_seconds": "{{seconds}}s",
@@ -2426,6 +2431,21 @@
       "short_term": "+50 H/s bonus active for 24 hours! Check in to unlock up to {{days}} days.",
       "persist_ok": "Bonus recorded successfully."
     }
+  },
+  "partnerGames": {
+    "empty": "No partner games available yet.",
+    "play": "Play",
+    "open_aria": "Open {{title}}",
+    "visit_partner": "Visit Partner",
+    "like_aria": "Like",
+    "dislike_aria": "Dislike",
+    "modal_subtitle": "External game embedded from a partner site.",
+    "fullscreen": "Fullscreen",
+    "fullscreen_aria": "Enter fullscreen",
+    "close_aria": "Close",
+    "iframe_failed_title": "Game couldn't load embedded",
+    "iframe_failed_desc": "The partner site may block embedding. Open it directly in a new tab.",
+    "open_in_new_tab": "Open in new tab"
   },
   "autoMiningGpuPage": {
     "loading": "Syncing session…",

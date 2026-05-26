@@ -491,7 +491,8 @@
       "broadcast": "Notificaciones",
       "user_app_sidebar": "Barra lateral de usuario",
       "public_support": "Soporte Pre-login",
-      "ptc": "PTC"
+      "ptc": "PTC",
+      "partner_games": "Juegos Asociados"
     },
     "logout": "Cerrar sesión"
   },
@@ -1990,6 +1991,10 @@
     "block_stack_desc": "Apila 10 bloques. Cada fallo reduce el siguiente — pura precisión.",
     "mining_tap_title": "Mining Tap",
     "mining_tap_desc": "Toca rápido durante 30 segundos. Detente en cada glitch o pierdes puntos.",
+    "tabs": {
+      "ours": "Nuestros Juegos",
+      "partners": "Juegos Asociados"
+    },
     "cooldown_label": "Enfriamiento: {{seconds}}s",
     "cta_start": "Iniciar enlace",
     "time_value_seconds": "{{seconds}}s",
@@ -2025,6 +2030,21 @@
       "short_term": "¡Bono de +50 H/s activo durante 24 horas! Haz check-in para hasta {{days}} días.",
       "persist_ok": "Bono registrado correctamente."
     }
+  },
+  "partnerGames": {
+    "empty": "Aún no hay juegos asociados disponibles.",
+    "play": "Jugar",
+    "open_aria": "Abrir {{title}}",
+    "visit_partner": "Visitar Socio",
+    "like_aria": "Me gusta",
+    "dislike_aria": "No me gusta",
+    "modal_subtitle": "Juego externo incrustado desde un sitio asociado.",
+    "fullscreen": "Pantalla completa",
+    "fullscreen_aria": "Entrar en pantalla completa",
+    "close_aria": "Cerrar",
+    "iframe_failed_title": "El juego no se pudo cargar incrustado",
+    "iframe_failed_desc": "El sitio asociado puede bloquear el iframe. Ábrelo en una nueva pestaña.",
+    "open_in_new_tab": "Abrir en nueva pestaña"
   },
   "autoMiningGpuPage": {
     "loading": "Sincronizando sesión…",

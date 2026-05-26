@@ -28,6 +28,7 @@ import {
   Video,
   Fingerprint,
   MousePointerClick,
+  Gamepad2,
 } from 'lucide-react';
 
 type AdminMenuEntry = {
@@ -61,6 +62,7 @@ const ADMIN_MENU_ITEMS: AdminMenuEntry[] = [
   { icon: Youtube, labelKey: 'adminSidebar.nav.creators', path: '/admin/creators' },
   { icon: Youtube, labelKey: 'adminSidebar.nav.social', path: '/admin/social' },
   { icon: MousePointerClick, labelKey: 'adminSidebar.nav.ptc', path: '/admin/ptc' },
+  { icon: Gamepad2, labelKey: 'adminSidebar.nav.partner_games', path: '/admin/partner-games' },
   { icon: Eye, labelKey: 'adminSidebar.nav.transparency', path: '/admin/transparency' },
   { icon: Database, labelKey: 'adminSidebar.nav.backups', path: '/admin/backups' },
   { icon: FileText, labelKey: 'adminSidebar.nav.logs', path: '/admin/logs' },

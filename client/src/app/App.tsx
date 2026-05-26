@@ -75,6 +75,7 @@ const AdminSocial = lazy(() => import('../pages/admin/AdminSocial'));
 const AdminTournaments = lazy(() => import('../pages/admin/AdminTournaments'));
 const AdminTrafficStats = lazy(() => import('../pages/admin/AdminTrafficStats'));
 const AdminPtc = lazy(() => import('../pages/admin/AdminPtc'));
+const AdminPartnerGames = lazy(() => import('../pages/admin/AdminPartnerGames'));
 const PtcViewPage = lazy(() => import('../pages/ptc/PtcViewPage'));
 const PtcCampaignsPage = lazy(() => import('../pages/ptc/PtcCampaignsPage'));
 const ReadEarn = lazy(() => import('../pages/read-earn'));
@@ -291,6 +292,7 @@ function App() {
             <Route path="/admin/tournaments" element={<AdminTournaments />} />
             <Route path="/admin/traffic" element={<AdminTrafficStats />} />
             <Route path="/admin/ptc" element={<AdminPtc />} />
+            <Route path="/admin/partner-games" element={<AdminPartnerGames />} />
           </Route>
         </Routes>
       </Suspense>

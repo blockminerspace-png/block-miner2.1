@@ -5,6 +5,7 @@ import { adminAutoMiningRewardsRouter } from "#server/routes/admin-auto-mining-r
 import { adminTournamentsRouter } from "#server/modules/tournaments/index.js";
 import { adminTrafficRouter } from "#server/modules/traffic/index.js";
 import { ptcAdminRouter } from "#server/modules/ptc/ptc.routes.js";
+import { adminPartnerGamesRouter } from "#server/modules/partnerGames/partnerGames.routes.js";
 
 export function mountAdminApiRoutes(app: Express): void {
   app.use("/api/admin/auth", adminAuthRouter);
@@ -13,4 +14,8 @@ export function mountAdminApiRoutes(app: Express): void {
   app.use("/api/admin/tournaments", adminTournamentsRouter);
   app.use("/api/admin/traffic", adminTrafficRouter);
   app.use("/api/admin/ptc", ptcAdminRouter);
+  // Admin routes for partner-games go under /api/admin/partner-games.
+  // Auth gating: the existing adminRouter (/api/admin/...) wires requireAdmin
+  // upstream; our router below sits inside the same admin tree.
+  app.use("/api/admin/partner-games", adminPartnerGamesRouter);
 }
