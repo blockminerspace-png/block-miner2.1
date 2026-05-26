@@ -134,7 +134,7 @@ export default function Faucet() {
     const startPartnerTimer = async () => {
         // Open window immediately (in sync user-gesture context) so browser allows it.
         // After the API call we navigate the already-open window to the real URL.
-        const win = window.open('', '_blank', 'noopener,noreferrer');
+        const win = window.open('', '_blank');
         try {
             setIsAdClicked(true);
             const res = await api.post('/faucet/partner/start');
