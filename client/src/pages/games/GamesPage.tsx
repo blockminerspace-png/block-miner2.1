@@ -7,7 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAuthStore, api } from "../../store/auth";
 import { formatHashrate } from "../../shared/utils/machine";
 import { Link } from "react-router-dom";
-import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car } from "lucide-react";
+import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car, Layers, Hand } from "lucide-react";
 import { toast } from "sonner";
 import {
   MINER_GAMES_LOGICAL_SIZE,
@@ -30,7 +30,7 @@ type CryptoIconKey = keyof typeof CRYPTO_ICONS;
 const ICON_IMAGES_MAP = ICON_IMAGES as Record<CryptoIconKey, HTMLImageElement>;
 
 /** UI route keys — map to server slugs on `game:start`. */
-type ActiveGame = "memory" | "match-3" | "cart" | null;
+type ActiveGame = "memory" | "match-3" | "cart" | "stack" | "tap" | null;
 
 type MemoryBoardCard = {
   id: number;
@@ -143,7 +143,32 @@ type GameStartedCart = {
   timeLimitSeconds?: number;
 };
 
-type GameStartedPayload = GameStartedMemory | GameStartedMatch3 | GameStartedCart;
+type GameStartedStack = {
+  game: "block-stack";
+  target: number;
+  playWidth: number;
+  blocksPlaced: number;
+  score?: number;
+  block: { width: number; travelMs: number; startedAt: number };
+  base: { leftPx: number; width: number };
+};
+
+type GameStartedTap = {
+  game: "mining-tap";
+  durationMs: number;
+  targetScore: number;
+  score?: number;
+  endsAt: number;
+  glitchActive: boolean;
+  maxTps: number;
+};
+
+type GameStartedPayload =
+  | GameStartedMemory
+  | GameStartedMatch3
+  | GameStartedCart
+  | GameStartedStack
+  | GameStartedTap;
 
 type MemoryGridLayout = ReturnType<typeof getMemoryGridLayout>;
 type Match3GridLayout = ReturnType<typeof getMatch3GridLayout>;
@@ -188,6 +213,22 @@ function getCanvasViewportStyle(activeGame: ActiveGame): React.CSSProperties {
       aspectRatio: `${CART_LOGICAL_WIDTH} / ${CART_LOGICAL_HEIGHT}`,
       maxWidth: "1600px",
       maxHeight: "calc(100dvh - 220px)"
+    };
+  }
+  if (activeGame === "stack") {
+    return {
+      width: "min(calc(100vw - 16px), 540px)",
+      aspectRatio: "3 / 4",
+      maxWidth: "540px",
+      maxHeight: "calc(100dvh - 52px)"
+    };
+  }
+  if (activeGame === "tap") {
+    return {
+      width: "min(calc(100vw - 16px), 540px)",
+      aspectRatio: "1 / 1",
+      maxWidth: "540px",
+      maxHeight: "calc(100dvh - 52px)"
     };
   }
 
@@ -244,6 +285,29 @@ export default function Games() {
   const [memoryCooldown, setMemoryCooldown] = useState(0);
   const [match3Cooldown, setMatch3Cooldown] = useState(0);
   const [cartCooldown, setCartCooldown] = useState(0);
+  const [stackCooldown, setStackCooldown] = useState(0);
+  const [tapCooldown, setTapCooldown] = useState(0);
+
+  // Block Stack state (DOM-rendered, no canvas — simpler + lighter).
+  const [stackState, setStackState] = useState<{
+    target: number;
+    playWidth: number;
+    blocksPlaced: number;
+    block: { width: number; travelMs: number; startedAt: number };
+    base: { leftPx: number; width: number };
+    tower: Array<{ leftPx: number; width: number }>;
+  } | null>(null);
+
+  // Mining Tap state (DOM-rendered).
+  const [tapState, setTapState] = useState<{
+    endsAt: number;
+    durationMs: number;
+    targetScore: number;
+    glitchActive: boolean;
+    score: number;
+    flash: number;          // bump on each tap result for CSS pulse
+    flashDelta: number;     // last delta (positive/negative) for color cue
+  } | null>(null);
   const [chain2048CdSec, setChain2048CdSec] = useState(0);
   const [chain2048AllowStart, setChain2048AllowStart] = useState(true);
   /** Server sets allowNewStart=false when a round is ACTIVE (continue), not only on cooldown. */
@@ -524,6 +588,31 @@ export default function Games() {
         };
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
+      } else if (data.game === "block-stack") {
+        memoryBoardRef.current = null;
+        setStackState({
+          target: data.target,
+          playWidth: data.playWidth,
+          blocksPlaced: data.blocksPlaced,
+          block: data.block,
+          base: data.base,
+          tower: [data.base],
+        });
+        setHudScore(Number(data.score) || 0);
+        setSessionReady(true);
+      } else if (data.game === "mining-tap") {
+        memoryBoardRef.current = null;
+        setTapState({
+          endsAt: data.endsAt,
+          durationMs: data.durationMs,
+          targetScore: data.targetScore,
+          glitchActive: Boolean(data.glitchActive),
+          score: Number(data.score) || 0,
+          flash: 0,
+          flashDelta: 0,
+        });
+        setHudScore(Number(data.score) || 0);
+        setSessionReady(true);
       } else {
         setSessionReady(false);
       }
@@ -533,7 +622,11 @@ export default function Games() {
           ? 70
           : data.game === "cart-rush"
             ? Number(data.timeLimitSeconds) || CART_TIME_LIMIT_SECONDS
-            : 180
+            : data.game === "mining-tap"
+              ? Math.ceil(Number(data.durationMs) / 1000) || 30
+              : data.game === "block-stack"
+                ? 0 // No global timer — game-over is win/lose, not time-based
+                : 180
       );
     });
 
@@ -680,6 +773,68 @@ export default function Games() {
       setHudScore(data.score);
     });
 
+    // Block Stack events
+    newSocket.on(
+      "game:stack_dropped",
+      (data: {
+        blocksPlaced: number;
+        score: number;
+        blockLeft: number;
+        blockWidth: number;
+        overlapWidth: number;
+        missed: boolean;
+        nextBlock?: { width: number; travelMs: number; startedAt: number };
+        base?: { leftPx: number; width: number };
+      }) => {
+        setHudScore(Number(data.score) || 0);
+        setStackState((prev) => {
+          if (!prev) return prev;
+          // Add the dropped block to the tower (uses the overlap, not the placed-block width).
+          const placed = {
+            leftPx: data.missed ? data.blockLeft : (data.base?.leftPx ?? prev.base.leftPx),
+            width: data.missed ? data.blockWidth : (data.base?.width ?? prev.base.width),
+          };
+          const tower = [...prev.tower, placed];
+          if (data.missed || !data.nextBlock || !data.base) {
+            // Final frame before server fires game:finished — keep block visible for visual feedback.
+            return { ...prev, blocksPlaced: data.blocksPlaced, tower };
+          }
+          return {
+            ...prev,
+            blocksPlaced: data.blocksPlaced,
+            block: data.nextBlock,
+            base: data.base,
+            tower,
+          };
+        });
+      }
+    );
+
+    // Mining Tap events
+    newSocket.on("game:tap_result", (data: { score: number; delta: number; glitch: boolean }) => {
+      setHudScore(Number(data.score) || 0);
+      setTapState((prev) =>
+        prev
+          ? { ...prev, score: data.score, flash: prev.flash + 1, flashDelta: data.delta }
+          : prev
+      );
+    });
+    newSocket.on("game:tap_glitch", (data: { active: boolean; until: number }) => {
+      setTapState((prev) => (prev ? { ...prev, glitchActive: Boolean(data.active) } : prev));
+    });
+    newSocket.on(
+      "game:tap_tick",
+      (data: { timeLeftMs: number; score: number; glitchActive: boolean }) => {
+        setHudScore(Number(data.score) || 0);
+        setTapState((prev) =>
+          prev
+            ? { ...prev, score: data.score, glitchActive: Boolean(data.glitchActive) }
+            : prev
+        );
+        setTimeLeft(Math.max(0, Math.ceil(Number(data.timeLeftMs) / 1000)));
+      }
+    );
+
     newSocket.on(
       "game:finished",
       (data: {
@@ -697,6 +852,8 @@ export default function Games() {
         if (activeGameRef.current === "memory") setMemoryCooldown(cd);
         else if (activeGameRef.current === "match-3") setMatch3Cooldown(cd);
         else if (activeGameRef.current === "cart") setCartCooldown(cd);
+        else if (activeGameRef.current === "stack") setStackCooldown(cd);
+        else if (activeGameRef.current === "tap") setTapCooldown(cd);
         if (data.success) {
           const rewardText = translateGameReward(t, data);
           setRewardMessage(rewardText);
@@ -722,6 +879,9 @@ export default function Games() {
 
   useEffect(() => {
     if (!gameTimerKey || isGameOver) return;
+    // Block Stack has no time limit (it's a win/lose game) — skip the countdown.
+    // Mining Tap is driven by the server via game:tap_tick events.
+    if (activeGameRef.current === "stack" || activeGameRef.current === "tap") return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -756,6 +916,20 @@ export default function Games() {
       return () => clearInterval(timer);
     }
   }, [cartCooldown]);
+
+  useEffect(() => {
+    if (stackCooldown > 0) {
+      const timer = setInterval(() => setStackCooldown((c) => Math.max(0, c - 1)), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [stackCooldown]);
+
+  useEffect(() => {
+    if (tapCooldown > 0) {
+      const timer = setInterval(() => setTapCooldown((c) => Math.max(0, c - 1)), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [tapCooldown]);
 
   useLayoutEffect(() => {
     if (!activeGame || isGameOver) return;
@@ -2159,6 +2333,38 @@ export default function Games() {
     socket.emit("game:start", "cart-rush");
   }, [socket, initScenery]);
 
+  const startStack = useCallback(() => {
+    if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
+    clearTimeoutList(pendingTimeoutsRef);
+    setActiveGame("stack");
+    activeGameRef.current = "stack";
+    setSessionReady(false);
+    setStackState(null);
+    memoryBoardRef.current = null;
+    socket.emit("game:start", "block-stack");
+  }, [socket]);
+
+  const startTap = useCallback(() => {
+    if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
+    clearTimeoutList(pendingTimeoutsRef);
+    setActiveGame("tap");
+    activeGameRef.current = "tap";
+    setSessionReady(false);
+    setTapState(null);
+    memoryBoardRef.current = null;
+    socket.emit("game:start", "mining-tap");
+  }, [socket]);
+
+  const handleStackDrop = useCallback(() => {
+    if (!socket || isGameOver) return;
+    socket.emit("game:action", { type: "drop" });
+  }, [socket, isGameOver]);
+
+  const handleTapAction = useCallback(() => {
+    if (!socket || isGameOver) return;
+    socket.emit("game:action", { type: "tap" });
+  }, [socket, isGameOver]);
+
   useEffect(() => {
     if (activeGame !== "cart" || isGameOver || !socket) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -2220,19 +2426,25 @@ export default function Games() {
                 <div className="pointer-events-none absolute inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,3px_100%] opacity-20" />
               ) : null}
 
-              <canvas
-                ref={canvasRef}
-                width={getCanvasLogicalSize(activeGame).width}
-                height={getCanvasLogicalSize(activeGame).height}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onTouchStart={handleMouseDown}
-                onTouchMove={handleMouseMove}
-                onTouchEnd={handleMouseUp}
-                className="block h-full w-full"
-                style={{ cursor: isTouchDevice.current ? "default" : "none", touchAction: "none" }}
-              />
+              {activeGame === "stack" ? (
+                <BlockStackArena state={stackState} onDrop={handleStackDrop} isGameOver={isGameOver} t={t} />
+              ) : activeGame === "tap" ? (
+                <MiningTapArena state={tapState} timeLeft={timeLeft} onTap={handleTapAction} isGameOver={isGameOver} t={t} />
+              ) : (
+                <canvas
+                  ref={canvasRef}
+                  width={getCanvasLogicalSize(activeGame).width}
+                  height={getCanvasLogicalSize(activeGame).height}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onTouchStart={handleMouseDown}
+                  onTouchMove={handleMouseMove}
+                  onTouchEnd={handleMouseUp}
+                  className="block h-full w-full"
+                  style={{ cursor: isTouchDevice.current ? "default" : "none", touchAction: "none" }}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -2285,6 +2497,26 @@ export default function Games() {
               disabled={cartCooldown > 0}
               ctaStart={t("minerGames.cta_start")}
               cooldownLabel={t("minerGames.cooldown_label", { seconds: cartCooldown })}
+            />
+            <GameCard
+              title={t("minerGames.block_stack_title")}
+              description={t("minerGames.block_stack_desc")}
+              icon={Layers}
+              color="from-amber-500 to-orange-700"
+              onClick={startStack}
+              disabled={stackCooldown > 0}
+              ctaStart={t("minerGames.cta_start")}
+              cooldownLabel={t("minerGames.cooldown_label", { seconds: stackCooldown })}
+            />
+            <GameCard
+              title={t("minerGames.mining_tap_title")}
+              description={t("minerGames.mining_tap_desc")}
+              icon={Hand}
+              color="from-fuchsia-500 to-pink-700"
+              onClick={startTap}
+              disabled={tapCooldown > 0}
+              ctaStart={t("minerGames.cta_start")}
+              cooldownLabel={t("minerGames.cooldown_label", { seconds: tapCooldown })}
             />
             <GameCardLink
               to="/games/2048"
@@ -2467,6 +2699,233 @@ type GameCardLinkProps = {
   disabled?: boolean;
   cooldownMinutes?: number;
 };
+
+/**
+ * BlockStackArena — DOM-rendered game surface for the "block-stack" minigame.
+ *
+ * The server is authoritative: it tells us blockWidth, the absolute leftPx of
+ * the tower base, and the timestamps for animating the moving block locally.
+ * We compute the block's current X position from (Date.now() - startedAt) using
+ * the same ping-pong formula the server uses to validate drops, so the visual
+ * stays in sync without sending intermediate positions over the wire.
+ */
+const BlockStackArena = memo(function BlockStackArena({
+  state,
+  onDrop,
+  isGameOver,
+  t,
+}: {
+  state:
+    | {
+        target: number;
+        playWidth: number;
+        blocksPlaced: number;
+        block: { width: number; travelMs: number; startedAt: number };
+        base: { leftPx: number; width: number };
+        tower: Array<{ leftPx: number; width: number }>;
+      }
+    | null;
+  onDrop: () => void;
+  isGameOver: boolean;
+  t: TFunction;
+}) {
+  const [blockLeftPx, setBlockLeftPx] = useState(0);
+  const rafRef = useRef<number | null>(null);
+
+  // Drive the block animation locally from the server's startedAt + travelMs.
+  useEffect(() => {
+    if (!state || isGameOver) {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      return;
+    }
+    const tick = () => {
+      const now = Date.now();
+      const elapsed = Math.max(0, now - state.block.startedAt);
+      const travel = Math.max(1, state.block.travelMs);
+      const cyclePos = (elapsed % (travel * 2)) / travel;
+      const phase = cyclePos <= 1 ? cyclePos : 2 - cyclePos;
+      const maxLeft = state.playWidth - state.block.width;
+      setBlockLeftPx(phase * maxLeft);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [state, isGameOver]);
+
+  if (!state) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-xs font-bold uppercase tracking-widest text-slate-500">
+        {t("minerGames.loading")}
+      </div>
+    );
+  }
+
+  // Tower height: each block stacked grows upward from the bottom.
+  const BLOCK_H = 22;
+  const towerHeight = state.tower.length * BLOCK_H;
+  const trackHeight = 360; // visual play height for the moving block area
+
+  return (
+    <div className="relative flex h-full w-full flex-col bg-gradient-to-b from-slate-900 to-black">
+      {/* Progress bar */}
+      <div className="px-3 pt-3">
+        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <span>{t("minerGames.block_stack.progress", { current: state.blocksPlaced, total: state.target })}</span>
+        </div>
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-200"
+            style={{ width: `${(state.blocksPlaced / state.target) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Play area — relative coords scaled to state.playWidth */}
+      <div
+        className="relative mx-auto mt-4 mb-2 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/80"
+        style={{ width: state.playWidth, maxWidth: "100%", height: trackHeight }}
+      >
+        {/* Moving block */}
+        <div
+          className="absolute h-[22px] rounded-md bg-gradient-to-r from-amber-300 to-orange-500 shadow-lg"
+          style={{
+            top: 8,
+            left: blockLeftPx,
+            width: state.block.width,
+            transform: "translateZ(0)", // GPU-accel; smooth motion
+          }}
+        />
+        {/* Stacked tower (built bottom-up) */}
+        {state.tower.map((b, idx) => (
+          <div
+            key={idx}
+            className="absolute h-[22px] rounded-sm bg-gradient-to-r from-emerald-400 to-cyan-500 shadow"
+            style={{
+              left: b.leftPx,
+              width: b.width,
+              bottom: idx * BLOCK_H,
+            }}
+          />
+        ))}
+        {/* Aim guide on the next-base position */}
+        <div
+          className="absolute border-x-2 border-dashed border-emerald-400/30"
+          style={{
+            left: state.base.leftPx,
+            width: state.base.width,
+            top: 8,
+            bottom: towerHeight,
+          }}
+        />
+      </div>
+
+      {/* Drop button */}
+      <button
+        type="button"
+        onClick={onDrop}
+        disabled={isGameOver}
+        className="mx-auto mb-4 mt-auto rounded-2xl bg-primary px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {t("minerGames.block_stack.drop_button")}
+      </button>
+    </div>
+  );
+});
+
+/**
+ * MiningTapArena — DOM-rendered tap game.
+ *
+ * Server controls glitchActive, score and time-left. Client just emits taps.
+ * We render a big tap button that visually flashes red when the server flips
+ * glitchActive on (the user is supposed to STOP tapping during glitches).
+ */
+const MiningTapArena = memo(function MiningTapArena({
+  state,
+  timeLeft,
+  onTap,
+  isGameOver,
+  t,
+}: {
+  state:
+    | {
+        endsAt: number;
+        durationMs: number;
+        targetScore: number;
+        glitchActive: boolean;
+        score: number;
+        flash: number;
+        flashDelta: number;
+      }
+    | null;
+  timeLeft: number;
+  onTap: () => void;
+  isGameOver: boolean;
+  t: TFunction;
+}) {
+  if (!state) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-xs font-bold uppercase tracking-widest text-slate-500">
+        {t("minerGames.loading")}
+      </div>
+    );
+  }
+  const progress = Math.min(1, state.score / state.targetScore);
+  const isGlitch = state.glitchActive;
+
+  return (
+    <div className={`relative flex h-full w-full flex-col items-center justify-between p-4 transition-colors duration-150 ${isGlitch ? "bg-red-950/70" : "bg-gradient-to-b from-slate-900 to-black"}`}>
+      {/* Header / progress */}
+      <div className="w-full">
+        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <span>{t("minerGames.mining_tap.progress", { current: state.score, total: state.targetScore })}</span>
+          <span>{t("minerGames.time_value_seconds", { seconds: timeLeft })}</span>
+        </div>
+        <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full bg-gradient-to-r from-emerald-400 to-cyan-500 transition-all duration-200"
+            style={{ width: `${progress * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Glitch warning */}
+      {isGlitch && (
+        <div className="absolute left-1/2 top-12 -translate-x-1/2 rounded-full bg-red-500/90 px-4 py-1 text-[11px] font-black uppercase tracking-widest text-white shadow-xl">
+          {t("minerGames.mining_tap.glitch_warning")}
+        </div>
+      )}
+
+      {/* Tap button */}
+      <button
+        type="button"
+        onClick={onTap}
+        disabled={isGameOver || timeLeft <= 0}
+        aria-label={t("minerGames.mining_tap.tap_aria")}
+        className={`group relative h-48 w-48 select-none rounded-full text-3xl font-black uppercase tracking-widest text-white shadow-2xl transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+          isGlitch
+            ? "bg-gradient-to-br from-red-500 to-red-700 ring-4 ring-red-400/50"
+            : "bg-gradient-to-br from-primary to-orange-600 ring-4 ring-orange-400/40"
+        }`}
+        style={{ touchAction: "manipulation" }}
+      >
+        {/* Flash overlay on each tap result */}
+        <span
+          key={state.flash}
+          className={`pointer-events-none absolute inset-0 rounded-full ${state.flashDelta >= 0 ? "bg-emerald-400/30" : "bg-red-500/40"} animate-ping`}
+          style={{ animationDuration: "300ms" }}
+        />
+        {t("minerGames.mining_tap.tap_label")}
+      </button>
+
+      {/* Footer hint */}
+      <p className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
+        {t("minerGames.mining_tap.hint")}
+      </p>
+    </div>
+  );
+});
 
 const GameCardLink = memo(function GameCardLink({
   to,

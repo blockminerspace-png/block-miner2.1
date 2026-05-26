@@ -1986,9 +1986,25 @@
     "power_match_desc": "Encadena cascadas intercambiando fichas adyacentes.",
     "cart_rush_title": "Cart Rush",
     "cart_rush_desc": "Conduce el carrito, recoge monedas y esquiva bloques rotos.",
+    "block_stack_title": "Block Stack",
+    "block_stack_desc": "Apila 10 bloques. Cada fallo reduce el siguiente — pura precisión.",
+    "mining_tap_title": "Mining Tap",
+    "mining_tap_desc": "Toca rápido durante 30 segundos. Detente en cada glitch o pierdes puntos.",
     "cooldown_label": "Enfriamiento: {{seconds}}s",
     "cta_start": "Iniciar enlace",
     "time_value_seconds": "{{seconds}}s",
+    "loading": "Cargando…",
+    "block_stack": {
+      "progress": "{{current}} / {{total}} bloques",
+      "drop_button": "Soltar"
+    },
+    "mining_tap": {
+      "progress": "{{current}} / {{total}}",
+      "glitch_warning": "¡Glitch! No toques",
+      "tap_label": "Toca",
+      "tap_aria": "Toca para minar",
+      "hint": "Toca lo más rápido posible — pero detente en los glitches"
+    },
     "socket_errors": {
       "invalid_session": "Sesión no válida.",
       "cooldown": "Espera {{seconds}}s antes de volver a iniciar este juego.",
@@ -2000,7 +2016,9 @@
     "game_finish": {
       "anti_cheat_timing": "Acción sospechosa: el tiempo de juego no es realista.",
       "session_ended": "Sesión finalizada.",
-      "cart_crashed": "El carrito chocó antes de alcanzar la puntuación objetivo."
+      "cart_crashed": "El carrito chocó antes de alcanzar la puntuación objetivo.",
+      "stack_missed": "Fallaste el apilado — inténtalo en la próxima ronda.",
+      "tap_score_too_low": "No alcanzaste la meta de toques."
     },
     "game_reward": {
       "full_term": "¡Bono de +50 H/s activo durante {{days}} días!",

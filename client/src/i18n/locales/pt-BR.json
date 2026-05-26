@@ -2392,9 +2392,25 @@
     "power_match_desc": "Gere cascatas de energia minerando ativos.",
     "cart_rush_title": "BTC Highway",
     "cart_rush_desc": "Complete a missão em 2 minutos, colete BTCs e alcance 750 pontos na pista.",
+    "block_stack_title": "Block Stack",
+    "block_stack_desc": "Empilhe 10 blocos. Cada erro encolhe o próximo — pura precisão.",
+    "mining_tap_title": "Mining Tap",
+    "mining_tap_desc": "Toque rápido por 30 segundos. Pare quando o glitch surgir — ou perca pontos.",
     "cooldown_label": "Espera: {{seconds}}s",
     "cta_start": "Iniciar link",
     "time_value_seconds": "{{seconds}}s",
+    "loading": "Carregando…",
+    "block_stack": {
+      "progress": "{{current}} / {{total}} blocos",
+      "drop_button": "Soltar"
+    },
+    "mining_tap": {
+      "progress": "{{current}} / {{total}}",
+      "glitch_warning": "Glitch! Não toque",
+      "tap_label": "Toque",
+      "tap_aria": "Toque para minerar",
+      "hint": "Toque o mais rápido possível — mas pare nos glitches"
+    },
     "socket_errors": {
       "invalid_session": "Sessão inválida.",
       "cooldown": "Aguarde {{seconds}}s para iniciar este jogo novamente.",
@@ -2406,7 +2422,9 @@
     "game_finish": {
       "anti_cheat_timing": "Ação suspeita detectada: tempo de jogo irreal.",
       "session_ended": "Sessão encerrada.",
-      "cart_crashed": "O carrinho bateu antes de alcançar a pontuação-alvo."
+      "cart_crashed": "O carrinho bateu antes de alcançar a pontuação-alvo.",
+      "stack_missed": "Errou o empilhamento — tenta de novo na próxima rodada.",
+      "tap_score_too_low": "Toques insuficientes para bater a meta."
     },
     "game_reward": {
       "full_term": "Bônus de +50 H/s ativo por {{days}} dias!",

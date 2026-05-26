@@ -2387,9 +2387,25 @@
     "power_match_desc": "Chain cascades by swapping adjacent assets.",
     "cart_rush_title": "Cart Rush",
     "cart_rush_desc": "Steer the mining cart, collect coins, and dodge broken blocks.",
+    "block_stack_title": "Block Stack",
+    "block_stack_desc": "Stack 10 blocks. Each miss shrinks the next one — pure precision.",
+    "mining_tap_title": "Mining Tap",
+    "mining_tap_desc": "Tap fast for 30 seconds. Hands off when the glitch hits or lose points.",
     "cooldown_label": "Cooldown: {{seconds}}s",
     "cta_start": "Start link",
     "time_value_seconds": "{{seconds}}s",
+    "loading": "Loading…",
+    "block_stack": {
+      "progress": "{{current}} / {{total}} blocks",
+      "drop_button": "Drop"
+    },
+    "mining_tap": {
+      "progress": "{{current}} / {{total}}",
+      "glitch_warning": "Glitch! Stop tapping",
+      "tap_label": "Tap",
+      "tap_aria": "Tap to mine",
+      "hint": "Tap as fast as you can — but stop during glitches"
+    },
     "socket_errors": {
       "invalid_session": "Invalid session.",
       "cooldown": "Wait {{seconds}}s before starting this game again.",
@@ -2401,7 +2417,9 @@
     "game_finish": {
       "anti_cheat_timing": "Suspicious action detected: play time was unrealistically short.",
       "session_ended": "Session ended.",
-      "cart_crashed": "The cart crashed before reaching the target score."
+      "cart_crashed": "The cart crashed before reaching the target score.",
+      "stack_missed": "Missed the stack — try again next round.",
+      "tap_score_too_low": "Not enough taps to clear the target."
     },
     "game_reward": {
       "full_term": "+50 H/s bonus active for {{days}} days!",
