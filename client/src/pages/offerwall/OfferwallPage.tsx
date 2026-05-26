@@ -281,8 +281,10 @@ function OfferwallMeDetail({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     void api.get<OfferwallMeStatsResponse>('/offerwallme/stats').then(r => {
-      if (r.data.ok) setStats(r.data);
-    }).catch(() => {});
+      setStats(r.data.ok ? r.data : { ok: false, totalUsd: 0, totalPol: 0, totalOffers: 0 });
+    }).catch(() => {
+      setStats({ ok: false, totalUsd: 0, totalPol: 0, totalOffers: 0 });
+    });
   }, []);
 
   const loadHistory = useCallback(async (page: number) => {

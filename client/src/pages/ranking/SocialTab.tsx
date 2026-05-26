@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Youtube, Send, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Play, Loader2, AlertTriangle, Star } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Youtube, Send, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Play, Loader2, AlertTriangle, Star, Gift, Cpu, Users } from 'lucide-react';
 import { api, useAuthStore } from '../../store/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,17 +123,89 @@ function VideoCard({ entry }: { entry: FeedEntry }) {
   );
 }
 
+// ─── Partner benefits ─────────────────────────────────────────────────────────
+
+function PartnerBenefits() {
+  return (
+    <div className="rounded-2xl border border-violet-500/20 bg-violet-950/10 p-5 space-y-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Star className="w-4 h-4 text-violet-400" />
+        <p className="text-sm font-black text-white">Benefícios do Parceiro Criador</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="flex items-start gap-3 rounded-xl bg-white/3 border border-white/8 px-4 py-3">
+          <Cpu className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-black text-white">1 Máquina por Vídeo</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Ganhe uma máquina mineradora a cada vídeo aprovado pela equipe.</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 rounded-xl bg-white/3 border border-white/8 px-4 py-3">
+          <Users className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-black text-white">Parceria Oficial</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Seu canal aparece no feed social da plataforma para todos os usuários.</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 rounded-xl bg-white/3 border border-white/8 px-4 py-3">
+          <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-black text-white">Envios Ilimitados</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Envie quantos vídeos quiser para revisão — sem limite por vez.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Credential request form ──────────────────────────────────────────────────
+
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 
 function CredentialRequestForm({ profile, onRequested }: { profile: YoutuberProfile | null; onRequested: (p: YoutuberProfile) => void }) {
   const [channelName, setChannelName] = useState(profile?.channelName ?? '');
   const [channelUrl, setChannelUrl] = useState(profile?.channelUrl ?? '');
-  const [channelPhoto, setChannelPhoto] = useState(profile?.channelPhoto ?? '');
   const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(profile?.channelPhoto ?? null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(profile?.channelPhoto ?? null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   const isResubmit = profile?.credentialRequestStatus === 'rejected';
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setError('Formato inválido. Use JPG, PNG, WebP ou GIF.');
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setError('Foto muito grande. Máximo 3 MB.');
+      return;
+    }
+    setError(null);
+    setPhotoPreview(URL.createObjectURL(file));
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      const res = await api.post<{ ok: boolean; photoUrl: string }>('/social/upload-photo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPhotoUrl(res.data.photoUrl);
+    } catch {
+      setError('Erro ao enviar foto. Tente novamente.');
+      setPhotoPreview(profile?.channelPhoto ?? null);
+      setPhotoUrl(profile?.channelPhoto ?? null);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +215,7 @@ function CredentialRequestForm({ profile, onRequested }: { profile: YoutuberProf
       const res = await api.post<{ ok: boolean; profile: YoutuberProfile }>('/social/request-credential', {
         channelName: channelName.trim(),
         channelUrl: channelUrl.trim() || undefined,
-        channelPhoto: channelPhoto.trim() || undefined,
+        channelPhoto: photoUrl ?? undefined,
         bio: bio.trim() || undefined,
       });
       onRequested(res.data.profile);
@@ -214,14 +286,35 @@ function CredentialRequestForm({ profile, onRequested }: { profile: YoutuberProf
         </div>
         <div>
           <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
-            Foto do Canal (URL)
+            Foto do Canal
           </label>
+          <div className="flex items-center gap-3">
+            {photoPreview ? (
+              <img src={photoPreview} alt="preview" className="w-12 h-12 rounded-full object-cover border border-white/10 shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                <Youtube className="w-5 h-5 text-gray-600" />
+              </div>
+            )}
+            <div className="flex-1">
+              <button
+                type="button"
+                onClick={() => photoRef.current?.click()}
+                disabled={uploadingPhoto}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 hover:text-white hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {uploadingPhoto ? 'Enviando...' : 'Escolher foto'}
+              </button>
+              <p className="text-[10px] text-gray-600 mt-1">JPG, PNG, WebP ou GIF · Máx. 3 MB</p>
+            </div>
+          </div>
           <input
-            type="url"
-            value={channelPhoto}
-            onChange={(e) => setChannelPhoto(e.target.value)}
-            placeholder="https://..."
-            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-500/50"
+            ref={photoRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={handlePhotoChange}
           />
         </div>
         <div>
@@ -239,7 +332,7 @@ function CredentialRequestForm({ profile, onRequested }: { profile: YoutuberProf
         </div>
         <button
           type="submit"
-          disabled={loading || !channelName.trim()}
+          disabled={loading || uploadingPhoto || !channelName.trim()}
           className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-black text-white transition-colors"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -525,6 +618,8 @@ export function CredentialTab() {
           <p className="text-[10px] text-gray-500">Solicite credenciamento e envie vídeos</p>
         </div>
       </div>
+
+      <PartnerBenefits />
 
       {/* ── Credenciado ── */}
       {isCredentialed && (

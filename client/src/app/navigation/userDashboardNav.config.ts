@@ -46,7 +46,6 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
     section: 'social',
     titleKey: 'sidebar.categories.social',
     items: [
-      { itemId: 'youtuber_partner', labelKey: 'sidebar.youtuber_partner', icon: 'Youtube', path: '/youtuber-partner' },
       { itemId: 'games', labelKey: 'sidebar.games', icon: 'Gamepad2', path: '/games' },
       { itemId: 'calculator', labelKey: 'sidebar.calculator', icon: 'Calculator', path: '/calculator' },
       { itemId: 'manual', labelKey: 'sidebar.manual', icon: 'BookOpen', path: '/manual' },
