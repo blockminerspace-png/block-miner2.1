@@ -142,7 +142,7 @@ const ProtectedLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
-  const showPageAds = !['/dashboard', '/wallet', '/wallets'].includes(location.pathname);
+  const showPageAds = !['/dashboard', '/wallet', '/wallets', '/faucet'].includes(location.pathname);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden text-gray-100 font-sans">

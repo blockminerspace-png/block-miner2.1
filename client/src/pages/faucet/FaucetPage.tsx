@@ -127,19 +127,25 @@ export default function Faucet() {
     }, [partnerWaitMs, partnerFlowActive]);
 
     const startPartnerTimer = async () => {
+        // Open window immediately (in sync user-gesture context) so browser allows it.
+        // After the API call we navigate the already-open window to the real URL.
+        const win = window.open('', '_blank', 'noopener,noreferrer');
         try {
             setIsAdClicked(true);
             const res = await api.post('/faucet/partner/start');
             if (res.data.ok) {
-                window.open(res.data.partnerUrl, '_blank', 'noopener,noreferrer');
+                if (win) win.location.href = res.data.partnerUrl;
                 const waitMs = res.data.waitMs || 10000;
                 setTimeout(() => {
                     setPartnerFlowActive(true);
                     setPartnerWaitMs(waitMs);
                     toast.info(t('faucet.partner_toast_started'));
                 }, 0);
+            } else {
+                win?.close();
             }
         } catch (err) {
+            win?.close();
             setIsAdClicked(false);
         }
     };
