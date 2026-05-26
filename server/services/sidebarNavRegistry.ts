@@ -337,15 +337,20 @@ export function mergeMissingSidebarRegistryEntries(entries) {
   if (!Array.isArray(entries)) {
     return { entries: buildDefaultSidebarEntries(), changed: true };
   }
+  // Prune entries whose itemId was removed from the registry
+  const pruned = entries.filter(
+    (e) => e && typeof e === "object" && ALLOWED_ITEM_IDS.has(String(/** @type {{ itemId?: string }} */ (e).itemId || ""))
+  );
+  const prunedCount = entries.length - pruned.length;
+  let changed = prunedCount > 0;
+
   const present = new Set(
-    entries
-      .filter((e) => e && typeof e === "object")
+    pruned
       .map((e) => String(/** @type {{ itemId?: string }} */ (e).itemId || "").trim())
       .filter(Boolean)
   );
   const defaults = buildDefaultSidebarEntries();
-  let changed = false;
-  const next = [...entries];
+  const next = [...pruned];
   for (const row of defaults) {
     if (!present.has(row.itemId)) {
       next.push({ ...row });
