@@ -154,31 +154,30 @@ type GameStartedStack = {
   base: { leftPx: number; width: number };
 };
 
-type SkyPipeWire = {
-  id: number;
-  x: number;
-  gapTop: number;
-  gapBottom: number;
-  passed?: boolean;
-};
-
 type GameStartedSky = {
   game: "sky-runner";
+  seed: string;
   worldW: number;
   worldH: number;
   planeX: number;
   planeRadius: number;
   pipeW: number;
+  pipeGap: number;
+  pipeGapMin: number;
+  pipeSpawnDx: number;
+  pipeMargin: number;
+  scrollSpeedBase: number;
+  scrollSpeedMax: number;
+  difficultyRampMs: number;
+  gravity: number;
+  flapVy: number;
+  maxVy: number;
+  minFlapIntervalMs: number;
+  invulnMs: number;
   targetPipes: number;
-  tickMs: number;
-  y: number;
-  vy: number;
-  pipes: SkyPipeWire[];
-  pipesPassed: number;
-  scrollSpeed: number;
   lives: number;
   maxLives: number;
-  invulnerable: boolean;
+  checkpointEveryPipes: number;
   score?: number;
 };
 
@@ -324,33 +323,35 @@ export default function Games() {
   } | null>(null);
 
   /**
-   * Sky Runner state (Flappy-Bird-style airplane). Server-authoritative:
-   * the client mirrors world snapshots emitted on `game:sky_update` and only
-   * sends `{type:"flap"}` actions back. We carry both the latest snapshot AND
-   * the previous one so the SkyRunnerArena can interpolate between them via
-   * rAF for buttery-smooth motion (the server tick is 30 Hz; we render at
-   * monitor refresh rate via interpolation).
+   * Sky Runner config (Flappy-Bird-style airplane). Client-authoritative
+   * physics: the server only seeds the run + receives checkpoints for
+   * anti-cheat. The Arena runs gravity, scroll, pipe spawning and collision
+   * detection itself in a rAF loop using the constants below, so there is
+   * zero input-to-render delay.
    */
   const [skyState, setSkyState] = useState<{
+    seed: string;
     worldW: number;
     worldH: number;
     planeX: number;
     planeRadius: number;
     pipeW: number;
+    pipeGap: number;
+    pipeGapMin: number;
+    pipeSpawnDx: number;
+    pipeMargin: number;
+    scrollSpeedBase: number;
+    scrollSpeedMax: number;
+    difficultyRampMs: number;
+    gravity: number;
+    flapVy: number;
+    maxVy: number;
+    minFlapIntervalMs: number;
+    invulnMs: number;
     targetPipes: number;
-    tickMs: number;
-    y: number;
-    vy: number;
-    pipes: SkyPipeWire[];
-    pipesPassed: number;
-    score: number;
     lives: number;
     maxLives: number;
-    invulnerable: boolean;
-    crashed: string | null;
-    /** Server timestamp (perf.now) of when this snapshot was received — used by the rAF interpolator. */
-    snapshotAt: number;
-    hitFlash: number; // increments every time we lose a life — Arena uses this to flash red
+    checkpointEveryPipes: number;
   } | null>(null);
   const [chain2048CdSec, setChain2048CdSec] = useState(0);
   const [chain2048AllowStart, setChain2048AllowStart] = useState(true);
@@ -647,24 +648,28 @@ export default function Games() {
       } else if (data.game === "sky-runner") {
         memoryBoardRef.current = null;
         setSkyState({
+          seed: data.seed,
           worldW: data.worldW,
           worldH: data.worldH,
           planeX: data.planeX,
           planeRadius: data.planeRadius,
           pipeW: data.pipeW,
+          pipeGap: data.pipeGap,
+          pipeGapMin: data.pipeGapMin,
+          pipeSpawnDx: data.pipeSpawnDx,
+          pipeMargin: data.pipeMargin,
+          scrollSpeedBase: data.scrollSpeedBase,
+          scrollSpeedMax: data.scrollSpeedMax,
+          difficultyRampMs: data.difficultyRampMs,
+          gravity: data.gravity,
+          flapVy: data.flapVy,
+          maxVy: data.maxVy,
+          minFlapIntervalMs: data.minFlapIntervalMs,
+          invulnMs: data.invulnMs,
           targetPipes: data.targetPipes,
-          tickMs: data.tickMs || 33,
-          y: data.y,
-          vy: data.vy,
-          pipes: data.pipes,
-          pipesPassed: data.pipesPassed,
-          score: Number(data.score) || 0,
           lives: data.lives,
           maxLives: data.maxLives,
-          invulnerable: data.invulnerable,
-          crashed: null,
-          snapshotAt: performance.now(),
-          hitFlash: 0,
+          checkpointEveryPipes: data.checkpointEveryPipes,
         });
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
@@ -864,57 +869,9 @@ export default function Games() {
     );
 
     // ─── Sky Runner events ───────────────────────────────────────────────────
-    // The server ticks 30 Hz and pushes a fresh world snapshot every tick.
-    // Client interpolation (in SkyRunnerArena) smooths positions to monitor
-    // refresh rate for a fluid feel; this state only carries snapshots.
-    newSocket.on(
-      "game:sky_update",
-      (data: {
-        y: number;
-        vy: number;
-        pipes: SkyPipeWire[];
-        pipesPassed: number;
-        score: number;
-        scrollSpeed: number;
-        lives?: number;
-        invulnerable?: boolean;
-        crashed: string | null;
-      }) => {
-        if (typeof data.score === "number") setHudScore(data.score);
-        setSkyState((prev) =>
-          prev
-            ? {
-                ...prev,
-                y: data.y,
-                vy: data.vy,
-                pipes: data.pipes,
-                pipesPassed: data.pipesPassed,
-                score: data.score,
-                lives: typeof data.lives === "number" ? data.lives : prev.lives,
-                invulnerable: !!data.invulnerable,
-                crashed: data.crashed,
-                snapshotAt: performance.now(),
-              }
-            : prev
-        );
-      }
-    );
-
-    // Hit event: server lost a life on us. Bump hitFlash so the Arena can
-    // flash red. (We don't depend on the sky_update for this because we want
-    // to react before the next snapshot arrives.)
-    newSocket.on("game:sky_hit", (data: { reason: string; lives: number }) => {
-      setSkyState((prev) =>
-        prev
-          ? {
-              ...prev,
-              lives: data.lives,
-              invulnerable: true,
-              hitFlash: prev.hitFlash + 1,
-            }
-          : prev
-      );
-    });
+    // Client runs all physics in rAF (see SkyRunnerArena). The server only
+    // emits `game:started` (seed + constants) and `game:finished`. The Arena
+    // emits `{type:"flap"|"checkpoint"|"finish"}` actions for anti-cheat.
 
     newSocket.on(
       "game:finished",
@@ -2442,15 +2399,41 @@ export default function Games() {
   }, [socket, isGameOver]);
 
   /**
-   * Flap the airplane upward. Server-authoritative — we just send the event;
-   * the server's next tick will reflect the velocity change. No optimistic
-   * physics on the client (any local prediction would diverge under network
-   * jitter and look worse than the 50ms tick refresh).
+   * Flap telemetry — physics is fully client-side, so this is purely for the
+   * server to update `lastFlapAt` (and reject suspicious flap-rate spam if it
+   * ever wants to). The Arena applies the velocity change immediately.
    */
   const handleSkyFlap = useCallback(() => {
     if (!socket || isGameOver) return;
     socket.emit("game:action", { type: "flap" });
   }, [socket, isGameOver]);
+
+  /**
+   * Anti-cheat checkpoint: Arena reports its progress + elapsed time every
+   * `checkpointEveryPipes`. Server validates timing vs minimum theoretical
+   * pace and may kill the session if the client is faking pipes.
+   */
+  const handleSkyCheckpoint = useCallback(
+    (info: { pipesPassed: number; elapsedMs: number; lives: number; score: number }) => {
+      if (!socket) return;
+      setHudScore(info.score);
+      socket.emit("game:action", { type: "checkpoint", ...info });
+    },
+    [socket]
+  );
+
+  /**
+   * End-of-run: Arena signals win or loss. Server validates the timing one
+   * more time and runs `finishGame()` (which awards the reward or rejects).
+   */
+  const handleSkyFinish = useCallback(
+    (info: { pipesPassed: number; elapsedMs: number; score: number; won: boolean }) => {
+      if (!socket) return;
+      setHudScore(info.score);
+      socket.emit("game:action", { type: "finish", ...info });
+    },
+    [socket]
+  );
 
   useEffect(() => {
     if (activeGame !== "cart" || isGameOver || !socket) return undefined;
@@ -2516,7 +2499,14 @@ export default function Games() {
               {activeGame === "stack" ? (
                 <BlockStackArena state={stackState} onDrop={handleStackDrop} isGameOver={isGameOver} t={t} />
               ) : activeGame === "sky" ? (
-                <SkyRunnerArena state={skyState} onFlap={handleSkyFlap} isGameOver={isGameOver} t={t} />
+                <SkyRunnerArena
+                  state={skyState}
+                  onFlap={handleSkyFlap}
+                  onCheckpoint={handleSkyCheckpoint}
+                  onFinish={handleSkyFinish}
+                  isGameOver={isGameOver}
+                  t={t}
+                />
               ) : (
                 <canvas
                   ref={canvasRef}
@@ -2956,60 +2946,173 @@ const BlockStackArena = memo(function BlockStackArena({
 });
 
 /**
- * SkyRunnerArena — Server-authoritative Flappy-Bird-style minigame.
+ * SkyRunnerArena — Flappy-Bird-style minigame, **100% client-side physics**.
  *
- * Render contract:
- *   - The server pushes world snapshots ~30 Hz on `game:sky_update`. The
- *     Arena interpolates between consecutive snapshots in a rAF loop so the
- *     plane and pipes move at the monitor refresh rate. No fake physics on
- *     the client — we only smooth between known server states.
- *   - Tap, click, Space, ArrowUp, or W to flap. Input is captured globally on
- *     `document` so the canvas doesn't need focus.
- *   - Vidas (lives) are shown as heart icons. Losing one triggers a red
- *     vignette flash via `hitFlash`. After the brief invulnerability ends,
- *     the player can continue.
- *
- * Why interpolation: the server tick (~33ms) is fast enough to feel smooth
- * on its own, but a 144Hz monitor renders 4-5 times per server tick. Without
- * interpolation, motion looks "steppy". With one-tick-behind interpolation,
- * motion is continuous and we still react to inputs within ~33ms.
+ * Architecture:
+ *   - Server emits `game:started` with a seed + physics constants. After
+ *     that, the client owns the simulation: gravity, scroll, pipe spawning
+ *     and collision detection all run in a rAF loop. Inputs (flap on
+ *     Space/ArrowUp/W/Tap/Click) take effect on the very next frame — zero
+ *     input delay.
+ *   - Pipes are generated by a deterministic PRNG (mulberry32) seeded from
+ *     the server's hex seed, so two clients with the same seed would see
+ *     the same pipe layout.
+ *   - Every `checkpointEveryPipes`, we report `{pipesPassed, elapsedMs}` to
+ *     the server. Server compares against the minimum theoretical pace and
+ *     can drop the session if the client is faking progress.
+ *   - On win/loss we emit `{type:"finish",...}` so the server runs the
+ *     existing `finishGame()` (15s minimum playtime floor, reward grant).
  */
+
+/** Hex string → 32-bit seed integer (xor-fold 8 hex chars at a time). */
+function skySeedFromHex(hex: string): number {
+  let s = 0;
+  const clean = (hex || "").replace(/[^0-9a-f]/gi, "");
+  for (let i = 0; i < clean.length; i += 8) {
+    const chunk = clean.slice(i, i + 8);
+    if (chunk.length === 0) break;
+    s = (s ^ parseInt(chunk, 16)) >>> 0;
+  }
+  return s || 0x9e3779b9;
+}
+
+/** mulberry32 — tiny deterministic PRNG returning floats in [0,1). */
+function makeMulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type SkyPipe = {
+  id: number;
+  x: number;
+  gapTop: number;
+  gapBottom: number;
+  passed: boolean;
+};
+
+type SkyConfig = {
+  seed: string;
+  worldW: number;
+  worldH: number;
+  planeX: number;
+  planeRadius: number;
+  pipeW: number;
+  pipeGap: number;
+  pipeGapMin: number;
+  pipeSpawnDx: number;
+  pipeMargin: number;
+  scrollSpeedBase: number;
+  scrollSpeedMax: number;
+  difficultyRampMs: number;
+  gravity: number;
+  flapVy: number;
+  maxVy: number;
+  minFlapIntervalMs: number;
+  invulnMs: number;
+  targetPipes: number;
+  lives: number;
+  maxLives: number;
+  checkpointEveryPipes: number;
+};
+
 const SkyRunnerArena = memo(function SkyRunnerArena({
   state,
   onFlap,
+  onCheckpoint,
+  onFinish,
   isGameOver,
   t,
 }: {
-  state:
-    | {
-        worldW: number;
-        worldH: number;
-        planeX: number;
-        planeRadius: number;
-        pipeW: number;
-        targetPipes: number;
-        tickMs: number;
-        y: number;
-        vy: number;
-        pipes: SkyPipeWire[];
-        pipesPassed: number;
-        score: number;
-        lives: number;
-        maxLives: number;
-        invulnerable: boolean;
-        crashed: string | null;
-        snapshotAt: number;
-        hitFlash: number;
-      }
-    | null;
+  state: SkyConfig | null;
   onFlap: () => void;
+  onCheckpoint: (info: { pipesPassed: number; elapsedMs: number; lives: number; score: number }) => void;
+  onFinish: (info: { pipesPassed: number; elapsedMs: number; score: number; won: boolean }) => void;
   isGameOver: boolean;
   t: TFunction;
 }) {
-  // ── Global keyboard input (captured on document, NOT on the arena div, so
-  // it works regardless of which element has focus).
-  const onFlapRef = useRef(onFlap);
-  onFlapRef.current = onFlap;
+  // ── Live physics state. Refs so the rAF loop can mutate without rerender.
+  const physRef = useRef<{
+    y: number;
+    vy: number;
+    pipes: SkyPipe[];
+    pipeSeq: number;
+    nextSpawnX: number;
+    scrollSpeed: number;
+    elapsedMs: number;
+    lives: number;
+    invulnUntil: number;
+    pipesPassed: number;
+    score: number;
+    lastFlapAt: number;
+    rng: () => number;
+    lastFrameAt: number;
+    crashed: string | null;
+    finished: boolean;
+  } | null>(null);
+
+  // React-mirrored HUD (hearts + progress text). Re-rendered on changes only.
+  const [hud, setHud] = useState<{
+    lives: number;
+    pipesPassed: number;
+    invulnerable: boolean;
+    crashed: string | null;
+    hitFlashKey: number;
+  }>({ lives: 0, pipesPassed: 0, invulnerable: false, crashed: null, hitFlashKey: 0 });
+
+  // Reset physics on each new `state` (fresh game start).
+  useEffect(() => {
+    if (!state) {
+      physRef.current = null;
+      setHud({ lives: 0, pipesPassed: 0, invulnerable: false, crashed: null, hitFlashKey: 0 });
+      return;
+    }
+    physRef.current = {
+      y: state.worldH / 2,
+      vy: 0,
+      pipes: [],
+      pipeSeq: 0,
+      nextSpawnX: state.worldW + 200,
+      scrollSpeed: state.scrollSpeedBase,
+      elapsedMs: 0,
+      lives: state.lives,
+      invulnUntil: 0,
+      pipesPassed: 0,
+      score: 0,
+      lastFlapAt: 0,
+      rng: makeMulberry32(skySeedFromHex(state.seed)),
+      lastFrameAt: 0,
+      crashed: null,
+      finished: false,
+    };
+    setHud({
+      lives: state.lives,
+      pipesPassed: 0,
+      invulnerable: false,
+      crashed: null,
+      hitFlashKey: 0,
+    });
+  }, [state]);
+
+  // ── Input: flap (Space/ArrowUp/W keyboard; tap/click via JSX onPointerDown)
+  const flap = useCallback(() => {
+    const ph = physRef.current;
+    if (!ph || !state || ph.finished) return;
+    const now = performance.now();
+    if (now - ph.lastFlapAt < state.minFlapIntervalMs) return;
+    ph.lastFlapAt = now;
+    ph.vy = state.flapVy;
+    onFlap();
+  }, [state, onFlap]);
+
+  const flapRef = useRef(flap);
+  flapRef.current = flap;
+
   useEffect(() => {
     if (isGameOver) return;
     const onKey = (e: KeyboardEvent) => {
@@ -3018,56 +3121,32 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
       const isSpace = k === " " || e.code === "Space" || k === "spacebar";
       const isUp = k === "arrowup" || k === "w";
       if (!isSpace && !isUp) return;
-      // Don't preventDefault if the user is typing in an input/textarea
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase() || "";
       if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
       e.preventDefault();
-      onFlapRef.current();
+      flapRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [isGameOver]);
 
-  // ── Interpolation: keep the previous snapshot in a ref so we can lerp.
-  type Snapshot = {
-    at: number;
-    y: number;
-    pipes: SkyPipeWire[];
-  };
-  const prevSnapRef = useRef<Snapshot | null>(null);
-  const curSnapRef = useRef<Snapshot | null>(null);
-  const tickMs = state?.tickMs ?? 33;
-
-  // Each time state.snapshotAt changes, shift current → previous and replace current.
-  const lastSeenAtRef = useRef<number>(0);
-  useEffect(() => {
-    if (!state) return;
-    if (state.snapshotAt === lastSeenAtRef.current) return;
-    lastSeenAtRef.current = state.snapshotAt;
-    prevSnapRef.current = curSnapRef.current ?? {
-      at: state.snapshotAt - tickMs,
-      y: state.y,
-      pipes: state.pipes,
-    };
-    curSnapRef.current = {
-      at: state.snapshotAt,
-      y: state.y,
-      pipes: state.pipes,
-    };
-  }, [state, tickMs]);
-
-  // Render targets (refs so rAF can mutate DOM without React re-renders).
+  // DOM nodes managed by rAF
   const planeElRef = useRef<HTMLDivElement | null>(null);
   const pipesLayerRef = useRef<HTMLDivElement | null>(null);
   const pipeNodesRef = useRef<Map<number, { top: HTMLDivElement; bottom: HTMLDivElement }>>(new Map());
   const tiltSmoothedRef = useRef(0);
+  const lastCheckpointReportedRef = useRef(0);
 
-  // ── Hit flash effect: bump key when state.hitFlash changes so the red
-  // vignette re-mounts and replays its animation.
-  const hitFlashKey = state?.hitFlash ?? 0;
+  // Stable callback refs so the rAF closure can call latest version
+  const onCheckpointRef = useRef(onCheckpoint);
+  onCheckpointRef.current = onCheckpoint;
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
 
-  // ── rAF loop: smooth interpolation between previous and current snapshot.
+  const hitFlashKey = hud.hitFlashKey;
+
+  // ── rAF loop: full physics + render at monitor refresh rate
   useEffect(() => {
     if (!state) return;
     let raf = 0;
@@ -3077,105 +3156,245 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
     const planeWPct = ((state.planeRadius * 2) / worldW) * 100;
     const pipeWPct = (state.pipeW / worldW) * 100;
 
+    // Wipe any old DOM nodes from a previous run
+    for (const pair of pipeNodesRef.current.values()) {
+      pair.top.remove();
+      pair.bottom.remove();
+    }
+    pipeNodesRef.current.clear();
+    lastCheckpointReportedRef.current = 0;
+
+    /** Push a fresh pipe at nextSpawnX, then advance nextSpawnX by pipeSpawnDx. */
+    const spawnPipe = () => {
+      const ph = physRef.current;
+      if (!ph) return;
+      const ramp = Math.min(1, ph.elapsedMs / state.difficultyRampMs);
+      const gap = state.pipeGap - (state.pipeGap - state.pipeGapMin) * ramp;
+      const minCenter = state.pipeMargin + gap / 2;
+      const maxCenter = state.worldH - state.pipeMargin - gap / 2;
+      const center = minCenter + ph.rng() * Math.max(0, maxCenter - minCenter);
+      ph.pipes.push({
+        id: ++ph.pipeSeq,
+        x: ph.nextSpawnX,
+        gapTop: center - gap / 2,
+        gapBottom: center + gap / 2,
+        passed: false,
+      });
+      ph.nextSpawnX += state.pipeSpawnDx;
+    };
+
     const tick = () => {
+      const ph = physRef.current;
+      if (!ph) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
       const now = performance.now();
-      const cur = curSnapRef.current;
-      const prev = prevSnapRef.current;
-      if (cur && prev) {
-        // We render one tick BEHIND so we always interpolate forward between
-        // two known snapshots, never extrapolate beyond the latest.
-        const renderTime = now - tickMs;
-        const span = Math.max(1, cur.at - prev.at);
-        let t = (renderTime - prev.at) / span;
-        if (t < 0) t = 0;
-        if (t > 1) t = 1;
-        const y = prev.y + (cur.y - prev.y) * t;
+      const dt = ph.lastFrameAt === 0 ? 0 : Math.min(64, now - ph.lastFrameAt);
+      ph.lastFrameAt = now;
+      const dtSec = dt / 1000;
 
-        // Plane Y position (also rotate based on vy — smoothed)
-        const targetTilt = Math.max(-30, Math.min(70, (state.vy / 800) * 60));
-        // Low-pass filter the tilt so it doesn't jitter between ticks
-        tiltSmoothedRef.current += (targetTilt - tiltSmoothedRef.current) * 0.18;
-        if (planeElRef.current) {
-          const yPct = (y / worldH) * 100;
-          planeElRef.current.style.top = `${yPct}%`;
-          planeElRef.current.style.transform = `translate(-50%, -50%) rotate(${tiltSmoothedRef.current.toFixed(2)}deg)`;
-          planeElRef.current.style.opacity = state.invulnerable
-            ? (Math.floor(now / 90) % 2 === 0 ? "0.35" : "1")
-            : "1";
+      if (!ph.finished && !ph.crashed) {
+        ph.elapsedMs += dt;
+        const invulnerable = now < ph.invulnUntil;
+
+        // Ramp scroll speed with difficulty
+        const tRamp = Math.min(1, ph.elapsedMs / state.difficultyRampMs);
+        ph.scrollSpeed =
+          state.scrollSpeedBase + (state.scrollSpeedMax - state.scrollSpeedBase) * tRamp;
+
+        // Physics: gravity → vy → y
+        ph.vy = Math.min(state.maxVy, ph.vy + state.gravity * dtSec);
+        ph.y += ph.vy * dtSec;
+
+        // Scroll pipes left
+        const dx = ph.scrollSpeed * dtSec;
+        for (const p of ph.pipes) p.x -= dx;
+        ph.nextSpawnX -= dx;
+        ph.pipes = ph.pipes.filter((p) => p.x + state.pipeW > -40);
+
+        // Spawn pipes ahead until we have enough queued
+        let safety = 12;
+        while (
+          (ph.nextSpawnX < state.worldW + state.pipeSpawnDx * 2 || ph.pipes.length < 4) &&
+          safety-- > 0
+        ) {
+          spawnPipe();
         }
 
-        // Pipes: build a map of cur pipe positions, lerp x from prev where available
-        const prevById = new Map<number, SkyPipeWire>();
-        for (const p of prev.pipes) prevById.set(p.id, p);
-        const seenIds = new Set<number>();
-        const layer = pipesLayerRef.current;
-        if (layer) {
-          for (const cp of cur.pipes) {
-            seenIds.add(cp.id);
-            const pp = prevById.get(cp.id);
-            const x = pp ? pp.x + (cp.x - pp.x) * t : cp.x;
-            const leftPct = (x / worldW) * 100;
-            const topH = (cp.gapTop / worldH) * 100;
-            const bottomY = (cp.gapBottom / worldH) * 100;
-            let pair = pipeNodesRef.current.get(cp.id);
-            if (!pair) {
-              const top = document.createElement("div");
-              const bottom = document.createElement("div");
-              const pipeClass =
-                "absolute will-change-transform";
-              top.className = pipeClass;
-              bottom.className = pipeClass;
-              // Use background gradient + border for that flappy-pipe look
-              const grad =
-                "linear-gradient(to right, #047857 0%, #10b981 30%, #34d399 55%, #10b981 75%, #064e3b 100%)";
-              top.style.background = grad;
-              bottom.style.background = grad;
-              top.style.borderRight = "4px solid #022c22";
-              bottom.style.borderRight = "4px solid #022c22";
-              top.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
-              bottom.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
-              // Pipe caps
-              const capTop = document.createElement("div");
-              const capBottom = document.createElement("div");
-              const capCss = "position:absolute;left:-4px;right:-8px;height:18px;background:linear-gradient(to right,#047857,#10b981 50%,#064e3b);border:3px solid #022c22;border-radius:4px;box-shadow:0 2px 0 rgba(0,0,0,0.2)";
-              capTop.style.cssText = capCss + ";bottom:-6px";
-              capBottom.style.cssText = capCss + ";top:-6px";
-              top.appendChild(capTop);
-              bottom.appendChild(capBottom);
-              layer.appendChild(top);
-              layer.appendChild(bottom);
-              pair = { top, bottom };
-              pipeNodesRef.current.set(cp.id, pair);
-            }
-            pair.top.style.left = `${leftPct}%`;
-            pair.top.style.top = "0";
-            pair.top.style.width = `${pipeWPct}%`;
-            pair.top.style.height = `${topH}%`;
-            pair.bottom.style.left = `${leftPct}%`;
-            pair.bottom.style.top = `${bottomY}%`;
-            pair.bottom.style.width = `${pipeWPct}%`;
-            pair.bottom.style.bottom = "0";
+        // Helper: lose a life or end the run
+        let died = false;
+        const loseLife = (reason: string) => {
+          if (invulnerable) return;
+          ph.lives = Math.max(0, ph.lives - 1);
+          setHud((h) => ({
+            ...h,
+            lives: ph.lives,
+            hitFlashKey: h.hitFlashKey + 1,
+            invulnerable: ph.lives > 0,
+          }));
+          if (ph.lives <= 0) {
+            ph.crashed = reason;
+            died = true;
+          } else {
+            ph.y = state.worldH / 2;
+            ph.vy = 0;
+            ph.invulnUntil = now + state.invulnMs;
           }
-          // Remove pipes that left the screen
-          for (const [id, pair] of pipeNodesRef.current.entries()) {
-            if (!seenIds.has(id)) {
-              pair.top.remove();
-              pair.bottom.remove();
-              pipeNodesRef.current.delete(id);
+        };
+
+        // World bounds (ceiling / floor cost a life)
+        if (ph.y - state.planeRadius <= 0) {
+          ph.y = state.planeRadius + 1;
+          loseLife("ceiling");
+        } else if (ph.y + state.planeRadius >= state.worldH) {
+          ph.y = state.worldH - state.planeRadius - 1;
+          loseLife("floor");
+        }
+
+        // Pipe collisions + scoring
+        if (!died) {
+          const pl = state.planeX - state.planeRadius;
+          const pr = state.planeX + state.planeRadius;
+          const pt = ph.y - state.planeRadius;
+          const pb = ph.y + state.planeRadius;
+          for (const p of ph.pipes) {
+            const pLeft = p.x;
+            const pRight = p.x + state.pipeW;
+            const overlapsX = pr > pLeft && pl < pRight;
+            if (overlapsX && !invulnerable) {
+              if (pt < p.gapTop || pb > p.gapBottom) {
+                p.passed = true;
+                loseLife("pipe");
+                break;
+              }
+            }
+            if (!p.passed && pRight < pl) {
+              p.passed = true;
+              ph.pipesPassed += 1;
+              ph.score += 100;
+              setHud((h) => ({ ...h, pipesPassed: ph.pipesPassed }));
             }
           }
         }
-        // Plane: ensure fixed left/width — done once via style attrs below in JSX
-        if (planeElRef.current) {
-          planeElRef.current.style.left = `${planeXPct}%`;
-          planeElRef.current.style.width = `${planeWPct}%`;
+
+        // Drop invulnerability flag when it expires
+        const stillInvulnerable = now < ph.invulnUntil;
+        setHud((h) =>
+          h.invulnerable !== stillInvulnerable ? { ...h, invulnerable: stillInvulnerable } : h
+        );
+
+        // Anti-cheat checkpoint every N pipes
+        const cpStep = Math.max(1, state.checkpointEveryPipes);
+        const cpEpoch = Math.floor(ph.pipesPassed / cpStep);
+        if (cpEpoch > lastCheckpointReportedRef.current && ph.pipesPassed > 0) {
+          lastCheckpointReportedRef.current = cpEpoch;
+          onCheckpointRef.current({
+            pipesPassed: ph.pipesPassed,
+            elapsedMs: Math.floor(ph.elapsedMs),
+            lives: ph.lives,
+            score: ph.score,
+          });
+        }
+
+        // Win / lose: emit finish exactly once
+        if (!ph.finished) {
+          if (ph.pipesPassed >= state.targetPipes) {
+            ph.finished = true;
+            onFinishRef.current({
+              pipesPassed: ph.pipesPassed,
+              elapsedMs: Math.floor(ph.elapsedMs),
+              score: ph.score,
+              won: true,
+            });
+          } else if (ph.crashed) {
+            ph.finished = true;
+            const reason = ph.crashed;
+            setHud((h) => ({ ...h, crashed: reason }));
+            onFinishRef.current({
+              pipesPassed: ph.pipesPassed,
+              elapsedMs: Math.floor(ph.elapsedMs),
+              score: ph.score,
+              won: false,
+            });
+          }
         }
       }
+
+      // ── Render
+      // Plane
+      const targetTilt = Math.max(-30, Math.min(70, (ph.vy / 800) * 60));
+      tiltSmoothedRef.current += (targetTilt - tiltSmoothedRef.current) * 0.22;
+      if (planeElRef.current) {
+        const yPct = (ph.y / worldH) * 100;
+        planeElRef.current.style.top = `${yPct}%`;
+        planeElRef.current.style.left = `${planeXPct}%`;
+        planeElRef.current.style.width = `${planeWPct}%`;
+        planeElRef.current.style.transform = `translate(-50%, -50%) rotate(${tiltSmoothedRef.current.toFixed(2)}deg)`;
+        planeElRef.current.style.opacity =
+          now < ph.invulnUntil ? (Math.floor(now / 90) % 2 === 0 ? "0.35" : "1") : "1";
+      }
+
+      // Pipes
+      const layer = pipesLayerRef.current;
+      if (layer) {
+        const seenIds = new Set<number>();
+        for (const cp of ph.pipes) {
+          seenIds.add(cp.id);
+          const leftPct = (cp.x / worldW) * 100;
+          const topH = (cp.gapTop / worldH) * 100;
+          const bottomY = (cp.gapBottom / worldH) * 100;
+          let pair = pipeNodesRef.current.get(cp.id);
+          if (!pair) {
+            const top = document.createElement("div");
+            const bottom = document.createElement("div");
+            const pipeClass = "absolute will-change-transform";
+            top.className = pipeClass;
+            bottom.className = pipeClass;
+            const grad =
+              "linear-gradient(to right, #047857 0%, #10b981 30%, #34d399 55%, #10b981 75%, #064e3b 100%)";
+            top.style.background = grad;
+            bottom.style.background = grad;
+            top.style.borderRight = "4px solid #022c22";
+            bottom.style.borderRight = "4px solid #022c22";
+            top.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
+            bottom.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
+            const capTop = document.createElement("div");
+            const capBottom = document.createElement("div");
+            const capCss =
+              "position:absolute;left:-4px;right:-8px;height:18px;background:linear-gradient(to right,#047857,#10b981 50%,#064e3b);border:3px solid #022c22;border-radius:4px;box-shadow:0 2px 0 rgba(0,0,0,0.2)";
+            capTop.style.cssText = capCss + ";bottom:-6px";
+            capBottom.style.cssText = capCss + ";top:-6px";
+            top.appendChild(capTop);
+            bottom.appendChild(capBottom);
+            layer.appendChild(top);
+            layer.appendChild(bottom);
+            pair = { top, bottom };
+            pipeNodesRef.current.set(cp.id, pair);
+          }
+          pair.top.style.left = `${leftPct}%`;
+          pair.top.style.top = "0";
+          pair.top.style.width = `${pipeWPct}%`;
+          pair.top.style.height = `${topH}%`;
+          pair.bottom.style.left = `${leftPct}%`;
+          pair.bottom.style.top = `${bottomY}%`;
+          pair.bottom.style.width = `${pipeWPct}%`;
+          pair.bottom.style.bottom = "0";
+        }
+        for (const [id, pair] of pipeNodesRef.current.entries()) {
+          if (!seenIds.has(id)) {
+            pair.top.remove();
+            pair.bottom.remove();
+            pipeNodesRef.current.delete(id);
+          }
+        }
+      }
+
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [state, tickMs]);
+  }, [state]);
 
   if (!state) {
     return (
@@ -3192,7 +3411,7 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
       aria-label={t("minerGames.sky_runner.flap_aria")}
       onPointerDown={(e) => {
         e.preventDefault();
-        onFlap();
+        flap();
       }}
       className="relative h-full w-full select-none overflow-hidden"
       style={{
@@ -3238,7 +3457,7 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
         className="absolute will-change-transform"
         style={{
           left: `${(state.planeX / state.worldW) * 100}%`,
-          top: `${(state.y / state.worldH) * 100}%`,
+          top: "50%",
           width: `${(state.planeRadius * 2 / state.worldW) * 100}%`,
           aspectRatio: "1 / 1",
           transform: "translate(-50%, -50%)",
@@ -3308,10 +3527,10 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
         {/* Lives (hearts) */}
         <div
           className="flex shrink-0 items-center gap-1 rounded-full bg-black/40 px-2.5 py-1.5 backdrop-blur-sm"
-          aria-label={t("minerGames.sky_runner.lives_aria", { lives: state.lives })}
+          aria-label={t("minerGames.sky_runner.lives_aria", { lives: hud.lives })}
         >
           {Array.from({ length: state.maxLives }).map((_, i) => {
-            const filled = i < state.lives;
+            const filled = i < hud.lives;
             return (
               <svg
                 key={i}
@@ -3337,7 +3556,7 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
 
         {/* Pipe progress */}
         <span className="rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm drop-shadow">
-          {t("minerGames.sky_runner.pipes_progress", { current: state.pipesPassed, total: state.targetPipes })}
+          {t("minerGames.sky_runner.pipes_progress", { current: hud.pipesPassed, total: state.targetPipes })}
         </span>
 
         {/* Tap hint */}
@@ -3355,7 +3574,7 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
         />
       ) : null}
 
-      {state.crashed ? (
+      {hud.crashed ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-red-900/40 backdrop-blur-sm">
           <span className="rounded-2xl bg-red-600/95 px-6 py-3 text-2xl font-black uppercase tracking-widest text-white shadow-2xl ring-4 ring-red-300/40">
             {t("minerGames.sky_runner.crashed")}

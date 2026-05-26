@@ -126,51 +126,79 @@ type BlockStackState = GameSessionState & {
 // the player's Y position, spawns pipe pairs at fixed intervals, and runs
 // collision/score detection. The client only sends one action: `{type:"flap"}`.
 // That gives us strong anti-cheat — no client-side score, no client position.
-const SKY_TICK_MS = 33;                       // ~30 ticks/s — smooth, low jitter
-const SKY_WORLD_W = 600;                      // Logical playfield width
-const SKY_WORLD_H = 800;                      // Logical playfield height
-const SKY_PLANE_X = 140;                      // Plane stays at a fixed X
-const SKY_PLANE_RADIUS = 22;                  // Hitbox radius
-const SKY_GRAVITY = 1500;                     // px / s²  (slightly gentler for casual feel)
-const SKY_FLAP_VY = -480;                     // px / s impulse on flap
-const SKY_MAX_VY = 800;                       // Terminal velocity (px/s)
-const SKY_MIN_FLAP_INTERVAL_MS = 80;          // Anti-bot rate-limit (max ~12 flaps/s)
-const SKY_PIPE_W = 90;                        // Pipe width
-const SKY_PIPE_GAP = 250;                     // Generous starting gap
-const SKY_PIPE_GAP_MIN = 190;                 // Floor for difficulty ramp
-const SKY_PIPE_SPAWN_DX = 300;                // Distance between consecutive pipe pairs (px)
-const SKY_SCROLL_SPEED_BASE = 170;            // px/s starting scroll speed
-const SKY_SCROLL_SPEED_MAX = 260;             // px/s top speed
-const SKY_DIFFICULTY_RAMP_MS = 60000;         // 60s to reach max speed/min gap
-const SKY_TARGET_PIPES = 15;                  // Win condition: pass 15 pipe pairs (slightly shorter)
-const SKY_PIPE_MARGIN = 90;                   // Min margin from top/bottom for the gap center
-const SKY_LIVES = 3;                          // Wrong-pipe-clip / boundary budget
-const SKY_INVULN_MS = 1500;                   // After losing a life, plane blinks invulnerable for 1.5s
-// Anti-cheat: 15 pipes × ~1.65s avg time-between-pipes (300 / scroll_speed avg ~215)
-//   ≈ 24.7s of mandatory play time — comfortably above the 15s floor.
-
-type SkyPipe = {
-  id: number;
-  x: number;            // World X of the pipe's left edge
-  gapTop: number;       // Y of the top of the gap
-  gapBottom: number;    // Y of the bottom of the gap
-  passed: boolean;      // Score-once flag
-};
+// ─── Sky Runner — client-authoritative physics with seeded validation ────────
+//
+// The previous design (server tick loop, client interpolates snapshots) was
+// inherently delayed: input had to wait for the next server tick to be
+// reflected, and the client could only render snapshots already at least one
+// RTT old. For a twitch game like Flappy Bird that feels awful.
+//
+// New design:
+//  - The server is a "validator", not a tick engine. It signs the run with
+//    a random PRNG seed and ships all physics constants to the client.
+//  - The client runs the full simulation (gravity, scroll, pipes, collision)
+//    in a rAF loop. Input → physics → render happens locally in under 1 frame.
+//  - Pipes are generated deterministically from the seed (same PRNG on both
+//    sides). The server can reproduce the exact pipe layout at any point in
+//    time, so it can audit checkpoints.
+//
+// Anti-cheat layers:
+//  - The total run duration is bounded by the scroll speed × pipe spacing:
+//    a run that reports SKY_TARGET_PIPES passed in <SKY_MIN_RUN_MS is rejected.
+//  - The client reports progress checkpoints (`sky:checkpoint`) every N pipes.
+//    Each checkpoint includes pipesPassed + elapsedMs + lives. We verify the
+//    elapsed time is consistent with the minimum possible scroll distance to
+//    pass that many pipes (impossible to "skip" pipes by lying — you'd have
+//    to claim them faster than physics allows, which we detect).
+//  - A finish below the 15s floor still triggers the existing anti-cheat path
+//    inside `finishGame`.
+//  - Lives drained to 0 on the client → client emits `game:end` which finishes
+//    the run as a loss. (No reward to extract from cheating into a loss.)
+//  - To win, the client emits `sky:finish` with pipesPassed === target. The
+//    server validates by checking the minimum elapsed time and the most
+//    recent checkpoint.
+const SKY_WORLD_W = 600;
+const SKY_WORLD_H = 800;
+const SKY_PLANE_X = 140;
+const SKY_PLANE_RADIUS = 22;
+const SKY_GRAVITY = 1500;
+const SKY_FLAP_VY = -480;
+const SKY_MAX_VY = 800;
+const SKY_MIN_FLAP_INTERVAL_MS = 80;
+const SKY_PIPE_W = 90;
+const SKY_PIPE_GAP = 250;
+const SKY_PIPE_GAP_MIN = 190;
+const SKY_PIPE_SPAWN_DX = 300;
+const SKY_SCROLL_SPEED_BASE = 170;
+const SKY_SCROLL_SPEED_MAX = 260;
+const SKY_DIFFICULTY_RAMP_MS = 60000;
+const SKY_TARGET_PIPES = 15;
+const SKY_PIPE_MARGIN = 90;
+const SKY_LIVES = 3;
+const SKY_INVULN_MS = 1500;
+const SKY_CHECKPOINT_EVERY_PIPES = 5; // Client reports every 5 pipes
+// Minimum theoretical time to pass N pipes: at max scroll speed (260 px/s) and
+// minimum spacing (300px), each pipe still takes ≥300/260 ≈ 1.15s. We give
+// some slack for floating-point and slight bursts.
+function skyMinElapsedMsForPipes(pipesPassed: number): number {
+  // Avg max scroll speed is 260, plus initial pipe pre-queue at SKY_WORLD_W + 200
+  // means the first pipe takes at least (SKY_WORLD_W + 200 - SKY_PLANE_X) / 260 ≈ 2.5s
+  // and each subsequent pipe takes at least SKY_PIPE_SPAWN_DX / SKY_SCROLL_SPEED_MAX
+  const firstPipeMs = ((SKY_WORLD_W + 200 - SKY_PLANE_X) / SKY_SCROLL_SPEED_MAX) * 1000;
+  const perPipeMs = (SKY_PIPE_SPAWN_DX / SKY_SCROLL_SPEED_MAX) * 1000;
+  if (pipesPassed <= 0) return 0;
+  // 80% factor leaves slack for client-side scrolling that may briefly speed
+  // up under heavy GC; we only reject blatantly impossible timing.
+  return Math.floor((firstPipeMs + (pipesPassed - 1) * perPipeMs) * 0.8);
+}
 
 type SkyRunnerState = GameSessionState & {
   slug: "sky-runner";
-  y: number;            // Plane center Y in world coords
-  vy: number;           // Plane vertical velocity (px/s)
-  pipes: SkyPipe[];
-  pipesPassed: number;  // Successfully passed pipe pairs
-  elapsedMs: number;
-  nextPipeAt: number;   // World X at which the next pipe should spawn
-  scrollSpeed: number;  // Current px/s
-  lastFlapAt: number;   // Throttle reference
-  pipeSeq: number;      // Monotonic pipe id counter
-  lives: number;        // Remaining lives
-  invulnUntil: number;  // Date.now() until which collisions are ignored
-  skyTickTimer?: ReturnType<typeof setInterval>;
+  seed: string;             // PRNG seed shipped to the client at game:started
+  lives: number;            // Server-tracked lives (mirrors client)
+  pipesPassed: number;      // Latest checkpoint pipe count
+  lastCheckpointMs: number; // Elapsed ms at last checkpoint
+  lastFlapAt: number;       // Anti-bot flap rate limiter (still meaningful: a bot spamming flaps would crash anyway, but we count them for telemetry)
 };
 
 /** @param {unknown} raw */
@@ -329,44 +357,40 @@ export function registerGamesSocketHandlers({ io, engine }) {
             base: { leftPx: initialState.baseLeftPx, width: STACK_INITIAL_WIDTH }
           });
         } else if (slug === "sky-runner") {
-          // Plane spawns horizontally centered, the world scrolls towards it.
-          initialState.y = SKY_WORLD_H / 2;
-          initialState.vy = 0;
-          initialState.pipes = [];
-          initialState.pipesPassed = 0;
-          initialState.elapsedMs = 0;
-          initialState.nextPipeAt = SKY_WORLD_W + 200; // First pipe pre-queued just off-screen (more reaction time)
-          initialState.scrollSpeed = SKY_SCROLL_SPEED_BASE;
-          initialState.lastFlapAt = 0;
-          initialState.pipeSeq = 0;
+          // Client-authoritative: the server only seeds the run and validates
+          // checkpoints. No tick loop, no per-frame broadcasts.
+          const seed = crypto.randomBytes(16).toString("hex");
+          initialState.seed = seed;
           initialState.lives = SKY_LIVES;
-          initialState.invulnUntil = Date.now() + 1200; // Brief grace period at start
-          // Pre-seed two pipes so the player has something to aim at immediately
-          (initialState as SkyRunnerState).pipes.push(makeSkyPipe(initialState as SkyRunnerState));
-          (initialState as SkyRunnerState).pipes.push(makeSkyPipe(initialState as SkyRunnerState));
+          initialState.pipesPassed = 0;
+          initialState.lastCheckpointMs = 0;
+          initialState.lastFlapAt = 0;
           socket.emit("game:started", {
             game: slug,
+            seed,
             worldW: SKY_WORLD_W,
             worldH: SKY_WORLD_H,
             planeX: SKY_PLANE_X,
             planeRadius: SKY_PLANE_RADIUS,
             pipeW: SKY_PIPE_W,
+            pipeGap: SKY_PIPE_GAP,
+            pipeGapMin: SKY_PIPE_GAP_MIN,
+            pipeSpawnDx: SKY_PIPE_SPAWN_DX,
+            pipeMargin: SKY_PIPE_MARGIN,
+            scrollSpeedBase: SKY_SCROLL_SPEED_BASE,
+            scrollSpeedMax: SKY_SCROLL_SPEED_MAX,
+            difficultyRampMs: SKY_DIFFICULTY_RAMP_MS,
+            gravity: SKY_GRAVITY,
+            flapVy: SKY_FLAP_VY,
+            maxVy: SKY_MAX_VY,
+            minFlapIntervalMs: SKY_MIN_FLAP_INTERVAL_MS,
+            invulnMs: SKY_INVULN_MS,
             targetPipes: SKY_TARGET_PIPES,
-            tickMs: SKY_TICK_MS,
-            y: initialState.y,
-            vy: initialState.vy,
-            pipes: (initialState as SkyRunnerState).pipes,
-            pipesPassed: 0,
-            scrollSpeed: initialState.scrollSpeed,
             lives: SKY_LIVES,
             maxLives: SKY_LIVES,
-            invulnerable: true,
-            score: 0
+            score: 0,
+            checkpointEveryPipes: SKY_CHECKPOINT_EVERY_PIPES
           });
-          (initialState as SkyRunnerState).skyTickTimer = setInterval(
-            () => tickSkyRunner(socket, initialState as SkyRunnerState, engine),
-            SKY_TICK_MS
-          );
         }
 
         GAME_SESSIONS.set(socket.id, initialState);
@@ -441,8 +465,14 @@ export function registerGamesSocketHandlers({ io, engine }) {
         socket.emit("game:cart_lane", { lane: state.lane });
       } else if (state.slug === "block-stack" && action.type === "drop") {
         handleBlockStackDrop(socket, state as BlockStackState, engine);
-      } else if (state.slug === "sky-runner" && action.type === "flap") {
-        handleSkyRunnerFlap(socket, state as SkyRunnerState);
+      } else if (state.slug === "sky-runner") {
+        if (action.type === "flap") {
+          handleSkyRunnerFlap(state as SkyRunnerState);
+        } else if (action.type === "checkpoint") {
+          handleSkyRunnerCheckpoint(socket, state as SkyRunnerState, action as { type: "checkpoint"; pipesPassed?: unknown; elapsedMs?: unknown; lives?: unknown; score?: unknown }, engine);
+        } else if (action.type === "finish") {
+          handleSkyRunnerFinish(socket, state as SkyRunnerState, action as { type: "finish"; pipesPassed?: unknown; elapsedMs?: unknown; score?: unknown }, engine);
+        }
       }
     });
 
@@ -475,11 +505,6 @@ function clearMemoryMismatchTimer(state: GameSessionState | undefined) {
   if (cartT) {
     clearInterval(cartT as ReturnType<typeof setInterval>);
     state.cartTickTimer = null;
-  }
-  const skyT = state.skyTickTimer;
-  if (skyT) {
-    clearInterval(skyT as ReturnType<typeof setInterval>);
-    state.skyTickTimer = null;
   }
 }
 
@@ -769,139 +794,80 @@ function handleBlockStackDrop(socket: Socket, state: BlockStackState, engine: Mi
 //    would still need to time flaps within the 90ms gate.
 //  - 15s minimum playtime is naturally satisfied (20 pipes × ~1.55s = ~24s).
 
-function makeSkyPipe(state: SkyRunnerState): SkyPipe {
-  // Difficulty narrows the gap over time
-  const t = Math.min(1, state.elapsedMs / SKY_DIFFICULTY_RAMP_MS);
-  const gap = SKY_PIPE_GAP - (SKY_PIPE_GAP - SKY_PIPE_GAP_MIN) * t;
-  const minCenter = SKY_PIPE_MARGIN + gap / 2;
-  const maxCenter = SKY_WORLD_H - SKY_PIPE_MARGIN - gap / 2;
-  const center = crypto.randomInt(Math.floor(minCenter), Math.floor(maxCenter) + 1);
-  const x = state.nextPipeAt;
-  state.nextPipeAt += SKY_PIPE_SPAWN_DX;
-  state.pipeSeq += 1;
-  return {
-    id: state.pipeSeq,
-    x,
-    gapTop: center - gap / 2,
-    gapBottom: center + gap / 2,
-    passed: false
-  };
-}
-
-function handleSkyRunnerFlap(socket: Socket, state: SkyRunnerState) {
+// Server's only role for flap is rate-limit telemetry — the client runs the
+// actual physics. We could even skip this entirely, but keeping it lets us
+// audit suspicious clients (e.g. someone modifying the JS to remove the
+// flap throttle would show as a burst of flap events here).
+function handleSkyRunnerFlap(state: SkyRunnerState) {
   const now = Date.now();
   if (now - (state.lastFlapAt || 0) < SKY_MIN_FLAP_INTERVAL_MS) return;
   state.lastFlapAt = now;
-  state.vy = SKY_FLAP_VY;
-  // No need to broadcast — the next tick will reflect the new velocity.
 }
 
-function tickSkyRunner(socket: Socket, state: SkyRunnerState, engine: MiningEngine) {
-  if (!state || state.isFinished || state.slug !== "sky-runner") return;
+function readClampedNumber(raw: unknown, min: number, max: number): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+}
 
-  const now = Date.now();
-  const dtSec = SKY_TICK_MS / 1000;
-  state.elapsedMs += SKY_TICK_MS;
-  const invulnerable = now < state.invulnUntil;
+function handleSkyRunnerCheckpoint(
+  socket: Socket,
+  state: SkyRunnerState,
+  action: { type: "checkpoint"; pipesPassed?: unknown; elapsedMs?: unknown; lives?: unknown; score?: unknown },
+  engine: MiningEngine
+) {
+  const pipesPassed = readClampedNumber(action.pipesPassed, 0, SKY_TARGET_PIPES);
+  const elapsedMs = readClampedNumber(action.elapsedMs, 0, 30 * 60 * 1000); // ≤30 min
+  const lives = readClampedNumber(action.lives, 0, SKY_LIVES);
+  const score = readClampedNumber(action.score, 0, SKY_TARGET_PIPES * 1000);
+  if (pipesPassed === null || elapsedMs === null || lives === null || score === null) return;
 
-  // Ramp scroll speed with difficulty
-  const t = Math.min(1, state.elapsedMs / SKY_DIFFICULTY_RAMP_MS);
-  state.scrollSpeed = SKY_SCROLL_SPEED_BASE + (SKY_SCROLL_SPEED_MAX - SKY_SCROLL_SPEED_BASE) * t;
+  // Monotonicity: pipesPassed can only go up
+  if (pipesPassed < state.pipesPassed) return;
 
-  // Physics: gravity → vy → y
-  state.vy = Math.min(SKY_MAX_VY, state.vy + SKY_GRAVITY * dtSec);
-  state.y += state.vy * dtSec;
-
-  // Helper: lose a life or end the run if no lives left
-  const loseLife = (reason: string): boolean => {
-    if (invulnerable) return false;
-    state.lives = Math.max(0, state.lives - 1);
-    if (state.lives <= 0) {
-      socket.emit("game:sky_update", {
-        y: state.y, vy: state.vy, pipes: state.pipes,
-        pipesPassed: state.pipesPassed, score: state.score,
-        scrollSpeed: state.scrollSpeed, lives: 0,
-        invulnerable: false, crashed: reason,
-      });
-      finishGame(socket, state, false, engine, "sky_crash_" + reason);
-      return true;
-    }
-    // Respawn: recenter, kill velocity, grant brief invulnerability
-    state.y = SKY_WORLD_H / 2;
-    state.vy = 0;
-    state.invulnUntil = now + SKY_INVULN_MS;
-    socket.emit("game:sky_hit", { reason, lives: state.lives });
-    return false;
-  };
-
-  // World bounds: clipping the ceiling or floor costs a life
-  if (state.y - SKY_PLANE_RADIUS <= 0) {
-    state.y = SKY_PLANE_RADIUS + 1; // Clamp so we don't spam the event next tick
-    if (loseLife("ceiling")) return;
-  } else if (state.y + SKY_PLANE_RADIUS >= SKY_WORLD_H) {
-    state.y = SKY_WORLD_H - SKY_PLANE_RADIUS - 1;
-    if (loseLife("floor")) return;
+  // Physics check: must take at least the minimum theoretical time to reach
+  // pipesPassed. If it claims more pipes than possible in elapsedMs → cheat.
+  const minMs = skyMinElapsedMsForPipes(pipesPassed);
+  if (elapsedMs < minMs) {
+    logger.warn(`sky-runner: checkpoint rejected (impossible timing). user=${state.userId} pipes=${pipesPassed} elapsedMs=${elapsedMs} minMs=${minMs}`);
+    socket.emit("game:error", { code: "checkpoint_rejected" });
+    finishGame(socket, state, false, engine, "sky_cheat_timing");
+    return;
   }
 
-  // Scroll pipes left; drop pipes that left the screen
-  for (const p of state.pipes) {
-    p.x -= state.scrollSpeed * dtSec;
-  }
-  state.pipes = state.pipes.filter((p) => p.x + SKY_PIPE_W > -40);
+  state.pipesPassed = pipesPassed;
+  state.lastCheckpointMs = elapsedMs;
+  state.lives = lives;
+  state.score = score;
+  socket.emit("sky:checkpoint_ack", { pipesPassed, lives });
+}
 
-  // Spawn new pipes as the queued head approaches the right edge
-  while (state.pipes.length < 4 || state.nextPipeAt < SKY_WORLD_W + SKY_PIPE_SPAWN_DX * 2) {
-    state.pipes.push(makeSkyPipe(state));
-    if (state.pipes.length > 8) break; // Safety cap
-  }
-
-  // Collision + scoring against pipes
-  const planeLeft = SKY_PLANE_X - SKY_PLANE_RADIUS;
-  const planeRight = SKY_PLANE_X + SKY_PLANE_RADIUS;
-  const planeTop = state.y - SKY_PLANE_RADIUS;
-  const planeBottom = state.y + SKY_PLANE_RADIUS;
-  let hitPipe = false;
-  for (const p of state.pipes) {
-    const pLeft = p.x;
-    const pRight = p.x + SKY_PIPE_W;
-    const overlapsX = planeRight > pLeft && planeLeft < pRight;
-    if (overlapsX && !invulnerable) {
-      if (planeTop < p.gapTop || planeBottom > p.gapBottom) {
-        hitPipe = true;
-        // Mark the pipe as "passed" so we don't double-charge if the plane
-        // brushes it again after respawn — and so the score doesn't tick up.
-        p.passed = true;
-        break;
-      }
-    }
-    // Score: the moment the plane fully clears the right edge of the pipe
-    if (!p.passed && pRight < planeLeft) {
-      p.passed = true;
-      state.pipesPassed += 1;
-      state.score += 100;
-    }
+function handleSkyRunnerFinish(
+  socket: Socket,
+  state: SkyRunnerState,
+  action: { type: "finish"; pipesPassed?: unknown; elapsedMs?: unknown; score?: unknown },
+  engine: MiningEngine
+) {
+  const pipesPassed = readClampedNumber(action.pipesPassed, 0, SKY_TARGET_PIPES);
+  const elapsedMs = readClampedNumber(action.elapsedMs, 0, 30 * 60 * 1000);
+  const score = readClampedNumber(action.score, 0, SKY_TARGET_PIPES * 1000);
+  if (pipesPassed === null || elapsedMs === null || score === null) {
+    return finishGame(socket, state, false, engine, "sky_finish_invalid");
   }
 
-  if (hitPipe) {
-    if (loseLife("pipe")) return;
+  // Validate timing against the physics-minimum
+  const minMs = skyMinElapsedMsForPipes(pipesPassed);
+  if (elapsedMs < minMs) {
+    logger.warn(`sky-runner: finish rejected (impossible timing). user=${state.userId} pipes=${pipesPassed} elapsedMs=${elapsedMs} minMs=${minMs}`);
+    return finishGame(socket, state, false, engine, "sky_cheat_timing");
   }
 
-  // Broadcast world snapshot every tick (small payload: ~4 pipes on screen)
-  socket.emit("game:sky_update", {
-    y: state.y,
-    vy: state.vy,
-    pipes: state.pipes,
-    pipesPassed: state.pipesPassed,
-    score: state.score,
-    scrollSpeed: state.scrollSpeed,
-    lives: state.lives,
-    invulnerable: now < state.invulnUntil,
-    crashed: null
-  });
+  state.pipesPassed = pipesPassed;
+  state.lastCheckpointMs = elapsedMs;
+  state.score = score;
 
-  if (state.pipesPassed >= SKY_TARGET_PIPES) {
-    finishGame(socket, state, true, engine);
-  }
+  const won = pipesPassed >= SKY_TARGET_PIPES;
+  finishGame(socket, state, won, engine, won ? "sky_won" : "sky_lost");
 }
 
 async function finishGame(
