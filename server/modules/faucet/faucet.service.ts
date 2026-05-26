@@ -14,7 +14,8 @@ import * as faucetRepository from "./faucet.repository.js";
 const faucetLogger = loggerLib.child("Faucet");
 export const DEFAULT_FAUCET_COOLDOWN_MS = 60 * 60 * 1000;
 export const FAUCET_PARTNER_WAIT_MS = 10_000;
-export const FAUCET_PARTNER_URL = "https://ad.a-ads.com/2436936";
+// Partner ad is rendered client-side by Monetag (ss.mrmnd.com/banner.js) in FaucetPage.tsx.
+// The script handles the click + redirect to its own ad URL — backend no longer ships any partner URL.
 
 export async function getActiveReward(): Promise<FaucetRewardInfo | null> {
   const reward = await faucetRepository.findActiveFaucetReward();
@@ -85,7 +86,6 @@ export async function startPartnerVisitForUser(userId: number, req: Request) {
 
   return {
     ok: true as const,
-    partnerUrl: FAUCET_PARTNER_URL,
     waitMs: FAUCET_PARTNER_WAIT_MS,
     eligibleAt: eligibleAt.getTime(),
   };

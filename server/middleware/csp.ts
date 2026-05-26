@@ -72,7 +72,8 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
       "https://secure.walletconnect.org",
       "https://www.youtube.com",
       "https://www.youtube-nocookie.com",
-      "https://ad.a-ads.com",
+      "https://ss.mrmnd.com",
+      "https://*.mrmnd.com",
       "https://zerads.com",
       "https://offerwall.me",
       "https://www.tradingview.com",
@@ -114,6 +115,8 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
             "https://s3.tradingview.com",
             "https://www.tradingview.com",
             "https://s.tradingview.com",
+            "https://ss.mrmnd.com",
+            "https://*.mrmnd.com",
           ]
         : [
             "'self'",
@@ -127,6 +130,8 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
             "https://s3.tradingview.com",
             "https://www.tradingview.com",
             "https://s.tradingview.com",
+            "https://ss.mrmnd.com",
+            "https://*.mrmnd.com",
           ],
     styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com"],
     connectSrc: [...connectBase, ...WALLETCONNECT_CONNECT],

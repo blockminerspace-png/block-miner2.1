@@ -131,26 +131,19 @@ export default function Faucet() {
         setCanClaim(remainingMsRef.current <= 0);
     }, [partnerWaitMs, partnerFlowActive]);
 
+    // Monetag itself handles the click and opens its own ad in a new tab.
+    // We only call the backend to start the 10s timer and unlock the claim — we do NOT redirect anywhere.
     const startPartnerTimer = async () => {
-        // Open window immediately (in sync user-gesture context) so browser allows it.
-        // After the API call we navigate the already-open window to the real URL.
-        const win = window.open('', '_blank');
         try {
             setIsAdClicked(true);
             const res = await api.post('/faucet/partner/start');
             if (res.data.ok) {
-                if (win) win.location.href = res.data.partnerUrl;
                 const waitMs = res.data.waitMs || 10000;
-                setTimeout(() => {
-                    setPartnerFlowActive(true);
-                    setPartnerWaitMs(waitMs);
-                    toast.info(t('faucet.partner_toast_started'));
-                }, 0);
-            } else {
-                win?.close();
+                setPartnerFlowActive(true);
+                setPartnerWaitMs(waitMs);
+                toast.info(t('faucet.partner_toast_started'));
             }
         } catch (err) {
-            win?.close();
             setIsAdClicked(false);
         }
     };
@@ -292,18 +285,19 @@ export default function Faucet() {
                                         </div>
                                     ) : (
                                         <div className="space-y-3">
-                                            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center max-w-[300px] mx-auto">
+                                            {/*
+                                              Monetag banner: the script (ss.mrmnd.com/banner.js) renders the ad inside
+                                              the [data-mndbanid] div and handles the click itself (opens its own URL in a new tab).
+                                              We use onClickCapture on the wrapper to detect the click and start the backend timer
+                                              WITHOUT preventing the click — Monetag still gets the click and opens its ad.
+                                            */}
+                                            <div
+                                                className="w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center max-w-[300px] mx-auto"
+                                                onClickCapture={handleAdClick}
+                                            >
                                                 <div className="mx-auto w-[300px] max-w-full min-h-[250px] flex items-center justify-center">
                                                     <div data-mndbanid="5674e300-8e33-44ee-ba4c-1f67f2934df2" />
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    aria-label={t("faucet.visit_partner")}
-                                                    disabled={isAdClicked || remainingMs > 0 || isPartnerUnlocked}
-                                                    className="absolute inset-0 z-[100000] cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50"
-                                                    onClick={handleAdClick}
-                                                >
-                                                </button>
                                             </div>
                                             <div className="flex items-center justify-center gap-2 text-primary/60">
                                                 <MousePointer2 className="w-3 h-3" />
