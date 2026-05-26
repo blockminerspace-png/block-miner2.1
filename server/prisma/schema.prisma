@@ -1192,6 +1192,7 @@ model PtcSettings {
 model PtcAdTier {
   id                Int     @id @default(autoincrement())
   label             String
+  adType            String  @default("window") @map("ad_type")
   durationSeconds   Int     @map("duration_seconds")
   pricePerViewShib  Decimal @default(0) @map("price_per_view_shib") @db.Decimal(30, 8)
   rewardPerViewShib Decimal @default(0) @map("reward_per_view_shib") @db.Decimal(30, 8)

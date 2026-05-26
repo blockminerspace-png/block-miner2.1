@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import {
     Plus, Eye, PauseCircle, PlayCircle, Trash2, Edit3,
     ChevronDown, ChevronUp, Loader2, Clock, CheckCircle2,
-    XCircle, AlertCircle
+    XCircle, AlertCircle, Layers
 } from 'lucide-react';
 import { api } from '../../store/auth';
 
@@ -33,6 +33,16 @@ interface PtcSettings {
     isEnabled: boolean;
 }
 
+interface Tier {
+    id: number;
+    label: string;
+    adType: 'window' | 'iframe';
+    durationSeconds: number;
+    pricePerViewShib: string;
+    rewardPerViewShib: string;
+    isActive: boolean;
+}
+
 const STATUS_CONFIG = {
     pending_approval: { label: 'Aguardando aprovação', icon: Clock, color: 'text-amber-400 bg-amber-400/10 border-amber-400/20' },
     rejected: { label: 'Rejeitada', icon: XCircle, color: 'text-red-400 bg-red-400/10 border-red-400/20' },
@@ -44,6 +54,7 @@ const STATUS_CONFIG = {
 export default function PtcCampaignsPage() {
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [settings, setSettings] = useState<PtcSettings | null>(null);
+    const [tiers, setTiers] = useState<Tier[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -52,8 +63,8 @@ export default function PtcCampaignsPage() {
 
     // Create form
     const [form, setForm] = useState({
-        title: '', description: '', url: '', adType: 'window' as 'window' | 'iframe',
-        durationSeconds: 30, pricePerViewShib: 0, rewardPerViewShib: 0, targetViews: 100,
+        title: '', description: '', url: '',
+        tierId: 0, targetViews: 100,
     });
 
     // Edit form
@@ -64,12 +75,18 @@ export default function PtcCampaignsPage() {
 
     const fetchData = useCallback(async () => {
         try {
-            const [camRes, setRes] = await Promise.all([
+            const [camRes, setRes, tierRes] = await Promise.all([
                 api.get('/ptc/my-campaigns'),
                 api.get('/ptc/settings'),
+                api.get('/ptc/tiers'),
             ]);
             setCampaigns(camRes.data.campaigns ?? []);
             setSettings(setRes.data.settings);
+            const activeTiers: Tier[] = tierRes.data.tiers ?? [];
+            setTiers(activeTiers);
+            if (activeTiers.length > 0) {
+                setForm((f) => ({ ...f, tierId: activeTiers[0].id }));
+            }
         } catch {
             toast.error('Erro ao carregar campanhas');
         } finally {
@@ -81,16 +98,14 @@ export default function PtcCampaignsPage() {
 
     async function handleCreate(e: React.FormEvent) {
         e.preventDefault();
-        if (form.durationSeconds < 5) { toast.error('Duração mínima: 5 segundos'); return; }
-        if (form.pricePerViewShib <= 0) { toast.error('Preço por view deve ser maior que 0'); return; }
-        if (form.rewardPerViewShib <= 0) { toast.error('Ganho por view deve ser maior que 0'); return; }
+        if (!form.tierId) { toast.error('Selecione uma opção do catálogo'); return; }
         setActionLoading(true);
         try {
             const res = await api.post('/ptc/campaigns', form);
             if (res.data.ok) {
                 toast.success('Campanha enviada para aprovação!');
                 setShowCreate(false);
-                setForm({ title: '', description: '', url: '', adType: 'window', durationSeconds: 30, pricePerViewShib: 0, rewardPerViewShib: 0, targetViews: 100 });
+                setForm({ title: '', description: '', url: '', tierId: tiers[0]?.id ?? 0, targetViews: 100 });
                 fetchData();
             } else {
                 toast.error(res.data.message ?? 'Erro');
@@ -161,8 +176,9 @@ export default function PtcCampaignsPage() {
         }
     }
 
-    const costPreview = form.pricePerViewShib > 0
-        ? (form.pricePerViewShib * form.targetViews).toLocaleString(undefined, { maximumFractionDigits: 2 })
+    const selectedTier = tiers.find((t) => t.id === form.tierId) ?? null;
+    const costPreview = selectedTier
+        ? (Number(selectedTier.pricePerViewShib) * form.targetViews).toLocaleString(undefined, { maximumFractionDigits: 2 })
         : '...';
 
     if (loading) return (
@@ -213,31 +229,32 @@ export default function PtcCampaignsPage() {
                                 className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors resize-none" rows={2} placeholder="Descreva seu anúncio..." />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Duração (segundos)</label>
-                                <input type="number" min="5" value={form.durationSeconds}
-                                    onChange={(e) => setForm({ ...form, durationSeconds: Number(e.target.value) })}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors" />
-                                <p className="text-[9px] text-gray-600 mt-1 font-medium">Mínimo 5s</p>
-                            </div>
-                            <div>
-                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Preço/view (SHIB) — anunciante</label>
-                                <input type="number" min="0" step="0.000001" value={form.pricePerViewShib || ''}
-                                    onChange={(e) => setForm({ ...form, pricePerViewShib: Number(e.target.value) })}
-                                    placeholder="0.000001"
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-orange-500 transition-colors" />
-                            </div>
-                            <div>
-                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Ganho/view (SHIB) — usuário</label>
-                                <input type="number" min="0" step="0.000001" value={form.rewardPerViewShib || ''}
-                                    onChange={(e) => setForm({ ...form, rewardPerViewShib: Number(e.target.value) })}
-                                    placeholder="0.000001"
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-orange-500 transition-colors" />
-                            </div>
-                        </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">
+                                    Opção do catálogo
+                                </label>
+                                {tiers.length === 0 ? (
+                                    <div className="flex items-center gap-2 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                                        <Layers className="w-4 h-4 text-amber-400 shrink-0" />
+                                        <p className="text-amber-300 text-xs font-medium">Nenhuma opção disponível. Aguarde o admin configurar o catálogo.</p>
+                                    </div>
+                                ) : (
+                                    <select value={form.tierId} onChange={(e) => setForm({ ...form, tierId: Number(e.target.value) })}
+                                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors">
+                                        {tiers.map((t) => (
+                                            <option key={t.id} value={t.id}>
+                                                {t.label} — {t.durationSeconds}s · {t.adType} · {Number(t.pricePerViewShib).toLocaleString(undefined, { maximumFractionDigits: 6 })} SHIB/view
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                                {selectedTier && (
+                                    <p className="text-[9px] text-gray-500 mt-1.5 font-medium">
+                                        Viewer ganha <span className="text-emerald-400 font-black">{Number(selectedTier.rewardPerViewShib).toLocaleString(undefined, { maximumFractionDigits: 6 })} SHIB</span>/view
+                                    </p>
+                                )}
+                            </div>
                             <div>
                                 <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">
                                     Visualizações ({settings?.minViews.toLocaleString()}+)
@@ -246,14 +263,6 @@ export default function PtcCampaignsPage() {
                                     min={settings?.minViews ?? 100} max={settings?.maxViews ?? 1000000}
                                     onChange={(e) => setForm({ ...form, targetViews: Number(e.target.value) })}
                                     className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors" />
-                            </div>
-                            <div>
-                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Tipo de exibição</label>
-                                <select value={form.adType} onChange={(e) => setForm({ ...form, adType: e.target.value as 'window' | 'iframe' })}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors">
-                                    <option value="window">Nova janela</option>
-                                    <option value="iframe">iframe</option>
-                                </select>
                             </div>
                         </div>
 

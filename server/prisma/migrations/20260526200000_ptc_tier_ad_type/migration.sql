@@ -1,0 +1,1 @@
+ALTER TABLE "ptc_ad_tiers" ADD COLUMN IF NOT EXISTS "ad_type" VARCHAR(10) NOT NULL DEFAULT 'window';

@@ -31,6 +31,7 @@ interface PtcSettings {
 interface Tier {
     id: number;
     label: string;
+    adType: 'window' | 'iframe';
     durationSeconds: number;
     pricePerViewShib: string;
     rewardPerViewShib: string;
@@ -38,7 +39,7 @@ interface Tier {
     sortOrder: number;
 }
 
-const EMPTY_TIER = { label: '', durationSeconds: 10, pricePerViewShib: '', rewardPerViewShib: '', isActive: true, sortOrder: 0 };
+const EMPTY_TIER = { label: '', adType: 'window' as 'window' | 'iframe', durationSeconds: 10, pricePerViewShib: '', rewardPerViewShib: '', isActive: true, sortOrder: 0 };
 
 export default function AdminPtc() {
     const [pending, setPending] = useState<Campaign[]>([]);
@@ -155,6 +156,7 @@ export default function AdminPtc() {
     function startEditTier(t: Tier) {
         setTierForm({
             label: t.label,
+            adType: t.adType ?? 'window',
             durationSeconds: t.durationSeconds,
             pricePerViewShib: t.pricePerViewShib,
             rewardPerViewShib: t.rewardPerViewShib,
@@ -322,6 +324,14 @@ export default function AdminPtc() {
                                         className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors" />
                                 </div>
                                 <div>
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Tipo de exibição</label>
+                                    <select value={tierForm.adType} onChange={(e) => setTierForm({ ...tierForm, adType: e.target.value as 'window' | 'iframe' })}
+                                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors">
+                                        <option value="window">Nova janela</option>
+                                        <option value="iframe">iframe</option>
+                                    </select>
+                                </div>
+                                <div>
                                     <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Custo anunciante (SHIB/view)</label>
                                     <input type="number" step="0.000001" min="0" value={tierForm.pricePerViewShib} onChange={(e) => setTierForm({ ...tierForm, pricePerViewShib: e.target.value })} required
                                         placeholder="0.000000"
@@ -380,6 +390,7 @@ export default function AdminPtc() {
                                         </div>
                                         <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[9px] text-gray-500 font-medium">
                                             <span>⏱ {t.durationSeconds}s</span>
+                                            <span className="text-sky-400 font-black uppercase">{t.adType ?? 'window'}</span>
                                             <span>Custo: <span className="text-orange-300 font-black">{Number(t.pricePerViewShib).toLocaleString(undefined, { maximumFractionDigits: 6 })} SHIB/view</span></span>
                                             <span>Recompensa: <span className="text-emerald-400 font-black">{Number(t.rewardPerViewShib).toLocaleString(undefined, { maximumFractionDigits: 6 })} SHIB/view</span></span>
                                         </div>

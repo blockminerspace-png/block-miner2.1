@@ -60,21 +60,16 @@ export async function getActiveTiers(req: Request, res: Response): Promise<void>
 export async function createCampaign(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) { err(res, 401, "Unauthorized"); return; }
-    const { title, description, url, adType, durationSeconds, pricePerViewShib, rewardPerViewShib, targetViews } = req.body as Record<string, unknown>;
+    const { title, description, url, tierId, targetViews } = req.body as Record<string, unknown>;
 
     if (!title || !url) { err(res, 400, "Title and URL required"); return; }
-    if (!durationSeconds || !pricePerViewShib || !rewardPerViewShib) {
-      err(res, 400, "durationSeconds, pricePerViewShib and rewardPerViewShib are required"); return;
-    }
+    if (!tierId) { err(res, 400, "Catalog option required"); return; }
 
     await svc.createCampaign(req.user.id, {
       title: String(title),
       description: String(description ?? ""),
       url: String(url),
-      adType: adType === "iframe" ? "iframe" : "window",
-      durationSeconds: Number(durationSeconds),
-      pricePerViewShib: Number(pricePerViewShib),
-      rewardPerViewShib: Number(rewardPerViewShib),
+      tierId: Number(tierId),
       targetViews: Number(targetViews ?? 0),
     });
     res.json({ ok: true, message: "Campaign submitted for approval" });
@@ -224,7 +219,7 @@ export async function adminGetTiers(req: Request, res: Response): Promise<void> 
 
 export async function adminCreateTier(req: Request, res: Response): Promise<void> {
   try {
-    const { label, durationSeconds, pricePerViewShib, rewardPerViewShib, isActive, sortOrder } =
+    const { label, adType, durationSeconds, pricePerViewShib, rewardPerViewShib, isActive, sortOrder } =
       req.body as Record<string, unknown>;
     if (!label || !durationSeconds || pricePerViewShib === undefined || rewardPerViewShib === undefined) {
       err(res, 400, "label, durationSeconds, pricePerViewShib and rewardPerViewShib are required");
@@ -232,6 +227,7 @@ export async function adminCreateTier(req: Request, res: Response): Promise<void
     }
     const tier = await svc.createTier({
       label: String(label),
+      adType: adType === "iframe" ? "iframe" : "window",
       durationSeconds: Number(durationSeconds),
       pricePerViewShib: Number(pricePerViewShib),
       rewardPerViewShib: Number(rewardPerViewShib),
@@ -247,10 +243,11 @@ export async function adminCreateTier(req: Request, res: Response): Promise<void
 export async function adminUpdateTier(req: Request, res: Response): Promise<void> {
   try {
     const id = Number(req.params.id);
-    const { label, durationSeconds, pricePerViewShib, rewardPerViewShib, isActive, sortOrder } =
+    const { label, adType, durationSeconds, pricePerViewShib, rewardPerViewShib, isActive, sortOrder } =
       req.body as Record<string, unknown>;
     const tier = await svc.updateTier(id, {
       ...(label !== undefined && { label: String(label) }),
+      ...(adType !== undefined && { adType: adType === "iframe" ? "iframe" : "window" }),
       ...(durationSeconds !== undefined && { durationSeconds: Number(durationSeconds) }),
       ...(pricePerViewShib !== undefined && { pricePerViewShib: Number(pricePerViewShib) }),
       ...(rewardPerViewShib !== undefined && { rewardPerViewShib: Number(rewardPerViewShib) }),
