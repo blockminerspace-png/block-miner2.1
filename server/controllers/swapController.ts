@@ -13,36 +13,42 @@ type CoinGeckoPolPriceResponse = {
   "shiba-inu"?: { usd?: number };
 };
 
+async function fetchAndCachePrices(): Promise<void> {
+  const res = await fetch(
+    "https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token,shiba-inu&vs_currencies=usd"
+  );
+  const data = (await res.json()) as CoinGeckoPolPriceResponse;
+  const polPrice = data["polygon-ecosystem-token"]?.usd;
+  const shibPrice = data["shiba-inu"]?.usd;
+  if (typeof polPrice === "number" && Number.isFinite(polPrice) && polPrice > 0) {
+    priceCache.set("POL", { price: polPrice, timestamp: Date.now() });
+  }
+  if (typeof shibPrice === "number" && Number.isFinite(shibPrice) && shibPrice > 0) {
+    priceCache.set("SHIB", { price: shibPrice, timestamp: Date.now() });
+  }
+}
+
 async function getPolUsdPrice(): Promise<number> {
   const cached = priceCache.get("POL");
   if (cached && Date.now() - cached.timestamp < PRICE_TTL_MS) return cached.price;
-
   try {
-    const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token,shiba-inu&vs_currencies=usd"
-    );
-    const data = (await res.json()) as CoinGeckoPolPriceResponse;
-    const polPrice = data["polygon-ecosystem-token"]?.usd;
-    const shibPrice = data["shiba-inu"]?.usd;
-    if (typeof polPrice === "number" && Number.isFinite(polPrice)) {
-      priceCache.set("POL", { price: polPrice, timestamp: Date.now() });
-    }
-    if (typeof shibPrice === "number" && Number.isFinite(shibPrice)) {
-      priceCache.set("SHIB", { price: shibPrice, timestamp: Date.now() });
-    }
-    if (typeof polPrice === "number" && Number.isFinite(polPrice)) return polPrice;
+    await fetchAndCachePrices();
   } catch (_e: unknown) {
-    // Fallback below
+    // keep stale cache on failure
   }
-  return 1.0;
+  // stale cache preferred over wrong hardcoded fallback
+  return priceCache.get("POL")?.price ?? 0.09;
 }
 
 async function getShibUsdPrice(): Promise<number> {
   const cached = priceCache.get("SHIB");
   if (cached && Date.now() - cached.timestamp < PRICE_TTL_MS) return cached.price;
-  // Trigger a fetch that also populates SHIB cache
-  await getPolUsdPrice();
-  return priceCache.get("SHIB")?.price ?? 0.00001;
+  try {
+    await fetchAndCachePrices();
+  } catch (_e: unknown) {
+    // keep stale cache on failure
+  }
+  return priceCache.get("SHIB")?.price ?? 0.0000055;
 }
 
 type SwapBody = {
