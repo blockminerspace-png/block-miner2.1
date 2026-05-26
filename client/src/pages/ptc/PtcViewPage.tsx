@@ -143,16 +143,18 @@ export default function PtcViewPage() {
                     <Eye className="w-16 h-16 text-gray-700 mx-auto" />
                     <h3 className="text-white font-black uppercase tracking-widest text-sm">Nenhum anúncio disponível</h3>
                     <p className="text-gray-600 text-xs font-medium">Volte mais tarde para encontrar novos anúncios.</p>
-                    <button onClick={fetchNext} className="mt-4 px-6 py-3 bg-gray-800 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-gray-700 transition-colors">
-                        Verificar novamente
-                    </button>
-                    <Link
-                        to="/ptc/campaigns"
-                        className="mt-2 inline-flex items-center gap-2 px-6 py-3 bg-orange-500/10 border border-orange-500/20 text-orange-300 font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-orange-500/20 transition-colors"
-                    >
-                        <Megaphone className="w-4 h-4" />
-                        Anunciar aqui
-                    </Link>
+                    <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
+                        <button onClick={fetchNext} className="px-6 py-3 bg-gray-800 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-gray-700 transition-colors">
+                            Verificar novamente
+                        </button>
+                        <Link
+                            to="/ptc/campaigns"
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500/10 border border-orange-500/20 text-orange-300 font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-orange-500/20 transition-colors"
+                        >
+                            <Megaphone className="w-4 h-4" />
+                            Anunciar aqui
+                        </Link>
+                    </div>
                 </div>
             ) : (
                 <div className="space-y-6">
