@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from '../store/auth';
 
@@ -13,7 +13,6 @@ import Sidebar from '../shared/components/Sidebar';
 import Header from '../shared/components/Header';
 import ChatSidebar from '../shared/components/ChatSidebar';
 import AdBlockDetector from '../shared/components/AdBlockDetector';
-import AdBanner from '../shared/components/AdBanner';
 import SiteFooter from '../shared/components/SiteFooter';
 import BroadcastPopup from '../shared/components/BroadcastPopup';
 import TransparencyErrorBoundary from '../shared/components/TransparencyErrorBoundary';
@@ -113,8 +112,6 @@ const ProtectedLayout = () => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const checkSession = useAuthStore((s) => s.checkSession);
-  const location = useLocation();
-
   useEffect(() => {
     void checkSession({ silent: true });
   }, [checkSession]);
@@ -142,8 +139,6 @@ const ProtectedLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
-  const showPageAds = !['/dashboard', '/wallet', '/wallets', '/faucet'].includes(location.pathname);
-
   return (
     <div className="flex h-screen bg-background overflow-hidden text-gray-100 font-sans">
       <Sidebar />
@@ -152,11 +147,9 @@ const ProtectedLayout = () => {
         <BroadcastPopup />
         <main className="flex-1 overflow-y-auto scrollbar-hide mt-14 md:mt-0">
           <div className="w-full max-w-7xl mx-auto px-3 py-4 pb-24 sm:px-4 md:p-8 md:pb-8">
-            {showPageAds && <AdBanner size="728x90" />}
             <Suspense fallback={<ProtectedOutletFallback />}>
               <Outlet />
             </Suspense>
-            {showPageAds && <AdBanner size="728x90" />}
           </div>
           <SiteFooter compact />
         </main>
