@@ -2,6 +2,7 @@ import prisma from "../src/db/prisma.js";
 import {
   buildDefaultSidebarEntries,
   CATEGORY_TITLE_KEYS,
+  coerceGamesInEarnSection,
   coerceInternalOfferwallEarnRoot,
   coerceParentLockedSidebarEntries,
   coerceZeradsHidden,
@@ -98,14 +99,15 @@ export async function getSidebarNavForAdmin() {
   const { entries: coerced, changed: lockedChanged } = coerceParentLockedSidebarEntries(raw);
   const { entries: coercedOfferwall, changed: offerwallChanged } = coerceInternalOfferwallEarnRoot(coerced);
   const { entries: coercedZerads, changed: zeradsChanged } = coerceZeradsHidden(coercedOfferwall);
-  if (lockedChanged || offerwallChanged || zeradsChanged) {
+  const { entries: coercedGames, changed: gamesChanged } = coerceGamesInEarnSection(coercedZerads);
+  if (lockedChanged || offerwallChanged || zeradsChanged || gamesChanged) {
     await prisma.sidebarNavConfig.update({
       where: { id: SINGLETON_ID },
-      data: { entries: coercedZerads }
+      data: { entries: coercedGames }
     });
   }
   const { entries: merged, changed: mergeChanged } =
-    mergeMissingSidebarRegistryEntries(coercedZerads);
+    mergeMissingSidebarRegistryEntries(coercedGames);
   if (mergeChanged) {
     await prisma.sidebarNavConfig.update({
       where: { id: SINGLETON_ID },
@@ -143,7 +145,8 @@ export async function saveSidebarNavEntries(bodyEntries) {
   const raw = Array.isArray(bodyEntries) ? bodyEntries : [];
   const { entries: afterLocked } = coerceParentLockedSidebarEntries(raw);
   const { entries: afterOfferwall } = coerceInternalOfferwallEarnRoot(afterLocked);
-  const { entries: coerced } = coerceZeradsHidden(afterOfferwall);
+  const { entries: afterZerads } = coerceZeradsHidden(afterOfferwall);
+  const { entries: coerced } = coerceGamesInEarnSection(afterZerads);
   const v = validateSidebarEntriesPayload(coerced);
   if (!v.ok) return { ok: false, code: v.code };
   await ensureRow();

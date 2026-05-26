@@ -189,8 +189,9 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     path: "/games",
     labelKey: "sidebar.games",
     icon: "Gamepad2",
-    section: "social",
-    defaultParentItemId: null
+    section: "earn",
+    defaultParentItemId: null,
+    parentLocked: true
   },
   manual: {
     path: "/manual",
@@ -291,6 +292,27 @@ export function coerceInternalOfferwallEarnRoot(entries) {
 }
 
 /**
+ * Migrates `games` from the old `social` section to `earn`.
+ * Old DB snapshots had games under "Social & Fun"; the registry now places it inside "Ganhar"
+ * (right after mini_pass, before the rewards group).
+ */
+export function coerceGamesInEarnSection(entries) {
+  if (!Array.isArray(entries)) return { entries: /** @type {object[]} */ (entries), changed: false };
+  let changed = false;
+  const next = entries.map((e) => {
+    if (!e || typeof e !== "object") return /** @type {object} */ (e);
+    const row = /** @type {{ itemId: string, section?: string, parentItemId?: string | null }} */ (e);
+    if (row.itemId !== "games") return /** @type {object} */ (e);
+    if (row.section !== "earn" || (row.parentItemId ?? null) !== null) {
+      changed = true;
+      return { ...row, section: "earn", parentItemId: null };
+    }
+    return /** @type {object} */ (e);
+  });
+  return { entries: next, changed };
+}
+
+/**
  * Forces `zerads` to `visible: false` so it no longer appears in the sidebar
  * now that it is embedded inside the Offerwall page.
  */
@@ -373,26 +395,31 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "taxes", visible: true, sortOrder: 65, section: "main", parentItemId: null },
     { itemId: "support", visible: true, sortOrder: 70, section: "main", parentItemId: null },
 
+    // Ganhar — ordem estratégica:
+    //  1) Rotina diária (baixa fricção): tournaments → checkin → daily_tasks → mini_pass
+    //  2) Engajamento ativo (jogar pra ganhar): games
+    //  3) Grupo de Recompensas (fontes secundárias, do mais rápido pro mais lento):
+    //     faucet → internal_offerwall → offerwall → ptc → shortlinks → read_earn → youtube → auto_mining
     { itemId: "tournaments", visible: true, sortOrder: 105, section: "earn", parentItemId: null },
     { itemId: "checkin", visible: true, sortOrder: 110, section: "earn", parentItemId: null },
-    { itemId: "mini_pass", visible: true, sortOrder: 115, section: "earn", parentItemId: null },
-    { itemId: "daily_tasks", visible: true, sortOrder: 118, section: "earn", parentItemId: null },
+    { itemId: "daily_tasks", visible: true, sortOrder: 115, section: "earn", parentItemId: null },
+    { itemId: "mini_pass", visible: true, sortOrder: 118, section: "earn", parentItemId: null },
+    { itemId: "games", visible: true, sortOrder: 119, section: "earn", parentItemId: null },
     { itemId: "rewards_group", visible: true, sortOrder: 120, section: "earn", parentItemId: null },
-    { itemId: "internal_offerwall", visible: true, sortOrder: 125, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "offerwall", visible: true, sortOrder: 127, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "zerads", visible: false, sortOrder: 128, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "faucet", visible: true, sortOrder: 130, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "ptc_earn", visible: true, sortOrder: 131, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "faucet", visible: true, sortOrder: 125, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "internal_offerwall", visible: true, sortOrder: 127, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "offerwall", visible: true, sortOrder: 128, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "zerads", visible: false, sortOrder: 129, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "ptc_earn", visible: true, sortOrder: 130, section: "earn", parentItemId: "rewards_group" },
     { itemId: "shortlinks", visible: true, sortOrder: 140, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "auto_mining", visible: true, sortOrder: 150, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "read_earn", visible: true, sortOrder: 150, section: "earn", parentItemId: "rewards_group" },
     { itemId: "youtube", visible: true, sortOrder: 160, section: "earn", parentItemId: "rewards_group" },
-    { itemId: "read_earn", visible: true, sortOrder: 170, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "auto_mining", visible: true, sortOrder: 170, section: "earn", parentItemId: "rewards_group" },
 
-    { itemId: "games", visible: true, sortOrder: 210, section: "social", parentItemId: null },
-    { itemId: "manual", visible: true, sortOrder: 230, section: "social", parentItemId: null },
-    { itemId: "ranking", visible: true, sortOrder: 240, section: "social", parentItemId: null },
-    { itemId: "roadmap", visible: true, sortOrder: 250, section: "social", parentItemId: null },
-    { itemId: "transparency", visible: true, sortOrder: 260, section: "social", parentItemId: null }
+    { itemId: "ranking", visible: true, sortOrder: 220, section: "social", parentItemId: null },
+    { itemId: "transparency", visible: true, sortOrder: 230, section: "social", parentItemId: null },
+    { itemId: "roadmap", visible: true, sortOrder: 240, section: "social", parentItemId: null },
+    { itemId: "manual", visible: true, sortOrder: 250, section: "social", parentItemId: null }
   ];
 }
 

@@ -23,22 +23,28 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
   {
     section: 'earn',
     titleKey: 'sidebar.categories.earn',
+    // Ordem estratégica:
+    //  1) Rotina diária (baixa fricção, alto retorno relativo): checkin → tasks → mini-pass
+    //  2) Engajamento ativo (jogar pra ganhar): games
+    //  3) Grupo de Recompensas (fontes secundárias, do mais rápido pro mais lento):
+    //     faucet → internal-offerwall → ptc → shortlinks → read-earn → youtube → auto-mining
     items: [
       { itemId: 'checkin', labelKey: 'sidebar.checkin', icon: 'Calendar', path: '/checkin' },
-      { itemId: 'mini_pass', labelKey: 'sidebar.mini_pass', icon: 'Trophy', path: '/mini-pass' },
       { itemId: 'daily_tasks', labelKey: 'sidebar.daily_tasks', icon: 'ListChecks', path: '/tasks' },
+      { itemId: 'mini_pass', labelKey: 'sidebar.mini_pass', icon: 'Trophy', path: '/mini-pass' },
+      { itemId: 'games', labelKey: 'sidebar.games', icon: 'Gamepad2', path: '/games' },
       {
         itemId: 'rewards_group',
         labelKey: 'sidebar.rewards',
         icon: 'Folder',
         children: [
-          { itemId: 'internal_offerwall', labelKey: 'sidebar.internal_offerwall', icon: 'LayoutGrid', path: '/internal-offerwall' },
           { itemId: 'faucet', labelKey: 'sidebar.faucet', icon: 'Gift', path: '/faucet' },
+          { itemId: 'internal_offerwall', labelKey: 'sidebar.internal_offerwall', icon: 'LayoutGrid', path: '/internal-offerwall' },
           { itemId: 'ptc_earn', labelKey: 'sidebar.ptc_earn', icon: 'Eye', path: '/ptc' },
           { itemId: 'shortlinks', labelKey: 'sidebar.shortlinks', icon: 'Link', path: '/shortlinks' },
-          { itemId: 'auto_mining', labelKey: 'sidebar.auto_mining', icon: 'Zap', path: '/auto-mining' },
-          { itemId: 'youtube', labelKey: 'sidebar.youtube', icon: 'Youtube', path: '/youtube' },
           { itemId: 'read_earn', labelKey: 'sidebar.read_earn', icon: 'Sparkles', path: '/read-earn' },
+          { itemId: 'youtube', labelKey: 'sidebar.youtube', icon: 'Youtube', path: '/youtube' },
+          { itemId: 'auto_mining', labelKey: 'sidebar.auto_mining', icon: 'Zap', path: '/auto-mining' },
         ],
       },
     ],
@@ -47,11 +53,10 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
     section: 'social',
     titleKey: 'sidebar.categories.social',
     items: [
-      { itemId: 'games', labelKey: 'sidebar.games', icon: 'Gamepad2', path: '/games' },
-      { itemId: 'manual', labelKey: 'sidebar.manual', icon: 'BookOpen', path: '/manual' },
       { itemId: 'ranking', labelKey: 'sidebar.ranking', icon: 'Trophy', path: '/ranking' },
-      { itemId: 'roadmap', labelKey: 'sidebar.roadmap', icon: 'Map', path: '/roadmap' },
       { itemId: 'transparency', labelKey: 'sidebar.transparency', icon: 'Eye', path: '/transparency' },
+      { itemId: 'roadmap', labelKey: 'sidebar.roadmap', icon: 'Map', path: '/roadmap' },
+      { itemId: 'manual', labelKey: 'sidebar.manual', icon: 'BookOpen', path: '/manual' },
     ],
   },
 ];
