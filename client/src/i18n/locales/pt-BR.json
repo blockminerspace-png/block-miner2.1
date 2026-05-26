@@ -2395,8 +2395,8 @@
     "cart_rush_desc": "Complete a missão em 2 minutos, colete BTCs e alcance 750 pontos na pista.",
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Empilhe 10 blocos. Cada erro encolhe o próximo — pura precisão.",
-    "crypto_reaction_title": "Crypto Reaction",
-    "crypto_reaction_desc": "Observe a sequência e repita. 3 rodadas, 3 vidas — rápido e leve.",
+    "sky_runner_title": "Sky Runner",
+    "sky_runner_desc": "Toque para fazer o aviãozinho voar entre os canos. 20 canos pra vencer — reflexo na veia.",
     "tabs": {
       "ours": "Nossos Jogos",
       "partners": "Jogos Parceiros"
@@ -2409,14 +2409,11 @@
       "progress": "{{current}} / {{total}} blocos",
       "drop_button": "Soltar"
     },
-    "crypto_reaction": {
-      "round_label": "Rodada {{current}} / {{total}}",
-      "watch": "Observe a sequência",
-      "repeat": "Repita a sequência",
-      "round_cleared": "Rodada vencida!",
-      "get_ready": "Prepare-se…",
-      "lives_aria": "{{lives}} vidas restantes",
-      "hint": "3 rodadas, 3 vidas. Observe com calma — você consegue."
+    "sky_runner": {
+      "pipes_progress": "{{current}} / {{total}} canos",
+      "tap_hint": "Toque / Espaço para subir",
+      "flap_aria": "Toque para subir o aviãozinho",
+      "crashed": "Bateu!"
     },
     "socket_errors": {
       "invalid_session": "Sessão inválida.",

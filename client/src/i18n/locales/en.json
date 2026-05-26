@@ -2390,8 +2390,8 @@
     "cart_rush_desc": "Steer the mining cart, collect coins, and dodge broken blocks.",
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Stack 10 blocks. Each miss shrinks the next one — pure precision.",
-    "crypto_reaction_title": "Crypto Reaction",
-    "crypto_reaction_desc": "Watch the sequence, then repeat it. 3 rounds, 3 lives — casual and quick.",
+    "sky_runner_title": "Sky Runner",
+    "sky_runner_desc": "Tap to fly the plane through the pipes. 20 pipes to win — quick reflexes only.",
     "tabs": {
       "ours": "Our Games",
       "partners": "Partner Games"
@@ -2404,14 +2404,11 @@
       "progress": "{{current}} / {{total}} blocks",
       "drop_button": "Drop"
     },
-    "crypto_reaction": {
-      "round_label": "Round {{current}} / {{total}}",
-      "watch": "Watch the sequence",
-      "repeat": "Repeat the sequence",
-      "round_cleared": "Round cleared!",
-      "get_ready": "Get ready…",
-      "lives_aria": "{{lives}} lives remaining",
-      "hint": "3 rounds, 3 lives. Watch carefully — you've got this."
+    "sky_runner": {
+      "pipes_progress": "{{current}} / {{total}} pipes",
+      "tap_hint": "Tap / Space to flap",
+      "flap_aria": "Tap to flap the airplane",
+      "crashed": "Crashed!"
     },
     "socket_errors": {
       "invalid_session": "Invalid session.",

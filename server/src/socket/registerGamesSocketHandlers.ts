@@ -56,7 +56,7 @@ const GAME_NAMES = {
   "crypto-match-3": "Power Match",
   "cart-rush": "Cart Rush",
   "block-stack": "Block Stack",
-  "crypto-reaction": "Crypto Reaction"
+  "sky-runner": "Sky Runner"
 };
 
 type MemoryCard = { id: number; symbol: string; isFlipped: boolean; isMatched: boolean };
@@ -120,35 +120,53 @@ type BlockStackState = GameSessionState & {
   lastDropAt: number;            // Timestamp of last drop action (rate-limit)
 };
 
-// ─── Crypto Reaction constants ───────────────────────────────────────────────
-// Simon-Says with crypto symbols. The server owns the sequence; the client
-// only ever learns one symbol at a time during the SHOW phase. The player
-// has REACTION_LIVES wrong clicks before the run ends.
-const REACTION_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "ADA", "DOT", "DOGE", "MATIC"] as const;
-const REACTION_TARGET_ROUNDS = 3;          // Beat 3 rounds → win (casual length)
-const REACTION_START_LEN = 4;              // Round 1 has 4 symbols
-// Sequence lengths per round: 4, 5, 6 (start + round - 1)
-const REACTION_LIVES = 3;                  // Wrong-click budget before run ends
-const REACTION_SHOW_ON_MS = 800;           // Slightly slower SHOW (was 700) — easier to read
-const REACTION_SHOW_OFF_MS = 350;          // Slightly longer OFF gap (was 300)
-const REACTION_NEXT_ROUND_GAP_MS = 700;    // Pause before SHOW-ing the next round
-const REACTION_MIN_CLICK_INTERVAL_MS = 100; // Anti-bot: drop clicks faster than 10/s
-const REACTION_INPUT_TIMEOUT_MS = 15000;   // Generous timeout (was 8s) so casual players don't get cut off
-// Anti-cheat: 15s minimum run. Min sum to perfect-win =
-//   round1 show (4×1.15s = 4.6s) + round2 show (5×1.15s = 5.75s)
-// + round3 show (6×1.15s = 6.9s) + 2 round gaps (1.4s) = 18.65s show alone.
-// Plus the player still has to click 4+5+6 = 15 symbols. Easy margin above 15s.
+// ─── Sky Runner constants ────────────────────────────────────────────────────
+// Flappy-Bird-style game with a tiny airplane navigating between pipe gaps.
+// The server is fully authoritative: it ticks the world, applies gravity to
+// the player's Y position, spawns pipe pairs at fixed intervals, and runs
+// collision/score detection. The client only sends one action: `{type:"flap"}`.
+// That gives us strong anti-cheat — no client-side score, no client position.
+const SKY_TICK_MS = 50;                       // 20 ticks/s — smooth enough, light enough
+const SKY_WORLD_W = 600;                      // Logical playfield width
+const SKY_WORLD_H = 800;                      // Logical playfield height
+const SKY_PLANE_X = 140;                      // Plane stays at a fixed X
+const SKY_PLANE_RADIUS = 22;                  // Hitbox radius
+const SKY_GRAVITY = 1700;                     // px / s²  (per second squared)
+const SKY_FLAP_VY = -520;                     // px / s impulse on flap (upwards = negative)
+const SKY_MAX_VY = 900;                       // Terminal velocity (px/s)
+const SKY_MIN_FLAP_INTERVAL_MS = 90;          // Anti-bot rate-limit (max ~11 flaps/s)
+const SKY_PIPE_W = 90;                        // Pipe width
+const SKY_PIPE_GAP = 230;                     // Vertical opening between top/bottom pipes (generous)
+const SKY_PIPE_GAP_MIN = 170;                 // Minimum gap as difficulty ramps
+const SKY_PIPE_SPAWN_DX = 280;                // Distance between consecutive pipe pairs (px)
+const SKY_SCROLL_SPEED_BASE = 180;            // px/s starting scroll speed
+const SKY_SCROLL_SPEED_MAX = 290;             // px/s top speed
+const SKY_DIFFICULTY_RAMP_MS = 60000;         // 60s to reach max speed/min gap
+const SKY_TARGET_PIPES = 20;                  // Win condition: pass 20 pipe pairs
+const SKY_PIPE_MARGIN = 90;                   // Min margin from top/bottom for the gap center
+// Anti-cheat: 20 pipes × ~1.55s avg time-between-pipes (280 / scroll_speed avg ~225)
+//   ≈ 24s of mandatory play time — comfortably above the 15s floor.
 
-type ReactionState = GameSessionState & {
-  slug: "crypto-reaction";
-  round: number;             // 1..REACTION_TARGET_ROUNDS
-  sequence: string[];        // Full sequence for the current round
-  userIndex: number;         // Index of next expected click within `sequence`
-  phase: "show" | "input";   // What the player is allowed to do
-  lives: number;             // Remaining wrong-click budget (starts at REACTION_LIVES)
-  lastClickAt: number;       // Throttle reference
-  reactionTimer?: ReturnType<typeof setTimeout>;     // Active SHOW emit / OFF gap
-  inputDeadlineTimer?: ReturnType<typeof setTimeout>; // Times out if user freezes during INPUT
+type SkyPipe = {
+  id: number;
+  x: number;            // World X of the pipe's left edge
+  gapTop: number;       // Y of the top of the gap
+  gapBottom: number;    // Y of the bottom of the gap
+  passed: boolean;      // Score-once flag
+};
+
+type SkyRunnerState = GameSessionState & {
+  slug: "sky-runner";
+  y: number;            // Plane center Y in world coords
+  vy: number;           // Plane vertical velocity (px/s)
+  pipes: SkyPipe[];
+  pipesPassed: number;  // Successfully passed pipe pairs
+  elapsedMs: number;
+  nextPipeAt: number;   // World X at which the next pipe should spawn
+  scrollSpeed: number;  // Current px/s
+  lastFlapAt: number;   // Throttle reference
+  pipeSeq: number;      // Monotonic pipe id counter
+  skyTickTimer?: ReturnType<typeof setInterval>;
 };
 
 /** @param {unknown} raw */
@@ -306,27 +324,39 @@ export function registerGamesSocketHandlers({ io, engine }) {
             },
             base: { leftPx: initialState.baseLeftPx, width: STACK_INITIAL_WIDTH }
           });
-        } else if (slug === "crypto-reaction") {
-          const initialSequence = buildReactionSequence(REACTION_START_LEN);
-          initialState.round = 1;
-          initialState.sequence = initialSequence;
-          initialState.userIndex = 0;
-          initialState.phase = "show";
-          initialState.lives = REACTION_LIVES;
-          initialState.lastClickAt = 0;
+        } else if (slug === "sky-runner") {
+          // Plane spawns horizontally centered, the world scrolls towards it.
+          initialState.y = SKY_WORLD_H / 2;
+          initialState.vy = 0;
+          initialState.pipes = [];
+          initialState.pipesPassed = 0;
+          initialState.elapsedMs = 0;
+          initialState.nextPipeAt = SKY_WORLD_W + 80; // First pipe pre-queued just off-screen
+          initialState.scrollSpeed = SKY_SCROLL_SPEED_BASE;
+          initialState.lastFlapAt = 0;
+          initialState.pipeSeq = 0;
+          // Pre-seed one pipe so the player has something to aim at immediately
+          (initialState as SkyRunnerState).pipes.push(makeSkyPipe(initialState as SkyRunnerState));
+          (initialState as SkyRunnerState).pipes.push(makeSkyPipe(initialState as SkyRunnerState));
           socket.emit("game:started", {
             game: slug,
-            symbols: REACTION_SYMBOLS,
-            targetRounds: REACTION_TARGET_ROUNDS,
-            round: 1,
-            sequenceLength: initialSequence.length,
-            lives: REACTION_LIVES,
-            maxLives: REACTION_LIVES,
-            score: 0,
+            worldW: SKY_WORLD_W,
+            worldH: SKY_WORLD_H,
+            planeX: SKY_PLANE_X,
+            planeRadius: SKY_PLANE_RADIUS,
+            pipeW: SKY_PIPE_W,
+            targetPipes: SKY_TARGET_PIPES,
+            y: initialState.y,
+            vy: initialState.vy,
+            pipes: (initialState as SkyRunnerState).pipes,
+            pipesPassed: 0,
+            scrollSpeed: initialState.scrollSpeed,
+            score: 0
           });
-          // Kick off the first SHOW phase after a short pause so the client
-          // can mount before the first symbol fires.
-          scheduleReactionShow(socket, initialState as ReactionState, engine, 400);
+          (initialState as SkyRunnerState).skyTickTimer = setInterval(
+            () => tickSkyRunner(socket, initialState as SkyRunnerState, engine),
+            SKY_TICK_MS
+          );
         }
 
         GAME_SESSIONS.set(socket.id, initialState);
@@ -401,8 +431,8 @@ export function registerGamesSocketHandlers({ io, engine }) {
         socket.emit("game:cart_lane", { lane: state.lane });
       } else if (state.slug === "block-stack" && action.type === "drop") {
         handleBlockStackDrop(socket, state as BlockStackState, engine);
-      } else if (state.slug === "crypto-reaction" && action.type === "pick") {
-        handleReactionPick(socket, state as ReactionState, action as { type: "pick"; symbol?: unknown }, engine);
+      } else if (state.slug === "sky-runner" && action.type === "flap") {
+        handleSkyRunnerFlap(socket, state as SkyRunnerState);
       }
     });
 
@@ -436,15 +466,10 @@ function clearMemoryMismatchTimer(state: GameSessionState | undefined) {
     clearInterval(cartT as ReturnType<typeof setInterval>);
     state.cartTickTimer = null;
   }
-  const reactT = state.reactionTimer;
-  if (reactT) {
-    clearTimeout(reactT as ReturnType<typeof setTimeout>);
-    state.reactionTimer = null;
-  }
-  const reactDl = state.inputDeadlineTimer;
-  if (reactDl) {
-    clearTimeout(reactDl as ReturnType<typeof setTimeout>);
-    state.inputDeadlineTimer = null;
+  const skyT = state.skyTickTimer;
+  if (skyT) {
+    clearInterval(skyT as ReturnType<typeof setInterval>);
+    state.skyTickTimer = null;
   }
 }
 
@@ -720,137 +745,142 @@ function handleBlockStackDrop(socket: Socket, state: BlockStackState, engine: Mi
   }
 }
 
-// ─── Crypto Reaction: Simon-says with crypto symbols ─────────────────────────
+// ─── Sky Runner: server-authoritative Flappy-style airplane ──────────────────
 //
 // Anti-cheat rationale:
-//  - The full sequence lives on the server. The client never receives it as
-//    a list; it only receives one `reaction:show` event per symbol during the
-//    SHOW phase. A bot that wants to "peek" would have to listen to the
-//    socket and reconstruct the sequence — but it still cannot click before
-//    the SHOW finishes because clicks during phase "show" are rejected.
-//  - Each click is validated against `state.sequence[state.userIndex]`. A
-//    single wrong click ends the round (and the session).
-//  - Click throttle: REACTION_MIN_CLICK_INTERVAL_MS rejects floods (a bot
-//    spamming all 8 buttons hoping to match the next one would get nothing).
-//  - Per-round input timeout: if the user freezes for 8s, we end the round.
+//  - The server owns Y, VY, pipe layout, scroll speed, score, and collisions.
+//    The client cannot lie about its position — it doesn't have a position to
+//    lie about. It only sends `{type:"flap"}`.
+//  - Flap rate-limit (SKY_MIN_FLAP_INTERVAL_MS = 90ms) rejects autoclicker
+//    spam. A spam flap pattern is also self-defeating: rapid flaps push the
+//    plane straight into the top edge, which the server detects as collision.
+//  - The pipe gap geometry is generated server-side via crypto.randomInt and
+//    only revealed when the pipe enters the visible window. A predictive bot
+//    would still need to time flaps within the 90ms gate.
+//  - 15s minimum playtime is naturally satisfied (20 pipes × ~1.55s = ~24s).
 
-function buildReactionSequence(length: number): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < length; i += 1) {
-    out.push(REACTION_SYMBOLS[crypto.randomInt(0, REACTION_SYMBOLS.length)]);
-  }
-  return out;
+function makeSkyPipe(state: SkyRunnerState): SkyPipe {
+  // Difficulty narrows the gap over time
+  const t = Math.min(1, state.elapsedMs / SKY_DIFFICULTY_RAMP_MS);
+  const gap = SKY_PIPE_GAP - (SKY_PIPE_GAP - SKY_PIPE_GAP_MIN) * t;
+  const minCenter = SKY_PIPE_MARGIN + gap / 2;
+  const maxCenter = SKY_WORLD_H - SKY_PIPE_MARGIN - gap / 2;
+  const center = crypto.randomInt(Math.floor(minCenter), Math.floor(maxCenter) + 1);
+  const x = state.nextPipeAt;
+  state.nextPipeAt += SKY_PIPE_SPAWN_DX;
+  state.pipeSeq += 1;
+  return {
+    id: state.pipeSeq,
+    x,
+    gapTop: center - gap / 2,
+    gapBottom: center + gap / 2,
+    passed: false
+  };
 }
 
-/**
- * Emit one symbol of the SHOW phase and schedule the next emission.
- * When the whole sequence has been shown, flip the state into INPUT mode and
- * start the per-round input deadline timer.
- */
-function emitReactionShowStep(socket: Socket, state: ReactionState, engine: MiningEngine, step: number) {
-  if (state.isFinished || state.slug !== "crypto-reaction") return;
-  if (step >= state.sequence.length) {
-    // Done showing — switch to INPUT phase
-    state.phase = "input";
-    state.userIndex = 0;
-    socket.emit("reaction:input_ready", { round: state.round });
-    if (state.inputDeadlineTimer) clearTimeout(state.inputDeadlineTimer);
-    state.inputDeadlineTimer = setTimeout(() => {
-      // Player froze
-      if (!state.isFinished) finishGame(socket, state, false, engine, "reaction_timeout");
-    }, REACTION_INPUT_TIMEOUT_MS);
-    return;
-  }
-  const symbol = state.sequence[step];
-  socket.emit("reaction:show", { index: step, symbol, onMs: REACTION_SHOW_ON_MS });
-  // Schedule next step after ON + OFF
-  state.reactionTimer = setTimeout(
-    () => emitReactionShowStep(socket, state, engine, step + 1),
-    REACTION_SHOW_ON_MS + REACTION_SHOW_OFF_MS
-  );
-}
-
-function scheduleReactionShow(socket: Socket, state: ReactionState, engine: MiningEngine, delayMs: number) {
-  if (state.reactionTimer) clearTimeout(state.reactionTimer);
-  state.phase = "show";
-  state.userIndex = 0;
-  socket.emit("reaction:show_starting", { round: state.round, length: state.sequence.length });
-  state.reactionTimer = setTimeout(() => emitReactionShowStep(socket, state, engine, 0), delayMs);
-}
-
-function handleReactionPick(
-  socket: Socket,
-  state: ReactionState,
-  action: { type: "pick"; symbol?: unknown },
-  engine: MiningEngine
-) {
-  if (state.phase !== "input") return; // No clicks during SHOW
-
+function handleSkyRunnerFlap(socket: Socket, state: SkyRunnerState) {
   const now = Date.now();
-  // Anti-bot throttle: humanly impossible spam
-  if (now - state.lastClickAt < REACTION_MIN_CLICK_INTERVAL_MS) return;
-  state.lastClickAt = now;
+  if (now - (state.lastFlapAt || 0) < SKY_MIN_FLAP_INTERVAL_MS) return;
+  state.lastFlapAt = now;
+  state.vy = SKY_FLAP_VY;
+  // No need to broadcast — the next tick will reflect the new velocity.
+}
 
-  const sym = String(action.symbol || "");
-  if (!REACTION_SYMBOLS.includes(sym as (typeof REACTION_SYMBOLS)[number])) return;
+function tickSkyRunner(socket: Socket, state: SkyRunnerState, engine: MiningEngine) {
+  if (!state || state.isFinished || state.slug !== "sky-runner") return;
 
-  const expected = state.sequence[state.userIndex];
-  if (sym !== expected) {
-    // Wrong click → cost one life. If no lives left, end the run.
-    // userIndex stays put so the player can try the same symbol again.
-    state.lives = Math.max(0, state.lives - 1);
-    if (state.lives <= 0) {
-      if (state.inputDeadlineTimer) {
-        clearTimeout(state.inputDeadlineTimer);
-        state.inputDeadlineTimer = undefined;
-      }
-      socket.emit("reaction:pick_result", { ok: false, symbol: sym, lives: 0, fatal: true });
-      finishGame(socket, state, false, engine, "reaction_wrong");
-      return;
-    }
-    // Still alive — keep playing
-    socket.emit("reaction:pick_result", { ok: false, symbol: sym, lives: state.lives, fatal: false });
-    return;
+  const dtSec = SKY_TICK_MS / 1000;
+  state.elapsedMs += SKY_TICK_MS;
+
+  // Ramp scroll speed with difficulty
+  const t = Math.min(1, state.elapsedMs / SKY_DIFFICULTY_RAMP_MS);
+  state.scrollSpeed = SKY_SCROLL_SPEED_BASE + (SKY_SCROLL_SPEED_MAX - SKY_SCROLL_SPEED_BASE) * t;
+
+  // Physics: gravity → vy → y
+  state.vy = Math.min(SKY_MAX_VY, state.vy + SKY_GRAVITY * dtSec);
+  state.y += state.vy * dtSec;
+
+  // World bounds: clipping the ceiling or floor ends the run
+  if (state.y - SKY_PLANE_RADIUS <= 0 || state.y + SKY_PLANE_RADIUS >= SKY_WORLD_H) {
+    socket.emit("game:sky_update", {
+      y: state.y,
+      vy: state.vy,
+      pipes: state.pipes,
+      pipesPassed: state.pipesPassed,
+      score: state.score,
+      scrollSpeed: state.scrollSpeed,
+      crashed: state.y - SKY_PLANE_RADIUS <= 0 ? "ceiling" : "floor"
+    });
+    return finishGame(socket, state, false, engine, "sky_crash_bounds");
   }
 
-  // Correct
-  state.userIndex += 1;
-  state.score += 10;
-  socket.emit("reaction:pick_result", {
-    ok: true,
-    symbol: sym,
-    progress: state.userIndex,
-    total: state.sequence.length,
+  // Scroll pipes left; drop pipes that left the screen
+  for (const p of state.pipes) {
+    p.x -= state.scrollSpeed * dtSec;
+  }
+  state.pipes = state.pipes.filter((p) => p.x + SKY_PIPE_W > -40);
+
+  // Spawn new pipes as the queued head approaches the right edge
+  while (state.nextPipeAt - (state.scrollSpeed * dtSec * 0) < SKY_WORLD_W + SKY_PIPE_SPAWN_DX) {
+    // Spawn while the rightmost queued x is still within "soon" — keeps a buffer
+    if (state.pipes.length === 0) {
+      state.nextPipeAt = SKY_WORLD_W + 60;
+    }
+    state.pipes.push(makeSkyPipe(state));
+    if (state.pipes.length > 8) break; // Safety cap
+    if (state.nextPipeAt > SKY_WORLD_W + SKY_PIPE_SPAWN_DX * 3) break;
+  }
+
+  // Collision + scoring against pipes
+  const planeLeft = SKY_PLANE_X - SKY_PLANE_RADIUS;
+  const planeRight = SKY_PLANE_X + SKY_PLANE_RADIUS;
+  const planeTop = state.y - SKY_PLANE_RADIUS;
+  const planeBottom = state.y + SKY_PLANE_RADIUS;
+  let crashed: string | null = null;
+  for (const p of state.pipes) {
+    const pLeft = p.x;
+    const pRight = p.x + SKY_PIPE_W;
+    const overlapsX = planeRight > pLeft && planeLeft < pRight;
+    if (overlapsX) {
+      if (planeTop < p.gapTop || planeBottom > p.gapBottom) {
+        crashed = "pipe";
+        break;
+      }
+    }
+    // Score: the moment the plane fully clears the right edge of the pipe
+    if (!p.passed && pRight < planeLeft) {
+      p.passed = true;
+      state.pipesPassed += 1;
+      state.score += 100;
+    }
+  }
+
+  if (crashed) {
+    socket.emit("game:sky_update", {
+      y: state.y,
+      vy: state.vy,
+      pipes: state.pipes,
+      pipesPassed: state.pipesPassed,
+      score: state.score,
+      scrollSpeed: state.scrollSpeed,
+      crashed
+    });
+    return finishGame(socket, state, false, engine, "sky_crash_pipe");
+  }
+
+  // Broadcast world snapshot (small payload: ~3 pipes on screen at a time)
+  socket.emit("game:sky_update", {
+    y: state.y,
+    vy: state.vy,
+    pipes: state.pipes,
+    pipesPassed: state.pipesPassed,
     score: state.score,
+    scrollSpeed: state.scrollSpeed,
+    crashed: null
   });
 
-  if (state.userIndex >= state.sequence.length) {
-    // Round cleared
-    if (state.inputDeadlineTimer) {
-      clearTimeout(state.inputDeadlineTimer);
-      state.inputDeadlineTimer = undefined;
-    }
-    if (state.round >= REACTION_TARGET_ROUNDS) {
-      // Won the whole game
-      finishGame(socket, state, true, engine);
-      return;
-    }
-    // Bonus for clearing the round
-    state.score += 50;
-    state.round += 1;
-    state.sequence = buildReactionSequence(REACTION_START_LEN + state.round - 1);
-    socket.emit("reaction:round_cleared", {
-      nextRound: state.round,
-      nextLength: state.sequence.length,
-      score: state.score,
-    });
-    scheduleReactionShow(socket, state, engine, REACTION_NEXT_ROUND_GAP_MS);
-  } else {
-    // Reset input deadline (player is making progress)
-    if (state.inputDeadlineTimer) clearTimeout(state.inputDeadlineTimer);
-    state.inputDeadlineTimer = setTimeout(() => {
-      if (!state.isFinished) finishGame(socket, state, false, engine, "reaction_timeout");
-    }, REACTION_INPUT_TIMEOUT_MS);
+  if (state.pipesPassed >= SKY_TARGET_PIPES) {
+    finishGame(socket, state, true, engine);
   }
 }
 

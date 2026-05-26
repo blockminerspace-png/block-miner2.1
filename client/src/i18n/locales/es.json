@@ -1989,8 +1989,8 @@
     "cart_rush_desc": "Conduce el carrito, recoge monedas y esquiva bloques rotos.",
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Apila 10 bloques. Cada fallo reduce el siguiente — pura precisión.",
-    "crypto_reaction_title": "Crypto Reaction",
-    "crypto_reaction_desc": "Mira la secuencia y repítela. 3 rondas, 3 vidas — rápido y casual.",
+    "sky_runner_title": "Sky Runner",
+    "sky_runner_desc": "Toca para hacer volar al avión entre las tuberías. 20 tuberías para ganar — reflejos puros.",
     "tabs": {
       "ours": "Nuestros Juegos",
       "partners": "Juegos Asociados"
@@ -2003,14 +2003,11 @@
       "progress": "{{current}} / {{total}} bloques",
       "drop_button": "Soltar"
     },
-    "crypto_reaction": {
-      "round_label": "Ronda {{current}} / {{total}}",
-      "watch": "Mira la secuencia",
-      "repeat": "Repite la secuencia",
-      "round_cleared": "¡Ronda superada!",
-      "get_ready": "Prepárate…",
-      "lives_aria": "{{lives}} vidas restantes",
-      "hint": "3 rondas, 3 vidas. Observa con calma — lo lograrás."
+    "sky_runner": {
+      "pipes_progress": "{{current}} / {{total}} tuberías",
+      "tap_hint": "Toca / Espacio para volar",
+      "flap_aria": "Toca para que el avión suba",
+      "crashed": "¡Chocaste!"
     },
     "socket_errors": {
       "invalid_session": "Sesión no válida.",

@@ -7,7 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAuthStore, api } from "../../store/auth";
 import { formatHashrate } from "../../shared/utils/machine";
 import { Link } from "react-router-dom";
-import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car, Layers, Sparkles, Gamepad2 } from "lucide-react";
+import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car, Layers, Plane, Gamepad2 } from "lucide-react";
 import PartnerGamesTab from "./PartnerGamesTab";
 import { toast } from "sonner";
 import {
@@ -31,7 +31,7 @@ type CryptoIconKey = keyof typeof CRYPTO_ICONS;
 const ICON_IMAGES_MAP = ICON_IMAGES as Record<CryptoIconKey, HTMLImageElement>;
 
 /** UI route keys — map to server slugs on `game:start`. */
-type ActiveGame = "memory" | "match-3" | "cart" | "stack" | "reaction" | null;
+type ActiveGame = "memory" | "match-3" | "cart" | "stack" | "sky" | null;
 
 type MemoryBoardCard = {
   id: number;
@@ -154,14 +154,27 @@ type GameStartedStack = {
   base: { leftPx: number; width: number };
 };
 
-type GameStartedReaction = {
-  game: "crypto-reaction";
-  symbols: readonly string[];
-  targetRounds: number;
-  round: number;
-  sequenceLength: number;
-  lives: number;
-  maxLives: number;
+type SkyPipeWire = {
+  id: number;
+  x: number;
+  gapTop: number;
+  gapBottom: number;
+  passed?: boolean;
+};
+
+type GameStartedSky = {
+  game: "sky-runner";
+  worldW: number;
+  worldH: number;
+  planeX: number;
+  planeRadius: number;
+  pipeW: number;
+  targetPipes: number;
+  y: number;
+  vy: number;
+  pipes: SkyPipeWire[];
+  pipesPassed: number;
+  scrollSpeed: number;
   score?: number;
 };
 
@@ -170,7 +183,7 @@ type GameStartedPayload =
   | GameStartedMatch3
   | GameStartedCart
   | GameStartedStack
-  | GameStartedReaction;
+  | GameStartedSky;
 
 type MemoryGridLayout = ReturnType<typeof getMemoryGridLayout>;
 type Match3GridLayout = ReturnType<typeof getMatch3GridLayout>;
@@ -225,10 +238,10 @@ function getCanvasViewportStyle(activeGame: ActiveGame): React.CSSProperties {
       maxHeight: "calc(100dvh - 52px)"
     };
   }
-  if (activeGame === "reaction") {
+  if (activeGame === "sky") {
     return {
       width: "min(calc(100vw - 16px), 540px)",
-      aspectRatio: "1 / 1",
+      aspectRatio: "3 / 4",
       maxWidth: "540px",
       maxHeight: "calc(100dvh - 52px)"
     };
@@ -288,7 +301,7 @@ export default function Games() {
   const [match3Cooldown, setMatch3Cooldown] = useState(0);
   const [cartCooldown, setCartCooldown] = useState(0);
   const [stackCooldown, setStackCooldown] = useState(0);
-  const [reactionCooldown, setReactionCooldown] = useState(0);
+  const [skyCooldown, setSkyCooldown] = useState(0);
 
   /**
    * Which tab is open in the games index: our minigames or the curated
@@ -307,30 +320,24 @@ export default function Games() {
   } | null>(null);
 
   /**
-   * Crypto Reaction state (Simon-says style). Owned by the server; the
-   * client mirrors it for rendering and applies optimistic updates on each
-   * click so the UI feels instant — the server only contradicts us on an
-   * actual error (wrong symbol), and that ends the run anyway.
+   * Sky Runner state (Flappy-Bird-style airplane). Server-authoritative:
+   * the client mirrors world snapshots emitted on `game:sky_update` and only
+   * sends `{type:"flap"}` actions back. No client-side physics — keeps the
+   * UI in lock-step with the server's collision verdict.
    */
-  const [reactionState, setReactionState] = useState<{
-    symbols: readonly string[];
-    targetRounds: number;
-    round: number;
-    sequenceLength: number;
-    /** Lives left (wrong-click budget). Hits 0 → run ends. */
-    lives: number;
-    maxLives: number;
-    phase: "intro" | "show" | "input" | "round_clear";
-    // SHOW: currently lit symbol (null = OFF gap)
-    showSymbol: string | null;
-    showIndex: number;
-    // INPUT: how many symbols of the sequence we've matched so far
-    progress: number;
-    // Visual feedback on the last click
-    lastClickedSymbol: string | null;
-    lastClickFlash: number;     // bump key for re-mount of the flash overlay
-    lastClickResult: "ok" | "bad" | null;
+  const [skyState, setSkyState] = useState<{
+    worldW: number;
+    worldH: number;
+    planeX: number;
+    planeRadius: number;
+    pipeW: number;
+    targetPipes: number;
+    y: number;
+    vy: number;
+    pipes: SkyPipeWire[];
+    pipesPassed: number;
     score: number;
+    crashed: string | null;
   } | null>(null);
   const [chain2048CdSec, setChain2048CdSec] = useState(0);
   const [chain2048AllowStart, setChain2048AllowStart] = useState(true);
@@ -624,23 +631,21 @@ export default function Games() {
         });
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
-      } else if (data.game === "crypto-reaction") {
+      } else if (data.game === "sky-runner") {
         memoryBoardRef.current = null;
-        setReactionState({
-          symbols: data.symbols,
-          targetRounds: data.targetRounds,
-          round: data.round,
-          sequenceLength: data.sequenceLength,
-          lives: data.lives,
-          maxLives: data.maxLives,
-          phase: "intro",
-          showSymbol: null,
-          showIndex: -1,
-          progress: 0,
-          lastClickedSymbol: null,
-          lastClickFlash: 0,
-          lastClickResult: null,
+        setSkyState({
+          worldW: data.worldW,
+          worldH: data.worldH,
+          planeX: data.planeX,
+          planeRadius: data.planeRadius,
+          pipeW: data.pipeW,
+          targetPipes: data.targetPipes,
+          y: data.y,
+          vy: data.vy,
+          pipes: data.pipes,
+          pipesPassed: data.pipesPassed,
           score: Number(data.score) || 0,
+          crashed: null,
         });
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
@@ -653,7 +658,7 @@ export default function Games() {
           ? 70
           : data.game === "cart-rush"
             ? Number(data.timeLimitSeconds) || CART_TIME_LIMIT_SECONDS
-            : data.game === "block-stack" || data.game === "crypto-reaction"
+            : data.game === "block-stack" || data.game === "sky-runner"
               ? 0 // No global timer — game-over is win/lose, not time-based
               : 180
       );
@@ -839,99 +844,33 @@ export default function Games() {
       }
     );
 
-    // ─── Crypto Reaction events ──────────────────────────────────────────────
-    // SHOW_STARTING: the server is about to broadcast the sequence symbol by
-    // symbol. We reset progress UI and flip into "show" phase.
-    newSocket.on("reaction:show_starting", (data: { round: number; length: number }) => {
-      setReactionState((prev) =>
-        prev
-          ? {
-              ...prev,
-              round: data.round,
-              sequenceLength: data.length,
-              phase: "show",
-              showSymbol: null,
-              showIndex: -1,
-              progress: 0,
-              lastClickedSymbol: null,
-              lastClickResult: null,
-            }
-          : prev
-      );
-    });
-
-    // SHOW: light up one symbol; we schedule the OFF locally so we don't
-    // need a separate event from the server for the gap.
-    newSocket.on("reaction:show", (data: { index: number; symbol: string; onMs: number }) => {
-      setReactionState((prev) =>
-        prev ? { ...prev, showSymbol: data.symbol, showIndex: data.index } : prev
-      );
-      window.setTimeout(() => {
-        setReactionState((prev) =>
-          // Only blank if this is still the same SHOW step (no race with new symbol).
-          prev && prev.showIndex === data.index ? { ...prev, showSymbol: null } : prev
-        );
-      }, data.onMs);
-    });
-
-    newSocket.on("reaction:input_ready", () => {
-      setReactionState((prev) =>
-        prev ? { ...prev, phase: "input", showSymbol: null, showIndex: -1, progress: 0 } : prev
-      );
-    });
-
+    // ─── Sky Runner events ───────────────────────────────────────────────────
+    // The server ticks 20 Hz and pushes a fresh world snapshot every tick.
+    // We just mirror it — no client-side prediction, no smoothing (the tick
+    // rate is fast enough to look continuous, and trusting the server keeps
+    // the physics impossible to cheat).
     newSocket.on(
-      "reaction:pick_result",
+      "game:sky_update",
       (data: {
-        ok: boolean;
-        symbol: string;
-        progress?: number;
-        total?: number;
-        score?: number;
-        lives?: number;       // Server-authoritative remaining lives (only on wrong clicks)
-        fatal?: boolean;      // Wrong click that killed the run (lives went to 0)
+        y: number;
+        vy: number;
+        pipes: SkyPipeWire[];
+        pipesPassed: number;
+        score: number;
+        scrollSpeed: number;
+        crashed: string | null;
       }) => {
         if (typeof data.score === "number") setHudScore(data.score);
-        setReactionState((prev) => {
-          if (!prev) return prev;
-          if (data.ok) {
-            return {
-              ...prev,
-              progress: data.progress ?? prev.progress,
-              score: data.score ?? prev.score,
-              lastClickedSymbol: data.symbol,
-              lastClickFlash: prev.lastClickFlash + 1,
-              lastClickResult: "ok",
-            };
-          }
-          return {
-            ...prev,
-            lives: typeof data.lives === "number" ? data.lives : prev.lives,
-            lastClickedSymbol: data.symbol,
-            lastClickFlash: prev.lastClickFlash + 1,
-            lastClickResult: "bad",
-          };
-        });
-      }
-    );
-
-    newSocket.on(
-      "reaction:round_cleared",
-      (data: { nextRound: number; nextLength: number; score: number }) => {
-        setHudScore(data.score);
-        setReactionState((prev) =>
+        setSkyState((prev) =>
           prev
             ? {
                 ...prev,
-                round: data.nextRound,
-                sequenceLength: data.nextLength,
-                phase: "round_clear",
-                progress: 0,
-                showSymbol: null,
-                showIndex: -1,
+                y: data.y,
+                vy: data.vy,
+                pipes: data.pipes,
+                pipesPassed: data.pipesPassed,
                 score: data.score,
-                lastClickedSymbol: null,
-                lastClickResult: null,
+                crashed: data.crashed,
               }
             : prev
         );
@@ -956,7 +895,7 @@ export default function Games() {
         else if (activeGameRef.current === "match-3") setMatch3Cooldown(cd);
         else if (activeGameRef.current === "cart") setCartCooldown(cd);
         else if (activeGameRef.current === "stack") setStackCooldown(cd);
-        else if (activeGameRef.current === "reaction") setReactionCooldown(cd);
+        else if (activeGameRef.current === "sky") setSkyCooldown(cd);
         if (data.success) {
           const rewardText = translateGameReward(t, data);
           setRewardMessage(rewardText);
@@ -982,9 +921,9 @@ export default function Games() {
 
   useEffect(() => {
     if (!gameTimerKey || isGameOver) return;
-    // Block Stack and Crypto Reaction have no global countdown (win/lose by
-    // round outcome) — skip the global timer effect for them.
-    if (activeGameRef.current === "stack" || activeGameRef.current === "reaction") return;
+    // Block Stack and Sky Runner have no global countdown (win/lose by
+    // game outcome) — skip the global timer effect for them.
+    if (activeGameRef.current === "stack" || activeGameRef.current === "sky") return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -1028,11 +967,11 @@ export default function Games() {
   }, [stackCooldown]);
 
   useEffect(() => {
-    if (reactionCooldown > 0) {
-      const timer = setInterval(() => setReactionCooldown((c) => Math.max(0, c - 1)), 1000);
+    if (skyCooldown > 0) {
+      const timer = setInterval(() => setSkyCooldown((c) => Math.max(0, c - 1)), 1000);
       return () => clearInterval(timer);
     }
-  }, [reactionCooldown]);
+  }, [skyCooldown]);
 
   useLayoutEffect(() => {
     if (!activeGame || isGameOver) return;
@@ -2447,15 +2386,15 @@ export default function Games() {
     socket.emit("game:start", "block-stack");
   }, [socket]);
 
-  const startReaction = useCallback(() => {
+  const startSky = useCallback(() => {
     if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
-    setActiveGame("reaction");
-    activeGameRef.current = "reaction";
+    setActiveGame("sky");
+    activeGameRef.current = "sky";
     setSessionReady(false);
-    setReactionState(null);
+    setSkyState(null);
     memoryBoardRef.current = null;
-    socket.emit("game:start", "crypto-reaction");
+    socket.emit("game:start", "sky-runner");
   }, [socket]);
 
   const handleStackDrop = useCallback(() => {
@@ -2464,28 +2403,15 @@ export default function Games() {
   }, [socket, isGameOver]);
 
   /**
-   * Click a symbol button in Crypto Reaction. Optimistic UX: the tile flashes
-   * immediately (neutral "pending" feedback) so the player feels the click
-   * without waiting for the socket. The server then sends pick_result, which
-   * sets lastClickResult to "ok" (correct → next index) or "bad" (cost a life).
+   * Flap the airplane upward. Server-authoritative — we just send the event;
+   * the server's next tick will reflect the velocity change. No optimistic
+   * physics on the client (any local prediction would diverge under network
+   * jitter and look worse than the 50ms tick refresh).
    */
-  const handleReactionPick = useCallback(
-    (symbol: string) => {
-      if (!socket || isGameOver) return;
-      setReactionState((prev) => {
-        if (!prev || prev.phase !== "input") return prev;
-        return {
-          ...prev,
-          lastClickedSymbol: symbol,
-          lastClickFlash: prev.lastClickFlash + 1,
-          // Neutral pending state — flash uses white/dim until server confirms.
-          lastClickResult: null,
-        };
-      });
-      socket.emit("game:action", { type: "pick", symbol });
-    },
-    [socket, isGameOver]
-  );
+  const handleSkyFlap = useCallback(() => {
+    if (!socket || isGameOver) return;
+    socket.emit("game:action", { type: "flap" });
+  }, [socket, isGameOver]);
 
   useEffect(() => {
     if (activeGame !== "cart" || isGameOver || !socket) return undefined;
@@ -2550,8 +2476,8 @@ export default function Games() {
 
               {activeGame === "stack" ? (
                 <BlockStackArena state={stackState} onDrop={handleStackDrop} isGameOver={isGameOver} t={t} />
-              ) : activeGame === "reaction" ? (
-                <CryptoReactionArena state={reactionState} onPick={handleReactionPick} isGameOver={isGameOver} t={t} />
+              ) : activeGame === "sky" ? (
+                <SkyRunnerArena state={skyState} onFlap={handleSkyFlap} isGameOver={isGameOver} t={t} />
               ) : (
                 <canvas
                   ref={canvasRef}
@@ -2663,14 +2589,14 @@ export default function Games() {
               cooldownLabel={t("minerGames.cooldown_label", { seconds: stackCooldown })}
             />
             <GameCard
-              title={t("minerGames.crypto_reaction_title")}
-              description={t("minerGames.crypto_reaction_desc")}
-              icon={Sparkles}
-              color="from-fuchsia-500 to-pink-700"
-              onClick={startReaction}
-              disabled={reactionCooldown > 0}
+              title={t("minerGames.sky_runner_title")}
+              description={t("minerGames.sky_runner_desc")}
+              icon={Plane}
+              color="from-sky-400 to-cyan-700"
+              onClick={startSky}
+              disabled={skyCooldown > 0}
               ctaStart={t("minerGames.cta_start")}
-              cooldownLabel={t("minerGames.cooldown_label", { seconds: reactionCooldown })}
+              cooldownLabel={t("minerGames.cooldown_label", { seconds: skyCooldown })}
             />
             <GameCardLink
               to="/games/2048"
@@ -2991,62 +2917,61 @@ const BlockStackArena = memo(function BlockStackArena({
 });
 
 /**
- * CryptoReactionArena — Simon-says with crypto symbol tiles.
+ * SkyRunnerArena — Server-authoritative Flappy-Bird-style minigame.
  *
  * Render contract:
- *   - During phase "show": one tile glows (state.showSymbol). Others dim.
- *   - During phase "input": all tiles are clickable; pressed tile flashes
- *     immediately (optimistic state set in the parent) and updates again on
- *     server confirmation. The flash uses a `key` (lastClickFlash) so each
- *     click re-mounts the overlay → animation restarts cleanly without lag.
- *   - During phase "round_clear": the grid dims briefly while the next
- *     sequence loads. Server emits show_starting → we flip back to "show".
+ *   - The server pushes a fresh world snapshot ~20 Hz on `game:sky_update`.
+ *     We render those exact values; no client-side physics, no smoothing.
+ *   - The user taps (or presses space / arrow up) to FLAP. We emit
+ *     `{type:"flap"}` and let the next tick reflect the new velocity.
+ *   - World coords are mapped to the rendered viewport via a single
+ *     responsive scale factor (CSS scale on a transform layer).
  *
- * Anti-jank:
- *   - We do NOT wait for server confirmation to highlight the pressed tile.
- *     Latency is hidden by the optimistic flash.
- *   - Transitions are CSS-driven (transition: transform/opacity 150ms) so we
- *     stay on the GPU and don't trigger a React re-render per frame.
+ * Why DOM, not canvas: at 20 Hz and ~5 pipes on screen, DOM compositing on
+ * GPU is plenty fast and lets us reuse Tailwind for styling. No canvas
+ * means no per-frame draw loop = less battery drain on mobile.
  */
-const REACTION_TILE_COLORS: Record<string, string> = {
-  BTC: "from-amber-400 to-orange-600",
-  ETH: "from-indigo-400 to-purple-600",
-  SOL: "from-fuchsia-400 to-pink-600",
-  BNB: "from-yellow-400 to-yellow-600",
-  ADA: "from-sky-400 to-blue-600",
-  DOT: "from-rose-400 to-pink-600",
-  DOGE: "from-amber-300 to-yellow-500",
-  MATIC: "from-violet-400 to-fuchsia-600",
-};
-
-const CryptoReactionArena = memo(function CryptoReactionArena({
+const SkyRunnerArena = memo(function SkyRunnerArena({
   state,
-  onPick,
+  onFlap,
   isGameOver,
   t,
 }: {
   state:
     | {
-        symbols: readonly string[];
-        targetRounds: number;
-        round: number;
-        sequenceLength: number;
-        lives: number;
-        maxLives: number;
-        phase: "intro" | "show" | "input" | "round_clear";
-        showSymbol: string | null;
-        showIndex: number;
-        progress: number;
-        lastClickedSymbol: string | null;
-        lastClickFlash: number;
-        lastClickResult: "ok" | "bad" | null;
+        worldW: number;
+        worldH: number;
+        planeX: number;
+        planeRadius: number;
+        pipeW: number;
+        targetPipes: number;
+        y: number;
+        vy: number;
+        pipes: SkyPipeWire[];
+        pipesPassed: number;
         score: number;
+        crashed: string | null;
       }
     | null;
-  onPick: (symbol: string) => void;
+  onFlap: () => void;
   isGameOver: boolean;
   t: TFunction;
 }) {
+  // Keyboard support: space / arrow up / W flaps the airplane.
+  useEffect(() => {
+    if (isGameOver || !state) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      const k = String(e.key || "").toLowerCase();
+      if (k === " " || e.code === "Space" || k === "arrowup" || k === "w") {
+        e.preventDefault();
+        onFlap();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onFlap, isGameOver, state]);
+
   if (!state) {
     return (
       <div className="flex h-full w-full items-center justify-center text-xs font-bold uppercase tracking-widest text-slate-500">
@@ -3054,139 +2979,130 @@ const CryptoReactionArena = memo(function CryptoReactionArena({
       </div>
     );
   }
-  const acceptingInput = state.phase === "input" && !isGameOver;
-  const phaseLabel =
-    state.phase === "show"
-      ? t("minerGames.crypto_reaction.watch")
-      : state.phase === "input"
-        ? t("minerGames.crypto_reaction.repeat")
-        : state.phase === "round_clear"
-          ? t("minerGames.crypto_reaction.round_cleared")
-          : t("minerGames.crypto_reaction.get_ready");
+
+  const { worldW, worldH, planeX, planeRadius, pipeW, y, vy, pipes, pipesPassed, targetPipes } = state;
+  // Tilt the plane based on vertical velocity for a "flappy" feel.
+  const tilt = Math.max(-25, Math.min(60, (vy / 900) * 60));
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-gradient-to-b from-slate-900 to-black p-4">
-      {/* Header: round + phase label */}
-      <div className="w-full">
-        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-          <span>
-            {t("minerGames.crypto_reaction.round_label", {
-              current: state.round,
-              total: state.targetRounds,
-            })}
-          </span>
-          <span
-            className={`transition-colors duration-200 ${
-              state.phase === "show"
-                ? "text-amber-300"
-                : state.phase === "input"
-                  ? "text-emerald-300"
-                  : "text-slate-400"
-            }`}
-          >
-            {phaseLabel}
-          </span>
-        </div>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={t("minerGames.sky_runner.flap_aria")}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onFlap();
+      }}
+      className="relative h-full w-full select-none overflow-hidden bg-gradient-to-b from-sky-500 via-sky-400 to-cyan-300"
+      style={{ touchAction: "manipulation" }}
+    >
+      {/* Parallax clouds — purely decorative, no game impact */}
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className="absolute left-[10%] top-[8%] h-10 w-24 rounded-full bg-white/70 blur-sm" />
+        <div className="absolute left-[55%] top-[22%] h-8 w-16 rounded-full bg-white/60 blur-sm" />
+        <div className="absolute left-[30%] top-[48%] h-6 w-20 rounded-full bg-white/55 blur-sm" />
+        <div className="absolute left-[70%] top-[70%] h-7 w-14 rounded-full bg-white/60 blur-sm" />
+      </div>
 
-        {/* Progress bar + lives row */}
-        <div className="mt-1 flex items-center gap-3">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+      {/* Pipes — positioned in % of world coords */}
+      {pipes.map((p) => {
+        const leftPct = (p.x / worldW) * 100;
+        const widthPct = (pipeW / worldW) * 100;
+        const topH = (p.gapTop / worldH) * 100;
+        const bottomY = (p.gapBottom / worldH) * 100;
+        return (
+          <React.Fragment key={p.id}>
+            {/* Top pipe */}
             <div
-              className="h-full bg-gradient-to-r from-fuchsia-400 to-pink-500 transition-all duration-150"
+              className="absolute border-r-4 border-emerald-900 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 shadow-[inset_-4px_0_0_rgba(0,0,0,0.18)]"
               style={{
-                width: `${
-                  state.sequenceLength > 0 ? (state.progress / state.sequenceLength) * 100 : 0
-                }%`,
+                left: `${leftPct}%`,
+                top: 0,
+                width: `${widthPct}%`,
+                height: `${topH}%`,
               }}
-            />
-          </div>
-          {/* Lives (hearts) — full = pink, lost = dim outline */}
-          <div className="flex shrink-0 items-center gap-1" aria-label={t("minerGames.crypto_reaction.lives_aria", { lives: state.lives })}>
-            {Array.from({ length: state.maxLives }).map((_, i) => {
-              const filled = i < state.lives;
-              return (
-                <svg
-                  key={i}
-                  viewBox="0 0 24 24"
-                  className={[
-                    "h-4 w-4 transition-all duration-200",
-                    filled ? "text-rose-400 drop-shadow-[0_0_4px_rgba(244,114,182,0.5)]" : "text-slate-700",
-                  ].join(" ")}
-                  fill={filled ? "currentColor" : "none"}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Tile grid (2 × 4) */}
-      <div className="mt-6 grid flex-1 grid-cols-4 gap-3 sm:gap-4">
-        {state.symbols.map((sym) => {
-          const isLit = state.phase === "show" && state.showSymbol === sym;
-          const isLastClicked = state.lastClickedSymbol === sym;
-          const color = REACTION_TILE_COLORS[sym] ?? "from-slate-500 to-slate-700";
-          return (
-            <button
-              key={sym}
-              type="button"
-              onClick={() => onPick(sym)}
-              disabled={!acceptingInput}
-              aria-label={sym}
-              className={[
-                "group relative flex select-none items-center justify-center overflow-hidden rounded-2xl",
-                "border border-white/10 text-base font-black uppercase tracking-tight text-white shadow-lg sm:text-lg",
-                "transition-[transform,box-shadow,opacity] duration-150",
-                "bg-gradient-to-br",
-                color,
-                acceptingInput ? "cursor-pointer active:scale-95 hover:brightness-110" : "cursor-default",
-                isLit
-                  ? "scale-105 brightness-150 ring-4 ring-white/60 shadow-[0_0_30px_rgba(255,255,255,0.45)]"
-                  : state.phase === "show"
-                    ? "scale-95 opacity-50"
-                    : !acceptingInput
-                      ? "opacity-70"
-                      : "",
-              ].join(" ")}
-              style={{ touchAction: "manipulation" }}
             >
-              <span className="relative z-10">{sym}</span>
-              {/* Click flash. Three colors:
-                  - white  = pending (optimistic, server hasn't confirmed yet)
-                  - green  = server confirmed correct
-                  - red    = server said wrong (cost a life)
-                  Keyed by lastClickFlash so the animation restarts on every click. */}
-              {isLastClicked && (
-                <span
-                  key={state.lastClickFlash}
-                  className={[
-                    "pointer-events-none absolute inset-0 rounded-2xl",
-                    state.lastClickResult === "ok"
-                      ? "bg-emerald-300/40"
-                      : state.lastClickResult === "bad"
-                        ? "bg-red-500/60"
-                        : "bg-white/30",
-                    "animate-ping",
-                  ].join(" ")}
-                  style={{ animationDuration: "260ms" }}
-                />
-              )}
-            </button>
-          );
-        })}
+              <div className="absolute -bottom-2 -left-1 right-[-4px] h-4 rounded-sm border-2 border-emerald-900 bg-emerald-500" />
+            </div>
+            {/* Bottom pipe */}
+            <div
+              className="absolute border-r-4 border-emerald-900 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 shadow-[inset_-4px_0_0_rgba(0,0,0,0.18)]"
+              style={{
+                left: `${leftPct}%`,
+                top: `${bottomY}%`,
+                width: `${widthPct}%`,
+                bottom: 0,
+              }}
+            >
+              <div className="absolute -top-2 -left-1 right-[-4px] h-4 rounded-sm border-2 border-emerald-900 bg-emerald-500" />
+            </div>
+          </React.Fragment>
+        );
+      })}
+
+      {/* Plane — positioned at planeX (% of worldW), y (% of worldH). */}
+      <div
+        className="absolute"
+        style={{
+          left: `${(planeX / worldW) * 100}%`,
+          top: `${(y / worldH) * 100}%`,
+          width: `${(planeRadius * 2 / worldW) * 100}%`,
+          aspectRatio: "1 / 1",
+          transform: `translate(-50%, -50%) rotate(${tilt}deg)`,
+          transformOrigin: "center",
+          transition: "transform 80ms linear",
+        }}
+      >
+        {/* SVG airplane — simple silhouette, drop-shadow gives depth */}
+        <svg
+          viewBox="0 0 64 64"
+          className="h-full w-full drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]"
+          aria-hidden
+        >
+          <defs>
+            <linearGradient id="planeBody" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#fef3c7" />
+              <stop offset="100%" stopColor="#f59e0b" />
+            </linearGradient>
+          </defs>
+          {/* Body */}
+          <path
+            d="M6 32 L44 26 L56 28 L58 32 L56 36 L44 38 L6 32 Z"
+            fill="url(#planeBody)"
+            stroke="#92400e"
+            strokeWidth="1.5"
+          />
+          {/* Wing */}
+          <path d="M22 30 L34 18 L40 18 L36 30 Z" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1.5" />
+          {/* Tail */}
+          <path d="M8 32 L4 22 L12 28 Z" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1.5" />
+          {/* Cockpit */}
+          <circle cx="46" cy="30" r="3" fill="#0ea5e9" stroke="#075985" strokeWidth="1" />
+          {/* Propeller */}
+          <line x1="56" y1="26" x2="56" y2="38" stroke="#1f2937" strokeWidth="1.5" />
+        </svg>
       </div>
 
-      {/* Footer hint */}
-      <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
-        {t("minerGames.crypto_reaction.hint")}
-      </p>
+      {/* Ground strip */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-b from-emerald-700 to-emerald-900" />
+
+      {/* HUD: progress + hint */}
+      <div className="pointer-events-none absolute left-0 right-0 top-0 flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white drop-shadow">
+        <span className="rounded-full bg-black/40 px-2 py-1">
+          {t("minerGames.sky_runner.pipes_progress", { current: pipesPassed, total: targetPipes })}
+        </span>
+        <span className="rounded-full bg-black/40 px-2 py-1">
+          {t("minerGames.sky_runner.tap_hint")}
+        </span>
+      </div>
+
+      {state.crashed ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-red-900/30">
+          <span className="rounded-2xl bg-red-600/90 px-4 py-2 text-lg font-black uppercase tracking-widest text-white shadow-2xl">
+            {t("minerGames.sky_runner.crashed")}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 });
