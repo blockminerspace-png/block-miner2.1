@@ -2413,6 +2413,7 @@
       "pipes_progress": "{{current}} / {{total}} canos",
       "tap_hint": "Toque / Espaço para subir",
       "flap_aria": "Toque para subir o aviãozinho",
+      "lives_aria": "{{lives}} vidas restantes",
       "crashed": "Bateu!"
     },
     "socket_errors": {

@@ -170,11 +170,15 @@ type GameStartedSky = {
   planeRadius: number;
   pipeW: number;
   targetPipes: number;
+  tickMs: number;
   y: number;
   vy: number;
   pipes: SkyPipeWire[];
   pipesPassed: number;
   scrollSpeed: number;
+  lives: number;
+  maxLives: number;
+  invulnerable: boolean;
   score?: number;
 };
 
@@ -322,8 +326,10 @@ export default function Games() {
   /**
    * Sky Runner state (Flappy-Bird-style airplane). Server-authoritative:
    * the client mirrors world snapshots emitted on `game:sky_update` and only
-   * sends `{type:"flap"}` actions back. No client-side physics — keeps the
-   * UI in lock-step with the server's collision verdict.
+   * sends `{type:"flap"}` actions back. We carry both the latest snapshot AND
+   * the previous one so the SkyRunnerArena can interpolate between them via
+   * rAF for buttery-smooth motion (the server tick is 30 Hz; we render at
+   * monitor refresh rate via interpolation).
    */
   const [skyState, setSkyState] = useState<{
     worldW: number;
@@ -332,12 +338,19 @@ export default function Games() {
     planeRadius: number;
     pipeW: number;
     targetPipes: number;
+    tickMs: number;
     y: number;
     vy: number;
     pipes: SkyPipeWire[];
     pipesPassed: number;
     score: number;
+    lives: number;
+    maxLives: number;
+    invulnerable: boolean;
     crashed: string | null;
+    /** Server timestamp (perf.now) of when this snapshot was received — used by the rAF interpolator. */
+    snapshotAt: number;
+    hitFlash: number; // increments every time we lose a life — Arena uses this to flash red
   } | null>(null);
   const [chain2048CdSec, setChain2048CdSec] = useState(0);
   const [chain2048AllowStart, setChain2048AllowStart] = useState(true);
@@ -640,12 +653,18 @@ export default function Games() {
           planeRadius: data.planeRadius,
           pipeW: data.pipeW,
           targetPipes: data.targetPipes,
+          tickMs: data.tickMs || 33,
           y: data.y,
           vy: data.vy,
           pipes: data.pipes,
           pipesPassed: data.pipesPassed,
           score: Number(data.score) || 0,
+          lives: data.lives,
+          maxLives: data.maxLives,
+          invulnerable: data.invulnerable,
           crashed: null,
+          snapshotAt: performance.now(),
+          hitFlash: 0,
         });
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
@@ -845,10 +864,9 @@ export default function Games() {
     );
 
     // ─── Sky Runner events ───────────────────────────────────────────────────
-    // The server ticks 20 Hz and pushes a fresh world snapshot every tick.
-    // We just mirror it — no client-side prediction, no smoothing (the tick
-    // rate is fast enough to look continuous, and trusting the server keeps
-    // the physics impossible to cheat).
+    // The server ticks 30 Hz and pushes a fresh world snapshot every tick.
+    // Client interpolation (in SkyRunnerArena) smooths positions to monitor
+    // refresh rate for a fluid feel; this state only carries snapshots.
     newSocket.on(
       "game:sky_update",
       (data: {
@@ -858,6 +876,8 @@ export default function Games() {
         pipesPassed: number;
         score: number;
         scrollSpeed: number;
+        lives?: number;
+        invulnerable?: boolean;
         crashed: string | null;
       }) => {
         if (typeof data.score === "number") setHudScore(data.score);
@@ -870,12 +890,31 @@ export default function Games() {
                 pipes: data.pipes,
                 pipesPassed: data.pipesPassed,
                 score: data.score,
+                lives: typeof data.lives === "number" ? data.lives : prev.lives,
+                invulnerable: !!data.invulnerable,
                 crashed: data.crashed,
+                snapshotAt: performance.now(),
               }
             : prev
         );
       }
     );
+
+    // Hit event: server lost a life on us. Bump hitFlash so the Arena can
+    // flash red. (We don't depend on the sky_update for this because we want
+    // to react before the next snapshot arrives.)
+    newSocket.on("game:sky_hit", (data: { reason: string; lives: number }) => {
+      setSkyState((prev) =>
+        prev
+          ? {
+              ...prev,
+              lives: data.lives,
+              invulnerable: true,
+              hitFlash: prev.hitFlash + 1,
+            }
+          : prev
+      );
+    });
 
     newSocket.on(
       "game:finished",
@@ -2920,16 +2959,20 @@ const BlockStackArena = memo(function BlockStackArena({
  * SkyRunnerArena — Server-authoritative Flappy-Bird-style minigame.
  *
  * Render contract:
- *   - The server pushes a fresh world snapshot ~20 Hz on `game:sky_update`.
- *     We render those exact values; no client-side physics, no smoothing.
- *   - The user taps (or presses space / arrow up) to FLAP. We emit
- *     `{type:"flap"}` and let the next tick reflect the new velocity.
- *   - World coords are mapped to the rendered viewport via a single
- *     responsive scale factor (CSS scale on a transform layer).
+ *   - The server pushes world snapshots ~30 Hz on `game:sky_update`. The
+ *     Arena interpolates between consecutive snapshots in a rAF loop so the
+ *     plane and pipes move at the monitor refresh rate. No fake physics on
+ *     the client — we only smooth between known server states.
+ *   - Tap, click, Space, ArrowUp, or W to flap. Input is captured globally on
+ *     `document` so the canvas doesn't need focus.
+ *   - Vidas (lives) are shown as heart icons. Losing one triggers a red
+ *     vignette flash via `hitFlash`. After the brief invulnerability ends,
+ *     the player can continue.
  *
- * Why DOM, not canvas: at 20 Hz and ~5 pipes on screen, DOM compositing on
- * GPU is plenty fast and lets us reuse Tailwind for styling. No canvas
- * means no per-frame draw loop = less battery drain on mobile.
+ * Why interpolation: the server tick (~33ms) is fast enough to feel smooth
+ * on its own, but a 144Hz monitor renders 4-5 times per server tick. Without
+ * interpolation, motion looks "steppy". With one-tick-behind interpolation,
+ * motion is continuous and we still react to inputs within ~33ms.
  */
 const SkyRunnerArena = memo(function SkyRunnerArena({
   state,
@@ -2945,32 +2988,194 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
         planeRadius: number;
         pipeW: number;
         targetPipes: number;
+        tickMs: number;
         y: number;
         vy: number;
         pipes: SkyPipeWire[];
         pipesPassed: number;
         score: number;
+        lives: number;
+        maxLives: number;
+        invulnerable: boolean;
         crashed: string | null;
+        snapshotAt: number;
+        hitFlash: number;
       }
     | null;
   onFlap: () => void;
   isGameOver: boolean;
   t: TFunction;
 }) {
-  // Keyboard support: space / arrow up / W flaps the airplane.
+  // ── Global keyboard input (captured on document, NOT on the arena div, so
+  // it works regardless of which element has focus).
+  const onFlapRef = useRef(onFlap);
+  onFlapRef.current = onFlap;
   useEffect(() => {
-    if (isGameOver || !state) return;
+    if (isGameOver) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
       const k = String(e.key || "").toLowerCase();
-      if (k === " " || e.code === "Space" || k === "arrowup" || k === "w") {
-        e.preventDefault();
-        onFlap();
-      }
+      const isSpace = k === " " || e.code === "Space" || k === "spacebar";
+      const isUp = k === "arrowup" || k === "w";
+      if (!isSpace && !isUp) return;
+      // Don't preventDefault if the user is typing in an input/textarea
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase() || "";
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      e.preventDefault();
+      onFlapRef.current();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onFlap, isGameOver, state]);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isGameOver]);
+
+  // ── Interpolation: keep the previous snapshot in a ref so we can lerp.
+  type Snapshot = {
+    at: number;
+    y: number;
+    pipes: SkyPipeWire[];
+  };
+  const prevSnapRef = useRef<Snapshot | null>(null);
+  const curSnapRef = useRef<Snapshot | null>(null);
+  const tickMs = state?.tickMs ?? 33;
+
+  // Each time state.snapshotAt changes, shift current → previous and replace current.
+  const lastSeenAtRef = useRef<number>(0);
+  useEffect(() => {
+    if (!state) return;
+    if (state.snapshotAt === lastSeenAtRef.current) return;
+    lastSeenAtRef.current = state.snapshotAt;
+    prevSnapRef.current = curSnapRef.current ?? {
+      at: state.snapshotAt - tickMs,
+      y: state.y,
+      pipes: state.pipes,
+    };
+    curSnapRef.current = {
+      at: state.snapshotAt,
+      y: state.y,
+      pipes: state.pipes,
+    };
+  }, [state, tickMs]);
+
+  // Render targets (refs so rAF can mutate DOM without React re-renders).
+  const planeElRef = useRef<HTMLDivElement | null>(null);
+  const pipesLayerRef = useRef<HTMLDivElement | null>(null);
+  const pipeNodesRef = useRef<Map<number, { top: HTMLDivElement; bottom: HTMLDivElement }>>(new Map());
+  const tiltSmoothedRef = useRef(0);
+
+  // ── Hit flash effect: bump key when state.hitFlash changes so the red
+  // vignette re-mounts and replays its animation.
+  const hitFlashKey = state?.hitFlash ?? 0;
+
+  // ── rAF loop: smooth interpolation between previous and current snapshot.
+  useEffect(() => {
+    if (!state) return;
+    let raf = 0;
+    const worldW = state.worldW;
+    const worldH = state.worldH;
+    const planeXPct = (state.planeX / worldW) * 100;
+    const planeWPct = ((state.planeRadius * 2) / worldW) * 100;
+    const pipeWPct = (state.pipeW / worldW) * 100;
+
+    const tick = () => {
+      const now = performance.now();
+      const cur = curSnapRef.current;
+      const prev = prevSnapRef.current;
+      if (cur && prev) {
+        // We render one tick BEHIND so we always interpolate forward between
+        // two known snapshots, never extrapolate beyond the latest.
+        const renderTime = now - tickMs;
+        const span = Math.max(1, cur.at - prev.at);
+        let t = (renderTime - prev.at) / span;
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        const y = prev.y + (cur.y - prev.y) * t;
+
+        // Plane Y position (also rotate based on vy — smoothed)
+        const targetTilt = Math.max(-30, Math.min(70, (state.vy / 800) * 60));
+        // Low-pass filter the tilt so it doesn't jitter between ticks
+        tiltSmoothedRef.current += (targetTilt - tiltSmoothedRef.current) * 0.18;
+        if (planeElRef.current) {
+          const yPct = (y / worldH) * 100;
+          planeElRef.current.style.top = `${yPct}%`;
+          planeElRef.current.style.transform = `translate(-50%, -50%) rotate(${tiltSmoothedRef.current.toFixed(2)}deg)`;
+          planeElRef.current.style.opacity = state.invulnerable
+            ? (Math.floor(now / 90) % 2 === 0 ? "0.35" : "1")
+            : "1";
+        }
+
+        // Pipes: build a map of cur pipe positions, lerp x from prev where available
+        const prevById = new Map<number, SkyPipeWire>();
+        for (const p of prev.pipes) prevById.set(p.id, p);
+        const seenIds = new Set<number>();
+        const layer = pipesLayerRef.current;
+        if (layer) {
+          for (const cp of cur.pipes) {
+            seenIds.add(cp.id);
+            const pp = prevById.get(cp.id);
+            const x = pp ? pp.x + (cp.x - pp.x) * t : cp.x;
+            const leftPct = (x / worldW) * 100;
+            const topH = (cp.gapTop / worldH) * 100;
+            const bottomY = (cp.gapBottom / worldH) * 100;
+            let pair = pipeNodesRef.current.get(cp.id);
+            if (!pair) {
+              const top = document.createElement("div");
+              const bottom = document.createElement("div");
+              const pipeClass =
+                "absolute will-change-transform";
+              top.className = pipeClass;
+              bottom.className = pipeClass;
+              // Use background gradient + border for that flappy-pipe look
+              const grad =
+                "linear-gradient(to right, #047857 0%, #10b981 30%, #34d399 55%, #10b981 75%, #064e3b 100%)";
+              top.style.background = grad;
+              bottom.style.background = grad;
+              top.style.borderRight = "4px solid #022c22";
+              bottom.style.borderRight = "4px solid #022c22";
+              top.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
+              bottom.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
+              // Pipe caps
+              const capTop = document.createElement("div");
+              const capBottom = document.createElement("div");
+              const capCss = "position:absolute;left:-4px;right:-8px;height:18px;background:linear-gradient(to right,#047857,#10b981 50%,#064e3b);border:3px solid #022c22;border-radius:4px;box-shadow:0 2px 0 rgba(0,0,0,0.2)";
+              capTop.style.cssText = capCss + ";bottom:-6px";
+              capBottom.style.cssText = capCss + ";top:-6px";
+              top.appendChild(capTop);
+              bottom.appendChild(capBottom);
+              layer.appendChild(top);
+              layer.appendChild(bottom);
+              pair = { top, bottom };
+              pipeNodesRef.current.set(cp.id, pair);
+            }
+            pair.top.style.left = `${leftPct}%`;
+            pair.top.style.top = "0";
+            pair.top.style.width = `${pipeWPct}%`;
+            pair.top.style.height = `${topH}%`;
+            pair.bottom.style.left = `${leftPct}%`;
+            pair.bottom.style.top = `${bottomY}%`;
+            pair.bottom.style.width = `${pipeWPct}%`;
+            pair.bottom.style.bottom = "0";
+          }
+          // Remove pipes that left the screen
+          for (const [id, pair] of pipeNodesRef.current.entries()) {
+            if (!seenIds.has(id)) {
+              pair.top.remove();
+              pair.bottom.remove();
+              pipeNodesRef.current.delete(id);
+            }
+          }
+        }
+        // Plane: ensure fixed left/width — done once via style attrs below in JSX
+        if (planeElRef.current) {
+          planeElRef.current.style.left = `${planeXPct}%`;
+          planeElRef.current.style.width = `${planeWPct}%`;
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [state, tickMs]);
 
   if (!state) {
     return (
@@ -2979,10 +3184,6 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
       </div>
     );
   }
-
-  const { worldW, worldH, planeX, planeRadius, pipeW, y, vy, pipes, pipesPassed, targetPipes } = state;
-  // Tilt the plane based on vertical velocity for a "flappy" feel.
-  const tilt = Math.max(-25, Math.min(60, (vy / 900) * 60));
 
   return (
     <div
@@ -2993,112 +3194,170 @@ const SkyRunnerArena = memo(function SkyRunnerArena({
         e.preventDefault();
         onFlap();
       }}
-      className="relative h-full w-full select-none overflow-hidden bg-gradient-to-b from-sky-500 via-sky-400 to-cyan-300"
-      style={{ touchAction: "manipulation" }}
+      className="relative h-full w-full select-none overflow-hidden"
+      style={{
+        touchAction: "manipulation",
+        background:
+          "linear-gradient(to bottom, #0c4a6e 0%, #0284c7 25%, #38bdf8 55%, #7dd3fc 80%, #bae6fd 100%)",
+      }}
     >
-      {/* Parallax clouds — purely decorative, no game impact */}
-      <div className="pointer-events-none absolute inset-0 opacity-70">
-        <div className="absolute left-[10%] top-[8%] h-10 w-24 rounded-full bg-white/70 blur-sm" />
-        <div className="absolute left-[55%] top-[22%] h-8 w-16 rounded-full bg-white/60 blur-sm" />
-        <div className="absolute left-[30%] top-[48%] h-6 w-20 rounded-full bg-white/55 blur-sm" />
-        <div className="absolute left-[70%] top-[70%] h-7 w-14 rounded-full bg-white/60 blur-sm" />
+      {/* Sun */}
+      <div
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          left: "78%",
+          top: "8%",
+          width: "16%",
+          aspectRatio: "1 / 1",
+          background:
+            "radial-gradient(circle at 35% 35%, #fef9c3 0%, #fde047 45%, rgba(253,224,71,0) 70%)",
+          filter: "blur(2px)",
+        }}
+      />
+
+      {/* Parallax clouds — purely decorative */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-[6%] top-[14%] h-8 w-28 rounded-full bg-white/80 blur-[2px]" />
+        <div className="absolute left-[14%] top-[16%] h-10 w-20 rounded-full bg-white/85 blur-[1px]" />
+        <div className="absolute left-[45%] top-[28%] h-7 w-20 rounded-full bg-white/70 blur-[2px]" />
+        <div className="absolute left-[28%] top-[58%] h-6 w-24 rounded-full bg-white/60 blur-[2px]" />
+        <div className="absolute left-[68%] top-[44%] h-9 w-32 rounded-full bg-white/75 blur-[1.5px]" />
+        <div className="absolute left-[8%] top-[78%] h-5 w-16 rounded-full bg-white/55 blur-[2px]" />
       </div>
 
-      {/* Pipes — positioned in % of world coords */}
-      {pipes.map((p) => {
-        const leftPct = (p.x / worldW) * 100;
-        const widthPct = (pipeW / worldW) * 100;
-        const topH = (p.gapTop / worldH) * 100;
-        const bottomY = (p.gapBottom / worldH) * 100;
-        return (
-          <React.Fragment key={p.id}>
-            {/* Top pipe */}
-            <div
-              className="absolute border-r-4 border-emerald-900 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 shadow-[inset_-4px_0_0_rgba(0,0,0,0.18)]"
-              style={{
-                left: `${leftPct}%`,
-                top: 0,
-                width: `${widthPct}%`,
-                height: `${topH}%`,
-              }}
-            >
-              <div className="absolute -bottom-2 -left-1 right-[-4px] h-4 rounded-sm border-2 border-emerald-900 bg-emerald-500" />
-            </div>
-            {/* Bottom pipe */}
-            <div
-              className="absolute border-r-4 border-emerald-900 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 shadow-[inset_-4px_0_0_rgba(0,0,0,0.18)]"
-              style={{
-                left: `${leftPct}%`,
-                top: `${bottomY}%`,
-                width: `${widthPct}%`,
-                bottom: 0,
-              }}
-            >
-              <div className="absolute -top-2 -left-1 right-[-4px] h-4 rounded-sm border-2 border-emerald-900 bg-emerald-500" />
-            </div>
-          </React.Fragment>
-        );
-      })}
-
-      {/* Plane — positioned at planeX (% of worldW), y (% of worldH). */}
+      {/* Pipes layer (rAF-managed nodes) */}
       <div
-        className="absolute"
+        ref={pipesLayerRef}
+        className="pointer-events-none absolute inset-0"
+        style={{ contain: "layout paint" }}
+      />
+
+      {/* Plane (rAF-managed transform) */}
+      <div
+        ref={planeElRef}
+        className="absolute will-change-transform"
         style={{
-          left: `${(planeX / worldW) * 100}%`,
-          top: `${(y / worldH) * 100}%`,
-          width: `${(planeRadius * 2 / worldW) * 100}%`,
+          left: `${(state.planeX / state.worldW) * 100}%`,
+          top: `${(state.y / state.worldH) * 100}%`,
+          width: `${(state.planeRadius * 2 / state.worldW) * 100}%`,
           aspectRatio: "1 / 1",
-          transform: `translate(-50%, -50%) rotate(${tilt}deg)`,
+          transform: "translate(-50%, -50%)",
           transformOrigin: "center",
-          transition: "transform 80ms linear",
+          filter: "drop-shadow(0 6px 8px rgba(0,0,0,0.35))",
         }}
       >
-        {/* SVG airplane — simple silhouette, drop-shadow gives depth */}
-        <svg
-          viewBox="0 0 64 64"
-          className="h-full w-full drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]"
-          aria-hidden
-        >
+        <svg viewBox="0 0 80 80" className="h-full w-full" aria-hidden>
           <defs>
-            <linearGradient id="planeBody" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="#fef3c7" />
-              <stop offset="100%" stopColor="#f59e0b" />
+            <linearGradient id="planeBodyGrad" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#fef9c3" />
+              <stop offset="55%" stopColor="#fde047" />
+              <stop offset="100%" stopColor="#ca8a04" />
             </linearGradient>
+            <linearGradient id="planeWingGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#fb7185" />
+              <stop offset="100%" stopColor="#9f1239" />
+            </linearGradient>
+            <radialGradient id="cockpitGrad" cx="0.4" cy="0.35" r="0.6">
+              <stop offset="0%" stopColor="#bae6fd" />
+              <stop offset="100%" stopColor="#0c4a6e" />
+            </radialGradient>
           </defs>
           {/* Body */}
           <path
-            d="M6 32 L44 26 L56 28 L58 32 L56 36 L44 38 L6 32 Z"
-            fill="url(#planeBody)"
-            stroke="#92400e"
-            strokeWidth="1.5"
+            d="M8 42 Q14 30 32 32 L56 30 Q66 30 72 36 L74 42 Q66 50 56 50 L32 50 Q14 50 8 42 Z"
+            fill="url(#planeBodyGrad)"
+            stroke="#854d0e"
+            strokeWidth="2"
+            strokeLinejoin="round"
           />
           {/* Wing */}
-          <path d="M22 30 L34 18 L40 18 L36 30 Z" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1.5" />
-          {/* Tail */}
-          <path d="M8 32 L4 22 L12 28 Z" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1.5" />
+          <path
+            d="M30 38 L46 18 L54 18 L48 38 Z"
+            fill="url(#planeWingGrad)"
+            stroke="#7f1d1d"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          {/* Lower wing shadow */}
+          <path d="M30 44 L46 56 L54 56 L48 44 Z" fill="#dc2626" opacity="0.85" stroke="#7f1d1d" strokeWidth="1.5" />
+          {/* Tail fin */}
+          <path d="M10 42 L4 26 L16 36 Z" fill="#dc2626" stroke="#7f1d1d" strokeWidth="2" strokeLinejoin="round" />
           {/* Cockpit */}
-          <circle cx="46" cy="30" r="3" fill="#0ea5e9" stroke="#075985" strokeWidth="1" />
-          {/* Propeller */}
-          <line x1="56" y1="26" x2="56" y2="38" stroke="#1f2937" strokeWidth="1.5" />
+          <ellipse cx="58" cy="38" rx="6" ry="4.5" fill="url(#cockpitGrad)" stroke="#0c4a6e" strokeWidth="1.5" />
+          {/* Propeller hub */}
+          <circle cx="73" cy="42" r="2.5" fill="#1f2937" />
+          {/* Propeller blades (spinning illusion: two thin ellipses crossed) */}
+          <ellipse cx="73" cy="42" rx="1" ry="12" fill="#475569" opacity="0.5">
+            <animateTransform attributeName="transform" type="rotate" from="0 73 42" to="360 73 42" dur="0.12s" repeatCount="indefinite" />
+          </ellipse>
         </svg>
       </div>
 
-      {/* Ground strip */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-b from-emerald-700 to-emerald-900" />
+      {/* Ground (decorative) */}
+      <div
+        className="pointer-events-none absolute bottom-0 left-0 right-0 h-6"
+        style={{
+          background:
+            "linear-gradient(to bottom, #65a30d 0%, #4d7c0f 40%, #365314 100%)",
+          boxShadow: "inset 0 4px 0 rgba(255,255,255,0.15)",
+        }}
+      />
 
-      {/* HUD: progress + hint */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white drop-shadow">
-        <span className="rounded-full bg-black/40 px-2 py-1">
-          {t("minerGames.sky_runner.pipes_progress", { current: pipesPassed, total: targetPipes })}
+      {/* HUD: lives + progress (top bar) */}
+      <div className="pointer-events-none absolute left-0 right-0 top-0 flex items-center justify-between gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white">
+        {/* Lives (hearts) */}
+        <div
+          className="flex shrink-0 items-center gap-1 rounded-full bg-black/40 px-2.5 py-1.5 backdrop-blur-sm"
+          aria-label={t("minerGames.sky_runner.lives_aria", { lives: state.lives })}
+        >
+          {Array.from({ length: state.maxLives }).map((_, i) => {
+            const filled = i < state.lives;
+            return (
+              <svg
+                key={i}
+                viewBox="0 0 24 24"
+                className={[
+                  "h-4 w-4 transition-all duration-300",
+                  filled
+                    ? "text-rose-400 drop-shadow-[0_0_4px_rgba(244,114,182,0.7)]"
+                    : "text-slate-600 opacity-50",
+                ].join(" ")}
+                fill={filled ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            );
+          })}
+        </div>
+
+        {/* Pipe progress */}
+        <span className="rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm drop-shadow">
+          {t("minerGames.sky_runner.pipes_progress", { current: state.pipesPassed, total: state.targetPipes })}
         </span>
-        <span className="rounded-full bg-black/40 px-2 py-1">
+
+        {/* Tap hint */}
+        <span className="hidden rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm drop-shadow sm:inline">
           {t("minerGames.sky_runner.tap_hint")}
         </span>
       </div>
 
+      {/* Hit flash overlay — re-mounts on every life loss */}
+      {hitFlashKey > 0 ? (
+        <div
+          key={hitFlashKey}
+          className="pointer-events-none absolute inset-0 animate-ping bg-red-500/35"
+          style={{ animationDuration: "600ms", animationIterationCount: 1 }}
+        />
+      ) : null}
+
       {state.crashed ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-red-900/30">
-          <span className="rounded-2xl bg-red-600/90 px-4 py-2 text-lg font-black uppercase tracking-widest text-white shadow-2xl">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-red-900/40 backdrop-blur-sm">
+          <span className="rounded-2xl bg-red-600/95 px-6 py-3 text-2xl font-black uppercase tracking-widest text-white shadow-2xl ring-4 ring-red-300/40">
             {t("minerGames.sky_runner.crashed")}
           </span>
         </div>

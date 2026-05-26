@@ -2408,6 +2408,7 @@
       "pipes_progress": "{{current}} / {{total}} pipes",
       "tap_hint": "Tap / Space to flap",
       "flap_aria": "Tap to flap the airplane",
+      "lives_aria": "{{lives}} lives remaining",
       "crashed": "Crashed!"
     },
     "socket_errors": {
