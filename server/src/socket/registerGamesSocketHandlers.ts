@@ -100,16 +100,15 @@ const GAME_SLUG_MAX_LEN = 64;
 // Server emits block-spawn events; client only animates locally. The server
 // authoritatively decides where the block is at the moment of the `drop`
 // action by recomputing position from (server time received - blockStartedAt).
-const STACK_TARGET_BLOCKS = 10;          // Win condition: 10 successful stacks
-const STACK_INITIAL_WIDTH = 120;         // Pixels of the first / base block
-const STACK_TRAVEL_MS_INITIAL = 2200;    // Time the first block takes to traverse the play area
-const STACK_TRAVEL_MS_MIN = 950;         // Cap on how fast blocks can travel as difficulty ramps
-const STACK_TRAVEL_DECAY_PER_BLOCK = 140; // ms shaved off per successful block
-// Sum check: even a perfect run can't finish below ~15s anti-cheat floor.
-// Min sum = 2200+2060+1920+1780+1640+1500+1360+1220+1080+950 ≈ 15.7s
-const STACK_PLAY_WIDTH = 480;            // Logical play-area width the block oscillates within
-const STACK_MIN_WIDTH = 18;              // Below this, block is considered fully missed → game over
-const STACK_DROP_MIN_INTERVAL_MS = 250;  // Min realistic time between two drops (humans cap ~4/s)
+const STACK_TARGET_BLOCKS = 8;            // Win condition: 8 successful stacks (was 10)
+const STACK_INITIAL_WIDTH = 200;          // Much wider starting block (was 120) — much more forgiving
+const STACK_TRAVEL_MS_INITIAL = 2600;     // Slower start (was 2200)
+const STACK_TRAVEL_MS_MIN = 1200;         // Slower top speed (was 950) — endgame still readable
+const STACK_TRAVEL_DECAY_PER_BLOCK = 200; // Bigger steps but fewer blocks (was 140 × 10)
+// Min run sum: 2600+2400+2200+2000+1800+1600+1400+1200 = 15.2s ≥ 15s anti-cheat floor.
+const STACK_PLAY_WIDTH = 480;             // Logical play-area width (unchanged)
+const STACK_MIN_WIDTH = 28;               // Larger forgiveness margin (was 18) — easier to "graze" successfully
+const STACK_DROP_MIN_INTERVAL_MS = 250;   // Anti-flood: max ~4 drops/s
 
 type BlockStackState = GameSessionState & {
   slug: "block-stack";
