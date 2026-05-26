@@ -35,7 +35,6 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
           { itemId: 'internal_offerwall', labelKey: 'sidebar.internal_offerwall', icon: 'LayoutGrid', path: '/internal-offerwall' },
           { itemId: 'faucet', labelKey: 'sidebar.faucet', icon: 'Gift', path: '/faucet' },
           { itemId: 'ptc_earn', labelKey: 'sidebar.ptc_earn', icon: 'Eye', path: '/ptc' },
-          { itemId: 'ptc_campaigns', labelKey: 'sidebar.ptc_campaigns', icon: 'Megaphone', path: '/ptc/campaigns' },
           { itemId: 'shortlinks', labelKey: 'sidebar.shortlinks', icon: 'Link', path: '/shortlinks' },
           { itemId: 'auto_mining', labelKey: 'sidebar.auto_mining', icon: 'Zap', path: '/auto-mining' },
           { itemId: 'youtube', labelKey: 'sidebar.youtube', icon: 'Youtube', path: '/youtube' },

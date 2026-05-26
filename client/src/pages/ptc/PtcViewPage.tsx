@@ -109,22 +109,31 @@ export default function PtcViewPage() {
     return (
         <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Header */}
-            <div className="text-center space-y-3">
-                <div className="inline-flex p-3 bg-orange-500/10 rounded-2xl mb-2">
-                    <img src="/shib.svg" alt="SHIB" className="w-8 h-8 rounded-full" />
-                </div>
-                <h1 className="text-4xl font-black text-white tracking-tight uppercase italic">PTC — Ganhe SHIB</h1>
-                <p className="text-gray-500 font-medium max-w-lg mx-auto text-sm">
-                    Visualize anúncios e ganhe <span className="text-orange-400 font-black">SHIBA INU</span> por cada visualização completa.
-                </p>
-                {settings && (
-                    <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-2">
-                        <img src="/shib.svg" alt="" className="w-4 h-4 rounded-full" />
-                        <span className="text-orange-300 font-black text-xs uppercase tracking-widest">
-                            {Number(settings.rewardPerViewShib).toLocaleString(undefined, { maximumFractionDigits: 4 })} SHIB por visualização
-                        </span>
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 text-center space-y-3">
+                    <div className="inline-flex p-3 bg-orange-500/10 rounded-2xl mb-2">
+                        <img src="/shib.svg" alt="SHIB" className="w-8 h-8 rounded-full" />
                     </div>
-                )}
+                    <h1 className="text-4xl font-black text-white tracking-tight uppercase italic">PTC — Ganhe SHIB</h1>
+                    <p className="text-gray-500 font-medium max-w-lg mx-auto text-sm">
+                        Visualize anúncios e ganhe <span className="text-orange-400 font-black">SHIBA INU</span> por cada visualização completa.
+                    </p>
+                    {settings && (
+                        <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-2">
+                            <img src="/shib.svg" alt="" className="w-4 h-4 rounded-full" />
+                            <span className="text-orange-300 font-black text-xs uppercase tracking-widest">
+                                {Number(settings.rewardPerViewShib).toLocaleString(undefined, { maximumFractionDigits: 4 })} SHIB por visualização
+                            </span>
+                        </div>
+                    )}
+                </div>
+                <Link
+                    to="/ptc/campaigns"
+                    className="flex items-center gap-2 px-5 py-3 bg-orange-500 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-orange-400 transition-all hover:scale-[1.02] shadow-lg shadow-orange-500/20 shrink-0"
+                >
+                    <Megaphone className="w-4 h-4" />
+                    Minhas Campanhas
+                </Link>
             </div>
 
             {!ad ? (
@@ -227,22 +236,6 @@ export default function PtcViewPage() {
                         </p>
                     </div>
 
-                    {/* Advertise CTA */}
-                    <Link
-                        to="/ptc/campaigns"
-                        className="flex items-center justify-between gap-4 bg-surface border border-gray-800/50 hover:border-orange-500/30 rounded-2xl p-5 group transition-all"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-orange-500/10 rounded-xl">
-                                <Megaphone className="w-5 h-5 text-orange-400" />
-                            </div>
-                            <div>
-                                <p className="text-white font-black text-sm uppercase italic tracking-tight">Quer anunciar aqui?</p>
-                                <p className="text-gray-600 text-xs font-medium">Crie sua campanha PTC e alcance usuários da plataforma</p>
-                            </div>
-                        </div>
-                        <ExternalLink className="w-4 h-4 text-gray-600 group-hover:text-orange-400 transition-colors shrink-0" />
-                    </Link>
                 </div>
             )}
         </div>
