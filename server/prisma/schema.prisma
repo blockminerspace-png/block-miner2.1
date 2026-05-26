@@ -34,6 +34,7 @@ model User {
   zerBalance    Decimal  @default(0) @map("zer_balance") @db.Decimal(20, 8)
   blkBalance    Decimal  @default(0) @map("blk_balance") @db.Decimal(20, 8)
   blkLocked     Decimal  @default(0) @map("blk_locked") @db.Decimal(20, 8)
+  shibBalance   Decimal  @default(0) @map("shib_balance") @db.Decimal(30, 8)
   /** 100% hashrate: pol = blocos POL simulados | blk = pool BLK por tempo (exclusivo) */
   miningPayoutMode String @default("pol") @map("mining_payout_mode")
 
@@ -1174,33 +1175,57 @@ model ShortlinkPower {
   @@map("shortlink_powers")
 }
 
+// Admin-configurable PTC global settings (single row, id=1)
+model PtcSettings {
+  id                  Int     @id @default(1)
+  pricePerViewShib    Decimal @default(0) @map("price_per_view_shib") @db.Decimal(30, 8)
+  rewardPerViewShib   Decimal @default(0) @map("reward_per_view_shib") @db.Decimal(30, 8)
+  minDurationSeconds  Int     @default(10) @map("min_duration_seconds")
+  maxDurationSeconds  Int     @default(60) @map("max_duration_seconds")
+  minViews            Int     @default(100) @map("min_views")
+  maxViews            Int     @default(1000000) @map("max_views")
+  isEnabled           Boolean @default(true) @map("is_enabled")
+
+  @@map("ptc_settings")
+}
+
 model PtpAd {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @map("user_id")
-  title       String
-  url         String
-  hash        String   @unique
-  createdAt   DateTime @default(now()) @map("created_at")
-  status      String   @default("active")
-  views       Int      @default(0)
-  paidUsd     Float    @default(0.10) @map("paid_usd")
-  targetViews Int      @default(0) @map("target_views")
-  asset       String   @default("POOL")
-  costUsd     Float    @default(0.10) @map("cost_usd")
-  costAsset   Float    @default(0) @map("cost_asset")
+  id                Int      @id @default(autoincrement())
+  userId            Int      @map("user_id")
+  title             String
+  description       String   @default("")
+  url               String
+  hash              String   @unique
+  adType            String   @default("window") @map("ad_type")
+  durationSeconds   Int      @default(10) @map("duration_seconds")
+  createdAt         DateTime @default(now()) @map("created_at")
+  // status: pending_approval | rejected | active | paused | completed
+  status            String   @default("pending_approval")
+  rejectionReason   String?  @map("rejection_reason")
+  views             Int      @default(0)
+  targetViews       Int      @default(0) @map("target_views")
+  costShib          Decimal  @default(0) @map("cost_shib") @db.Decimal(30, 8)
+  rewardPerViewShib Decimal  @default(0) @map("reward_per_view_shib") @db.Decimal(30, 8)
+  // legacy fields kept for backward compat
+  paidUsd           Float    @default(0) @map("paid_usd")
+  asset             String   @default("SHIB")
+  costUsd           Float    @default(0) @map("cost_usd")
+  costAsset         Float    @default(0) @map("cost_asset")
 
   user     User      @relation(fields: [userId], references: [id])
   ptpViews PtpView[]
 
   @@index([userId])
+  @@index([status])
   @@map("ptp_ads")
 }
 
 model PtpView {
-  id         Int      @id @default(autoincrement())
-  adId       Int      @map("ad_id")
-  viewerHash String   @map("viewer_hash")
-  viewedAt   DateTime @default(now()) @map("viewed_at")
+  id          Int      @id @default(autoincrement())
+  adId        Int      @map("ad_id")
+  viewerHash  String   @map("viewer_hash")
+  viewedAt    DateTime @default(now()) @map("viewed_at")
+  earnedShib  Decimal  @default(0) @map("earned_shib") @db.Decimal(30, 8)
 
   ad PtpAd @relation(fields: [adId], references: [id])
 
@@ -1209,11 +1234,11 @@ model PtpView {
 }
 
 model PtpEarning {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  adId      Int      @map("ad_id")
-  amountUsd Float    @map("amount_usd")
-  paidAt    DateTime @default(now()) @map("paid_at")
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  adId       Int      @map("ad_id")
+  amountShib Decimal  @default(0) @map("amount_shib") @db.Decimal(30, 8)
+  paidAt     DateTime @default(now()) @map("paid_at")
 
   user User @relation(fields: [userId], references: [id])
 

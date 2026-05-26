@@ -10,6 +10,7 @@ const priceCache = new Map<string, { price: number; timestamp: number }>();
 
 type CoinGeckoPolPriceResponse = {
   "polygon-ecosystem-token"?: { usd?: number };
+  "shiba-inu"?: { usd?: number };
 };
 
 async function getPolUsdPrice(): Promise<number> {
@@ -18,18 +19,30 @@ async function getPolUsdPrice(): Promise<number> {
 
   try {
     const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token&vs_currencies=usd"
+      "https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token,shiba-inu&vs_currencies=usd"
     );
     const data = (await res.json()) as CoinGeckoPolPriceResponse;
-    const price = data["polygon-ecosystem-token"]?.usd;
-    if (typeof price === "number" && Number.isFinite(price)) {
-      priceCache.set("POL", { price, timestamp: Date.now() });
-      return price;
+    const polPrice = data["polygon-ecosystem-token"]?.usd;
+    const shibPrice = data["shiba-inu"]?.usd;
+    if (typeof polPrice === "number" && Number.isFinite(polPrice)) {
+      priceCache.set("POL", { price: polPrice, timestamp: Date.now() });
     }
+    if (typeof shibPrice === "number" && Number.isFinite(shibPrice)) {
+      priceCache.set("SHIB", { price: shibPrice, timestamp: Date.now() });
+    }
+    if (typeof polPrice === "number" && Number.isFinite(polPrice)) return polPrice;
   } catch (_e: unknown) {
-    // Fallback to 1.0 (legacy)
+    // Fallback below
   }
   return 1.0;
+}
+
+async function getShibUsdPrice(): Promise<number> {
+  const cached = priceCache.get("SHIB");
+  if (cached && Date.now() - cached.timestamp < PRICE_TTL_MS) return cached.price;
+  // Trigger a fetch that also populates SHIB cache
+  await getPolUsdPrice();
+  return priceCache.get("SHIB")?.price ?? 0.00001;
 }
 
 type SwapBody = {
@@ -45,12 +58,15 @@ export async function getBalances(req: Request, res: Response): Promise<void> {
       return;
     }
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const [polPrice, shibPrice] = await Promise.all([getPolUsdPrice(), getShibUsdPrice()]);
     res.json({
       ok: true,
       balances: {
         POL: Number(user!.polBalance || 0),
         USDC: Number(user!.usdcBalance || 0),
+        SHIB: Number(user!.shibBalance || 0),
       },
+      prices: { POL: polPrice, SHIB: shibPrice },
     });
   } catch (_e: unknown) {
     res.status(500).json({ ok: false, message: "Server error" });
@@ -66,14 +82,47 @@ export async function executeSwap(req: Request<unknown, unknown, SwapBody>, res:
     const userId = req.user.id;
     const { fromAsset, toAsset, amount } = req.body;
     const amountNum = Number(amount);
-    const price = await getPolUsdPrice();
-    const rate = price;
-    const output = fromAsset === "POL" ? amountNum * rate : amountNum / rate;
+
+    // SHIB→POL only (not POL→SHIB)
+    if (fromAsset === "SHIB" && toAsset !== "POL") {
+      res.status(400).json({ ok: false, message: "SHIB can only be swapped to POL" });
+      return;
+    }
+    if (toAsset === "SHIB") {
+      res.status(400).json({ ok: false, message: "Cannot swap to SHIB" });
+      return;
+    }
+
+    const polPrice = await getPolUsdPrice();
+    const shibPrice = await getShibUsdPrice();
+
+    // rate = output per 1 unit of fromAsset
+    let rate: number;
+    let output: number;
+    if (fromAsset === "SHIB") {
+      // SHIB is whole integers (no decimals), amountNum is raw SHIB count
+      const shibUsdValue = amountNum * shibPrice;
+      output = shibUsdValue / polPrice;
+      rate = shibPrice / polPrice;
+    } else if (fromAsset === "POL") {
+      rate = polPrice;
+      output = amountNum * rate;
+    } else {
+      rate = polPrice;
+      output = amountNum / rate;
+    }
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
 
-      if (fromAsset === "POL") {
+      if (fromAsset === "SHIB") {
+        if (Number(user!.shibBalance) < amountNum) throw new Error("Insufficient SHIB balance");
+        await tx.user.update({
+          where: { id: userId },
+          data: { shibBalance: { decrement: amountNum }, polBalance: { increment: output } },
+        });
+        applyUserBalanceDelta(userId, output);
+      } else if (fromAsset === "POL") {
         if (Number(user!.polBalance) < amountNum) throw new Error("Insufficient POL balance");
         await tx.user.update({
           where: { id: userId },

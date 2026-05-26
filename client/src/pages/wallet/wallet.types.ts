@@ -4,6 +4,7 @@ export type WalletBalanceResponse = {
   balance?: number;
   blkBalance?: number;
   blkLocked?: number;
+  shibBalance?: number;
   lifetimeMined?: number;
   totalWithdrawn?: number;
   walletAddress?: string | null;

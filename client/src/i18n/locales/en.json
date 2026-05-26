@@ -708,7 +708,9 @@
     "offerwall": "Offerwall",
     "offerwallme": "Offerwall.me",
     "tournaments": "Tournaments",
-    "youtuber_partner": "YouTuber Partner"
+    "youtuber_partner": "YouTuber Partner",
+    "ptc_earn": "Watch Ads (PTC)",
+    "ptc_campaigns": "My PTC Campaigns"
   },
   "taxes": {
     "title": "Taxes & Fees",
@@ -854,7 +856,8 @@
       "analytics": "Analytics",
       "broadcast": "Notifications",
       "user_app_sidebar": "User sidebar",
-      "public_support": "Pre-login Support"
+      "public_support": "Pre-login Support",
+      "ptc": "PTC"
     },
     "logout": "Sign out"
   },

@@ -45,6 +45,7 @@ import {
     nextWalletBalanceBackoffMs,
     WALLET_BALANCE_POLL_MS,
 } from './walletBalancePolling';
+import { ShibPanel } from './ShibPanel';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null;
@@ -206,6 +207,7 @@ export default function Wallet() {
         amount: 0,
         blkBalance: 0,
         blkLocked: 0,
+        shibBalance: 0,
         lifetimeMined: 0,
         totalWithdrawn: 0
     });
@@ -330,6 +332,7 @@ export default function Wallet() {
                     amount: Number(balanceRes.data.balance || 0),
                     blkBalance: Number(balanceRes.data.blkBalance ?? 0),
                     blkLocked: Number(balanceRes.data.blkLocked ?? 0),
+                    shibBalance: Number(balanceRes.data.shibBalance ?? 0),
                     lifetimeMined: Number(balanceRes.data.lifetimeMined || 0),
                     totalWithdrawn: Number(balanceRes.data.totalWithdrawn || 0)
                 });
@@ -1080,6 +1083,17 @@ export default function Wallet() {
                                         </p>
                                     )}
                                 </div>
+                                {/* SHIB balance */}
+                                <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-3">
+                                    <img src="/shib.svg" alt="SHIB" className="w-7 h-7 rounded-full shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                                    <div>
+                                        <p className="text-orange-200/50 font-black uppercase tracking-[0.25em] text-[8px] mb-0.5">SHIBA INU</p>
+                                        <p className="text-xl font-black tabular-nums tracking-tight text-orange-100">
+                                            {balance.shibBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                            <span className="text-sm text-orange-300/70 ml-1.5">SHIB</span>
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1103,6 +1117,13 @@ export default function Wallet() {
                                 className={`flex-1 py-2.5 sm:py-4 text-[8px] sm:text-xs font-black uppercase tracking-tight sm:tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 {t('wallet.tab_withdraw')}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('shib')}
+                                className={`flex-1 py-2.5 sm:py-4 text-[8px] sm:text-xs font-black uppercase tracking-tight sm:tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent flex items-center justify-center gap-1.5 ${activeTab === 'shib' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                <img src="/shib.svg" alt="" className="w-3.5 h-3.5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                                SHIB
                             </button>
                         </div>
 
@@ -1702,6 +1723,10 @@ export default function Wallet() {
                                         </div>
                                     )}
                                 </form>
+                            )}
+
+                            {activeTab === 'shib' && (
+                                <ShibPanel balance={balance.shibBalance} onRefresh={fetchWalletData} />
                             )}
 
                         </div>

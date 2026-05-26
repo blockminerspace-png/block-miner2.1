@@ -48,7 +48,6 @@ export default function Faucet() {
 
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const partnerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const partnerIframeRef = useRef<HTMLIFrameElement | null>(null);
     const remainingMsRef = useRef(0);
 
     const fetchStatus = useCallback(async () => {
@@ -74,6 +73,14 @@ export default function Faucet() {
     useEffect(() => {
         fetchStatus();
     }, [fetchStatus]);
+
+    useEffect(() => {
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = 'https://ss.mrmnd.com/banner.js';
+        document.head.appendChild(script);
+        return () => { document.head.removeChild(script); };
+    }, []);
 
     useEffect(() => {
         remainingMsRef.current = remainingMs;
@@ -125,12 +132,6 @@ export default function Faucet() {
             const res = await api.post('/faucet/partner/start');
             if (res.data.ok) {
                 window.open(res.data.partnerUrl, '_blank', 'noopener,noreferrer');
-                try {
-                    const el = partnerIframeRef.current;
-                    if (el) el.src = 'about:blank';
-                } catch {
-                    /* ignore */
-                }
                 const waitMs = res.data.waitMs || 10000;
                 setTimeout(() => {
                     setPartnerFlowActive(true);
@@ -281,25 +282,8 @@ export default function Faucet() {
                                     ) : (
                                         <div className="space-y-3">
                                             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center max-w-[300px] mx-auto">
-                                                <div className="mx-auto h-auto w-[300px] max-w-full">
-                                                    <iframe
-                                                        ref={partnerIframeRef}
-                                                        data-aa="2436936"
-                                                        src="https://ad.a-ads.com/2436936/?size=300x250"
-                                                        width={300}
-                                                        height={250}
-                                                        title={t("faucet.partner_iframe_title")}
-                                                        style={{
-                                                            border: 0,
-                                                            padding: 0,
-                                                            width: 300,
-                                                            height: 250,
-                                                            overflow: "hidden",
-                                                            display: "block",
-                                                            margin: "0 auto",
-                                                            maxWidth: "100%",
-                                                        }}
-                                                    />
+                                                <div className="mx-auto w-[300px] max-w-full min-h-[250px] flex items-center justify-center">
+                                                    <div data-mndbanid="5674e300-8e33-44ee-ba4c-1f67f2934df2" />
                                                 </div>
                                                 <button
                                                     type="button"

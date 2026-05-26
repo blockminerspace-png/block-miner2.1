@@ -119,7 +119,7 @@ export async function trackView(req: Request<unknown, unknown, TrackBody>, res: 
         data: {
           userId: ad.userId,
           adId: Number(adId),
-          amountUsd: PTP_EARNING_PER_VIEW_USD,
+          amountShib: 0,
         },
       });
 

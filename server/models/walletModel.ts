@@ -13,6 +13,7 @@ async function getUserBalance(userId) {
       polBalance: true,
       blkBalance: true,
       blkLocked: true,
+      shibBalance: true,
       miningPayoutMode: true,
       walletAddress: true,
       miningLogs: {
@@ -28,6 +29,7 @@ async function getUserBalance(userId) {
       balance: 0,
       blkBalance: 0,
       blkLocked: 0,
+      shibBalance: 0,
       miningPayoutMode: 'pol',
       blkUsdEquivalent: 0,
       lifetimeMined: 0,
@@ -52,6 +54,7 @@ async function getUserBalance(userId) {
     balance: Number(user.polBalance),
     blkBalance: blkAvail,
     blkLocked,
+    shibBalance: Number(user.shibBalance),
     miningPayoutMode: user.miningPayoutMode === 'blk' ? 'blk' : 'pol',
     blkUsdEquivalent: blkAvail,
     lifetimeMined: Number(lifetimeMined),

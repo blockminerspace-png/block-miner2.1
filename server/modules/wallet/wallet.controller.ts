@@ -736,3 +736,55 @@ export async function getWithdrawFeeInfo(req: Request, res: Response) {
 }
 
 export { WITHDRAW_MIN_POL, WITHDRAW_PROCESSING_HOURS } from "./wallet.types.js";
+
+const SHIB_MIN_WITHDRAW = 0.1;
+const SHIB_WITHDRAW_FEE = 7800;
+
+export async function requestShibWithdrawal(req: Request, res: Response) {
+  try {
+    const user = requireSessionUser(req, res);
+    if (!user) return;
+
+    const { amount, address } = req.body as Record<string, unknown>;
+    const amountNum = Number(amount);
+    if (!amountNum || amountNum < SHIB_MIN_WITHDRAW) {
+      return res.status(400).json({ ok: false, message: `Minimum withdrawal is ${SHIB_MIN_WITHDRAW} SHIB` });
+    }
+    if (typeof address !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      return res.status(400).json({ ok: false, message: "Invalid ERC20 address" });
+    }
+
+    const totalDeduct = amountNum + SHIB_WITHDRAW_FEE;
+    const netAmount = amountNum;
+
+    await prisma.$transaction(async (tx) => {
+      const dbUser = await tx.user.findUnique({ where: { id: user.id } });
+      if (!dbUser) throw new Error("User not found");
+
+      const bal = Number(dbUser.shibBalance);
+      if (bal < totalDeduct) throw new Error(`Insufficient SHIB balance (need ${totalDeduct} SHIB including ${SHIB_WITHDRAW_FEE} fee)`);
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: { shibBalance: { decrement: totalDeduct } },
+      });
+
+      await tx.transaction.create({
+        data: {
+          userId: user.id,
+          type: "shib_withdrawal",
+          amount: netAmount,
+          fee: SHIB_WITHDRAW_FEE,
+          address,
+          status: "pending",
+          fundsReserved: true,
+        },
+      });
+    });
+
+    return res.json({ ok: true, message: `SHIB withdrawal of ${netAmount} SHIB submitted. Fee: ${SHIB_WITHDRAW_FEE} SHIB. Network: ERC20.` });
+  } catch (err: unknown) {
+    logger.error("requestShibWithdrawal error", { error: readErrorMessage(err) });
+    return res.status(400).json({ ok: false, message: readErrorMessage(err) || "Unable to request SHIB withdrawal." });
+  }
+}

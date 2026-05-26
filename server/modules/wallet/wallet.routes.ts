@@ -105,3 +105,5 @@ walletRouter.put(
 walletRouter.get("/blk/economy", requireAuth, blkReadLimiter, blkWalletController.getEconomy);
 walletRouter.get("/blk/estimate", requireAuth, blkReadLimiter, blkWalletController.getEstimate);
 walletRouter.post("/blk/convert", requireAuth, blkConvertLimiter, blkWalletController.postConvert);
+
+walletRouter.post("/shib/withdraw", requireAuth, walletLimiter, walletController.requestShibWithdrawal);

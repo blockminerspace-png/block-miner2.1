@@ -75,6 +75,9 @@ const AdminMiniPassSeason = lazy(() => import('../pages/admin/AdminMiniPassSeaso
 const AdminSocial = lazy(() => import('../pages/admin/AdminSocial'));
 const AdminTournaments = lazy(() => import('../pages/admin/AdminTournaments'));
 const AdminTrafficStats = lazy(() => import('../pages/admin/AdminTrafficStats'));
+const AdminPtc = lazy(() => import('../pages/admin/AdminPtc'));
+const PtcViewPage = lazy(() => import('../pages/ptc/PtcViewPage'));
+const PtcCampaignsPage = lazy(() => import('../pages/ptc/PtcCampaignsPage'));
 const ReadEarn = lazy(() => import('../pages/read-earn'));
 const InternalOfferwall = lazy(() => import('../pages/internal-offerwall'));
 const Zerads = lazy(() => import('../pages/zerads'));
@@ -236,6 +239,8 @@ function App() {
             <Route path="/read-earn" element={<ReadEarn />} />
             <Route path="/internal-offerwall" element={<InternalOfferwall />} />
             <Route path="/offerwall" element={<Offerwall />} />
+            <Route path="/ptc" element={<PtcViewPage />} />
+            <Route path="/ptc/campaigns" element={<PtcCampaignsPage />} />
             <Route path="/zerads" element={<Navigate to="/offerwall" replace />} />
             <Route path="/offerwallme" element={<Navigate to="/offerwall" replace />} />
             <Route path="/mini-pass" element={<MiniPass />} />
@@ -292,6 +297,7 @@ function App() {
             <Route path="/admin/social" element={<AdminSocial />} />
             <Route path="/admin/tournaments" element={<AdminTournaments />} />
             <Route path="/admin/traffic" element={<AdminTrafficStats />} />
+            <Route path="/admin/ptc" element={<AdminPtc />} />
           </Route>
         </Routes>
       </Suspense>

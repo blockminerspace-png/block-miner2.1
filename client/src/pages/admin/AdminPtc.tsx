@@ -1,0 +1,262 @@
+import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
+import { CheckCircle2, XCircle, Clock, Eye, Loader2, Settings, ChevronDown, ChevronUp, Save } from 'lucide-react';
+import { api } from '../../store/auth';
+
+interface Campaign {
+    id: number;
+    title: string;
+    description: string;
+    url: string;
+    adType: string;
+    durationSeconds: number;
+    status: string;
+    views: number;
+    targetViews: number;
+    costShib: string;
+    createdAt: string;
+    user: { id: number; name: string; email: string };
+}
+
+interface PtcSettings {
+    pricePerViewShib: string;
+    rewardPerViewShib: string;
+    minDurationSeconds: number;
+    maxDurationSeconds: number;
+    minViews: number;
+    maxViews: number;
+    isEnabled: boolean;
+}
+
+export default function AdminPtc() {
+    const [pending, setPending] = useState<Campaign[]>([]);
+    const [all, setAll] = useState<Campaign[]>([]);
+    const [settings, setSettings] = useState<PtcSettings | null>(null);
+    const [settingsForm, setSettingsForm] = useState<Partial<PtcSettings>>({});
+    const [loading, setLoading] = useState(true);
+    const [tab, setTab] = useState<'pending' | 'all' | 'settings'>('pending');
+    const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [rejectReason, setRejectReason] = useState<Record<number, string>>({});
+    const [actionLoading, setActionLoading] = useState<number | null>(null);
+    const [settingsSaving, setSettingsSaving] = useState(false);
+
+    const fetchData = useCallback(async () => {
+        try {
+            const [pendRes, allRes, setRes] = await Promise.all([
+                api.get('/admin/ptc/campaigns/pending'),
+                api.get('/admin/ptc/campaigns'),
+                api.get('/admin/ptc/settings'),
+            ]);
+            setPending(pendRes.data.campaigns ?? []);
+            setAll(allRes.data.items ?? []);
+            setSettings(setRes.data.settings);
+            setSettingsForm(setRes.data.settings);
+        } catch {
+            toast.error('Erro ao carregar dados PTC');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    async function handleApprove(id: number) {
+        setActionLoading(id);
+        try {
+            await api.post(`/admin/ptc/campaigns/${id}/approve`);
+            toast.success('Campanha aprovada');
+            fetchData();
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(msg ?? 'Erro');
+        } finally {
+            setActionLoading(null);
+        }
+    }
+
+    async function handleReject(id: number) {
+        const reason = rejectReason[id]?.trim();
+        if (!reason) { toast.error('Informe o motivo da rejeição'); return; }
+        setActionLoading(id);
+        try {
+            await api.post(`/admin/ptc/campaigns/${id}/reject`, { reason });
+            toast.success('Campanha rejeitada (SHIB reembolsado)');
+            fetchData();
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(msg ?? 'Erro');
+        } finally {
+            setActionLoading(null);
+        }
+    }
+
+    async function saveSettings() {
+        setSettingsSaving(true);
+        try {
+            await api.put('/admin/ptc/settings', {
+                ...settingsForm,
+                pricePerViewShib: Number(settingsForm.pricePerViewShib),
+                rewardPerViewShib: Number(settingsForm.rewardPerViewShib),
+            });
+            toast.success('Configurações salvas');
+            fetchData();
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(msg ?? 'Erro ao salvar');
+        } finally {
+            setSettingsSaving(false);
+        }
+    }
+
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+    );
+
+    const STATUS_COLOR: Record<string, string> = {
+        pending_approval: 'text-amber-400',
+        active: 'text-emerald-400',
+        rejected: 'text-red-400',
+        paused: 'text-slate-400',
+        completed: 'text-blue-400',
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black text-white uppercase italic tracking-tight">Admin — PTC</h2>
+                <div className="flex items-center gap-2">
+                    <img src="/shib.svg" alt="" className="w-6 h-6 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                    <span className="text-orange-300 font-black text-xs uppercase tracking-widest">SHIB</span>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex bg-gray-900/50 p-1.5 rounded-2xl gap-2">
+                {(['pending', 'all', 'settings'] as const).map((t) => (
+                    <button key={t} onClick={() => setTab(t)}
+                        className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 ${tab === t ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-300'}`}>
+                        {t === 'pending' && <><Clock className="w-3 h-3" /> Pendentes ({pending.length})</>}
+                        {t === 'all' && <><Eye className="w-3 h-3" /> Todas</>}
+                        {t === 'settings' && <><Settings className="w-3 h-3" /> Configurações</>}
+                    </button>
+                ))}
+            </div>
+
+            {/* Pending */}
+            {tab === 'pending' && (
+                <div className="space-y-4">
+                    {pending.length === 0 ? (
+                        <div className="text-center py-16 text-gray-600 font-black uppercase tracking-widest text-sm">
+                            Nenhuma campanha pendente
+                        </div>
+                    ) : pending.map((c) => (
+                        <div key={c.id} className="bg-surface border border-gray-800/50 rounded-2xl overflow-hidden">
+                            <div className="p-5 flex items-center gap-4 cursor-pointer" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white font-black text-sm uppercase italic truncate">{c.title}</p>
+                                    <p className="text-gray-500 text-xs font-mono truncate">{c.url}</p>
+                                    <p className="text-gray-600 text-[9px] font-bold mt-0.5">{c.user.name} · {c.user.email}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className="text-orange-300 font-black text-xs">{Number(c.costShib).toLocaleString(undefined, { maximumFractionDigits: 2 })} SHIB</p>
+                                    <p className="text-gray-600 text-[9px] font-bold">{c.targetViews.toLocaleString()} views · {c.adType} · {c.durationSeconds}s</p>
+                                </div>
+                                {expandedId === c.id ? <ChevronUp className="w-4 h-4 text-gray-600" /> : <ChevronDown className="w-4 h-4 text-gray-600" />}
+                            </div>
+                            {expandedId === c.id && (
+                                <div className="px-5 pb-5 pt-0 border-t border-gray-800/50 space-y-4">
+                                    {c.description && <p className="text-gray-400 text-xs font-medium">{c.description}</p>}
+                                    <a href={c.url} target="_blank" rel="noreferrer" className="text-primary text-xs font-mono underline break-all">{c.url}</a>
+
+                                    <div className="flex gap-3">
+                                        <button onClick={() => handleApprove(c.id)} disabled={actionLoading === c.id}
+                                            className="flex-1 py-3 bg-emerald-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-emerald-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                            {actionLoading === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                            Aprovar
+                                        </button>
+                                        <div className="flex-1 space-y-2">
+                                            <input value={rejectReason[c.id] ?? ''} onChange={(e) => setRejectReason({ ...rejectReason, [c.id]: e.target.value })}
+                                                placeholder="Motivo da rejeição..."
+                                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500 transition-colors" />
+                                            <button onClick={() => handleReject(c.id)} disabled={actionLoading === c.id}
+                                                className="w-full py-3 bg-red-600/80 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                                {actionLoading === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                                                Rejeitar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* All Campaigns */}
+            {tab === 'all' && (
+                <div className="space-y-3">
+                    {all.map((c) => (
+                        <div key={c.id} className="flex items-center gap-4 p-4 bg-surface border border-gray-800/30 rounded-2xl">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-white font-black text-xs uppercase italic truncate">{c.title}</p>
+                                <p className="text-gray-500 text-[9px] font-mono truncate">{c.url}</p>
+                                <p className="text-gray-600 text-[9px] font-bold">{c.user.name}</p>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                                <p className={`font-black text-[9px] uppercase tracking-widest ${STATUS_COLOR[c.status] ?? 'text-gray-500'}`}>{c.status}</p>
+                                <p className="text-gray-600 text-[9px]">{c.views}/{c.targetViews} views</p>
+                                <p className="text-orange-300 text-[9px] font-black">{Number(c.costShib).toLocaleString(undefined, { maximumFractionDigits: 0 })} SHIB</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Settings */}
+            {tab === 'settings' && settings && (
+                <div className="bg-surface border border-gray-800/50 rounded-2xl p-6 space-y-5">
+                    <h3 className="text-white font-black uppercase tracking-widest text-sm">Configurações PTC</h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                            { key: 'pricePerViewShib', label: 'Custo por view (SHIB)', type: 'number', step: '0.0001' },
+                            { key: 'rewardPerViewShib', label: 'Recompensa por view (SHIB)', type: 'number', step: '0.0001' },
+                            { key: 'minDurationSeconds', label: 'Duração mínima (s)', type: 'number', step: '1' },
+                            { key: 'maxDurationSeconds', label: 'Duração máxima (s)', type: 'number', step: '1' },
+                            { key: 'minViews', label: 'Visualizações mínimas', type: 'number', step: '1' },
+                            { key: 'maxViews', label: 'Visualizações máximas', type: 'number', step: '1' },
+                        ].map(({ key, label, type, step }) => (
+                            <div key={key}>
+                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block">{label}</label>
+                                <input
+                                    type={type} step={step}
+                                    value={String(settingsForm[key as keyof PtcSettings] ?? '')}
+                                    onChange={(e) => setSettingsForm({ ...settingsForm, [key]: type === 'number' ? e.target.value : e.target.value })}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-primary transition-colors"
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Sistema habilitado</label>
+                        <button
+                            onClick={() => setSettingsForm({ ...settingsForm, isEnabled: !settingsForm.isEnabled })}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settingsForm.isEnabled ? 'bg-emerald-600' : 'bg-gray-700'}`}
+                        >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settingsForm.isEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                    </div>
+
+                    <button onClick={saveSettings} disabled={settingsSaving}
+                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-primary/80 transition-colors disabled:opacity-50">
+                        {settingsSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Salvar configurações
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}

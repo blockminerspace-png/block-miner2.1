@@ -27,6 +27,7 @@ import {
   LayoutGrid,
   Video,
   Fingerprint,
+  MousePointerClick,
 } from 'lucide-react';
 
 type AdminMenuEntry = {
@@ -59,6 +60,7 @@ const ADMIN_MENU_ITEMS: AdminMenuEntry[] = [
   { icon: Video, labelKey: 'adminSidebar.nav.live_streaming', path: '/admin/streaming' },
   { icon: Youtube, labelKey: 'adminSidebar.nav.creators', path: '/admin/creators' },
   { icon: Youtube, labelKey: 'adminSidebar.nav.social', path: '/admin/social' },
+  { icon: MousePointerClick, labelKey: 'adminSidebar.nav.ptc', path: '/admin/ptc' },
   { icon: Eye, labelKey: 'adminSidebar.nav.transparency', path: '/admin/transparency' },
   { icon: Database, labelKey: 'adminSidebar.nav.backups', path: '/admin/backups' },
   { icon: FileText, labelKey: 'adminSidebar.nav.logs', path: '/admin/logs' },
