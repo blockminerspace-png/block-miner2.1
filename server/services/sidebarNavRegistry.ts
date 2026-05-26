@@ -192,13 +192,6 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "social",
     defaultParentItemId: null
   },
-  calculator: {
-    path: "/calculator",
-    labelKey: "sidebar.calculator",
-    icon: "Calculator",
-    section: "social",
-    defaultParentItemId: null
-  },
   manual: {
     path: "/manual",
     labelKey: "sidebar.manual",
@@ -396,7 +389,6 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "read_earn", visible: true, sortOrder: 170, section: "earn", parentItemId: "rewards_group" },
 
     { itemId: "games", visible: true, sortOrder: 210, section: "social", parentItemId: null },
-    { itemId: "calculator", visible: true, sortOrder: 220, section: "social", parentItemId: null },
     { itemId: "manual", visible: true, sortOrder: 230, section: "social", parentItemId: null },
     { itemId: "ranking", visible: true, sortOrder: 240, section: "social", parentItemId: null },
     { itemId: "roadmap", visible: true, sortOrder: 250, section: "social", parentItemId: null },

@@ -2151,7 +2151,8 @@
       "machines": "Máquinas",
       "temporary": "Temporário",
       "network": "Rede",
-      "history": "Histórico"
+      "history": "Histórico",
+      "calculator": "Calculadora"
     },
     "total_power": "Poder total",
     "total_tooltip": "Soma das máquinas no rack com todos os boosts temporários ativos.",

@@ -1745,7 +1745,8 @@
       "machines": "Máquinas",
       "temporary": "Temporal",
       "network": "Red",
-      "history": "Historial"
+      "history": "Historial",
+      "calculator": "Calculadora"
     },
     "total_power": "Poder total",
     "total_tooltip": "Suma de máquinas en el rack más todos los boosts temporales activos.",

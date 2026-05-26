@@ -20,6 +20,7 @@ import {
 import { useUserPowerStats } from '../../shared/hooks/useUserPowerStats';
 import { formatHashrate } from '../../shared/utils/machine';
 import type { UserPowerStatsPayload } from './stats.api';
+import CalculatorPage from '../calculator/CalculatorPage';
 
 /** Recharts is heavy (~hundreds of KB); load it in a separate chunk so `/power-stats` shell paints quickly. */
 const PowerChartsPanel = lazy(() => import('./components/PowerChartsPanel'));
@@ -38,7 +39,7 @@ function PowerChartsFallback() {
   );
 }
 
-const TABS = ['overview', 'machines', 'temporary', 'network', 'history'];
+const TABS = ['overview', 'machines', 'temporary', 'network', 'history', 'calculator'];
 
 function formatDurationMs(ms: number) {
   if (ms <= 0) return '0s';
@@ -454,6 +455,8 @@ export default function PowerStatistics() {
               </div>
             </div>
           )}
+
+          {tab === 'calculator' && <CalculatorPage />}
 
           {tab === 'history' && (
             <div className="space-y-6">

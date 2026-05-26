@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { Lock, Plus, Zap, Trash2, Box, AlertCircle, X, Warehouse } from "lucide-react";
+import { Lock, Plus, Zap, Trash2, Box, AlertCircle, X, Warehouse, Calculator } from "lucide-react";
 import axios, { isAxiosError } from "axios";
 import { api } from "../../store/auth";
 import { getRooms, getInventory } from "./machines.api";
@@ -1225,6 +1225,14 @@ export default function Inventory() {
           >
             <Warehouse className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
             {t("inventory.go_to_warehouse")}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/power-stats")}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-sky-500/25 bg-sky-500/10 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-sky-400 transition-colors hover:bg-sky-500/20 sm:w-auto"
+          >
+            <Calculator className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            Calculadora
           </button>
           <div className="flex flex-wrap gap-2 sm:justify-end">
             <div className="inline-flex min-h-11 flex-1 min-w-[10rem] items-center justify-center gap-1.5 rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-2 text-xs font-bold text-purple-400 shadow-glow-sm sm:flex-initial">
