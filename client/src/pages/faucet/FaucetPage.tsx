@@ -74,13 +74,18 @@ export default function Faucet() {
         fetchStatus();
     }, [fetchStatus]);
 
+    const bannerShouldShow = !isLoading && remainingMs === 0 && !isPartnerUnlocked && !partnerFlowActive && partnerWaitMs === 0;
+
     useEffect(() => {
+        if (!bannerShouldShow) return;
+        // Remove stale instance so re-entry re-triggers Mondiad DOM scan
+        document.querySelector('script[src="https://ss.mrmnd.com/banner.js"]')?.remove();
         const script = document.createElement('script');
         script.async = true;
         script.src = 'https://ss.mrmnd.com/banner.js';
         document.head.appendChild(script);
-        return () => { document.head.removeChild(script); };
-    }, []);
+        return () => script.remove();
+    }, [bannerShouldShow]);
 
     useEffect(() => {
         remainingMsRef.current = remainingMs;
