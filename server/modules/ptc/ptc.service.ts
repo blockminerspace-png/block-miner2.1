@@ -79,24 +79,26 @@ export async function createCampaign(
     description: string;
     url: string;
     adType: "iframe" | "window";
-    tierId: number;
+    durationSeconds: number;
+    pricePerViewShib: number;
+    rewardPerViewShib: number;
     targetViews: number;
   },
 ) {
   const settings = await repo.getSettings();
   if (!settings.isEnabled) throw new Error("PTC system is currently disabled");
 
-  const tier = await repo.getTierById(input.tierId);
-  if (!tier || !tier.isActive) throw new Error("Selected tier is not available");
-
   const { minViews, maxViews } = settings;
   if (input.targetViews < minViews || input.targetViews > maxViews) {
     throw new Error(`Views must be between ${minViews} and ${maxViews}`);
   }
+  if (input.durationSeconds < 5) throw new Error("Minimum duration is 5 seconds");
+  if (input.pricePerViewShib <= 0) throw new Error("Price per view must be greater than 0");
+  if (input.rewardPerViewShib <= 0) throw new Error("Reward per view must be greater than 0");
 
-  const pricePerView = new Decimal(tier.pricePerViewShib.toString());
+  const pricePerView = new Decimal(input.pricePerViewShib.toString());
   const costShib = pricePerView.mul(input.targetViews);
-  const rewardPerViewShib = new Decimal(tier.rewardPerViewShib.toString());
+  const rewardPerViewShib = new Decimal(input.rewardPerViewShib.toString());
 
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
@@ -115,13 +117,12 @@ export async function createCampaign(
     await tx.ptpAd.create({
       data: {
         userId,
-        tierId: tier.id,
         title: input.title,
         description: input.description,
         url: input.url,
         hash,
         adType: input.adType,
-        durationSeconds: tier.durationSeconds,
+        durationSeconds: input.durationSeconds,
         targetViews: input.targetViews,
         costShib,
         rewardPerViewShib,

@@ -60,17 +60,21 @@ export async function getActiveTiers(req: Request, res: Response): Promise<void>
 export async function createCampaign(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) { err(res, 401, "Unauthorized"); return; }
-    const { title, description, url, adType, tierId, targetViews } = req.body as Record<string, unknown>;
+    const { title, description, url, adType, durationSeconds, pricePerViewShib, rewardPerViewShib, targetViews } = req.body as Record<string, unknown>;
 
     if (!title || !url) { err(res, 400, "Title and URL required"); return; }
-    if (!tierId) { err(res, 400, "Tier selection required"); return; }
+    if (!durationSeconds || !pricePerViewShib || !rewardPerViewShib) {
+      err(res, 400, "durationSeconds, pricePerViewShib and rewardPerViewShib are required"); return;
+    }
 
     await svc.createCampaign(req.user.id, {
       title: String(title),
       description: String(description ?? ""),
       url: String(url),
       adType: adType === "iframe" ? "iframe" : "window",
-      tierId: Number(tierId),
+      durationSeconds: Number(durationSeconds),
+      pricePerViewShib: Number(pricePerViewShib),
+      rewardPerViewShib: Number(rewardPerViewShib),
       targetViews: Number(targetViews ?? 0),
     });
     res.json({ ok: true, message: "Campaign submitted for approval" });
