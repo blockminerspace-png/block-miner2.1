@@ -109,23 +109,12 @@ export default function PtcViewPage() {
     return (
         <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 text-center space-y-3">
-                    <div className="inline-flex p-3 bg-orange-500/10 rounded-2xl mb-2">
-                        <img src="/shib.svg" alt="SHIB" className="w-8 h-8 rounded-full" />
-                    </div>
-                    <h1 className="text-4xl font-black text-white tracking-tight uppercase italic">PTC — Ganhe SHIB</h1>
-                    <p className="text-gray-500 font-medium max-w-lg mx-auto text-sm">
-                        Visualize anúncios e ganhe <span className="text-orange-400 font-black">SHIBA INU</span> por cada visualização completa.
+            <div className="flex items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-black text-white tracking-tight uppercase italic">PTC — Ganhe SHIB</h1>
+                    <p className="text-gray-500 text-sm font-medium mt-1">
+                        Visualize anúncios e ganhe <span className="text-orange-400 font-black">SHIBA INU</span> por cada view completa
                     </p>
-                    {settings && (
-                        <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-2">
-                            <img src="/shib.svg" alt="" className="w-4 h-4 rounded-full" />
-                            <span className="text-orange-300 font-black text-xs uppercase tracking-widest">
-                                {Number(settings.rewardPerViewShib).toLocaleString(undefined, { maximumFractionDigits: 4 })} SHIB por visualização
-                            </span>
-                        </div>
-                    )}
                 </div>
                 <Link
                     to="/ptc/campaigns"
@@ -135,6 +124,19 @@ export default function PtcViewPage() {
                     Minhas Campanhas
                 </Link>
             </div>
+
+            {/* Reward info bar */}
+            {settings && (
+                <div className="flex items-center gap-3 p-4 bg-orange-500/5 border border-orange-500/15 rounded-2xl">
+                    <img src="/shib.svg" alt="" className="w-5 h-5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                    <div>
+                        <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Recompensa por visualização</p>
+                        <p className="text-orange-300 font-black text-sm">
+                            {Number(settings.rewardPerViewShib).toLocaleString(undefined, { maximumFractionDigits: 4 })} SHIB
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {!ad ? (
                 <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-16 text-center space-y-4">
