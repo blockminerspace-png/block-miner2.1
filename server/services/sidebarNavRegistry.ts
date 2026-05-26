@@ -220,6 +220,13 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "social",
     defaultParentItemId: null
   },
+  youtuber_partner: {
+    path: "/youtuber-partner",
+    labelKey: "sidebar.youtuber_partner",
+    icon: "Youtube",
+    section: "social",
+    defaultParentItemId: null
+  },
   tournaments: {
     path: "/tournaments",
     labelKey: "sidebar.tournaments",
@@ -387,7 +394,8 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "manual", visible: true, sortOrder: 230, section: "social", parentItemId: null },
     { itemId: "ranking", visible: true, sortOrder: 240, section: "social", parentItemId: null },
     { itemId: "roadmap", visible: true, sortOrder: 250, section: "social", parentItemId: null },
-    { itemId: "transparency", visible: true, sortOrder: 260, section: "social", parentItemId: null }
+    { itemId: "transparency", visible: true, sortOrder: 260, section: "social", parentItemId: null },
+    { itemId: "youtuber_partner", visible: true, sortOrder: 270, section: "social", parentItemId: null }
   ];
 }
 

@@ -13,6 +13,9 @@ export const OFFERWALLME_API_KEY = "yyu8i3jt58by9do1fbdr0fyn60yn5u";
 const SECRET_KEY = "53ef7ec6bf3dac68f4c5528e057059e5";
 const PAYOUT_MULTIPLIER = 0.80;
 const FALLBACK_POL_PRICE = 0.20;
+const MAX_PAYOUT_USD_PER_CALLBACK = Number(process.env.OFFERWALLME_MAX_PAYOUT_USD ?? "50");
+
+const HISTORY_PAGE_SIZE = 50;
 
 const ALLOWED_IPS = new Set(["95.216.65.163", "2a01:4f9:2b:1dc::2"]);
 
@@ -75,7 +78,11 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
     return;
   }
 
-  const payoutUsd = parseFloat(payout) || 0;
+  const rawPayoutUsd = parseFloat(payout) || 0;
+  const payoutUsd = Math.min(rawPayoutUsd, MAX_PAYOUT_USD_PER_CALLBACK);
+  if (payoutUsd < rawPayoutUsd) {
+    logger.warn("offerwallme.postback.payout_capped", { userId, transId, requested: rawPayoutUsd, capped: payoutUsd });
+  }
 
   // Debug/test postbacks — acknowledge but don't credit
   if (debug === "1") {
@@ -184,4 +191,72 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
 
   logger.info("offerwallme.postback.credited", { userId, transId, payoutUsd, polCredited: polToCredit.toFixed(8), status });
   res.send("ok");
+}
+
+/**
+ * GET /api/offerwallme/history?page=1
+ * Paginated postback history for the authenticated user.
+ */
+export async function getOfferwallMeHistory(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ ok: false });
+    return;
+  }
+
+  const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+  const skip = (page - 1) * HISTORY_PAGE_SIZE;
+
+  const [entries, total] = await Promise.all([
+    prisma.offerwallMeCallback.findMany({
+      where: { userId, status: 1 },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: HISTORY_PAGE_SIZE,
+      select: {
+        id: true,
+        offerName: true,
+        offerType: true,
+        payoutUsd: true,
+        polCredited: true,
+        polPrice: true,
+        createdAt: true,
+      },
+    }),
+    prisma.offerwallMeCallback.count({ where: { userId, status: 1 } }),
+  ]);
+
+  res.json({
+    ok: true,
+    entries,
+    total,
+    page,
+    pageSize: HISTORY_PAGE_SIZE,
+    totalPages: Math.ceil(total / HISTORY_PAGE_SIZE),
+  });
+}
+
+/**
+ * GET /api/offerwallme/stats
+ * Aggregate totals for the authenticated user.
+ */
+export async function getOfferwallMeStats(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ ok: false });
+    return;
+  }
+
+  const agg = await prisma.offerwallMeCallback.aggregate({
+    where: { userId, status: 1 },
+    _sum: { payoutUsd: true, polCredited: true },
+    _count: { id: true },
+  });
+
+  res.json({
+    ok: true,
+    totalUsd: agg._sum.payoutUsd ?? 0,
+    totalPol: agg._sum.polCredited ?? 0,
+    totalOffers: agg._count.id,
+  });
 }

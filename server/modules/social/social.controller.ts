@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
+import { buildChannelPhotoPublicUrl } from "./social.upload.js";
 
 const logger = loggerLib.child("SocialController");
 
@@ -161,14 +162,6 @@ export async function submitVideo(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existing = await prisma.youtubeVideoSubmission.findFirst({
-    where: { userId, status: "pending" },
-  });
-  if (existing) {
-    res.status(409).json({ ok: false, message: "Você já tem um vídeo aguardando aprovação." });
-    return;
-  }
-
   const submission = await prisma.youtubeVideoSubmission.create({
     data: {
       userId,
@@ -181,4 +174,19 @@ export async function submitVideo(req: Request, res: Response): Promise<void> {
 
   logger.info("social.video_submitted", { userId, videoId, submissionId: submission.id });
   res.json({ ok: true, submission });
+}
+
+export async function uploadChannelPhoto(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ ok: false, message: "Nenhum arquivo enviado." });
+    return;
+  }
+
+  const url = buildChannelPhotoPublicUrl(file.filename);
+  logger.info("social.channel_photo_uploaded", { userId, filename: file.filename, size: file.size });
+  res.json({ ok: true, url });
 }

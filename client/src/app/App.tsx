@@ -35,6 +35,7 @@ const DailyTasks = lazy(() => import('../pages/tasks'));
 const Support = lazy(() => import('../pages/support'));
 const TaxesPage = lazy(() => import('../pages/taxes'));
 const YouTubeWatch = lazy(() => import('../pages/youtube-watch'));
+const YoutuberPartnerPage = lazy(() => import('../pages/youtuber-partner/YoutuberPartnerPage'));
 const Ranking = lazy(() => import('../pages/ranking'));
 const PublicRoom = lazy(() => import('../pages/public-room'));
 const Settings = lazy(() => import('../pages/settings'));
@@ -243,6 +244,7 @@ function App() {
             <Route path="/tasks" element={<DailyTasks />} />
             <Route path="/daily-tasks" element={<Navigate to="/tasks" replace />} />
             <Route path="/youtube" element={<YouTubeWatch />} />
+            <Route path="/youtuber-partner" element={<YoutuberPartnerPage />} />
             <Route path="/auto-mining" element={<AutoMining />} />
             <Route path="/ranking" element={<Ranking />} />
             <Route path="/room/:username" element={<PublicRoom />} />

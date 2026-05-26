@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   Youtube, Plus, Trash2, Search, X, Save, ExternalLink, CheckCircle2, XCircle,
@@ -91,7 +91,29 @@ function AddProfileModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
   const [channelUrl, setChannelUrl] = useState('');
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const photoFileRef = useRef<HTMLInputElement | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('photo', file);
+    setUploading(true);
+    try {
+      const res = await api.post<{ ok: boolean; url: string }>('/social/upload-photo', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data.ok) setChannelPhoto(res.data.url);
+      else toast.error('Erro ao fazer upload da foto.');
+    } catch {
+      toast.error('Erro ao fazer upload da foto.');
+    } finally {
+      setUploading(false);
+      if (photoFileRef.current) photoFileRef.current.value = '';
+    }
+  };
 
   const search = (q: string) => {
     if (debounce.current) clearTimeout(debounce.current);
@@ -197,13 +219,36 @@ function AddProfileModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">Foto do Canal (URL)</label>
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">Foto do Canal</label>
             <input
-              value={channelPhoto}
-              onChange={(e) => setChannelPhoto(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary/50"
+              ref={photoFileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handlePhotoFile}
             />
+            <div className="flex items-center gap-3">
+              {channelPhoto ? (
+                <img src={channelPhoto} alt="" className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-gray-500 text-xs shrink-0">?</div>
+              )}
+              <button
+                type="button"
+                onClick={() => photoFileRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-black text-gray-300 transition-colors disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {channelPhoto ? 'Trocar foto' : 'Carregar foto'}
+              </button>
+              {channelPhoto && (
+                <button type="button" onClick={() => setChannelPhoto('')} className="text-gray-600 hover:text-red-400">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-600 mt-1">JPG, PNG, WebP ou GIF — máx. 3 MB</p>
           </div>
 
           <div>
@@ -251,6 +296,28 @@ function EditProfileModal({ profile, onClose, onSaved }: { profile: Profile; onC
   const [bio, setBio] = useState(profile.bio ?? '');
   const [isCredentialed, setIsCredentialed] = useState(profile.isCredentialed);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const photoFileRef = useRef<HTMLInputElement | null>(null);
+
+  const handlePhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('photo', file);
+    setUploading(true);
+    try {
+      const res = await api.post<{ ok: boolean; url: string }>('/social/upload-photo', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data.ok) setChannelPhoto(res.data.url);
+      else toast.error('Erro ao fazer upload da foto.');
+    } catch {
+      toast.error('Erro ao fazer upload da foto.');
+    } finally {
+      setUploading(false);
+      if (photoFileRef.current) photoFileRef.current.value = '';
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -290,9 +357,36 @@ function EditProfileModal({ profile, onClose, onSaved }: { profile: Profile; onC
               className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50" />
           </div>
           <div>
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">Foto do Canal (URL)</label>
-            <input value={channelPhoto} onChange={(e) => setChannelPhoto(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary/50" />
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">Foto do Canal</label>
+            <input
+              ref={photoFileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handlePhotoFile}
+            />
+            <div className="flex items-center gap-3">
+              {channelPhoto ? (
+                <img src={channelPhoto} alt="" className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-gray-500 text-xs shrink-0">?</div>
+              )}
+              <button
+                type="button"
+                onClick={() => photoFileRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-black text-gray-300 transition-colors disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {channelPhoto ? 'Trocar foto' : 'Carregar foto'}
+              </button>
+              {channelPhoto && (
+                <button type="button" onClick={() => setChannelPhoto('')} className="text-gray-600 hover:text-red-400">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-600 mt-1">JPG, PNG, WebP ou GIF — máx. 3 MB</p>
           </div>
           <div>
             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">URL do Canal</label>
@@ -396,30 +490,55 @@ function RejectModal({ submission, onClose, onRejected }: { submission: Submissi
 
 function RewardSettingsPanel() {
   const [miner, setMiner] = useState<RewardMiner | null>(null);
-  const [minerId, setMinerId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<RewardMiner[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void (async () => {
       try {
         const res = await api.get<{ ok: boolean; minerId: number | null; miner: RewardMiner | null }>('/admin/social/reward-settings');
-        if (res.data.ok) {
-          setMiner(res.data.miner);
-          setMinerId(res.data.minerId ? String(res.data.minerId) : '');
-        }
+        if (res.data.ok) setMiner(res.data.miner);
       } catch { /* silent */ } finally { setLoading(false); }
     })();
   }, []);
 
-  const handleSave = async () => {
+  const searchMiners = (q: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!q.trim()) { setSearchResults([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await api.get<{ ok: boolean; miners?: RewardMiner[] }>(`/admin/miners?q=${encodeURIComponent(q)}&limit=20`);
+        if (res.data.ok) setSearchResults(res.data.miners ?? []);
+      } catch { setSearchResults([]); } finally { setSearchLoading(false); }
+    }, 300);
+  };
+
+  const handleSelect = async (m: RewardMiner) => {
+    setSearchQ('');
+    setSearchResults([]);
     setSaving(true);
     try {
-      const parsed = minerId.trim() ? parseInt(minerId, 10) : null;
-      const res = await api.put<{ ok: boolean; miner: RewardMiner | null }>('/admin/social/reward-settings', { minerId: parsed });
+      const res = await api.put<{ ok: boolean; miner: RewardMiner | null }>('/admin/social/reward-settings', { minerId: m.id });
       setMiner(res.data.miner);
-      setMinerId(parsed ? String(parsed) : '');
-      toast.success('Configuração salva.');
+      toast.success('Recompensa configurada.');
+    } catch (err) {
+      toast.error(readAxiosResponseMessage(err) ?? 'Erro ao salvar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    setSaving(true);
+    try {
+      await api.put('/admin/social/reward-settings', { minerId: null });
+      setMiner(null);
+      toast.success('Recompensa desativada.');
     } catch (err) {
       toast.error(readAxiosResponseMessage(err) ?? 'Erro ao salvar.');
     } finally {
@@ -437,41 +556,65 @@ function RewardSettingsPanel() {
         <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-gray-500" /></div>
       ) : (
         <>
-          {miner && (
+          {miner ? (
             <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
               {miner.imageUrl ? (
                 <img src={miner.imageUrl} alt={miner.name} className="w-10 h-10 object-contain rounded-lg" />
               ) : (
                 <div className="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center text-gray-400 text-xs">?</div>
               )}
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-black text-white">{miner.name}</p>
                 <p className="text-[10px] text-emerald-400">Recompensa configurada (ID: {miner.id})</p>
               </div>
+              <button onClick={handleClear} disabled={saving} className="text-gray-600 hover:text-red-400 transition-colors" title="Remover recompensa">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          )}
-          {!miner && (
+          ) : (
             <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               Nenhuma máquina configurada — aprovações não concederão recompensa.
             </div>
           )}
-          <div className="flex gap-2">
-            <input
-              value={minerId}
-              onChange={(e) => setMinerId(e.target.value)}
-              placeholder="ID da máquina (Miner)"
-              className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary/50"
-            />
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 rounded-xl text-sm font-black text-white transition-colors"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            </button>
+
+          {/* Miner search */}
+          <div className="relative">
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">Buscar máquina de recompensa</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={searchQ}
+                onChange={(e) => { setSearchQ(e.target.value); searchMiners(e.target.value); }}
+                placeholder="Nome da máquina..."
+                disabled={saving}
+                className="w-full bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 disabled:opacity-50"
+              />
+              {searchLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-500" />}
+            </div>
+            {searchResults.length > 0 && (
+              <div className="mt-1 rounded-xl border border-white/8 overflow-hidden z-10 bg-gray-900">
+                {searchResults.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => void handleSelect(m)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                  >
+                    {m.imageUrl ? (
+                      <img src={m.imageUrl} alt={m.name} className="w-8 h-8 object-contain rounded-lg shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-gray-500 text-xs shrink-0">?</div>
+                    )}
+                    <div>
+                      <p className="text-sm font-bold text-white">{m.name}</p>
+                      <p className="text-[10px] text-gray-500">ID: {m.id}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <p className="text-[10px] text-gray-600">Deixe em branco para desativar recompensas. Cada aprovação concede uma unidade desta máquina ao criador.</p>
+          <p className="text-[10px] text-gray-600">Cada aprovação concede uma unidade desta máquina ao criador. Remova para desativar recompensas.</p>
         </>
       )}
     </div>

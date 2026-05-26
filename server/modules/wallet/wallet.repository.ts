@@ -152,18 +152,21 @@ export async function findAnyDepositByHash(txHash: string) {
 export const WITHDRAWAL_FEE_PERCENT = 2.5;
 export const WITHDRAWAL_FEE_WAIVER_REQUIRED = 10;
 
-/** Counts all external offerwall completions today (UTC) — used for withdrawal fee waiver.
- *  Includes: offerwall.me credits + internal offerwall (iframe) completions. */
+/** Counts all offerwall/ad completions today (UTC) — used for withdrawal fee waiver.
+ *  Includes: offerwall.me credits + zerads PTC callbacks + internal offerwall (iframe) completions. */
 export async function countTodayOfferwallCompletions(userId: number): Promise<number> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
-  const [offerwallMe, internalOw] = await Promise.all([
+  const [offerwallMe, internalOw, zerads] = await Promise.all([
     (prisma as any).offerwallMeCallback.count({
       where: { userId, status: 1, createdAt: { gte: startOfDay } },
     }),
     prisma.internalOfferwallAttempt.count({
       where: { userId, status: "COMPLETED", completedAt: { gte: startOfDay } },
     }),
+    prisma.zeradsCallback.count({
+      where: { userId, callbackAt: { gte: startOfDay } },
+    }),
   ]);
-  return (offerwallMe as number) + internalOw;
+  return (offerwallMe as number) + internalOw + zerads;
 }
