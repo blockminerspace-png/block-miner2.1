@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Eye, Timer, CheckCircle2, Gift, Loader2, ExternalLink, Info } from 'lucide-react';
+import { Eye, Timer, CheckCircle2, Gift, Loader2, ExternalLink, Info, Megaphone } from 'lucide-react';
 import { api } from '../../store/auth';
 
 interface PtcAd {
@@ -134,6 +135,13 @@ export default function PtcViewPage() {
                     <button onClick={fetchNext} className="mt-4 px-6 py-3 bg-gray-800 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-gray-700 transition-colors">
                         Verificar novamente
                     </button>
+                    <Link
+                        to="/ptc/campaigns"
+                        className="mt-2 inline-flex items-center gap-2 px-6 py-3 bg-orange-500/10 border border-orange-500/20 text-orange-300 font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-orange-500/20 transition-colors"
+                    >
+                        <Megaphone className="w-4 h-4" />
+                        Anunciar aqui
+                    </Link>
                 </div>
             ) : (
                 <div className="space-y-6">
@@ -218,6 +226,23 @@ export default function PtcViewPage() {
                             O valor é pago em <strong className="text-orange-300">SHIBA INU (SHIB)</strong>. O saldo é creditado imediatamente após confirmar a visualização. Saques disponíveis na aba SHIB da sua carteira.
                         </p>
                     </div>
+
+                    {/* Advertise CTA */}
+                    <Link
+                        to="/ptc/campaigns"
+                        className="flex items-center justify-between gap-4 bg-surface border border-gray-800/50 hover:border-orange-500/30 rounded-2xl p-5 group transition-all"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-orange-500/10 rounded-xl">
+                                <Megaphone className="w-5 h-5 text-orange-400" />
+                            </div>
+                            <div>
+                                <p className="text-white font-black text-sm uppercase italic tracking-tight">Quer anunciar aqui?</p>
+                                <p className="text-gray-600 text-xs font-medium">Crie sua campanha PTC e alcance usuários da plataforma</p>
+                            </div>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-gray-600 group-hover:text-orange-400 transition-colors shrink-0" />
+                    </Link>
                 </div>
             )}
         </div>
