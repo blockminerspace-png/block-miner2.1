@@ -15,14 +15,14 @@ export function normalizeExplicitLanguage(raw: unknown): 'pt-BR' | 'es' | 'en' |
   return null;
 }
 
-export function normalizeBrowserLanguage(raw: unknown): 'pt-BR' | 'es' {
+export function normalizeBrowserLanguage(raw: unknown): 'pt-BR' | 'es' | 'en' {
+  // Default = English. Translate only when the browser explicitly asks for
+  // Portuguese or Spanish. Any other locale (en-*, fr, de, ja, …) stays in English.
   const value = String(raw || '').trim().toLowerCase();
-  if (!value) return 'pt-BR';
+  if (!value) return 'en';
   if (value.startsWith('pt')) return 'pt-BR';
   if (value.startsWith('es')) return 'es';
-  // English (and other) browser locales: Brazil-first default until user sets language explicitly.
-  if (value.startsWith('en')) return 'pt-BR';
-  return 'pt-BR';
+  return 'en';
 }
 
 export function extractCookieLanguage(cookieString = ''): string | null {
