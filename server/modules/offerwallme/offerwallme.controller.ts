@@ -6,6 +6,7 @@ const prisma = _prisma as any;
 import { getPolUsdPrice } from "../../utils/cryptoPrice.js";
 import { createAuditLogBestEffort } from "../../models/auditLogModel.js";
 import loggerLib from "../../utils/logger.js";
+import { applyUserBalanceDelta } from "../../src/runtime/miningRuntime.js";
 
 const logger = loggerLib.child("OfferwallMeController");
 
@@ -189,6 +190,9 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
     res.status(500).send("ERROR: Internal");
     return;
   }
+
+  // Sync in-memory mining engine so real-time balance display updates immediately
+  applyUserBalanceDelta(userId, polToCredit);
 
   void createAuditLogBestEffort({
     userId,
