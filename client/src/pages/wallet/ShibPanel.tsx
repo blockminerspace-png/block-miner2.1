@@ -1,21 +1,23 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { ArrowDownToLine, ArrowRightLeft, Loader2, Info } from 'lucide-react';
+import { ArrowDownToLine, ArrowRightLeft, Loader2, Info, ArrowLeftRight } from 'lucide-react';
 import { api } from '../../store/auth';
 
 const SHIB_WITHDRAW_FEE = 7800;
 
 interface Props {
     balance: number;
+    polBalance: number;
     onRefresh: () => void;
 }
 
-export function ShibPanel({ balance, onRefresh }: Props) {
+export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
     const [mode, setMode] = useState<'withdraw' | 'swap'>('withdraw');
+    const [swapDir, setSwapDir] = useState<'shib_to_pol' | 'pol_to_shib'>('shib_to_pol');
     const [amount, setAmount] = useState('');
     const [address, setAddress] = useState('');
     const [swapAmount, setSwapAmount] = useState('');
-    const [polOut, setPolOut] = useState<number | null>(null);
+    const [swapOut, setSwapOut] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
     const [minShib, setMinShib] = useState<number | null>(null);
     const [shibPrice, setShibPrice] = useState<number | null>(null);
@@ -37,16 +39,20 @@ export function ShibPanel({ balance, onRefresh }: Props) {
     const net = Number(amount) - SHIB_WITHDRAW_FEE;
     const effectiveMin = minShib ?? 0;
 
-    async function estimateSwap(val: string) {
+    async function estimateSwap(val: string, dir: 'shib_to_pol' | 'pol_to_shib') {
         const n = Number(val);
-        if (!n || n <= 0) { setPolOut(null); return; }
+        if (!n || n <= 0) { setSwapOut(null); return; }
         try {
             const res = await api.get('/swap/balances');
-            const shibPrice = res.data.prices?.SHIB ?? 0.00001;
-            const polPrice = res.data.prices?.POL ?? 1;
-            setPolOut((n * shibPrice) / polPrice);
+            const sp = res.data.prices?.SHIB ?? 0.00001;
+            const pp = res.data.prices?.POL ?? 1;
+            if (dir === 'shib_to_pol') {
+                setSwapOut((n * sp) / pp);
+            } else {
+                setSwapOut(Math.floor((n * pp) / sp));
+            }
         } catch {
-            setPolOut(null);
+            setSwapOut(null);
         }
     }
 
@@ -82,22 +88,28 @@ export function ShibPanel({ balance, onRefresh }: Props) {
     async function handleSwap(e: React.FormEvent) {
         e.preventDefault();
         const n = Number(swapAmount);
-        if (!n || n <= 0) { toast.error('Enter amount'); return; }
-        if (n > balance) { toast.error('Insufficient SHIB balance'); return; }
+        if (!n || n <= 0) { toast.error('Informe a quantidade'); return; }
+        const fromAsset = swapDir === 'shib_to_pol' ? 'SHIB' : 'POL';
+        const toAsset = swapDir === 'shib_to_pol' ? 'POL' : 'SHIB';
+        if (swapDir === 'shib_to_pol' && n > balance) { toast.error('Saldo SHIB insuficiente'); return; }
+        if (swapDir === 'pol_to_shib' && n > polBalance) { toast.error('Saldo POL insuficiente'); return; }
         setLoading(true);
         try {
-            const res = await api.post('/swap/execute', { fromAsset: 'SHIB', toAsset: 'POL', amount: n });
+            const res = await api.post('/swap/execute', { fromAsset, toAsset, amount: n });
             if (res.data.ok) {
-                toast.success(`Swapped! You received ${Number(res.data.output).toFixed(6)} POL`);
+                const outLabel = swapDir === 'shib_to_pol'
+                    ? `${Number(res.data.output).toFixed(6)} POL`
+                    : `${Math.floor(Number(res.data.output)).toLocaleString()} SHIB`;
+                toast.success(`Swap realizado! Você recebeu ${outLabel}`);
                 setSwapAmount('');
-                setPolOut(null);
+                setSwapOut(null);
                 onRefresh();
             } else {
-                toast.error(res.data.message ?? 'Swap failed');
+                toast.error(res.data.message ?? 'Swap falhou');
             }
         } catch (err: unknown) {
             const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(msg ?? 'Swap error');
+            toast.error(msg ?? 'Erro no swap');
         } finally {
             setLoading(false);
         }
@@ -198,31 +210,47 @@ export function ShibPanel({ balance, onRefresh }: Props) {
 
             {mode === 'swap' && (
                 <form onSubmit={handleSwap} className="space-y-5">
-                    <div className="p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
-                        <p className="text-[10px] text-slate-400 font-medium">
-                            Troca <span className="text-orange-300 font-black">SHIB</span> por <span className="text-primary font-black">POL</span> ao preço de mercado. Swap é unidirecional — não é possível trocar POL por SHIB.
-                        </p>
+                    {/* Direction toggle */}
+                    <div className="flex bg-slate-900/50 p-1 rounded-2xl gap-1">
+                        <button type="button"
+                            onClick={() => { setSwapDir('shib_to_pol'); setSwapAmount(''); setSwapOut(null); }}
+                            className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 ${swapDir === 'shib_to_pol' ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                            <ArrowRightLeft className="w-3 h-3" /> SHIB → POL
+                        </button>
+                        <button type="button"
+                            onClick={() => { setSwapDir('pol_to_shib'); setSwapAmount(''); setSwapOut(null); }}
+                            className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 ${swapDir === 'pol_to_shib' ? 'bg-primary text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                            <ArrowLeftRight className="w-3 h-3" /> POL → SHIB
+                        </button>
                     </div>
 
                     <div>
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
-                            Quantidade SHIB para trocar
+                            {swapDir === 'shib_to_pol' ? 'Quantidade SHIB' : 'Quantidade POL'}
                         </label>
                         <input
                             type="number"
-                            step="1"
-                            min="1"
+                            step={swapDir === 'shib_to_pol' ? '1' : '0.000001'}
+                            min="0"
                             value={swapAmount}
-                            onChange={(e) => { setSwapAmount(e.target.value); estimateSwap(e.target.value); }}
+                            onChange={(e) => { setSwapAmount(e.target.value); estimateSwap(e.target.value, swapDir); }}
                             placeholder="0"
                             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-violet-500 transition-colors"
                             required
                         />
-                        {polOut !== null && (
+                        {swapOut !== null && (
                             <p className="text-[9px] text-slate-500 mt-1.5 font-medium">
-                                Estimativa: <span className="text-primary font-black">≈ {polOut.toFixed(6)} POL</span>
+                                {swapDir === 'shib_to_pol'
+                                    ? <>Estimativa: <span className="text-primary font-black">≈ {swapOut.toFixed(6)} POL</span></>
+                                    : <>Estimativa: <span className="text-orange-300 font-black">≈ {Math.floor(swapOut).toLocaleString()} SHIB</span></>
+                                }
                             </p>
                         )}
+                        <p className="text-[9px] text-slate-600 mt-1 font-medium">
+                            Saldo: {swapDir === 'shib_to_pol'
+                                ? `${balance.toLocaleString(undefined, { maximumFractionDigits: 2 })} SHIB`
+                                : `${polBalance.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })} POL`}
+                        </p>
                     </div>
 
                     <button
@@ -231,7 +259,7 @@ export function ShibPanel({ balance, onRefresh }: Props) {
                         className="w-full py-4 bg-violet-600 text-white font-black uppercase tracking-widest rounded-2xl hover:bg-violet-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                     >
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRightLeft className="w-5 h-5" />}
-                        Trocar SHIB por POL
+                        {swapDir === 'shib_to_pol' ? 'Trocar SHIB por POL' : 'Trocar POL por SHIB'}
                     </button>
                 </form>
             )}

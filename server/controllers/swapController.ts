@@ -83,31 +83,33 @@ export async function executeSwap(req: Request<unknown, unknown, SwapBody>, res:
     const { fromAsset, toAsset, amount } = req.body;
     const amountNum = Number(amount);
 
-    // SHIB→POL only (not POL→SHIB)
-    if (fromAsset === "SHIB" && toAsset !== "POL") {
-      res.status(400).json({ ok: false, message: "SHIB can only be swapped to POL" });
-      return;
-    }
-    if (toAsset === "SHIB") {
-      res.status(400).json({ ok: false, message: "Cannot swap to SHIB" });
+    const validPairs = [
+      ["SHIB", "POL"],
+      ["POL", "SHIB"],
+      ["POL", "USDC"],
+      ["USDC", "POL"],
+    ];
+    if (!validPairs.some(([f, t]) => f === fromAsset && t === toAsset)) {
+      res.status(400).json({ ok: false, message: `Swap ${fromAsset}→${toAsset} not supported` });
       return;
     }
 
     const polPrice = await getPolUsdPrice();
     const shibPrice = await getShibUsdPrice();
 
-    // rate = output per 1 unit of fromAsset
     let rate: number;
     let output: number;
-    if (fromAsset === "SHIB") {
-      // SHIB is whole integers (no decimals), amountNum is raw SHIB count
-      const shibUsdValue = amountNum * shibPrice;
-      output = shibUsdValue / polPrice;
+    if (fromAsset === "SHIB" && toAsset === "POL") {
+      output = (amountNum * shibPrice) / polPrice;
       rate = shibPrice / polPrice;
-    } else if (fromAsset === "POL") {
+    } else if (fromAsset === "POL" && toAsset === "SHIB") {
+      output = Math.floor((amountNum * polPrice) / shibPrice);
+      rate = polPrice / shibPrice;
+    } else if (fromAsset === "POL" && toAsset === "USDC") {
       rate = polPrice;
       output = amountNum * rate;
     } else {
+      // USDC→POL
       rate = polPrice;
       output = amountNum / rate;
     }
@@ -122,6 +124,13 @@ export async function executeSwap(req: Request<unknown, unknown, SwapBody>, res:
           data: { shibBalance: { decrement: amountNum }, polBalance: { increment: output } },
         });
         applyUserBalanceDelta(userId, output);
+      } else if (fromAsset === "POL" && toAsset === "SHIB") {
+        if (Number(user!.polBalance) < amountNum) throw new Error("Insufficient POL balance");
+        await tx.user.update({
+          where: { id: userId },
+          data: { polBalance: { decrement: amountNum }, shibBalance: { increment: output } },
+        });
+        applyUserBalanceDelta(userId, -amountNum);
       } else if (fromAsset === "POL") {
         if (Number(user!.polBalance) < amountNum) throw new Error("Insufficient POL balance");
         await tx.user.update({

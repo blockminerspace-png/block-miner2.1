@@ -1726,7 +1726,7 @@ export default function Wallet() {
                             )}
 
                             {activeTab === 'shib' && (
-                                <ShibPanel balance={balance.shibBalance} onRefresh={fetchWalletData} />
+                                <ShibPanel balance={balance.shibBalance} polBalance={balance.amount} onRefresh={fetchWalletData} />
                             )}
 
                         </div>
