@@ -248,10 +248,58 @@ function ZeradsDetail({ onBack }: { onBack: () => void }) {
 
 const OFFERWALLME_API_KEY = 'yyu8i3jt58by9do1fbdr0fyn60yn5u';
 
+interface OfferwallMeStatsResponse {
+  ok: boolean;
+  totalUsd: number;
+  totalPol: number;
+  totalOffers: number;
+}
+
+interface OfferwallMeHistoryEntry {
+  id: number;
+  offerName: string | null;
+  offerType: string | null;
+  payoutUsd: number;
+  polCredited: number;
+  createdAt: string;
+}
+
+interface OfferwallMeHistoryResponse {
+  ok: boolean;
+  entries: OfferwallMeHistoryEntry[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 function OfferwallMeDetail({ onBack }: { onBack: () => void }) {
   const { user } = useAuthStore();
+  const [stats, setStats] = useState<OfferwallMeStatsResponse | null>(null);
+  const [history, setHistory] = useState<OfferwallMeHistoryResponse | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    void api.get<OfferwallMeStatsResponse>('/offerwallme/stats').then(r => {
+      if (r.data.ok) setStats(r.data);
+    }).catch(() => {});
+  }, []);
+
+  const loadHistory = useCallback(async (page: number) => {
+    setHistoryLoading(true);
+    try {
+      const res = await api.get<OfferwallMeHistoryResponse>(`/offerwallme/history?page=${page}`);
+      setHistory(res.data);
+    } catch { /* keep previous */ } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadHistory(historyPage); }, [historyPage, loadHistory]);
+
   if (!user) return null;
   const iframeUrl = `https://offerwall.me/offerwall/${OFFERWALLME_API_KEY}/${user.id}`;
+
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
       <button
@@ -283,6 +331,22 @@ function OfferwallMeDetail({ onBack }: { onBack: () => void }) {
         </a>
       </div>
 
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Total USD', value: '$' + stats.totalUsd.toFixed(4) },
+            { label: 'Total POL', value: stats.totalPol.toFixed(6) + ' POL' },
+            { label: 'Ofertas', value: String(stats.totalOffers) },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+              <p className="text-xs text-gray-400 mb-1">{s.label}</p>
+              <p className="text-sm font-bold text-white">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <iframe
           src={iframeUrl}
@@ -292,6 +356,62 @@ function OfferwallMeDetail({ onBack }: { onBack: () => void }) {
           style={{ width: '100%', height: '800px', border: 0, display: 'block' }}
           allow="fullscreen"
         />
+      </div>
+
+      {/* History */}
+      <div className="rounded-xl border border-white/10 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+          <TrendingUp className="w-4 h-4 text-violet-400" />
+          <h3 className="text-sm font-semibold text-white">Histórico</h3>
+          {history && (
+            <span className="ml-auto text-xs text-gray-500">{history.total} completions</span>
+          )}
+        </div>
+        {historyLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          </div>
+        ) : !history?.entries?.length ? (
+          <p className="text-sm text-gray-500 text-center py-8">Nenhuma oferta completada ainda.</p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-500 border-b border-white/5">
+                    <th className="text-left px-4 py-2">Data</th>
+                    <th className="text-left px-4 py-2">Oferta</th>
+                    <th className="text-right px-4 py-2">USD</th>
+                    <th className="text-right px-4 py-2">POL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.entries.map((e) => (
+                    <tr key={e.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{formatDate(e.createdAt)}</td>
+                      <td className="px-4 py-3 text-gray-400 max-w-[140px] truncate">{e.offerName ?? e.offerType ?? '—'}</td>
+                      <td className="px-4 py-3 text-right text-gray-400">${e.payoutUsd.toFixed(4)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-green-400">+{e.polCredited.toFixed(6)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {history.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-white/5">
+                <button onClick={() => setHistoryPage((p) => Math.max(1, p - 1))} disabled={historyPage <= 1}
+                  className="p-1 rounded text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-gray-500">{historyPage} / {history.totalPages}</span>
+                <button onClick={() => setHistoryPage((p) => Math.min(history.totalPages, p + 1))} disabled={historyPage >= history.totalPages}
+                  className="p-1 rounded text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
