@@ -9,15 +9,24 @@ import loggerLib from "../../utils/logger.js";
 
 const logger = loggerLib.child("OfferwallMeController");
 
-export const OFFERWALLME_API_KEY = "yyu8i3jt58by9do1fbdr0fyn60yn5u";
-const SECRET_KEY = "53ef7ec6bf3dac68f4c5528e057059e5";
+export const OFFERWALLME_API_KEY =
+  (process.env.OFFERWALLME_API_KEY ?? "yyu8i3jt58by9do1fbdr0fyn60yn5u").trim();
+
+const SECRET_KEY =
+  (process.env.OFFERWALLME_SECRET ?? "53ef7ec6bf3dac68f4c5528e057059e5").trim();
+
 const PAYOUT_MULTIPLIER = 0.80;
 const FALLBACK_POL_PRICE = 0.20;
 const MAX_PAYOUT_USD_PER_CALLBACK = Number(process.env.OFFERWALLME_MAX_PAYOUT_USD ?? "50");
 
 const HISTORY_PAGE_SIZE = 50;
 
-const ALLOWED_IPS = new Set(["95.216.65.163", "2a01:4f9:2b:1dc::2"]);
+const _allowedIpsRaw = (process.env.OFFERWALLME_ALLOWED_IPS ?? "95.216.65.163,2a01:4f9:2b:1dc::2").trim();
+const ALLOWED_IPS = new Set(
+  _allowedIpsRaw.split(",").map((s) => s.trim()).filter(Boolean).length
+    ? _allowedIpsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : ["95.216.65.163", "2a01:4f9:2b:1dc::2"]
+);
 
 function getClientIp(req: Request): string {
   const cfIp = req.headers["cf-connecting-ip"];
@@ -43,10 +52,11 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
 
   // IP whitelist — offerwall.me sends from known IPs
   if (!ALLOWED_IPS.has(clientIp)) {
-    logger.warn("offerwallme.postback.ip_rejected", { ip: clientIp });
+    logger.warn("offerwallme.postback.ip_rejected", { ip: clientIp, allowed: [...ALLOWED_IPS] });
     res.status(403).send("ERROR: Invalid source");
     return;
   }
+  logger.info("offerwallme.postback.ip_accepted", { ip: clientIp });
 
   const body = req.method === "POST" ? req.body : req.query;
   const subId     = String(body.subId     ?? "").trim();
