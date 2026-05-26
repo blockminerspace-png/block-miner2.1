@@ -7,7 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAuthStore, api } from "../../store/auth";
 import { formatHashrate } from "../../shared/utils/machine";
 import { Link } from "react-router-dom";
-import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car, Layers, Hand, Gamepad2 } from "lucide-react";
+import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Grid3X3, Car, Layers, Sparkles, Gamepad2 } from "lucide-react";
 import PartnerGamesTab from "./PartnerGamesTab";
 import { toast } from "sonner";
 import {
@@ -31,7 +31,7 @@ type CryptoIconKey = keyof typeof CRYPTO_ICONS;
 const ICON_IMAGES_MAP = ICON_IMAGES as Record<CryptoIconKey, HTMLImageElement>;
 
 /** UI route keys — map to server slugs on `game:start`. */
-type ActiveGame = "memory" | "match-3" | "cart" | "stack" | "tap" | null;
+type ActiveGame = "memory" | "match-3" | "cart" | "stack" | "reaction" | null;
 
 type MemoryBoardCard = {
   id: number;
@@ -154,14 +154,13 @@ type GameStartedStack = {
   base: { leftPx: number; width: number };
 };
 
-type GameStartedTap = {
-  game: "mining-tap";
-  durationMs: number;
-  targetScore: number;
+type GameStartedReaction = {
+  game: "crypto-reaction";
+  symbols: readonly string[];
+  targetRounds: number;
+  round: number;
+  sequenceLength: number;
   score?: number;
-  endsAt: number;
-  glitchActive: boolean;
-  maxTps: number;
 };
 
 type GameStartedPayload =
@@ -169,7 +168,7 @@ type GameStartedPayload =
   | GameStartedMatch3
   | GameStartedCart
   | GameStartedStack
-  | GameStartedTap;
+  | GameStartedReaction;
 
 type MemoryGridLayout = ReturnType<typeof getMemoryGridLayout>;
 type Match3GridLayout = ReturnType<typeof getMatch3GridLayout>;
@@ -224,7 +223,7 @@ function getCanvasViewportStyle(activeGame: ActiveGame): React.CSSProperties {
       maxHeight: "calc(100dvh - 52px)"
     };
   }
-  if (activeGame === "tap") {
+  if (activeGame === "reaction") {
     return {
       width: "min(calc(100vw - 16px), 540px)",
       aspectRatio: "1 / 1",
@@ -287,7 +286,7 @@ export default function Games() {
   const [match3Cooldown, setMatch3Cooldown] = useState(0);
   const [cartCooldown, setCartCooldown] = useState(0);
   const [stackCooldown, setStackCooldown] = useState(0);
-  const [tapCooldown, setTapCooldown] = useState(0);
+  const [reactionCooldown, setReactionCooldown] = useState(0);
 
   /**
    * Which tab is open in the games index: our minigames or the curated
@@ -305,15 +304,28 @@ export default function Games() {
     tower: Array<{ leftPx: number; width: number }>;
   } | null>(null);
 
-  // Mining Tap state (DOM-rendered).
-  const [tapState, setTapState] = useState<{
-    endsAt: number;
-    durationMs: number;
-    targetScore: number;
-    glitchActive: boolean;
+  /**
+   * Crypto Reaction state (Simon-says style). Owned by the server; the
+   * client mirrors it for rendering and applies optimistic updates on each
+   * click so the UI feels instant — the server only contradicts us on an
+   * actual error (wrong symbol), and that ends the run anyway.
+   */
+  const [reactionState, setReactionState] = useState<{
+    symbols: readonly string[];
+    targetRounds: number;
+    round: number;
+    sequenceLength: number;
+    phase: "intro" | "show" | "input" | "round_clear";
+    // SHOW: currently lit symbol (null = OFF gap)
+    showSymbol: string | null;
+    showIndex: number;
+    // INPUT: how many symbols of the sequence we've matched so far
+    progress: number;
+    // Visual feedback on the last click
+    lastClickedSymbol: string | null;
+    lastClickFlash: number;     // bump key for re-mount of the flash overlay
+    lastClickResult: "ok" | "bad" | null;
     score: number;
-    flash: number;          // bump on each tap result for CSS pulse
-    flashDelta: number;     // last delta (positive/negative) for color cue
   } | null>(null);
   const [chain2048CdSec, setChain2048CdSec] = useState(0);
   const [chain2048AllowStart, setChain2048AllowStart] = useState(true);
@@ -607,16 +619,21 @@ export default function Games() {
         });
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
-      } else if (data.game === "mining-tap") {
+      } else if (data.game === "crypto-reaction") {
         memoryBoardRef.current = null;
-        setTapState({
-          endsAt: data.endsAt,
-          durationMs: data.durationMs,
-          targetScore: data.targetScore,
-          glitchActive: Boolean(data.glitchActive),
+        setReactionState({
+          symbols: data.symbols,
+          targetRounds: data.targetRounds,
+          round: data.round,
+          sequenceLength: data.sequenceLength,
+          phase: "intro",
+          showSymbol: null,
+          showIndex: -1,
+          progress: 0,
+          lastClickedSymbol: null,
+          lastClickFlash: 0,
+          lastClickResult: null,
           score: Number(data.score) || 0,
-          flash: 0,
-          flashDelta: 0,
         });
         setHudScore(Number(data.score) || 0);
         setSessionReady(true);
@@ -629,11 +646,9 @@ export default function Games() {
           ? 70
           : data.game === "cart-rush"
             ? Number(data.timeLimitSeconds) || CART_TIME_LIMIT_SECONDS
-            : data.game === "mining-tap"
-              ? Math.ceil(Number(data.durationMs) / 1000) || 30
-              : data.game === "block-stack"
-                ? 0 // No global timer — game-over is win/lose, not time-based
-                : 180
+            : data.game === "block-stack" || data.game === "crypto-reaction"
+              ? 0 // No global timer — game-over is win/lose, not time-based
+              : 180
       );
     });
 
@@ -817,28 +832,100 @@ export default function Games() {
       }
     );
 
-    // Mining Tap events
-    newSocket.on("game:tap_result", (data: { score: number; delta: number; glitch: boolean }) => {
-      setHudScore(Number(data.score) || 0);
-      setTapState((prev) =>
+    // ─── Crypto Reaction events ──────────────────────────────────────────────
+    // SHOW_STARTING: the server is about to broadcast the sequence symbol by
+    // symbol. We reset progress UI and flip into "show" phase.
+    newSocket.on("reaction:show_starting", (data: { round: number; length: number }) => {
+      setReactionState((prev) =>
         prev
-          ? { ...prev, score: data.score, flash: prev.flash + 1, flashDelta: data.delta }
+          ? {
+              ...prev,
+              round: data.round,
+              sequenceLength: data.length,
+              phase: "show",
+              showSymbol: null,
+              showIndex: -1,
+              progress: 0,
+              lastClickedSymbol: null,
+              lastClickResult: null,
+            }
           : prev
       );
     });
-    newSocket.on("game:tap_glitch", (data: { active: boolean; until: number }) => {
-      setTapState((prev) => (prev ? { ...prev, glitchActive: Boolean(data.active) } : prev));
+
+    // SHOW: light up one symbol; we schedule the OFF locally so we don't
+    // need a separate event from the server for the gap.
+    newSocket.on("reaction:show", (data: { index: number; symbol: string; onMs: number }) => {
+      setReactionState((prev) =>
+        prev ? { ...prev, showSymbol: data.symbol, showIndex: data.index } : prev
+      );
+      window.setTimeout(() => {
+        setReactionState((prev) =>
+          // Only blank if this is still the same SHOW step (no race with new symbol).
+          prev && prev.showIndex === data.index ? { ...prev, showSymbol: null } : prev
+        );
+      }, data.onMs);
     });
+
+    newSocket.on("reaction:input_ready", () => {
+      setReactionState((prev) =>
+        prev ? { ...prev, phase: "input", showSymbol: null, showIndex: -1, progress: 0 } : prev
+      );
+    });
+
     newSocket.on(
-      "game:tap_tick",
-      (data: { timeLeftMs: number; score: number; glitchActive: boolean }) => {
-        setHudScore(Number(data.score) || 0);
-        setTapState((prev) =>
+      "reaction:pick_result",
+      (data: {
+        ok: boolean;
+        symbol: string;
+        expected?: string;
+        progress?: number;
+        total?: number;
+        score?: number;
+      }) => {
+        if (typeof data.score === "number") setHudScore(data.score);
+        setReactionState((prev) => {
+          if (!prev) return prev;
+          if (data.ok) {
+            return {
+              ...prev,
+              progress: data.progress ?? prev.progress,
+              score: data.score ?? prev.score,
+              lastClickedSymbol: data.symbol,
+              lastClickFlash: prev.lastClickFlash + 1,
+              lastClickResult: "ok",
+            };
+          }
+          return {
+            ...prev,
+            lastClickedSymbol: data.symbol,
+            lastClickFlash: prev.lastClickFlash + 1,
+            lastClickResult: "bad",
+          };
+        });
+      }
+    );
+
+    newSocket.on(
+      "reaction:round_cleared",
+      (data: { nextRound: number; nextLength: number; score: number }) => {
+        setHudScore(data.score);
+        setReactionState((prev) =>
           prev
-            ? { ...prev, score: data.score, glitchActive: Boolean(data.glitchActive) }
+            ? {
+                ...prev,
+                round: data.nextRound,
+                sequenceLength: data.nextLength,
+                phase: "round_clear",
+                progress: 0,
+                showSymbol: null,
+                showIndex: -1,
+                score: data.score,
+                lastClickedSymbol: null,
+                lastClickResult: null,
+              }
             : prev
         );
-        setTimeLeft(Math.max(0, Math.ceil(Number(data.timeLeftMs) / 1000)));
       }
     );
 
@@ -860,7 +947,7 @@ export default function Games() {
         else if (activeGameRef.current === "match-3") setMatch3Cooldown(cd);
         else if (activeGameRef.current === "cart") setCartCooldown(cd);
         else if (activeGameRef.current === "stack") setStackCooldown(cd);
-        else if (activeGameRef.current === "tap") setTapCooldown(cd);
+        else if (activeGameRef.current === "reaction") setReactionCooldown(cd);
         if (data.success) {
           const rewardText = translateGameReward(t, data);
           setRewardMessage(rewardText);
@@ -886,9 +973,9 @@ export default function Games() {
 
   useEffect(() => {
     if (!gameTimerKey || isGameOver) return;
-    // Block Stack has no time limit (it's a win/lose game) — skip the countdown.
-    // Mining Tap is driven by the server via game:tap_tick events.
-    if (activeGameRef.current === "stack" || activeGameRef.current === "tap") return;
+    // Block Stack and Crypto Reaction have no global countdown (win/lose by
+    // round outcome) — skip the global timer effect for them.
+    if (activeGameRef.current === "stack" || activeGameRef.current === "reaction") return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -932,11 +1019,11 @@ export default function Games() {
   }, [stackCooldown]);
 
   useEffect(() => {
-    if (tapCooldown > 0) {
-      const timer = setInterval(() => setTapCooldown((c) => Math.max(0, c - 1)), 1000);
+    if (reactionCooldown > 0) {
+      const timer = setInterval(() => setReactionCooldown((c) => Math.max(0, c - 1)), 1000);
       return () => clearInterval(timer);
     }
-  }, [tapCooldown]);
+  }, [reactionCooldown]);
 
   useLayoutEffect(() => {
     if (!activeGame || isGameOver) return;
@@ -2351,15 +2438,15 @@ export default function Games() {
     socket.emit("game:start", "block-stack");
   }, [socket]);
 
-  const startTap = useCallback(() => {
+  const startReaction = useCallback(() => {
     if (!socket || !socketEmitGuardRef.current.tryBeginStart()) return;
     clearTimeoutList(pendingTimeoutsRef);
-    setActiveGame("tap");
-    activeGameRef.current = "tap";
+    setActiveGame("reaction");
+    activeGameRef.current = "reaction";
     setSessionReady(false);
-    setTapState(null);
+    setReactionState(null);
     memoryBoardRef.current = null;
-    socket.emit("game:start", "mining-tap");
+    socket.emit("game:start", "crypto-reaction");
   }, [socket]);
 
   const handleStackDrop = useCallback(() => {
@@ -2367,10 +2454,28 @@ export default function Games() {
     socket.emit("game:action", { type: "drop" });
   }, [socket, isGameOver]);
 
-  const handleTapAction = useCallback(() => {
-    if (!socket || isGameOver) return;
-    socket.emit("game:action", { type: "tap" });
-  }, [socket, isGameOver]);
+  /**
+   * Click a symbol button in Crypto Reaction. Optimistic feedback: we
+   * immediately flash the button as if accepted, then the server confirms
+   * via `reaction:pick_result`. If the server says "wrong", the result event
+   * overrides our optimistic flash with "bad" and the run ends shortly after.
+   */
+  const handleReactionPick = useCallback(
+    (symbol: string) => {
+      if (!socket || isGameOver) return;
+      setReactionState((prev) => {
+        if (!prev || prev.phase !== "input") return prev;
+        return {
+          ...prev,
+          lastClickedSymbol: symbol,
+          lastClickFlash: prev.lastClickFlash + 1,
+          lastClickResult: "ok", // optimistic; server may overwrite to "bad"
+        };
+      });
+      socket.emit("game:action", { type: "pick", symbol });
+    },
+    [socket, isGameOver]
+  );
 
   useEffect(() => {
     if (activeGame !== "cart" || isGameOver || !socket) return undefined;
@@ -2435,8 +2540,8 @@ export default function Games() {
 
               {activeGame === "stack" ? (
                 <BlockStackArena state={stackState} onDrop={handleStackDrop} isGameOver={isGameOver} t={t} />
-              ) : activeGame === "tap" ? (
-                <MiningTapArena state={tapState} timeLeft={timeLeft} onTap={handleTapAction} isGameOver={isGameOver} t={t} />
+              ) : activeGame === "reaction" ? (
+                <CryptoReactionArena state={reactionState} onPick={handleReactionPick} isGameOver={isGameOver} t={t} />
               ) : (
                 <canvas
                   ref={canvasRef}
@@ -2548,14 +2653,14 @@ export default function Games() {
               cooldownLabel={t("minerGames.cooldown_label", { seconds: stackCooldown })}
             />
             <GameCard
-              title={t("minerGames.mining_tap_title")}
-              description={t("minerGames.mining_tap_desc")}
-              icon={Hand}
+              title={t("minerGames.crypto_reaction_title")}
+              description={t("minerGames.crypto_reaction_desc")}
+              icon={Sparkles}
               color="from-fuchsia-500 to-pink-700"
-              onClick={startTap}
-              disabled={tapCooldown > 0}
+              onClick={startReaction}
+              disabled={reactionCooldown > 0}
               ctaStart={t("minerGames.cta_start")}
-              cooldownLabel={t("minerGames.cooldown_label", { seconds: tapCooldown })}
+              cooldownLabel={t("minerGames.cooldown_label", { seconds: reactionCooldown })}
             />
             <GameCardLink
               to="/games/2048"
@@ -2876,32 +2981,57 @@ const BlockStackArena = memo(function BlockStackArena({
 });
 
 /**
- * MiningTapArena — DOM-rendered tap game.
+ * CryptoReactionArena — Simon-says with crypto symbol tiles.
  *
- * Server controls glitchActive, score and time-left. Client just emits taps.
- * We render a big tap button that visually flashes red when the server flips
- * glitchActive on (the user is supposed to STOP tapping during glitches).
+ * Render contract:
+ *   - During phase "show": one tile glows (state.showSymbol). Others dim.
+ *   - During phase "input": all tiles are clickable; pressed tile flashes
+ *     immediately (optimistic state set in the parent) and updates again on
+ *     server confirmation. The flash uses a `key` (lastClickFlash) so each
+ *     click re-mounts the overlay → animation restarts cleanly without lag.
+ *   - During phase "round_clear": the grid dims briefly while the next
+ *     sequence loads. Server emits show_starting → we flip back to "show".
+ *
+ * Anti-jank:
+ *   - We do NOT wait for server confirmation to highlight the pressed tile.
+ *     Latency is hidden by the optimistic flash.
+ *   - Transitions are CSS-driven (transition: transform/opacity 150ms) so we
+ *     stay on the GPU and don't trigger a React re-render per frame.
  */
-const MiningTapArena = memo(function MiningTapArena({
+const REACTION_TILE_COLORS: Record<string, string> = {
+  BTC: "from-amber-400 to-orange-600",
+  ETH: "from-indigo-400 to-purple-600",
+  SOL: "from-fuchsia-400 to-pink-600",
+  BNB: "from-yellow-400 to-yellow-600",
+  ADA: "from-sky-400 to-blue-600",
+  DOT: "from-rose-400 to-pink-600",
+  DOGE: "from-amber-300 to-yellow-500",
+  MATIC: "from-violet-400 to-fuchsia-600",
+};
+
+const CryptoReactionArena = memo(function CryptoReactionArena({
   state,
-  timeLeft,
-  onTap,
+  onPick,
   isGameOver,
   t,
 }: {
   state:
     | {
-        endsAt: number;
-        durationMs: number;
-        targetScore: number;
-        glitchActive: boolean;
+        symbols: readonly string[];
+        targetRounds: number;
+        round: number;
+        sequenceLength: number;
+        phase: "intro" | "show" | "input" | "round_clear";
+        showSymbol: string | null;
+        showIndex: number;
+        progress: number;
+        lastClickedSymbol: string | null;
+        lastClickFlash: number;
+        lastClickResult: "ok" | "bad" | null;
         score: number;
-        flash: number;
-        flashDelta: number;
       }
     | null;
-  timeLeft: number;
-  onTap: () => void;
+  onPick: (symbol: string) => void;
   isGameOver: boolean;
   t: TFunction;
 }) {
@@ -2912,57 +3042,102 @@ const MiningTapArena = memo(function MiningTapArena({
       </div>
     );
   }
-  const progress = Math.min(1, state.score / state.targetScore);
-  const isGlitch = state.glitchActive;
+  const acceptingInput = state.phase === "input" && !isGameOver;
+  const phaseLabel =
+    state.phase === "show"
+      ? t("minerGames.crypto_reaction.watch")
+      : state.phase === "input"
+        ? t("minerGames.crypto_reaction.repeat")
+        : state.phase === "round_clear"
+          ? t("minerGames.crypto_reaction.round_cleared")
+          : t("minerGames.crypto_reaction.get_ready");
 
   return (
-    <div className={`relative flex h-full w-full flex-col items-center justify-between p-4 transition-colors duration-150 ${isGlitch ? "bg-red-950/70" : "bg-gradient-to-b from-slate-900 to-black"}`}>
-      {/* Header / progress */}
+    <div className="relative flex h-full w-full flex-col bg-gradient-to-b from-slate-900 to-black p-4">
+      {/* Header: round + progress bar */}
       <div className="w-full">
         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-          <span>{t("minerGames.mining_tap.progress", { current: state.score, total: state.targetScore })}</span>
-          <span>{t("minerGames.time_value_seconds", { seconds: timeLeft })}</span>
+          <span>
+            {t("minerGames.crypto_reaction.round_label", {
+              current: state.round,
+              total: state.targetRounds,
+            })}
+          </span>
+          <span
+            className={`transition-colors duration-200 ${
+              state.phase === "show"
+                ? "text-amber-300"
+                : state.phase === "input"
+                  ? "text-emerald-300"
+                  : "text-slate-400"
+            }`}
+          >
+            {phaseLabel}
+          </span>
         </div>
         <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
           <div
-            className="h-full bg-gradient-to-r from-emerald-400 to-cyan-500 transition-all duration-200"
-            style={{ width: `${progress * 100}%` }}
+            className="h-full bg-gradient-to-r from-fuchsia-400 to-pink-500 transition-all duration-150"
+            style={{
+              width: `${
+                state.sequenceLength > 0 ? (state.progress / state.sequenceLength) * 100 : 0
+              }%`,
+            }}
           />
         </div>
       </div>
 
-      {/* Glitch warning */}
-      {isGlitch && (
-        <div className="absolute left-1/2 top-12 -translate-x-1/2 rounded-full bg-red-500/90 px-4 py-1 text-[11px] font-black uppercase tracking-widest text-white shadow-xl">
-          {t("minerGames.mining_tap.glitch_warning")}
-        </div>
-      )}
-
-      {/* Tap button */}
-      <button
-        type="button"
-        onClick={onTap}
-        disabled={isGameOver || timeLeft <= 0}
-        aria-label={t("minerGames.mining_tap.tap_aria")}
-        className={`group relative h-48 w-48 select-none rounded-full text-3xl font-black uppercase tracking-widest text-white shadow-2xl transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
-          isGlitch
-            ? "bg-gradient-to-br from-red-500 to-red-700 ring-4 ring-red-400/50"
-            : "bg-gradient-to-br from-primary to-orange-600 ring-4 ring-orange-400/40"
-        }`}
-        style={{ touchAction: "manipulation" }}
-      >
-        {/* Flash overlay on each tap result */}
-        <span
-          key={state.flash}
-          className={`pointer-events-none absolute inset-0 rounded-full ${state.flashDelta >= 0 ? "bg-emerald-400/30" : "bg-red-500/40"} animate-ping`}
-          style={{ animationDuration: "300ms" }}
-        />
-        {t("minerGames.mining_tap.tap_label")}
-      </button>
+      {/* Tile grid (2 × 4) */}
+      <div className="mt-6 grid flex-1 grid-cols-4 gap-3 sm:gap-4">
+        {state.symbols.map((sym) => {
+          const isLit = state.phase === "show" && state.showSymbol === sym;
+          const isLastClicked = state.lastClickedSymbol === sym;
+          const color = REACTION_TILE_COLORS[sym] ?? "from-slate-500 to-slate-700";
+          return (
+            <button
+              key={sym}
+              type="button"
+              onClick={() => onPick(sym)}
+              disabled={!acceptingInput}
+              aria-label={sym}
+              className={[
+                "group relative flex select-none items-center justify-center overflow-hidden rounded-2xl",
+                "border border-white/10 text-base font-black uppercase tracking-tight text-white shadow-lg sm:text-lg",
+                "transition-[transform,box-shadow,opacity] duration-150",
+                "bg-gradient-to-br",
+                color,
+                acceptingInput ? "cursor-pointer active:scale-95 hover:brightness-110" : "cursor-default",
+                isLit
+                  ? "scale-105 brightness-150 ring-4 ring-white/60 shadow-[0_0_30px_rgba(255,255,255,0.45)]"
+                  : state.phase === "show"
+                    ? "scale-95 opacity-50"
+                    : !acceptingInput
+                      ? "opacity-70"
+                      : "",
+              ].join(" ")}
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="relative z-10">{sym}</span>
+              {/* Optimistic / confirmed click flash — keyed so each click re-runs the animation */}
+              {isLastClicked && state.lastClickResult && (
+                <span
+                  key={state.lastClickFlash}
+                  className={[
+                    "pointer-events-none absolute inset-0 rounded-2xl",
+                    state.lastClickResult === "ok" ? "bg-emerald-300/40" : "bg-red-500/60",
+                    "animate-ping",
+                  ].join(" ")}
+                  style={{ animationDuration: "260ms" }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Footer hint */}
-      <p className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
-        {t("minerGames.mining_tap.hint")}
+      <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
+        {t("minerGames.crypto_reaction.hint")}
       </p>
     </div>
   );

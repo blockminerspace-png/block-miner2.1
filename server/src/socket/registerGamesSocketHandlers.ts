@@ -56,7 +56,7 @@ const GAME_NAMES = {
   "crypto-match-3": "Power Match",
   "cart-rush": "Cart Rush",
   "block-stack": "Block Stack",
-  "mining-tap": "Mining Tap"
+  "crypto-reaction": "Crypto Reaction"
 };
 
 type MemoryCard = { id: number; symbol: string; isFlipped: boolean; isMatched: boolean };
@@ -121,27 +121,28 @@ type BlockStackState = GameSessionState & {
   lastDropAt: number;            // Timestamp of last drop action (rate-limit)
 };
 
-// ─── Mining Tap constants ───────────────────────────────────────────────────
-// Click-spam game with hidden "glitch" windows: tapping during a glitch costs
-// score and counts as anti-cheat noise. Game ends after MINING_TAP_DURATION_MS.
-const MINING_TAP_DURATION_MS = 30_000;          // Total play time
-const MINING_TAP_TARGET_SCORE = 150;            // Win threshold
-const MINING_TAP_MAX_TPS = 8;                   // Max human-realistic taps per second
-const MINING_TAP_RECENT_WINDOW_MS = 1000;       // Sliding window the rate-limit checks
-const MINING_TAP_REWARD_PER_TAP = 1;            // Score per valid tap
-const MINING_TAP_GLITCH_PENALTY = 10;           // Score deducted per tap during glitch
-const MINING_TAP_GLITCH_MIN_INTERVAL_MS = 3500; // Min time between glitch onsets
-const MINING_TAP_GLITCH_MAX_INTERVAL_MS = 6500; // Max time between glitch onsets
-const MINING_TAP_GLITCH_DURATION_MS = 1400;     // How long each glitch stays ON
-const MINING_TAP_TICK_MS = 200;                 // State emit / timeout cadence
+// ─── Crypto Reaction constants ───────────────────────────────────────────────
+// Simon-Says with crypto symbols. The server owns the sequence; the client
+// only ever learns one symbol at a time during the SHOW phase. Each player
+// click is validated against the next expected index — wrong = run ends.
+const REACTION_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "ADA", "DOT", "DOGE", "MATIC"] as const;
+const REACTION_TARGET_ROUNDS = 8;          // Beat round N → win
+const REACTION_START_LEN = 4;              // Round 1 has 4 symbols in the sequence
+const REACTION_SHOW_ON_MS = 700;           // Each symbol stays lit this long during SHOW
+const REACTION_SHOW_OFF_MS = 300;          // Gap between SHOW symbols
+const REACTION_NEXT_ROUND_GAP_MS = 600;    // Pause before SHOW-ing the next round
+const REACTION_MIN_CLICK_INTERVAL_MS = 100; // Anti-bot: drop clicks faster than 10/s
+const REACTION_INPUT_TIMEOUT_MS = 8000;    // Player has this long to make each click; otherwise round fails
 
-type MiningTapState = GameSessionState & {
-  slug: "mining-tap";
-  endAt: number;                  // When the session must auto-finalize
-  recentTaps: number[];           // Sliding-window timestamps of accepted taps (used for tps cap)
-  glitchActive: boolean;          // Whether the glitch zone is currently ON
-  glitchNextChangeAt: number;     // Server timestamp for next glitch state flip
-  tapTickTimer?: ReturnType<typeof setInterval>;
+type ReactionState = GameSessionState & {
+  slug: "crypto-reaction";
+  round: number;             // 1..REACTION_TARGET_ROUNDS
+  sequence: string[];        // Full sequence for the current round (length = REACTION_START_LEN + round - 1)
+  userIndex: number;         // Index of next expected click within `sequence`
+  phase: "show" | "input";   // What the player is allowed to do
+  lastClickAt: number;       // Throttle reference
+  reactionTimer?: ReturnType<typeof setTimeout>;     // Active SHOW emit / OFF gap
+  inputDeadlineTimer?: ReturnType<typeof setTimeout>; // Times out if user freezes during INPUT
 };
 
 /** @param {unknown} raw */
@@ -299,26 +300,24 @@ export function registerGamesSocketHandlers({ io, engine }) {
             },
             base: { leftPx: initialState.baseLeftPx, width: STACK_INITIAL_WIDTH }
           });
-        } else if (slug === "mining-tap") {
-          initialState.endAt = Date.now() + MINING_TAP_DURATION_MS;
-          initialState.recentTaps = [];
-          initialState.glitchActive = false;
-          initialState.glitchNextChangeAt =
-            Date.now() +
-            crypto.randomInt(MINING_TAP_GLITCH_MIN_INTERVAL_MS, MINING_TAP_GLITCH_MAX_INTERVAL_MS);
-          initialState.tapTickTimer = setInterval(
-            () => tickMiningTap(socket, initialState, engine),
-            MINING_TAP_TICK_MS
-          );
+        } else if (slug === "crypto-reaction") {
+          const initialSequence = buildReactionSequence(REACTION_START_LEN);
+          initialState.round = 1;
+          initialState.sequence = initialSequence;
+          initialState.userIndex = 0;
+          initialState.phase = "show";
+          initialState.lastClickAt = 0;
           socket.emit("game:started", {
             game: slug,
-            durationMs: MINING_TAP_DURATION_MS,
-            targetScore: MINING_TAP_TARGET_SCORE,
+            symbols: REACTION_SYMBOLS,
+            targetRounds: REACTION_TARGET_ROUNDS,
+            round: 1,
+            sequenceLength: initialSequence.length,
             score: 0,
-            endsAt: initialState.endAt,
-            glitchActive: false,
-            maxTps: MINING_TAP_MAX_TPS
           });
+          // Kick off the first SHOW phase after a short pause so the client
+          // can mount before the first symbol fires.
+          scheduleReactionShow(socket, initialState as ReactionState, engine, 400);
         }
 
         GAME_SESSIONS.set(socket.id, initialState);
@@ -393,8 +392,8 @@ export function registerGamesSocketHandlers({ io, engine }) {
         socket.emit("game:cart_lane", { lane: state.lane });
       } else if (state.slug === "block-stack" && action.type === "drop") {
         handleBlockStackDrop(socket, state as BlockStackState, engine);
-      } else if (state.slug === "mining-tap" && action.type === "tap") {
-        handleMiningTapTap(socket, state as MiningTapState);
+      } else if (state.slug === "crypto-reaction" && action.type === "pick") {
+        handleReactionPick(socket, state as ReactionState, action as { type: "pick"; symbol?: unknown }, engine);
       }
     });
 
@@ -428,10 +427,15 @@ function clearMemoryMismatchTimer(state: GameSessionState | undefined) {
     clearInterval(cartT as ReturnType<typeof setInterval>);
     state.cartTickTimer = null;
   }
-  const tapT = state.tapTickTimer;
-  if (tapT) {
-    clearInterval(tapT as ReturnType<typeof setInterval>);
-    state.tapTickTimer = null;
+  const reactT = state.reactionTimer;
+  if (reactT) {
+    clearTimeout(reactT as ReturnType<typeof setTimeout>);
+    state.reactionTimer = null;
+  }
+  const reactDl = state.inputDeadlineTimer;
+  if (reactDl) {
+    clearTimeout(reactDl as ReturnType<typeof setTimeout>);
+    state.inputDeadlineTimer = null;
   }
 }
 
@@ -707,67 +711,130 @@ function handleBlockStackDrop(socket: Socket, state: BlockStackState, engine: Mi
   }
 }
 
-// ─── Mining Tap: rate-limited click counter with hidden glitch zones ─────────
+// ─── Crypto Reaction: Simon-says with crypto symbols ─────────────────────────
 //
 // Anti-cheat rationale:
-//  - Server counts every tap and enforces a sliding-window cap (MAX_TPS).
-//    A bot spamming 50 taps/s is silently rejected past the cap.
-//  - Glitch state lives on the server. The client only learns the current
-//    state via emitted events; if the user taps while glitchActive=true on the
-//    server, they pay a penalty regardless of any client-side filtering.
-//  - The session has a hard deadline (`endAt`) enforced in the tick loop;
-//    even if the client never sends `game:end`, the server finalizes at 30s.
-function handleMiningTapTap(socket: Socket, state: MiningTapState) {
-  const now = Date.now();
-  if (now >= state.endAt) return; // No taps after time expired
+//  - The full sequence lives on the server. The client never receives it as
+//    a list; it only receives one `reaction:show` event per symbol during the
+//    SHOW phase. A bot that wants to "peek" would have to listen to the
+//    socket and reconstruct the sequence — but it still cannot click before
+//    the SHOW finishes because clicks during phase "show" are rejected.
+//  - Each click is validated against `state.sequence[state.userIndex]`. A
+//    single wrong click ends the round (and the session).
+//  - Click throttle: REACTION_MIN_CLICK_INTERVAL_MS rejects floods (a bot
+//    spamming all 8 buttons hoping to match the next one would get nothing).
+//  - Per-round input timeout: if the user freezes for 8s, we end the round.
 
-  // Sliding-window rate limit
-  state.recentTaps = state.recentTaps.filter((t) => now - t < MINING_TAP_RECENT_WINDOW_MS);
-  if (state.recentTaps.length >= MINING_TAP_MAX_TPS) {
-    // Silently drop excess taps; do NOT inform client (avoids tuning the bot)
-    return;
+function buildReactionSequence(length: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < length; i += 1) {
+    out.push(REACTION_SYMBOLS[crypto.randomInt(0, REACTION_SYMBOLS.length)]);
   }
-  state.recentTaps.push(now);
-
-  if (state.glitchActive) {
-    state.score = Math.max(0, state.score - MINING_TAP_GLITCH_PENALTY);
-    socket.emit("game:tap_result", { score: state.score, delta: -MINING_TAP_GLITCH_PENALTY, glitch: true });
-  } else {
-    state.score += MINING_TAP_REWARD_PER_TAP;
-    socket.emit("game:tap_result", { score: state.score, delta: MINING_TAP_REWARD_PER_TAP, glitch: false });
-  }
+  return out;
 }
 
-function tickMiningTap(socket: Socket, state: GameSessionState, engine: MiningEngine) {
-  if (!state || state.isFinished || state.slug !== "mining-tap") return;
-  const s = state as MiningTapState;
-  const now = Date.now();
+/**
+ * Emit one symbol of the SHOW phase and schedule the next emission.
+ * When the whole sequence has been shown, flip the state into INPUT mode and
+ * start the per-round input deadline timer.
+ */
+function emitReactionShowStep(socket: Socket, state: ReactionState, engine: MiningEngine, step: number) {
+  if (state.isFinished || state.slug !== "crypto-reaction") return;
+  if (step >= state.sequence.length) {
+    // Done showing — switch to INPUT phase
+    state.phase = "input";
+    state.userIndex = 0;
+    socket.emit("reaction:input_ready", { round: state.round });
+    if (state.inputDeadlineTimer) clearTimeout(state.inputDeadlineTimer);
+    state.inputDeadlineTimer = setTimeout(() => {
+      // Player froze
+      if (!state.isFinished) finishGame(socket, state, false, engine, "reaction_timeout");
+    }, REACTION_INPUT_TIMEOUT_MS);
+    return;
+  }
+  const symbol = state.sequence[step];
+  socket.emit("reaction:show", { index: step, symbol, onMs: REACTION_SHOW_ON_MS });
+  // Schedule next step after ON + OFF
+  state.reactionTimer = setTimeout(
+    () => emitReactionShowStep(socket, state, engine, step + 1),
+    REACTION_SHOW_ON_MS + REACTION_SHOW_OFF_MS
+  );
+}
 
-  // Toggle glitch state if it's time
-  if (now >= s.glitchNextChangeAt) {
-    s.glitchActive = !s.glitchActive;
-    if (s.glitchActive) {
-      // Stays on for fixed duration
-      s.glitchNextChangeAt = now + MINING_TAP_GLITCH_DURATION_MS;
-    } else {
-      // Off for a randomized interval before next onset
-      s.glitchNextChangeAt =
-        now + crypto.randomInt(MINING_TAP_GLITCH_MIN_INTERVAL_MS, MINING_TAP_GLITCH_MAX_INTERVAL_MS);
+function scheduleReactionShow(socket: Socket, state: ReactionState, engine: MiningEngine, delayMs: number) {
+  if (state.reactionTimer) clearTimeout(state.reactionTimer);
+  state.phase = "show";
+  state.userIndex = 0;
+  socket.emit("reaction:show_starting", { round: state.round, length: state.sequence.length });
+  state.reactionTimer = setTimeout(() => emitReactionShowStep(socket, state, engine, 0), delayMs);
+}
+
+function handleReactionPick(
+  socket: Socket,
+  state: ReactionState,
+  action: { type: "pick"; symbol?: unknown },
+  engine: MiningEngine
+) {
+  if (state.phase !== "input") return; // No clicks during SHOW
+
+  const now = Date.now();
+  // Anti-bot throttle: humanly impossible spam
+  if (now - state.lastClickAt < REACTION_MIN_CLICK_INTERVAL_MS) return;
+  state.lastClickAt = now;
+
+  const sym = String(action.symbol || "");
+  if (!REACTION_SYMBOLS.includes(sym as (typeof REACTION_SYMBOLS)[number])) return;
+
+  const expected = state.sequence[state.userIndex];
+  if (sym !== expected) {
+    // Wrong click → run ends
+    if (state.inputDeadlineTimer) {
+      clearTimeout(state.inputDeadlineTimer);
+      state.inputDeadlineTimer = undefined;
     }
-    socket.emit("game:tap_glitch", { active: s.glitchActive, until: s.glitchNextChangeAt });
+    socket.emit("reaction:pick_result", { ok: false, symbol: sym, expected });
+    finishGame(socket, state, false, engine, "reaction_wrong");
+    return;
   }
 
-  // Tick state broadcast (time left)
-  socket.emit("game:tap_tick", {
-    timeLeftMs: Math.max(0, s.endAt - now),
-    score: s.score,
-    glitchActive: s.glitchActive
+  // Correct
+  state.userIndex += 1;
+  state.score += 10;
+  socket.emit("reaction:pick_result", {
+    ok: true,
+    symbol: sym,
+    progress: state.userIndex,
+    total: state.sequence.length,
+    score: state.score,
   });
 
-  // Auto-finalize at session deadline
-  if (now >= s.endAt) {
-    const success = s.score >= MINING_TAP_TARGET_SCORE;
-    finishGame(socket, s, success, engine, success ? "session_ended" : "tap_score_too_low");
+  if (state.userIndex >= state.sequence.length) {
+    // Round cleared
+    if (state.inputDeadlineTimer) {
+      clearTimeout(state.inputDeadlineTimer);
+      state.inputDeadlineTimer = undefined;
+    }
+    if (state.round >= REACTION_TARGET_ROUNDS) {
+      // Won the whole game
+      finishGame(socket, state, true, engine);
+      return;
+    }
+    // Bonus for clearing the round
+    state.score += 50;
+    state.round += 1;
+    state.sequence = buildReactionSequence(REACTION_START_LEN + state.round - 1);
+    socket.emit("reaction:round_cleared", {
+      nextRound: state.round,
+      nextLength: state.sequence.length,
+      score: state.score,
+    });
+    scheduleReactionShow(socket, state, engine, REACTION_NEXT_ROUND_GAP_MS);
+  } else {
+    // Reset input deadline (player is making progress)
+    if (state.inputDeadlineTimer) clearTimeout(state.inputDeadlineTimer);
+    state.inputDeadlineTimer = setTimeout(() => {
+      if (!state.isFinished) finishGame(socket, state, false, engine, "reaction_timeout");
+    }, REACTION_INPUT_TIMEOUT_MS);
   }
 }
 

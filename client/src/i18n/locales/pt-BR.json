@@ -2395,8 +2395,8 @@
     "cart_rush_desc": "Complete a missão em 2 minutos, colete BTCs e alcance 750 pontos na pista.",
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Empilhe 10 blocos. Cada erro encolhe o próximo — pura precisão.",
-    "mining_tap_title": "Mining Tap",
-    "mining_tap_desc": "Toque rápido por 30 segundos. Pare quando o glitch surgir — ou perca pontos.",
+    "crypto_reaction_title": "Crypto Reaction",
+    "crypto_reaction_desc": "Veja a sequência de símbolos cripto e repita. A cadeia cresce a cada rodada.",
     "tabs": {
       "ours": "Nossos Jogos",
       "partners": "Jogos Parceiros"
@@ -2409,12 +2409,13 @@
       "progress": "{{current}} / {{total}} blocos",
       "drop_button": "Soltar"
     },
-    "mining_tap": {
-      "progress": "{{current}} / {{total}}",
-      "glitch_warning": "Glitch! Não toque",
-      "tap_label": "Toque",
-      "tap_aria": "Toque para minerar",
-      "hint": "Toque o mais rápido possível — mas pare nos glitches"
+    "crypto_reaction": {
+      "round_label": "Rodada {{current}} / {{total}}",
+      "watch": "Observe a sequência",
+      "repeat": "Repita a sequência",
+      "round_cleared": "Rodada vencida!",
+      "get_ready": "Prepare-se…",
+      "hint": "Cada rodada adiciona mais um símbolo — acompanhe."
     },
     "socket_errors": {
       "invalid_session": "Sessão inválida.",
@@ -2429,7 +2430,8 @@
       "session_ended": "Sessão encerrada.",
       "cart_crashed": "O carrinho bateu antes de alcançar a pontuação-alvo.",
       "stack_missed": "Errou o empilhamento — tenta de novo na próxima rodada.",
-      "tap_score_too_low": "Toques insuficientes para bater a meta."
+      "reaction_wrong": "Símbolo errado — a sequência quebrou.",
+      "reaction_timeout": "Demorou demais — a sequência expirou."
     },
     "game_reward": {
       "full_term": "Bônus de +50 H/s ativo por {{days}} dias!",

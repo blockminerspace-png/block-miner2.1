@@ -2390,8 +2390,8 @@
     "cart_rush_desc": "Steer the mining cart, collect coins, and dodge broken blocks.",
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Stack 10 blocks. Each miss shrinks the next one — pure precision.",
-    "mining_tap_title": "Mining Tap",
-    "mining_tap_desc": "Tap fast for 30 seconds. Hands off when the glitch hits or lose points.",
+    "crypto_reaction_title": "Crypto Reaction",
+    "crypto_reaction_desc": "Watch the sequence of crypto symbols, then repeat it. The chain gets longer every round.",
     "tabs": {
       "ours": "Our Games",
       "partners": "Partner Games"
@@ -2404,12 +2404,13 @@
       "progress": "{{current}} / {{total}} blocks",
       "drop_button": "Drop"
     },
-    "mining_tap": {
-      "progress": "{{current}} / {{total}}",
-      "glitch_warning": "Glitch! Stop tapping",
-      "tap_label": "Tap",
-      "tap_aria": "Tap to mine",
-      "hint": "Tap as fast as you can — but stop during glitches"
+    "crypto_reaction": {
+      "round_label": "Round {{current}} / {{total}}",
+      "watch": "Watch the sequence",
+      "repeat": "Repeat the sequence",
+      "round_cleared": "Round cleared!",
+      "get_ready": "Get ready…",
+      "hint": "Each round adds one more symbol — keep up."
     },
     "socket_errors": {
       "invalid_session": "Invalid session.",
@@ -2424,7 +2425,8 @@
       "session_ended": "Session ended.",
       "cart_crashed": "The cart crashed before reaching the target score.",
       "stack_missed": "Missed the stack — try again next round.",
-      "tap_score_too_low": "Not enough taps to clear the target."
+      "reaction_wrong": "Wrong symbol — the sequence broke.",
+      "reaction_timeout": "Too slow — the sequence expired."
     },
     "game_reward": {
       "full_term": "+50 H/s bonus active for {{days}} days!",
