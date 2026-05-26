@@ -120,6 +120,7 @@ model User {
   offerwallMeCallbacks           OfferwallMeCallback[]
   youtuberProfile                YoutuberProfile?
   videoSubmissions               YoutubeVideoSubmission[]
+  videoVotes                     YoutubeVideoVote[]
 
   // Traffic attribution (captured at registration)
   utmSource      String? @map("utm_source")
@@ -2142,11 +2143,30 @@ model YoutubeVideoSubmission {
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   profile YoutuberProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   miner   Miner?          @relation(fields: [rewardMinerId], references: [id], onDelete: SetNull)
+  votes   YoutubeVideoVote[]
 
   @@index([userId])
   @@index([status])
   @@index([submittedAt])
   @@map("youtube_video_submissions")
+}
+
+/// Community vote on an approved YouTube video submission (like/dislike).
+/// `value`: 1 = like, -1 = dislike. One row per (userId, submissionId).
+model YoutubeVideoVote {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  submissionId Int      @map("submission_id")
+  value        Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submission YoutubeVideoSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, submissionId])
+  @@index([submissionId])
+  @@map("youtube_video_votes")
 }
 
 /// Singleton (id=1): which Miner to grant when a video submission is approved.

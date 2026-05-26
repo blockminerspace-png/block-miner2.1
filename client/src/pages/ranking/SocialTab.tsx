@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Youtube, Send, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Play, Loader2, AlertTriangle, Star, Gift, Cpu, Users } from 'lucide-react';
+import { Youtube, Send, Clock, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Play, Loader2, AlertTriangle, Star, Gift, Cpu, Users, ThumbsUp, ThumbsDown, ExternalLink, Pencil } from 'lucide-react';
 import { api, useAuthStore } from '../../store/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -9,6 +9,7 @@ interface YoutuberProfile {
   channelName: string;
   channelPhoto: string | null;
   channelUrl: string | null;
+  bio?: string | null;
   isCredentialed: boolean;
   credentialRequestStatus: string | null;
   credentialRejectNote: string | null;
@@ -20,6 +21,9 @@ interface FeedEntry {
   videoUrl: string;
   title: string | null;
   reviewedAt: string;
+  likeCount: number;
+  dislikeCount: number;
+  myVote: 1 | -1 | 0;
   profile: {
     channelName: string;
     channelPhoto: string | null;
@@ -70,8 +74,27 @@ function ChannelAvatar({ photo, name, size = 'md' }: { photo: string | null; nam
 
 // ─── Video card ───────────────────────────────────────────────────────────────
 
-function VideoCard({ entry }: { entry: FeedEntry }) {
+function VideoCard({ entry, onVoted }: { entry: FeedEntry; onVoted: (next: Pick<FeedEntry, 'id' | 'likeCount' | 'dislikeCount' | 'myVote'>) => void }) {
+  const { user } = useAuthStore();
+  const [voting, setVoting] = useState(false);
   const thumb = `https://img.youtube.com/vi/${entry.videoId}/hqdefault.jpg`;
+
+  const vote = async (value: 1 | -1) => {
+    if (!user || voting) return;
+    // If user re-clicks their existing vote, server treats it as toggle-off → we send the same value.
+    setVoting(true);
+    try {
+      const res = await api.post<{ ok: boolean; submissionId: number; likeCount: number; dislikeCount: number; myVote: 1 | -1 | 0 }>(
+        `/social/videos/${entry.id}/vote`,
+        { value },
+      );
+      if (res.data.ok) {
+        onVoted({ id: entry.id, likeCount: res.data.likeCount, dislikeCount: res.data.dislikeCount, myVote: res.data.myVote });
+      }
+    } catch { /* silent */ } finally {
+      setVoting(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-white/8 bg-white/3 overflow-hidden flex flex-col group">
@@ -99,25 +122,57 @@ function VideoCard({ entry }: { entry: FeedEntry }) {
         </div>
       </a>
 
-      <div className="p-3 flex gap-2.5 flex-1">
+      <div className="p-3 flex gap-2.5">
         <ChannelAvatar photo={entry.profile.channelPhoto} name={entry.profile.channelName} />
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-white leading-snug line-clamp-2">
             {entry.title ?? `Vídeo de ${entry.profile.channelName}`}
           </p>
-          {entry.profile.channelUrl ? (
-            <a
-              href={entry.profile.channelUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] text-red-400 hover:underline font-semibold mt-0.5 block"
-            >
-              {entry.profile.channelName}
-            </a>
-          ) : (
-            <p className="text-[10px] text-gray-500 mt-0.5">{entry.profile.channelName}</p>
-          )}
+          <p className="text-[10px] text-gray-500 mt-0.5">{entry.profile.channelName}</p>
         </div>
+      </div>
+
+      {/* Actions row: like / dislike / visit channel */}
+      <div className="px-3 pb-3 flex items-center gap-2 mt-auto">
+        <button
+          type="button"
+          onClick={() => vote(1)}
+          disabled={!user || voting}
+          aria-label="Curtir"
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            entry.myVote === 1
+              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+              : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+          }`}
+        >
+          <ThumbsUp className="w-3.5 h-3.5" />
+          <span>{entry.likeCount}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => vote(-1)}
+          disabled={!user || voting}
+          aria-label="Não curtir"
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            entry.myVote === -1
+              ? 'bg-red-500/20 border-red-500/40 text-red-300'
+              : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+          }`}
+        >
+          <ThumbsDown className="w-3.5 h-3.5" />
+          <span>{entry.dislikeCount}</span>
+        </button>
+        {entry.profile.channelUrl && (
+          <a
+            href={entry.profile.channelUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-black bg-red-600 hover:bg-red-500 text-white transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Visitar Canal</span>
+          </a>
+        )}
       </div>
     </div>
   );
@@ -194,10 +249,10 @@ function CredentialRequestForm({ profile, onRequested }: { profile: YoutuberProf
     try {
       const form = new FormData();
       form.append('photo', file);
-      const res = await api.post<{ ok: boolean; photoUrl: string }>('/social/upload-photo', form, {
+      const res = await api.post<{ ok: boolean; url: string }>('/social/upload-photo', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setPhotoUrl(res.data.photoUrl);
+      setPhotoUrl(res.data.url);
     } catch {
       setError('Erro ao enviar foto. Tente novamente.');
       setPhotoPreview(profile?.channelPhoto ?? null);
@@ -337,6 +392,212 @@ function CredentialRequestForm({ profile, onRequested }: { profile: YoutuberProf
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           {isResubmit ? 'Reenviar Solicitação' : 'Enviar Solicitação'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ─── Edit profile form (credentialed creators) ───────────────────────────────
+
+function EditProfileForm({ profile, onSaved }: { profile: YoutuberProfile; onSaved: (p: YoutuberProfile) => void }) {
+  const [open, setOpen] = useState(false);
+  const [channelName, setChannelName] = useState(profile.channelName);
+  const [channelUrl, setChannelUrl] = useState(profile.channelUrl ?? '');
+  const [bio, setBio] = useState(profile.bio ?? '');
+  const [photoPreview, setPhotoPreview] = useState<string | null>(profile.channelPhoto ?? null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(profile.channelPhoto ?? null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  // Resync local state when parent profile changes after a save.
+  useEffect(() => {
+    setChannelName(profile.channelName);
+    setChannelUrl(profile.channelUrl ?? '');
+    setBio(profile.bio ?? '');
+    setPhotoPreview(profile.channelPhoto ?? null);
+    setPhotoUrl(profile.channelPhoto ?? null);
+  }, [profile.id, profile.channelName, profile.channelUrl, profile.bio, profile.channelPhoto]);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setError('Formato inválido. Use JPG, PNG, WebP ou GIF.');
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setError('Foto muito grande. Máximo 3 MB.');
+      return;
+    }
+    setError(null);
+    setPhotoPreview(URL.createObjectURL(file));
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      const res = await api.post<{ ok: boolean; url: string }>('/social/upload-photo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPhotoUrl(res.data.url);
+    } catch {
+      setError('Erro ao enviar foto. Tente novamente.');
+      setPhotoPreview(profile.channelPhoto ?? null);
+      setPhotoUrl(profile.channelPhoto ?? null);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+    setLoading(true);
+    try {
+      const res = await api.put<{ ok: boolean; profile: YoutuberProfile }>('/social/my-profile', {
+        channelName: channelName.trim(),
+        channelUrl: channelUrl.trim(),
+        channelPhoto: photoUrl,
+        bio: bio.trim(),
+      });
+      onSaved(res.data.profile);
+      setSuccess(true);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Erro ao salvar perfil.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 hover:text-white hover:border-white/20 transition-colors"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+        Editar perfil
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-violet-500/20 bg-violet-950/10 p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Pencil className="w-4 h-4 text-violet-400" />
+          <p className="text-sm font-black text-white">Editar perfil do canal</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setOpen(false); setSuccess(false); setError(null); }}
+          className="text-[10px] text-gray-500 hover:text-gray-300 font-bold"
+        >
+          Fechar
+        </button>
+      </div>
+
+      <p className="text-xs text-gray-500">
+        Atualize o nome, a foto, o link e a bio do seu canal. As mudanças aparecem imediatamente no Canal Social.
+      </p>
+
+      {success && (
+        <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          Perfil atualizado!
+        </div>
+      )}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            Nome do Canal *
+          </label>
+          <input
+            type="text"
+            value={channelName}
+            onChange={(e) => setChannelName(e.target.value)}
+            required
+            maxLength={100}
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            URL do Canal
+          </label>
+          <input
+            type="url"
+            value={channelUrl}
+            onChange={(e) => setChannelUrl(e.target.value)}
+            placeholder="https://youtube.com/@seucanal"
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            Foto do Canal
+          </label>
+          <div className="flex items-center gap-3">
+            {photoPreview ? (
+              <img src={photoPreview} alt="preview" className="w-12 h-12 rounded-full object-cover border border-white/10 shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                <Youtube className="w-5 h-5 text-gray-600" />
+              </div>
+            )}
+            <div className="flex-1">
+              <button
+                type="button"
+                onClick={() => photoRef.current?.click()}
+                disabled={uploadingPhoto}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 hover:text-white hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {uploadingPhoto ? 'Enviando...' : 'Trocar foto'}
+              </button>
+              <p className="text-[10px] text-gray-600 mt-1">JPG, PNG, WebP ou GIF · Máx. 3 MB</p>
+            </div>
+          </div>
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={handlePhotoChange}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">
+            Sobre o Canal
+          </label>
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            rows={2}
+            maxLength={500}
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50 resize-none"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading || uploadingPhoto || !channelName.trim()}
+          className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-black text-white transition-colors"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          Salvar alterações
         </button>
       </form>
     </div>
@@ -544,7 +805,27 @@ export default function SocialTab() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {feed.entries.map((e) => <VideoCard key={e.id} entry={e} />)}
+            {feed.entries.map((e) => (
+              <VideoCard
+                key={e.id}
+                entry={e}
+                onVoted={(next) => {
+                  // Update only the voted entry inside the current page snapshot.
+                  setFeed((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          entries: prev.entries.map((row) =>
+                            row.id === next.id
+                              ? { ...row, likeCount: next.likeCount, dislikeCount: next.dislikeCount, myVote: next.myVote }
+                              : row,
+                          ),
+                        }
+                      : prev,
+                  );
+                }}
+              />
+            ))}
           </div>
 
           {feed.totalPages > 1 && (
@@ -622,7 +903,7 @@ export function CredentialTab() {
       <PartnerBenefits />
 
       {/* ── Credenciado ── */}
-      {isCredentialed && (
+      {isCredentialed && profile && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-950/10 px-4 py-3">
             <ChannelAvatar photo={profile.channelPhoto} name={profile.channelName} />
@@ -631,6 +912,7 @@ export function CredentialTab() {
               <p className="text-[10px] text-red-400">Criador Credenciado</p>
             </div>
           </div>
+          <EditProfileForm profile={profile} onSaved={(p) => setProfile(p)} />
           <SubmitForm onSubmitted={() => {}} />
           <MySubmissions />
         </div>
