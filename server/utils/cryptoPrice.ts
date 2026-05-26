@@ -144,3 +144,11 @@ export async function getEthUsdPrice(): Promise<number> {
 export async function getEthUsdPriceAt(timestampSec: number): Promise<number> {
   return getHistoricalCachedPrice("ETH", timestampSec, () => fetchCoinGeckoHistoricalPrice("ethereum", timestampSec));
 }
+
+export async function getShibUsdPrice(): Promise<number> {
+  return getCachedPrice("SHIB", async () => {
+    let price = await fetchCoinGeckoPrice("shiba-inu", "shiba-inu");
+    if (!price) price = await fetchBinanceTickerPrice("SHIBUSDT");
+    return price;
+  });
+}

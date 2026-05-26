@@ -6,7 +6,7 @@ import { runDepositVerifier, DEPOSIT_VERIFY_MAX_ATTEMPTS } from "../../services/
 import { wakeUpScanner } from "../../cron/depositsCron.js";
 import { enqueueDepositPolygonScan } from "../../jobs/blockminerQueue.js";
 import { getMiningEngine } from "../../src/miningEngineInstance.js";
-import { getPolUsdPrice } from "../../utils/cryptoPrice.js";
+import { getPolUsdPrice, getShibUsdPrice } from "../../utils/cryptoPrice.js";
 import { getMinDepositPol, getRequiredBlockConfirmations } from "../../services/polygonDepositConfig.js";
 import { getSharedPolygonProvider } from "../../services/polygonProvider.js";
 import {
@@ -737,8 +737,18 @@ export async function getWithdrawFeeInfo(req: Request, res: Response) {
 
 export { WITHDRAW_MIN_POL, WITHDRAW_PROCESSING_HOURS } from "./wallet.types.js";
 
-const SHIB_MIN_WITHDRAW = 0.1;
+const SHIB_MIN_WITHDRAW_USD = 0.10;
 const SHIB_WITHDRAW_FEE = 7800;
+
+export async function getShibWithdrawMin(_req: Request, res: Response) {
+  try {
+    const shibPrice = await getShibUsdPrice();
+    const minShib = SHIB_MIN_WITHDRAW_USD / shibPrice;
+    return res.json({ ok: true, minUsd: SHIB_MIN_WITHDRAW_USD, minShib, shibPrice });
+  } catch (err: unknown) {
+    return res.status(503).json({ ok: false, message: "Unable to fetch SHIB price" });
+  }
+}
 
 export async function requestShibWithdrawal(req: Request, res: Response) {
   try {
@@ -747,8 +757,13 @@ export async function requestShibWithdrawal(req: Request, res: Response) {
 
     const { amount, address } = req.body as Record<string, unknown>;
     const amountNum = Number(amount);
-    if (!amountNum || amountNum < SHIB_MIN_WITHDRAW) {
-      return res.status(400).json({ ok: false, message: `Minimum withdrawal is ${SHIB_MIN_WITHDRAW} SHIB` });
+
+    const shibPrice = await getShibUsdPrice();
+    const minShib = SHIB_MIN_WITHDRAW_USD / shibPrice;
+
+    if (!amountNum || amountNum < minShib) {
+      const minFmt = minShib.toLocaleString("en-US", { maximumFractionDigits: 0 });
+      return res.status(400).json({ ok: false, message: `Minimum withdrawal is $${SHIB_MIN_WITHDRAW_USD} USD (≈ ${minFmt} SHIB at current price)` });
     }
     if (typeof address !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
       return res.status(400).json({ ok: false, message: "Invalid ERC20 address" });

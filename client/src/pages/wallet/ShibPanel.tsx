@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { ArrowDownToLine, ArrowRightLeft, Loader2, Info } from 'lucide-react';
 import { api } from '../../store/auth';
 
-const SHIB_MIN_WITHDRAW = 0.1;
 const SHIB_WITHDRAW_FEE = 7800;
 
 interface Props {
@@ -18,8 +17,20 @@ export function ShibPanel({ balance, onRefresh }: Props) {
     const [swapAmount, setSwapAmount] = useState('');
     const [polOut, setPolOut] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
+    const [minShib, setMinShib] = useState<number | null>(null);
+    const [shibPrice, setShibPrice] = useState<number | null>(null);
+
+    useEffect(() => {
+        api.get('/wallet/shib/withdraw-min').then((res) => {
+            if (res.data.ok) {
+                setMinShib(res.data.minShib);
+                setShibPrice(res.data.shibPrice);
+            }
+        }).catch(() => {});
+    }, []);
 
     const net = Number(amount) - SHIB_WITHDRAW_FEE;
+    const effectiveMin = minShib ?? 0;
 
     async function estimateSwap(val: string) {
         const n = Number(val);
@@ -36,8 +47,8 @@ export function ShibPanel({ balance, onRefresh }: Props) {
 
     async function handleWithdraw(e: React.FormEvent) {
         e.preventDefault();
-        if (Number(amount) < SHIB_MIN_WITHDRAW) {
-            toast.error(`Minimum withdrawal is ${SHIB_MIN_WITHDRAW} SHIB`);
+        if (effectiveMin > 0 && Number(amount) < effectiveMin) {
+            toast.error(`Mínimo: $0.10 USD (≈ ${Math.ceil(effectiveMin).toLocaleString()} SHIB)`);
             return;
         }
         if (Number(amount) + SHIB_WITHDRAW_FEE > balance) {
@@ -124,7 +135,11 @@ export function ShibPanel({ balance, onRefresh }: Props) {
                         <div className="text-[10px] text-slate-400 font-medium space-y-1">
                             <p>Rede: <span className="text-white font-black">ERC20 (Ethereum)</span></p>
                             <p>Taxa padrão: <span className="text-orange-300 font-black">{SHIB_WITHDRAW_FEE.toLocaleString()} SHIB</span></p>
-                            <p>Mínimo: <span className="text-white font-black">{SHIB_MIN_WITHDRAW} SHIB</span></p>
+                            <p>Mínimo: <span className="text-white font-black">$0.10 USD</span>
+                                {minShib !== null && (
+                                    <span className="text-orange-300 font-black ml-1">(≈ {Math.ceil(minShib).toLocaleString()} SHIB)</span>
+                                )}
+                            </p>
                         </div>
                     </div>
 
@@ -135,10 +150,10 @@ export function ShibPanel({ balance, onRefresh }: Props) {
                         <input
                             type="number"
                             step="0.1"
-                            min={SHIB_MIN_WITHDRAW}
+                            min={effectiveMin > 0 ? effectiveMin : undefined}
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            placeholder={`Mínimo ${SHIB_MIN_WITHDRAW}`}
+                            placeholder={minShib !== null ? `Mínimo ≈ ${Math.ceil(minShib).toLocaleString()} SHIB` : 'Quantidade'}
                             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-orange-500 transition-colors"
                             required
                         />
@@ -166,7 +181,7 @@ export function ShibPanel({ balance, onRefresh }: Props) {
 
                     <button
                         type="submit"
-                        disabled={loading || Number(amount) < SHIB_MIN_WITHDRAW}
+                        disabled={loading || (effectiveMin > 0 && Number(amount) < effectiveMin)}
                         className="w-full py-4 bg-orange-500 text-white font-black uppercase tracking-widest rounded-2xl hover:bg-orange-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                     >
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowDownToLine className="w-5 h-5" />}
