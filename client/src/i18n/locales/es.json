@@ -1990,7 +1990,7 @@
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Apila 10 bloques. Cada fallo reduce el siguiente — pura precisión.",
     "crypto_reaction_title": "Crypto Reaction",
-    "crypto_reaction_desc": "Mira la secuencia de símbolos cripto y repítela. La cadena crece en cada ronda.",
+    "crypto_reaction_desc": "Mira la secuencia y repítela. 3 rondas, 3 vidas — rápido y casual.",
     "tabs": {
       "ours": "Nuestros Juegos",
       "partners": "Juegos Asociados"
@@ -2009,7 +2009,8 @@
       "repeat": "Repite la secuencia",
       "round_cleared": "¡Ronda superada!",
       "get_ready": "Prepárate…",
-      "hint": "Cada ronda añade un símbolo más — sigue el ritmo."
+      "lives_aria": "{{lives}} vidas restantes",
+      "hint": "3 rondas, 3 vidas. Observa con calma — lo lograrás."
     },
     "socket_errors": {
       "invalid_session": "Sesión no válida.",

@@ -160,6 +160,8 @@ type GameStartedReaction = {
   targetRounds: number;
   round: number;
   sequenceLength: number;
+  lives: number;
+  maxLives: number;
   score?: number;
 };
 
@@ -315,6 +317,9 @@ export default function Games() {
     targetRounds: number;
     round: number;
     sequenceLength: number;
+    /** Lives left (wrong-click budget). Hits 0 → run ends. */
+    lives: number;
+    maxLives: number;
     phase: "intro" | "show" | "input" | "round_clear";
     // SHOW: currently lit symbol (null = OFF gap)
     showSymbol: string | null;
@@ -626,6 +631,8 @@ export default function Games() {
           targetRounds: data.targetRounds,
           round: data.round,
           sequenceLength: data.sequenceLength,
+          lives: data.lives,
+          maxLives: data.maxLives,
           phase: "intro",
           showSymbol: null,
           showIndex: -1,
@@ -878,10 +885,11 @@ export default function Games() {
       (data: {
         ok: boolean;
         symbol: string;
-        expected?: string;
         progress?: number;
         total?: number;
         score?: number;
+        lives?: number;       // Server-authoritative remaining lives (only on wrong clicks)
+        fatal?: boolean;      // Wrong click that killed the run (lives went to 0)
       }) => {
         if (typeof data.score === "number") setHudScore(data.score);
         setReactionState((prev) => {
@@ -898,6 +906,7 @@ export default function Games() {
           }
           return {
             ...prev,
+            lives: typeof data.lives === "number" ? data.lives : prev.lives,
             lastClickedSymbol: data.symbol,
             lastClickFlash: prev.lastClickFlash + 1,
             lastClickResult: "bad",
@@ -2455,10 +2464,10 @@ export default function Games() {
   }, [socket, isGameOver]);
 
   /**
-   * Click a symbol button in Crypto Reaction. Optimistic feedback: we
-   * immediately flash the button as if accepted, then the server confirms
-   * via `reaction:pick_result`. If the server says "wrong", the result event
-   * overrides our optimistic flash with "bad" and the run ends shortly after.
+   * Click a symbol button in Crypto Reaction. Optimistic UX: the tile flashes
+   * immediately (neutral "pending" feedback) so the player feels the click
+   * without waiting for the socket. The server then sends pick_result, which
+   * sets lastClickResult to "ok" (correct → next index) or "bad" (cost a life).
    */
   const handleReactionPick = useCallback(
     (symbol: string) => {
@@ -2469,7 +2478,8 @@ export default function Games() {
           ...prev,
           lastClickedSymbol: symbol,
           lastClickFlash: prev.lastClickFlash + 1,
-          lastClickResult: "ok", // optimistic; server may overwrite to "bad"
+          // Neutral pending state — flash uses white/dim until server confirms.
+          lastClickResult: null,
         };
       });
       socket.emit("game:action", { type: "pick", symbol });
@@ -3021,6 +3031,8 @@ const CryptoReactionArena = memo(function CryptoReactionArena({
         targetRounds: number;
         round: number;
         sequenceLength: number;
+        lives: number;
+        maxLives: number;
         phase: "intro" | "show" | "input" | "round_clear";
         showSymbol: string | null;
         showIndex: number;
@@ -3054,7 +3066,7 @@ const CryptoReactionArena = memo(function CryptoReactionArena({
 
   return (
     <div className="relative flex h-full w-full flex-col bg-gradient-to-b from-slate-900 to-black p-4">
-      {/* Header: round + progress bar */}
+      {/* Header: round + phase label */}
       <div className="w-full">
         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
           <span>
@@ -3075,15 +3087,43 @@ const CryptoReactionArena = memo(function CryptoReactionArena({
             {phaseLabel}
           </span>
         </div>
-        <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full bg-gradient-to-r from-fuchsia-400 to-pink-500 transition-all duration-150"
-            style={{
-              width: `${
-                state.sequenceLength > 0 ? (state.progress / state.sequenceLength) * 100 : 0
-              }%`,
-            }}
-          />
+
+        {/* Progress bar + lives row */}
+        <div className="mt-1 flex items-center gap-3">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="h-full bg-gradient-to-r from-fuchsia-400 to-pink-500 transition-all duration-150"
+              style={{
+                width: `${
+                  state.sequenceLength > 0 ? (state.progress / state.sequenceLength) * 100 : 0
+                }%`,
+              }}
+            />
+          </div>
+          {/* Lives (hearts) — full = pink, lost = dim outline */}
+          <div className="flex shrink-0 items-center gap-1" aria-label={t("minerGames.crypto_reaction.lives_aria", { lives: state.lives })}>
+            {Array.from({ length: state.maxLives }).map((_, i) => {
+              const filled = i < state.lives;
+              return (
+                <svg
+                  key={i}
+                  viewBox="0 0 24 24"
+                  className={[
+                    "h-4 w-4 transition-all duration-200",
+                    filled ? "text-rose-400 drop-shadow-[0_0_4px_rgba(244,114,182,0.5)]" : "text-slate-700",
+                  ].join(" ")}
+                  fill={filled ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -3118,13 +3158,21 @@ const CryptoReactionArena = memo(function CryptoReactionArena({
               style={{ touchAction: "manipulation" }}
             >
               <span className="relative z-10">{sym}</span>
-              {/* Optimistic / confirmed click flash — keyed so each click re-runs the animation */}
-              {isLastClicked && state.lastClickResult && (
+              {/* Click flash. Three colors:
+                  - white  = pending (optimistic, server hasn't confirmed yet)
+                  - green  = server confirmed correct
+                  - red    = server said wrong (cost a life)
+                  Keyed by lastClickFlash so the animation restarts on every click. */}
+              {isLastClicked && (
                 <span
                   key={state.lastClickFlash}
                   className={[
                     "pointer-events-none absolute inset-0 rounded-2xl",
-                    state.lastClickResult === "ok" ? "bg-emerald-300/40" : "bg-red-500/60",
+                    state.lastClickResult === "ok"
+                      ? "bg-emerald-300/40"
+                      : state.lastClickResult === "bad"
+                        ? "bg-red-500/60"
+                        : "bg-white/30",
                     "animate-ping",
                   ].join(" ")}
                   style={{ animationDuration: "260ms" }}

@@ -2396,7 +2396,7 @@
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Empilhe 10 blocos. Cada erro encolhe o próximo — pura precisão.",
     "crypto_reaction_title": "Crypto Reaction",
-    "crypto_reaction_desc": "Veja a sequência de símbolos cripto e repita. A cadeia cresce a cada rodada.",
+    "crypto_reaction_desc": "Observe a sequência e repita. 3 rodadas, 3 vidas — rápido e leve.",
     "tabs": {
       "ours": "Nossos Jogos",
       "partners": "Jogos Parceiros"
@@ -2415,7 +2415,8 @@
       "repeat": "Repita a sequência",
       "round_cleared": "Rodada vencida!",
       "get_ready": "Prepare-se…",
-      "hint": "Cada rodada adiciona mais um símbolo — acompanhe."
+      "lives_aria": "{{lives}} vidas restantes",
+      "hint": "3 rodadas, 3 vidas. Observe com calma — você consegue."
     },
     "socket_errors": {
       "invalid_session": "Sessão inválida.",

@@ -122,23 +122,30 @@ type BlockStackState = GameSessionState & {
 
 // ─── Crypto Reaction constants ───────────────────────────────────────────────
 // Simon-Says with crypto symbols. The server owns the sequence; the client
-// only ever learns one symbol at a time during the SHOW phase. Each player
-// click is validated against the next expected index — wrong = run ends.
+// only ever learns one symbol at a time during the SHOW phase. The player
+// has REACTION_LIVES wrong clicks before the run ends.
 const REACTION_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "ADA", "DOT", "DOGE", "MATIC"] as const;
-const REACTION_TARGET_ROUNDS = 8;          // Beat round N → win
-const REACTION_START_LEN = 4;              // Round 1 has 4 symbols in the sequence
-const REACTION_SHOW_ON_MS = 700;           // Each symbol stays lit this long during SHOW
-const REACTION_SHOW_OFF_MS = 300;          // Gap between SHOW symbols
-const REACTION_NEXT_ROUND_GAP_MS = 600;    // Pause before SHOW-ing the next round
+const REACTION_TARGET_ROUNDS = 3;          // Beat 3 rounds → win (casual length)
+const REACTION_START_LEN = 4;              // Round 1 has 4 symbols
+// Sequence lengths per round: 4, 5, 6 (start + round - 1)
+const REACTION_LIVES = 3;                  // Wrong-click budget before run ends
+const REACTION_SHOW_ON_MS = 800;           // Slightly slower SHOW (was 700) — easier to read
+const REACTION_SHOW_OFF_MS = 350;          // Slightly longer OFF gap (was 300)
+const REACTION_NEXT_ROUND_GAP_MS = 700;    // Pause before SHOW-ing the next round
 const REACTION_MIN_CLICK_INTERVAL_MS = 100; // Anti-bot: drop clicks faster than 10/s
-const REACTION_INPUT_TIMEOUT_MS = 8000;    // Player has this long to make each click; otherwise round fails
+const REACTION_INPUT_TIMEOUT_MS = 15000;   // Generous timeout (was 8s) so casual players don't get cut off
+// Anti-cheat: 15s minimum run. Min sum to perfect-win =
+//   round1 show (4×1.15s = 4.6s) + round2 show (5×1.15s = 5.75s)
+// + round3 show (6×1.15s = 6.9s) + 2 round gaps (1.4s) = 18.65s show alone.
+// Plus the player still has to click 4+5+6 = 15 symbols. Easy margin above 15s.
 
 type ReactionState = GameSessionState & {
   slug: "crypto-reaction";
   round: number;             // 1..REACTION_TARGET_ROUNDS
-  sequence: string[];        // Full sequence for the current round (length = REACTION_START_LEN + round - 1)
+  sequence: string[];        // Full sequence for the current round
   userIndex: number;         // Index of next expected click within `sequence`
   phase: "show" | "input";   // What the player is allowed to do
+  lives: number;             // Remaining wrong-click budget (starts at REACTION_LIVES)
   lastClickAt: number;       // Throttle reference
   reactionTimer?: ReturnType<typeof setTimeout>;     // Active SHOW emit / OFF gap
   inputDeadlineTimer?: ReturnType<typeof setTimeout>; // Times out if user freezes during INPUT
@@ -305,6 +312,7 @@ export function registerGamesSocketHandlers({ io, engine }) {
           initialState.sequence = initialSequence;
           initialState.userIndex = 0;
           initialState.phase = "show";
+          initialState.lives = REACTION_LIVES;
           initialState.lastClickAt = 0;
           socket.emit("game:started", {
             game: slug,
@@ -312,6 +320,8 @@ export function registerGamesSocketHandlers({ io, engine }) {
             targetRounds: REACTION_TARGET_ROUNDS,
             round: 1,
             sequenceLength: initialSequence.length,
+            lives: REACTION_LIVES,
+            maxLives: REACTION_LIVES,
             score: 0,
           });
           // Kick off the first SHOW phase after a short pause so the client
@@ -786,13 +796,20 @@ function handleReactionPick(
 
   const expected = state.sequence[state.userIndex];
   if (sym !== expected) {
-    // Wrong click → run ends
-    if (state.inputDeadlineTimer) {
-      clearTimeout(state.inputDeadlineTimer);
-      state.inputDeadlineTimer = undefined;
+    // Wrong click → cost one life. If no lives left, end the run.
+    // userIndex stays put so the player can try the same symbol again.
+    state.lives = Math.max(0, state.lives - 1);
+    if (state.lives <= 0) {
+      if (state.inputDeadlineTimer) {
+        clearTimeout(state.inputDeadlineTimer);
+        state.inputDeadlineTimer = undefined;
+      }
+      socket.emit("reaction:pick_result", { ok: false, symbol: sym, lives: 0, fatal: true });
+      finishGame(socket, state, false, engine, "reaction_wrong");
+      return;
     }
-    socket.emit("reaction:pick_result", { ok: false, symbol: sym, expected });
-    finishGame(socket, state, false, engine, "reaction_wrong");
+    // Still alive — keep playing
+    socket.emit("reaction:pick_result", { ok: false, symbol: sym, lives: state.lives, fatal: false });
     return;
   }
 

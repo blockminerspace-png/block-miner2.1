@@ -2391,7 +2391,7 @@
     "block_stack_title": "Block Stack",
     "block_stack_desc": "Stack 10 blocks. Each miss shrinks the next one — pure precision.",
     "crypto_reaction_title": "Crypto Reaction",
-    "crypto_reaction_desc": "Watch the sequence of crypto symbols, then repeat it. The chain gets longer every round.",
+    "crypto_reaction_desc": "Watch the sequence, then repeat it. 3 rounds, 3 lives — casual and quick.",
     "tabs": {
       "ours": "Our Games",
       "partners": "Partner Games"
@@ -2410,7 +2410,8 @@
       "repeat": "Repeat the sequence",
       "round_cleared": "Round cleared!",
       "get_ready": "Get ready…",
-      "hint": "Each round adds one more symbol — keep up."
+      "lives_aria": "{{lives}} lives remaining",
+      "hint": "3 rounds, 3 lives. Watch carefully — you've got this."
     },
     "socket_errors": {
       "invalid_session": "Invalid session.",
