@@ -1,6 +1,6 @@
 import prisma from "../src/db/prisma.js";
 
-export const BOOST_COST_POL = 0.10;
+export const BOOST_COST_POL = 0.01;
 export const BOOST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const NORMAL_TTL_MS = 24 * 60 * 60 * 1000;
 
