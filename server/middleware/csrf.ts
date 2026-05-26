@@ -64,6 +64,13 @@ export function createCsrfMiddleware(): RequestHandler {
       return;
     }
 
+    // S2S callbacks from external providers — no browser session, no CSRF token
+    const S2S_PATHS = ["/api/offerwallme/postback", "/zeradsptc.php"];
+    if (S2S_PATHS.some((p) => url.startsWith(p))) {
+      next();
+      return;
+    }
+
     if (["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
       const headerToken = req.headers["x-csrf-token"];
       const headerStr = Array.isArray(headerToken) ? headerToken[0] : headerToken;
