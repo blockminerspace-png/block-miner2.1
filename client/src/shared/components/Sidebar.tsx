@@ -53,7 +53,7 @@ export default function Sidebar() {
    * User-expanded nav groups when not on a matching child route.
    * A group stays open only if the path matches a child OR this flag is true for that key.
    */
-  const [manualOpenGroups, setManualOpenGroups] = useState<Record<string, boolean>>({});
+  const [manualOpenGroups, setManualOpenGroups] = useState<Record<string, boolean>>({ rewards_group: true });
   const [navCategoriesSource, setNavCategoriesSource] = useState<PublicNavCategory[]>(
     () => USER_DASHBOARD_NAV_FALLBACK
   );
