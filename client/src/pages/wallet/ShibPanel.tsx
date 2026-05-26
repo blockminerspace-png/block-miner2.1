@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { ArrowDownToLine, ArrowRightLeft, Loader2, Info, ArrowLeftRight } from 'lucide-react';
+import { ArrowDownToLine, ArrowRightLeft, Loader2, Info, RefreshCw } from 'lucide-react';
 import { api } from '../../store/auth';
 
 const SHIB_WITHDRAW_FEE = 7800;
@@ -17,10 +17,11 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
     const [amount, setAmount] = useState('');
     const [address, setAddress] = useState('');
     const [swapAmount, setSwapAmount] = useState('');
-    const [swapOut, setSwapOut] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
     const [minShib, setMinShib] = useState<number | null>(null);
     const [shibPrice, setShibPrice] = useState<number | null>(null);
+    const [prices, setPrices] = useState<{ SHIB: number; POL: number } | null>(null);
+    const [pricesLoading, setPricesLoading] = useState(false);
 
     useEffect(() => {
         function fetchMin() {
@@ -36,25 +37,38 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
         return () => clearInterval(interval);
     }, []);
 
+    const fetchPrices = useCallback(async () => {
+        setPricesLoading(true);
+        try {
+            const res = await api.get('/swap/balances');
+            const sp = res.data.prices?.SHIB;
+            const pp = res.data.prices?.POL;
+            if (sp && pp) setPrices({ SHIB: sp, POL: pp });
+        } catch {
+            // keep stale
+        } finally {
+            setPricesLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (mode === 'swap') {
+            fetchPrices();
+            const id = setInterval(fetchPrices, 2 * 60 * 1000);
+            return () => clearInterval(id);
+        }
+    }, [mode, fetchPrices]);
+
     const net = Number(amount) - SHIB_WITHDRAW_FEE;
     const effectiveMin = minShib ?? 0;
 
-    async function estimateSwap(val: string, dir: 'shib_to_pol' | 'pol_to_shib') {
-        const n = Number(val);
-        if (!n || n <= 0) { setSwapOut(null); return; }
-        try {
-            const res = await api.get('/swap/balances');
-            const sp = res.data.prices?.SHIB ?? 0.00001;
-            const pp = res.data.prices?.POL ?? 1;
-            if (dir === 'shib_to_pol') {
-                setSwapOut((n * sp) / pp);
-            } else {
-                setSwapOut(Math.floor((n * pp) / sp));
-            }
-        } catch {
-            setSwapOut(null);
-        }
-    }
+    // Derived swap estimate — recomputes whenever swapAmount or prices change
+    const swapAmountNum = Number(swapAmount);
+    const swapOut: number | null = (() => {
+        if (!prices || !swapAmountNum || swapAmountNum <= 0) return null;
+        if (swapDir === 'shib_to_pol') return (swapAmountNum * prices.SHIB) / prices.POL;
+        return Math.floor((swapAmountNum * prices.POL) / prices.SHIB);
+    })();
 
     async function handleWithdraw(e: React.FormEvent) {
         e.preventDefault();
@@ -102,7 +116,6 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                     : `${Math.floor(Number(res.data.output)).toLocaleString()} SHIB`;
                 toast.success(`Swap realizado! Você recebeu ${outLabel}`);
                 setSwapAmount('');
-                setSwapOut(null);
                 onRefresh();
             } else {
                 toast.error(res.data.message ?? 'Swap falhou');
@@ -213,45 +226,96 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                     {/* Direction toggle */}
                     <div className="flex bg-slate-900/50 p-1 rounded-2xl gap-1">
                         <button type="button"
-                            onClick={() => { setSwapDir('shib_to_pol'); setSwapAmount(''); setSwapOut(null); }}
+                            onClick={() => { setSwapDir('shib_to_pol'); setSwapAmount(''); }}
                             className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 ${swapDir === 'shib_to_pol' ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
                             <ArrowRightLeft className="w-3 h-3" /> SHIB → POL
                         </button>
                         <button type="button"
-                            onClick={() => { setSwapDir('pol_to_shib'); setSwapAmount(''); setSwapOut(null); }}
+                            onClick={() => { setSwapDir('pol_to_shib'); setSwapAmount(''); }}
                             className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 ${swapDir === 'pol_to_shib' ? 'bg-primary text-white' : 'text-slate-500 hover:text-slate-300'}`}>
-                            <ArrowLeftRight className="w-3 h-3" /> POL → SHIB
+                            <ArrowRightLeft className="w-3 h-3 rotate-180" /> POL → SHIB
                         </button>
                     </div>
 
+                    {/* Live rate card */}
+                    <div className="p-4 bg-slate-900/60 border border-slate-700/50 rounded-2xl">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Taxa de conversão</span>
+                            <button type="button" onClick={fetchPrices} disabled={pricesLoading}
+                                className="text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40">
+                                <RefreshCw className={`w-3.5 h-3.5 ${pricesLoading ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
+                        {prices ? (
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-400">1 POL =</span>
+                                    <span className="text-sm font-black text-orange-300 tabular-nums">
+                                        {Math.floor(prices.POL / prices.SHIB).toLocaleString()} SHIB
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-400">1 SHIB =</span>
+                                    <span className="text-sm font-black text-primary tabular-nums">
+                                        {(prices.SHIB / prices.POL).toFixed(8)} POL
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center pt-1 border-t border-slate-700/50">
+                                    <span className="text-[10px] text-slate-500">POL ≈ ${prices.POL.toFixed(4)}</span>
+                                    <span className="text-[10px] text-slate-500">SHIB ≈ ${prices.SHIB.toFixed(8)}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 text-slate-500 text-xs">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando preços...
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Amount input */}
                     <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
-                            {swapDir === 'shib_to_pol' ? 'Quantidade SHIB' : 'Quantidade POL'}
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {swapDir === 'shib_to_pol' ? 'Quantidade SHIB' : 'Quantidade POL'}
+                            </label>
+                            <button type="button"
+                                onClick={() => setSwapAmount(swapDir === 'shib_to_pol' ? String(Math.floor(balance)) : String(polBalance))}
+                                className="text-[10px] font-black text-violet-400 hover:text-violet-300 uppercase tracking-widest transition-colors">
+                                MAX
+                            </button>
+                        </div>
                         <input
                             type="number"
                             step={swapDir === 'shib_to_pol' ? '1' : '0.000001'}
                             min="0"
                             value={swapAmount}
-                            onChange={(e) => { setSwapAmount(e.target.value); estimateSwap(e.target.value, swapDir); }}
+                            onChange={(e) => setSwapAmount(e.target.value)}
                             placeholder="0"
                             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-violet-500 transition-colors"
                             required
                         />
-                        {swapOut !== null && (
-                            <p className="text-[9px] text-slate-500 mt-1.5 font-medium">
-                                {swapDir === 'shib_to_pol'
-                                    ? <>Estimativa: <span className="text-primary font-black">≈ {swapOut.toFixed(6)} POL</span></>
-                                    : <>Estimativa: <span className="text-orange-300 font-black">≈ {Math.floor(swapOut).toLocaleString()} SHIB</span></>
-                                }
-                            </p>
-                        )}
-                        <p className="text-[9px] text-slate-600 mt-1 font-medium">
-                            Saldo: {swapDir === 'shib_to_pol'
-                                ? `${balance.toLocaleString(undefined, { maximumFractionDigits: 2 })} SHIB`
-                                : `${polBalance.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })} POL`}
+                        <p className="text-xs text-slate-500 mt-1.5 font-medium">
+                            Saldo disponível: {swapDir === 'shib_to_pol'
+                                ? <span className="text-orange-300 font-black">{Math.floor(balance).toLocaleString()} SHIB</span>
+                                : <span className="text-primary font-black">{polBalance.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })} POL</span>}
                         </p>
                     </div>
+
+                    {/* Output estimate — large and readable */}
+                    {swapOut !== null && (
+                        <div className="p-4 bg-violet-500/10 border border-violet-500/30 rounded-2xl">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Você receberá (estimativa)</p>
+                            {swapDir === 'shib_to_pol' ? (
+                                <p className="text-2xl font-black tabular-nums text-primary">
+                                    ≈ {swapOut.toFixed(6)} <span className="text-base text-primary/70 ml-1">POL</span>
+                                </p>
+                            ) : (
+                                <p className="text-2xl font-black tabular-nums text-orange-300">
+                                    ≈ {Math.floor(swapOut).toLocaleString()} <span className="text-base text-orange-300/70 ml-1">SHIB</span>
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <button
                         type="submit"
