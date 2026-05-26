@@ -44,21 +44,33 @@ export async function updateSettings(req: Request, res: Response): Promise<void>
   }
 }
 
+// ── Tiers (public) ────────────────────────────────────────────────────────────
+
+export async function getActiveTiers(req: Request, res: Response): Promise<void> {
+  try {
+    const tiers = await svc.getActiveTiers();
+    res.json({ ok: true, tiers });
+  } catch {
+    err(res, 500, "Server error");
+  }
+}
+
 // ── User: campaign creation & management ─────────────────────────────────────
 
 export async function createCampaign(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) { err(res, 401, "Unauthorized"); return; }
-    const { title, description, url, adType, durationSeconds, targetViews } = req.body as Record<string, unknown>;
+    const { title, description, url, adType, tierId, targetViews } = req.body as Record<string, unknown>;
 
     if (!title || !url) { err(res, 400, "Title and URL required"); return; }
+    if (!tierId) { err(res, 400, "Tier selection required"); return; }
 
     await svc.createCampaign(req.user.id, {
       title: String(title),
       description: String(description ?? ""),
       url: String(url),
       adType: adType === "iframe" ? "iframe" : "window",
-      durationSeconds: Number(durationSeconds ?? 10),
+      tierId: Number(tierId),
       targetViews: Number(targetViews ?? 0),
     });
     res.json({ ok: true, message: "Campaign submitted for approval" });
@@ -189,6 +201,67 @@ export async function adminReject(req: Request, res: Response): Promise<void> {
   try {
     const reason = String((req.body as Record<string, unknown>).reason ?? "Policy violation");
     await svc.rejectCampaign(Number(req.params.id), reason);
+    res.json({ ok: true });
+  } catch (e) {
+    err(res, 400, e instanceof Error ? e.message : "Server error");
+  }
+}
+
+// ── Admin: Tier CRUD ──────────────────────────────────────────────────────────
+
+export async function adminGetTiers(req: Request, res: Response): Promise<void> {
+  try {
+    const tiers = await svc.getTiers();
+    res.json({ ok: true, tiers });
+  } catch {
+    err(res, 500, "Server error");
+  }
+}
+
+export async function adminCreateTier(req: Request, res: Response): Promise<void> {
+  try {
+    const { label, durationSeconds, pricePerViewShib, rewardPerViewShib, isActive, sortOrder } =
+      req.body as Record<string, unknown>;
+    if (!label || !durationSeconds || pricePerViewShib === undefined || rewardPerViewShib === undefined) {
+      err(res, 400, "label, durationSeconds, pricePerViewShib and rewardPerViewShib are required");
+      return;
+    }
+    const tier = await svc.createTier({
+      label: String(label),
+      durationSeconds: Number(durationSeconds),
+      pricePerViewShib: Number(pricePerViewShib),
+      rewardPerViewShib: Number(rewardPerViewShib),
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
+      sortOrder: sortOrder !== undefined ? Number(sortOrder) : 0,
+    });
+    res.json({ ok: true, tier });
+  } catch (e) {
+    err(res, 400, e instanceof Error ? e.message : "Server error");
+  }
+}
+
+export async function adminUpdateTier(req: Request, res: Response): Promise<void> {
+  try {
+    const id = Number(req.params.id);
+    const { label, durationSeconds, pricePerViewShib, rewardPerViewShib, isActive, sortOrder } =
+      req.body as Record<string, unknown>;
+    const tier = await svc.updateTier(id, {
+      ...(label !== undefined && { label: String(label) }),
+      ...(durationSeconds !== undefined && { durationSeconds: Number(durationSeconds) }),
+      ...(pricePerViewShib !== undefined && { pricePerViewShib: Number(pricePerViewShib) }),
+      ...(rewardPerViewShib !== undefined && { rewardPerViewShib: Number(rewardPerViewShib) }),
+      ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+      ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
+    });
+    res.json({ ok: true, tier });
+  } catch (e) {
+    err(res, 400, e instanceof Error ? e.message : "Server error");
+  }
+}
+
+export async function adminDeleteTier(req: Request, res: Response): Promise<void> {
+  try {
+    await svc.deleteTier(Number(req.params.id));
     res.json({ ok: true });
   } catch (e) {
     err(res, 400, e instanceof Error ? e.message : "Server error");

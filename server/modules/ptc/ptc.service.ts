@@ -22,6 +22,54 @@ export async function updateSettings(data: {
   return repo.updateSettings(data);
 }
 
+// ── Ad Tiers ─────────────────────────────────────────────────────────────────
+
+export async function getTiers() {
+  return repo.getTiers();
+}
+
+export async function getActiveTiers() {
+  return repo.getActiveTiers();
+}
+
+export async function createTier(data: {
+  label: string;
+  durationSeconds: number;
+  pricePerViewShib: number;
+  rewardPerViewShib: number;
+  isActive?: boolean;
+  sortOrder?: number;
+}) {
+  return repo.createTier({
+    label: data.label,
+    durationSeconds: data.durationSeconds,
+    pricePerViewShib: data.pricePerViewShib,
+    rewardPerViewShib: data.rewardPerViewShib,
+    isActive: data.isActive ?? true,
+    sortOrder: data.sortOrder ?? 0,
+  });
+}
+
+export async function updateTier(
+  id: number,
+  data: {
+    label?: string;
+    durationSeconds?: number;
+    pricePerViewShib?: number;
+    rewardPerViewShib?: number;
+    isActive?: boolean;
+    sortOrder?: number;
+  },
+) {
+  return repo.updateTier(id, data);
+}
+
+export async function deleteTier(id: number) {
+  const tier = await repo.getTierById(id);
+  if (!tier) throw new Error("Tier not found");
+  return repo.deleteTier(id);
+}
+
 // ── Campaign creation ─────────────────────────────────────────────────────────
 
 export async function createCampaign(
@@ -31,26 +79,24 @@ export async function createCampaign(
     description: string;
     url: string;
     adType: "iframe" | "window";
-    durationSeconds: number;
+    tierId: number;
     targetViews: number;
   },
 ) {
   const settings = await repo.getSettings();
-
   if (!settings.isEnabled) throw new Error("PTC system is currently disabled");
 
-  const { minDurationSeconds, maxDurationSeconds, minViews, maxViews } = settings;
+  const tier = await repo.getTierById(input.tierId);
+  if (!tier || !tier.isActive) throw new Error("Selected tier is not available");
 
-  if (input.durationSeconds < minDurationSeconds || input.durationSeconds > maxDurationSeconds) {
-    throw new Error(`Duration must be between ${minDurationSeconds} and ${maxDurationSeconds} seconds`);
-  }
+  const { minViews, maxViews } = settings;
   if (input.targetViews < minViews || input.targetViews > maxViews) {
     throw new Error(`Views must be between ${minViews} and ${maxViews}`);
   }
 
-  const pricePerView = new Decimal(settings.pricePerViewShib.toString());
+  const pricePerView = new Decimal(tier.pricePerViewShib.toString());
   const costShib = pricePerView.mul(input.targetViews);
-  const rewardPerViewShib = new Decimal(settings.rewardPerViewShib.toString());
+  const rewardPerViewShib = new Decimal(tier.rewardPerViewShib.toString());
 
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
@@ -69,12 +115,13 @@ export async function createCampaign(
     await tx.ptpAd.create({
       data: {
         userId,
+        tierId: tier.id,
         title: input.title,
         description: input.description,
         url: input.url,
         hash,
         adType: input.adType,
-        durationSeconds: input.durationSeconds,
+        durationSeconds: tier.durationSeconds,
         targetViews: input.targetViews,
         costShib,
         rewardPerViewShib,
@@ -119,7 +166,16 @@ export async function addViews(userId: number, adId: number, extraViews: number)
   const newTotal = ad.targetViews + extraViews;
   if (newTotal > settings.maxViews) throw new Error(`Max views is ${settings.maxViews}`);
 
-  const pricePerView = new Decimal(settings.pricePerViewShib.toString());
+  // Derive price from tier if available, else from original cost ratio
+  let pricePerView: InstanceType<typeof Decimal>;
+  if (ad.tierId) {
+    const tier = await repo.getTierById(ad.tierId);
+    pricePerView = new Decimal(tier ? tier.pricePerViewShib.toString() : ad.costShib.toString()).div(ad.targetViews || 1);
+  } else {
+    pricePerView = ad.targetViews > 0
+      ? new Decimal(ad.costShib.toString()).div(ad.targetViews)
+      : new Decimal(settings.pricePerViewShib.toString());
+  }
   const costShib = pricePerView.mul(extraViews);
 
   await prisma.$transaction(async (tx) => {
@@ -150,7 +206,9 @@ export async function removeViews(userId: number, adId: number, reduceViews: num
   }
   if (newTarget < settings.minViews) throw new Error(`Min views is ${settings.minViews}`);
 
-  const pricePerView = new Decimal(settings.pricePerViewShib.toString());
+  const pricePerView = ad.targetViews > 0
+    ? new Decimal(ad.costShib.toString()).div(ad.targetViews)
+    : new Decimal(settings.pricePerViewShib.toString());
   const refundShib = pricePerView.mul(reduceViews);
 
   await prisma.$transaction(async (tx) => {
@@ -176,10 +234,10 @@ export async function rejectCampaign(adId: number, reason: string) {
   if (!ad) throw new Error("Campaign not found");
   if (ad.status !== "pending_approval") throw new Error("Campaign is not pending approval");
 
-  const settings = await repo.getSettings();
   const undelivered = ad.targetViews - ad.views;
-  const pricePerView = new Decimal(settings.pricePerViewShib.toString());
-  const refundShib = pricePerView.mul(undelivered);
+  const refundShib = ad.targetViews > 0
+    ? new Decimal(ad.costShib.toString()).div(ad.targetViews).mul(undelivered)
+    : new Decimal(0);
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({ where: { id: ad.userId }, data: { shibBalance: { increment: refundShib } } });

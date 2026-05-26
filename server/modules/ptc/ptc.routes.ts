@@ -11,6 +11,7 @@ const viewLimiter = createRateLimiter({ windowMs: 10_000, max: 5 });
 
 // ── User routes ──────────────────────────────────────────────────────────────
 ptcRouter.get("/settings", limiter, ctrl.getSettings);
+ptcRouter.get("/tiers", limiter, ctrl.getActiveTiers);
 ptcRouter.get("/next", requireAuth, limiter, ctrl.getNextAd);
 ptcRouter.post("/view/:id", requireAuth, viewLimiter, ctrl.trackView);
 ptcRouter.get("/earnings", requireAuth, limiter, ctrl.getEarningsHistory);
@@ -28,3 +29,7 @@ ptcAdminRouter.get("/campaigns/pending", ctrl.adminListPending);
 ptcAdminRouter.get("/campaigns", ctrl.adminListAll);
 ptcAdminRouter.post("/campaigns/:id/approve", ctrl.adminApprove);
 ptcAdminRouter.post("/campaigns/:id/reject", ctrl.adminReject);
+ptcAdminRouter.get("/tiers", ctrl.adminGetTiers);
+ptcAdminRouter.post("/tiers", ctrl.adminCreateTier);
+ptcAdminRouter.put("/tiers/:id", ctrl.adminUpdateTier);
+ptcAdminRouter.delete("/tiers/:id", ctrl.adminDeleteTier);

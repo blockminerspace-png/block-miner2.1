@@ -1189,9 +1189,24 @@ model PtcSettings {
   @@map("ptc_settings")
 }
 
+model PtcAdTier {
+  id                Int     @id @default(autoincrement())
+  label             String
+  durationSeconds   Int     @map("duration_seconds")
+  pricePerViewShib  Decimal @default(0) @map("price_per_view_shib") @db.Decimal(30, 8)
+  rewardPerViewShib Decimal @default(0) @map("reward_per_view_shib") @db.Decimal(30, 8)
+  isActive          Boolean @default(true) @map("is_active")
+  sortOrder         Int     @default(0) @map("sort_order")
+
+  campaigns PtpAd[]
+
+  @@map("ptc_ad_tiers")
+}
+
 model PtpAd {
   id                Int      @id @default(autoincrement())
   userId            Int      @map("user_id")
+  tierId            Int?     @map("tier_id")
   title             String
   description       String   @default("")
   url               String
@@ -1212,7 +1227,8 @@ model PtpAd {
   costUsd           Float    @default(0) @map("cost_usd")
   costAsset         Float    @default(0) @map("cost_asset")
 
-  user     User      @relation(fields: [userId], references: [id])
+  user     User       @relation(fields: [userId], references: [id])
+  tier     PtcAdTier? @relation(fields: [tierId], references: [id])
   ptpViews PtpView[]
 
   @@index([userId])

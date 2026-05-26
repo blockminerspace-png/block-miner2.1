@@ -15,6 +15,35 @@ export async function updateSettings(data: Prisma.PtcSettingsUpdateInput) {
   return prisma.ptcSettings.update({ where: { id: 1 }, data });
 }
 
+// ── Ad Tiers ─────────────────────────────────────────────────────────────────
+
+export async function getTiers() {
+  return prisma.ptcAdTier.findMany({ orderBy: [{ sortOrder: "asc" }, { durationSeconds: "asc" }] });
+}
+
+export async function getActiveTiers() {
+  return prisma.ptcAdTier.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { durationSeconds: "asc" }],
+  });
+}
+
+export async function getTierById(id: number) {
+  return prisma.ptcAdTier.findUnique({ where: { id } });
+}
+
+export async function createTier(data: Prisma.PtcAdTierCreateInput) {
+  return prisma.ptcAdTier.create({ data });
+}
+
+export async function updateTier(id: number, data: Prisma.PtcAdTierUpdateInput) {
+  return prisma.ptcAdTier.update({ where: { id }, data });
+}
+
+export async function deleteTier(id: number) {
+  return prisma.ptcAdTier.delete({ where: { id } });
+}
+
 // ── Campaigns ────────────────────────────────────────────────────────────────
 
 export async function createCampaign(data: Prisma.PtpAdCreateInput) {
