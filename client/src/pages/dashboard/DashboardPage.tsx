@@ -562,26 +562,41 @@ export default function Dashboard(): ReactElement {
                         </span>
                       </td>
                       <td className="px-8 py-5">
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4 text-emerald-400" />
-                          <span className="text-emerald-400 font-black">
-                            +{safeDashboardNumber(block.userReward, 4)}{' '}
-                            <span className="text-[10px] font-normal">{stats?.tokenSymbol}</span>
-                          </span>
+                        <div className="flex items-start gap-2">
+                          <TrendingUp className="w-4 h-4 text-emerald-400 mt-0.5" />
+                          <div className="flex flex-col leading-tight">
+                            <span className="text-emerald-400 font-black">
+                              +{safeDashboardNumber(block.userReward, 4)}{' '}
+                              <span className="text-[10px] font-normal">{stats?.tokenSymbol}</span>
+                            </span>
+                            {Number(block.userRewardShib ?? 0) > 0 && (
+                              <span className="text-amber-300 font-black text-[11px]">
+                                +{safeDashboardNumber(block.userRewardShib, 2)}{' '}
+                                <span className="text-[9px] font-normal">SHIB</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-8 py-5 text-gray-300 font-bold">
-                        <span className="inline-flex items-center gap-2">
-                          {safeDashboardNumber(block.totalReward, 4)} {stats?.tokenSymbol}
-                          {block.persistFailed ? (
-                            <span
-                              className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90"
-                              title="A gravação deste bloco na base falhou; ninguém recebeu POL neste ciclo."
-                            >
-                              DB
+                        <div className="flex flex-col leading-tight">
+                          <span className="inline-flex items-center gap-2">
+                            {safeDashboardNumber(block.totalReward, 4)} {stats?.tokenSymbol}
+                            {block.persistFailed ? (
+                              <span
+                                className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90"
+                                title="A gravação deste bloco na base falhou; ninguém recebeu POL neste ciclo."
+                              >
+                                DB
+                              </span>
+                            ) : null}
+                          </span>
+                          {Number(block.totalRewardShib ?? 0) > 0 && (
+                            <span className="text-amber-300/80 text-[11px] font-bold">
+                              {safeDashboardNumber(block.totalRewardShib, 2)} SHIB
                             </span>
-                          ) : null}
-                        </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-8 py-5 text-right text-gray-500 font-mono text-xs">{parseBlockTime(block)}</td>
                     </tr>
