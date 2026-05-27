@@ -1633,7 +1633,16 @@
     "efficiency_msg": "Your mining efficiency is 100%. Keep your machines active.",
     "real_time_earnings": "Real-time Earnings",
     "mining_allocation_title": "Mining allocation",
-    "mining_allocation_pol_only_prefix": "Mining is now fixed at"
+    "mining_allocation_description": "Split your hashrate between POL and SHIB. Changes apply from the next block.",
+    "mining_allocation_pol_label": "POL",
+    "mining_allocation_shib_label": "SHIB",
+    "mining_allocation_applies_next_block": "Applied on next block",
+    "mining_allocation_estimated_pol": "POL block",
+    "mining_allocation_estimated_shib": "SHIB block",
+    "mining_allocation_saving": "Saving…",
+    "mining_allocation_saved": "Allocation updated",
+    "mining_allocation_save_failed": "Failed to save allocation",
+    "balance_shib_label": "SHIB Balance"
   },
   "shop": {
     "title": "Expand your Operation",

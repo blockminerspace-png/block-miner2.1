@@ -126,9 +126,11 @@ const bootstrapEngine = async () => {
       engine.blockHistory = blocks.map(b => ({
         blockNumber: b.blockNumber,
         reward: b.reward,
+        rewardShib: 0,
         minerCount: b.minerCount,
         timestamp: b.timestamp,
-        userRewards: b.userRewards
+        userRewards: b.userRewards,
+        userRewardsShib: {}
       }));
     }
 

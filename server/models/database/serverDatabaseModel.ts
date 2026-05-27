@@ -74,17 +74,46 @@ export async function getMiningEngineStateRows() {
   };
 }
 
-export async function persistBlockRewards({ blockNumber, blockReward, totalWork, minerRewards, now }) {
+export async function persistBlockRewards({
+  blockNumber,
+  blockReward,
+  blockRewardShib = 0,
+  totalWork,
+  totalWorkPol = 0,
+  totalWorkShib = 0,
+  minerRewards,
+  now,
+}: {
+  blockNumber: number;
+  blockReward: number;
+  blockRewardShib?: number;
+  totalWork: number;
+  totalWorkPol?: number;
+  totalWorkShib?: number;
+  // MinerRewardRow shape; SHIB / split fields default to 0 to keep callers without them working.
+  minerRewards: Array<{
+    userId: number;
+    workAccumulated: number;
+    sharePercentage: number;
+    rewardAmount: number;
+    balanceAfter: number;
+    workPol?: number;
+    workShib?: number;
+    shareShibPercentage?: number;
+    rewardAmountShib?: number;
+  }>;
+  now: number;
+}) {
   const engine = getMiningEngine();
   const pendingReferralDeltas: Array<{ userId: number; delta: number }> = [];
-  const pendingNotifications: Array<{ userId: number; rewardAmount: number }> = [];
+  const pendingNotifications: Array<{
+    userId: number;
+    rewardAmount: number;
+    rewardAmountShib: number;
+  }> = [];
   const timestamp = new Date(now);
 
   // Pre-fetch all referrers in ONE query (not N+1 inside the transaction).
-  // The old code did `tx.user.findUnique` per miner — for 1,286 miners that's
-  // ~1,286 sequential DB roundtrips, which is what pushed the transaction
-  // past its 120s `timeout` and caused the Prisma pool to starve out
-  // /api/auth/login (→ nginx 502 Bad Gateway).
   const minerUserIds = minerRewards.map((r) => r.userId);
   const referrerRows = await prisma.user.findMany({
     where: { id: { in: minerUserIds } },
@@ -97,7 +126,7 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
 
   await prisma.$transaction(
     async (tx) => {
-      // 1) Bulk-insert the per-miner reward log rows.
+      // 1) Bulk-insert the per-miner reward log rows (POL + SHIB).
       await tx.miningRewardsLog.createMany({
         data: minerRewards.map((r) => ({
           userId: r.userId,
@@ -107,46 +136,68 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
           sharePercentage: r.sharePercentage,
           rewardAmount: r.rewardAmount,
           balanceAfterReward: r.balanceAfter,
+          rewardAmountShib: r.rewardAmountShib ?? 0,
+          shareShibPercentage: r.shareShibPercentage ?? 0,
+          workPol: r.workPol ?? r.workAccumulated,
+          workShib: r.workShib ?? 0,
           createdAt: timestamp,
         })),
       });
 
-      // 2) Increment each miner's POL balance. UPDATEs are not (yet) batchable
-      //    in Prisma without raw SQL, but they're cheap — what made the old
-      //    transaction slow was the cross-pool `prisma.notification.create`
-      //    awaited *inside* this loop. That second pool acquire from a
-      //    transaction worker was the real deadlock vector.
+      // 2) Increment each miner's POL + SHIB balance in a single update.
       for (const r of minerRewards) {
-        await tx.user.update({
-          where: { id: r.userId },
-          data: { polBalance: { increment: r.rewardAmount } },
-        });
-
-        // 3) Referral commission (1%) — referrer was already resolved above.
-        const referredBy = referrerByMinerId.get(r.userId);
-        if (referredBy && r.rewardAmount > 0) {
-          const commission = r.rewardAmount * 0.01;
+        const polInc = r.rewardAmount;
+        const shibInc = r.rewardAmountShib ?? 0;
+        if (polInc > 0 || shibInc > 0) {
           await tx.user.update({
-            where: { id: referredBy },
-            data: { polBalance: { increment: commission } },
+            where: { id: r.userId },
+            data: {
+              ...(polInc > 0 ? { polBalance: { increment: polInc } } : {}),
+              ...(shibInc > 0 ? { shibBalance: { increment: shibInc } } : {}),
+            },
           });
-          pendingReferralDeltas.push({ userId: referredBy, delta: commission });
         }
 
-        if (r.rewardAmount > 0) {
-          pendingNotifications.push({ userId: r.userId, rewardAmount: r.rewardAmount });
+        // 3) Referral commission (1%) on each currency, paid to the referrer's matching balance.
+        const referredBy = referrerByMinerId.get(r.userId);
+        if (referredBy) {
+          const polCommission = polInc > 0 ? polInc * 0.01 : 0;
+          const shibCommission = shibInc > 0 ? shibInc * 0.01 : 0;
+          if (polCommission > 0 || shibCommission > 0) {
+            await tx.user.update({
+              where: { id: referredBy },
+              data: {
+                ...(polCommission > 0 ? { polBalance: { increment: polCommission } } : {}),
+                ...(shibCommission > 0 ? { shibBalance: { increment: shibCommission } } : {}),
+              },
+            });
+            if (polCommission > 0) {
+              pendingReferralDeltas.push({ userId: referredBy, delta: polCommission });
+            }
+          }
+        }
+
+        if (polInc > 0 || shibInc > 0) {
+          pendingNotifications.push({
+            userId: r.userId,
+            rewardAmount: polInc,
+            rewardAmountShib: shibInc,
+          });
         }
       }
 
-      // 4) Bulk-insert referral earnings.
+      // 4) Bulk-insert referral earnings (POL amount + SHIB amount on the same row).
       const referralEarningsRows = minerRewards
         .map((r) => {
           const referredBy = referrerByMinerId.get(r.userId);
-          if (!referredBy || r.rewardAmount <= 0) return null;
+          const polInc = r.rewardAmount;
+          const shibInc = r.rewardAmountShib ?? 0;
+          if (!referredBy || (polInc <= 0 && shibInc <= 0)) return null;
           return {
             referrerId: referredBy,
             referredId: r.userId,
-            amount: r.rewardAmount * 0.01,
+            amount: polInc > 0 ? polInc * 0.01 : 0,
+            amountShib: shibInc > 0 ? shibInc * 0.01 : 0,
             source: `mining_block_${blockNumber}`,
             createdAt: timestamp,
           };
@@ -156,13 +207,15 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
         await tx.referralEarning.createMany({ data: referralEarningsRows });
       }
 
-      // 5) Block distribution + per-block miner reward rows.
+      // 5) Block distribution + per-block miner reward rows (POL + SHIB).
       await tx.blockDistribution.create({
         data: {
           blockNumber,
           reward: blockReward,
+          rewardShib: blockRewardShib,
           minerCount: minerRewards.length,
-          totalWork: totalWork,
+          totalWork,
+          totalWorkShib,
           createdAt: timestamp,
           minerRewards: {
             create: minerRewards.map((r) => ({
@@ -170,6 +223,9 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
               work: r.workAccumulated,
               percentage: r.sharePercentage,
               rewardAmount: r.rewardAmount,
+              rewardAmountShib: r.rewardAmountShib ?? 0,
+              workPol: r.workPol ?? r.workAccumulated,
+              workShib: r.workShib ?? 0,
               createdAt: timestamp,
             })),
           },
@@ -182,25 +238,26 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
     },
   );
 
-  // After commit: sync referral commissions to the engine for live dashboards.
+  // After commit: sync referral POL commissions to the engine for live dashboards.
   for (const { userId, delta } of pendingReferralDeltas) {
     applyUserBalanceDelta(userId, delta);
   }
 
-  // After commit: fire per-miner notifications in parallel, OUTSIDE the
-  // critical transaction path. `createNotification` writes through the global
-  // Prisma client; running this inside `$transaction` would acquire a second
-  // pool connection per miner and starve /api/auth/login under load.
+  // After commit: fire per-miner notifications in parallel, outside the transaction.
   if (pendingNotifications.length > 0) {
-    const notify = pendingNotifications.map((n) =>
-      createNotification({
+    const notify = pendingNotifications.map((n) => {
+      const parts: string[] = [];
+      if (n.rewardAmount > 0) parts.push(`+${Number(n.rewardAmount).toFixed(6)} POL`);
+      if (n.rewardAmountShib > 0) parts.push(`+${Number(n.rewardAmountShib).toFixed(2)} SHIB`);
+      const summary = parts.join(" & ");
+      return createNotification({
         userId: n.userId,
         title: `Bloco #${blockNumber} Minerado`,
-        message: `Você recebeu +${Number(n.rewardAmount).toFixed(6)} POL de recompensa por sua participação no bloco.`,
+        message: `Você recebeu ${summary} de recompensa por sua participação no bloco.`,
         type: "reward",
         io: engine?.io,
-      }).catch(() => undefined),
-    );
+      }).catch(() => undefined);
+    });
     void Promise.allSettled(notify);
   }
 }

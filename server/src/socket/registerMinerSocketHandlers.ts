@@ -63,7 +63,9 @@ export function registerMinerSocketHandlers({
             balance: profile.balance,
             lifetimeMined: profile.lifetime_mined,
             refCode: profile.refCode,
-            referralCount: profile.referralCount
+            referralCount: profile.referralCount,
+            mining_payout_mode: profile.mining_payout_mode,
+            mining_allocation_pol_bps: profile.mining_allocation_pol_bps
           }
         });
 

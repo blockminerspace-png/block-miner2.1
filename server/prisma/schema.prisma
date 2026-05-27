@@ -37,6 +37,8 @@ model User {
   shibBalance   Decimal  @default(0) @map("shib_balance") @db.Decimal(30, 8)
   /** 100% hashrate: pol = blocos POL simulados | blk = pool BLK por tempo (exclusivo) */
   miningPayoutMode String @default("pol") @map("mining_payout_mode")
+  /** Hashrate allocation between POL and SHIB mining pools in basis points (10000 = 100% POL → 0% SHIB; 0 = 0% POL → 100% SHIB). */
+  miningAllocationPolBps Int @default(10000) @map("mining_allocation_pol_bps")
 
   // Session Tracking
   ytSecondsBalance Int     @default(0) @map("yt_seconds_balance")
@@ -1449,6 +1451,11 @@ model MiningRewardsLog {
   sharePercentage    Float    @map("share_percentage")
   rewardAmount       Float    @map("reward_amount")
   balanceAfterReward Float    @map("balance_after_reward")
+  // SHIB pool fields (dual-pool mining). Zero when miner had 100% POL allocation.
+  rewardAmountShib   Decimal  @default(0) @map("reward_amount_shib") @db.Decimal(30, 8)
+  shareShibPercentage Float   @default(0) @map("share_shib_percentage")
+  workPol            Float    @default(0) @map("work_pol")
+  workShib           Float    @default(0) @map("work_shib")
   createdAt          DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
@@ -1556,6 +1563,7 @@ model ReferralEarning {
   referrerId Int      @map("referrer_id")
   referredId Int      @map("referred_id")
   amount     Float
+  amountShib Decimal  @default(0) @map("amount_shib") @db.Decimal(30, 8)
   source     String
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -1569,6 +1577,8 @@ model BlockDistribution {
   id          Int      @id @default(autoincrement())
   blockNumber Int      @unique @map("block_number")
   reward      Float
+  rewardShib  Decimal  @default(0) @map("reward_shib") @db.Decimal(30, 8)
+  totalWorkShib Float  @default(0) @map("total_work_shib")
   minerCount  Int      @map("miner_count")
   totalWork   Float    @map("total_work")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1585,6 +1595,9 @@ model BlockMinerReward {
   work           Float
   percentage     Float
   rewardAmount   Float    @map("reward_amount")
+  rewardAmountShib Decimal @default(0) @map("reward_amount_shib") @db.Decimal(30, 8)
+  workPol        Float    @default(0) @map("work_pol")
+  workShib       Float    @default(0) @map("work_shib")
   createdAt      DateTime @default(now()) @map("created_at")
 
   block BlockDistribution @relation(fields: [blockId], references: [id], onDelete: Cascade)

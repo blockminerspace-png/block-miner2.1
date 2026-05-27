@@ -11,7 +11,9 @@ export async function getOrCreateMinerProfile(user: { id: number }) {
       username: true,
       walletAddress: true,
       polBalance: true,
+      shibBalance: true,
       miningPayoutMode: true,
+      miningAllocationPolBps: true,
       refCode: true,
       _count: {
         select: { referrals: true }
@@ -34,7 +36,9 @@ export async function getOrCreateMinerProfile(user: { id: number }) {
         username: true,
         walletAddress: true,
         polBalance: true,
+        shibBalance: true,
         miningPayoutMode: true,
+        miningAllocationPolBps: true,
         refCode: true,
         _count: {
           select: { referrals: true }
@@ -103,10 +107,12 @@ export async function getOrCreateMinerProfile(user: { id: number }) {
     youtube_hash_rate: ytHashRate,
     auto_mining_hash_rate: gpuHashRate,
     balance: Number(profile.polBalance || 0),
+    shib_balance: Number(profile.shibBalance || 0),
     lifetime_mined: 0, // Can be calculated from logs if needed
     refCode: profile.refCode,
     referralCount: profile._count.referrals,
-    mining_payout_mode: profile.miningPayoutMode === "blk" ? "blk" : "pol"
+    mining_payout_mode: profile.miningPayoutMode === "blk" ? "blk" : "pol",
+    mining_allocation_pol_bps: Number(profile.miningAllocationPolBps ?? 10000)
   };
 }
 

@@ -2,6 +2,8 @@ import type { Request, Response } from "express";
 import { getBlkCyclePublicSnapshot, runBlkRewardCycle } from "../services/blkRewardDistributionService.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import prisma from "../src/db/prisma.js";
+import { getMiningEngine } from "../src/miningEngineInstance.js";
+import { ALLOCATION_BPS_MAX, normalizeAllocationBps } from "../src/miningEngine.js";
 
 function floor8(n: unknown): number {
   const x = Number(n);
@@ -69,6 +71,60 @@ export async function getRewardRate(req: Request, res: Response): Promise<void> 
         : null,
       emissionPaused: snap.paused,
     });
+  } catch (e: unknown) {
+    res.status(500).json({
+      ok: false,
+      message: e instanceof Error ? e.message : String(e) || "Failed",
+    });
+  }
+}
+
+/**
+ * Authenticated: update the per-user POL/SHIB hashrate allocation in basis points.
+ * Body: { polBps: number } where 10000 = 100% POL, 0 = 100% SHIB.
+ * Clamps to [0, 10000] and rounds to nearest 500 (5% step). Persists to DB and applies
+ * to the miner engine for the NEXT settled block.
+ */
+export async function updateAllocation(req: Request, res: Response): Promise<void> {
+  try {
+    if (req.user == null) {
+      res.status(401).json({ ok: false, message: "Unauthorized" });
+      return;
+    }
+    const userId = req.user.id;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const rawPolBps = body.polBps;
+    if (typeof rawPolBps !== "number" && typeof rawPolBps !== "string") {
+      res.status(400).json({ ok: false, message: "polBps inválido." });
+      return;
+    }
+    const parsed = Number(rawPolBps);
+    if (!Number.isFinite(parsed)) {
+      res.status(400).json({ ok: false, message: "polBps inválido." });
+      return;
+    }
+    if (parsed < 0 || parsed > ALLOCATION_BPS_MAX) {
+      res.status(400).json({ ok: false, message: `polBps fora do intervalo [0, ${ALLOCATION_BPS_MAX}].` });
+      return;
+    }
+    const polBps = normalizeAllocationBps(parsed);
+    const shibBps = ALLOCATION_BPS_MAX - polBps;
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { miningAllocationPolBps: polBps },
+    });
+
+    // Apply to live engine miner so the next block settles with the new split.
+    const engine = getMiningEngine();
+    if (engine) {
+      const miner = Array.from(engine.miners.values()).find((m) => m.userId === userId);
+      if (miner) {
+        engine.setMinerAllocation(miner.id, polBps);
+      }
+    }
+
+    res.json({ ok: true, polBps, shibBps });
   } catch (e: unknown) {
     res.status(500).json({
       ok: false,

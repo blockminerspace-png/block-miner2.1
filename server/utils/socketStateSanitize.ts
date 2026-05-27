@@ -29,13 +29,15 @@ function sanitizeBlockHistory(arr) {
   if (!Array.isArray(arr)) return [];
     return arr.slice(0, MAX_BLOCK_HISTORY).map((b) => {
       if (!b || typeof b !== "object") {
-        return { blockNumber: 0, totalReward: 0, userReward: 0, minerCount: 0, timestamp: Date.now() };
+        return { blockNumber: 0, totalReward: 0, totalRewardShib: 0, userReward: 0, userRewardShib: 0, minerCount: 0, timestamp: Date.now() };
       }
       const ts = b.timestamp != null ? (typeof b.timestamp === "number" ? b.timestamp : Date.parse(String(b.timestamp))) : Date.now();
       return {
         blockNumber: Math.trunc(NUM_SAFE(b.blockNumber, 0)),
         totalReward: NUM_SAFE(b.totalReward ?? b.reward, 0),
+        totalRewardShib: NUM_SAFE(b.totalRewardShib ?? b.rewardShib, 0),
         userReward: NUM_SAFE(b.userReward, 0),
+        userRewardShib: NUM_SAFE(b.userRewardShib, 0),
         minerCount: Math.trunc(NUM_SAFE(b.minerCount, 0)),
         timestamp: Number.isFinite(ts) ? ts : Date.now(),
         persistFailed: Boolean(b.persistFailed)
@@ -45,6 +47,8 @@ function sanitizeBlockHistory(arr) {
 
 function sanitizeMiner(m) {
   if (!m || typeof m !== "object") return null;
+  const allocBpsRaw = Math.trunc(NUM_SAFE(m.miningAllocationPolBps, 10000));
+  const allocBps = Math.max(0, Math.min(10000, allocBpsRaw));
   return {
     id: typeof m.id === "string" ? m.id.slice(0, 48) : m.id != null ? String(m.id).slice(0, 48) : undefined,
     username: sanitizeUsername(m.username),
@@ -59,7 +63,12 @@ function sanitizeMiner(m) {
     activeTemporaryHashRate: NUM_SAFE(m.activeTemporaryHashRate, 0),
     boostMultiplier: Math.min(1e6, Math.max(0, NUM_SAFE(m.boostMultiplier, 1))),
     refCode: m.refCode == null ? null : sanitizeRefCode(m.refCode) || null,
-    referralCount: Math.max(0, Math.trunc(NUM_SAFE(m.referralCount, 0)))
+    referralCount: Math.max(0, Math.trunc(NUM_SAFE(m.referralCount, 0))),
+    // Dual-pool mining fields
+    miningAllocationPolBps: allocBps,
+    lastShibReward: NUM_SAFE(m.lastShibReward, 0),
+    lifetimeMinedShib: NUM_SAFE(m.lifetimeMinedShib, 0),
+    shibBalance: NUM_SAFE(m.shibBalance, 0)
   };
 }
 
@@ -79,6 +88,7 @@ export function sanitizePublicStateForSocket(raw) {
     tokenSymbol: String(s.tokenSymbol ?? "POL").slice(0, 8),
     tokenPrice: NUM_SAFE(s.tokenPrice, 0),
     blockReward: NUM_SAFE(s.blockReward, 0),
+    blockRewardShib: NUM_SAFE(s.blockRewardShib, 0),
     blockIntervalMinutes: NUM_SAFE(s.blockIntervalMinutes, 0),
     blockNumber: Math.trunc(NUM_SAFE(s.blockNumber, 0)),
     blockProgress: NUM_SAFE(s.blockProgress, 0),

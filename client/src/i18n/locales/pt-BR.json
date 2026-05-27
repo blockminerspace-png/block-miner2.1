@@ -1634,7 +1634,16 @@
     "efficiency_msg": "Sua eficiência de mineração está em 100%. Mantenha suas máquinas ativas.",
     "real_time_earnings": "Ganhos em Tempo Real",
     "mining_allocation_title": "Alocação de mineração",
-    "mining_allocation_pol_only_prefix": "A mineração agora está fixa em"
+    "mining_allocation_description": "Divida seu hashrate entre POL e SHIB. A mudança vale a partir do próximo bloco.",
+    "mining_allocation_pol_label": "POL",
+    "mining_allocation_shib_label": "SHIB",
+    "mining_allocation_applies_next_block": "Aplicado no próximo bloco",
+    "mining_allocation_estimated_pol": "Bloco POL",
+    "mining_allocation_estimated_shib": "Bloco SHIB",
+    "mining_allocation_saving": "Salvando…",
+    "mining_allocation_saved": "Alocação atualizada",
+    "mining_allocation_save_failed": "Falha ao salvar alocação",
+    "balance_shib_label": "Saldo SHIB"
   },
   "shop": {
     "title": "Expanda sua Operação",

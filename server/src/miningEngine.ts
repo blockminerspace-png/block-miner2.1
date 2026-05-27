@@ -7,7 +7,10 @@ import { errMsg } from "../types/tsNarrowing.js";
 const logger = loggerLib.child("MiningEngine");
 
 const DEFAULT_BLOCK_REWARD_POL = 0.3;
+const DEFAULT_BLOCK_REWARD_SHIB = 69.44;
 const DEFAULT_BLOCK_DURATION_MS = 10 * 60 * 1000;
+/** Bps full POL allocation (100% POL → 0% SHIB). */
+export const ALLOCATION_BPS_MAX = 10000;
 
 /** POL minted per POL-pool block (shared by miners). Env overrides hardcoded default. */
 function readMiningBlockRewardPol() {
@@ -19,6 +22,26 @@ function readMiningBlockRewardPol() {
     if (Number.isFinite(n) && n > 0 && n <= 1_000_000) return n;
   }
   return DEFAULT_BLOCK_REWARD_POL;
+}
+
+/** SHIB minted per SHIB-pool block. Same per-block cadence as POL; pool split per-miner via allocation bps. */
+function readMiningBlockRewardShib() {
+  const keys = ["MINING_SHIB_BLOCK_REWARD", "BLOCK_REWARD_SHIB", "BLOCKMINER_SHIB_BLOCK_REWARD"];
+  for (const k of keys) {
+    const raw = process.env[k];
+    if (raw == null || String(raw).trim() === "") continue;
+    const n = Number(String(raw).trim());
+    if (Number.isFinite(n) && n > 0 && n <= 1_000_000_000) return n;
+  }
+  return DEFAULT_BLOCK_REWARD_SHIB;
+}
+
+/** Clamp allocation bps to [0, ALLOCATION_BPS_MAX] and round to nearest 500 (5% step). */
+export function normalizeAllocationBps(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return ALLOCATION_BPS_MAX;
+  const clamped = Math.max(0, Math.min(ALLOCATION_BPS_MAX, Math.round(n)));
+  return Math.round(clamped / 500) * 500;
 }
 
 /** Interval between block settlements. Prefer minutes env; optional MS for fine control. */
@@ -56,14 +79,24 @@ export type EngineMiner = {
   refCode: string | null;
   referralCount: number;
   miningPayoutMode: string;
+  /** Basis points of hashrate dedicated to POL pool; remainder feeds SHIB pool. */
+  miningAllocationPolBps: number;
+  /** Cumulative SHIB minted into the user account by this engine session (informational; persisted balance is in DB). */
+  lifetimeMinedShib: number;
+  /** SHIB delta produced by the last settled block — surfaced in state payloads. */
+  lastShibReward: number;
+  /** Cached SHIB balance (mirrors DB `shibBalance`; updated on miner:join and on every block settle). */
+  shibBalance: number;
 };
 
 export type BlockHistoryEntry = {
   blockNumber: number;
   reward: number;
+  rewardShib: number;
   minerCount: number;
   timestamp: number;
   userRewards: Record<number, number>;
+  userRewardsShib: Record<number, number>;
   persistFailed?: boolean;
 };
 
@@ -79,12 +112,25 @@ export type MinerRewardRow = {
   rewardAmount: number;
   balanceAfter: number;
   lifetimeMined: number;
+  /** Effective work credited toward POL pool (raw work × polFactor). */
+  workPol: number;
+  /** Effective work credited toward SHIB pool (raw work × shibFactor). */
+  workShib: number;
+  /** Share of the SHIB pool's totalWorkShib that this miner contributed (0..100). */
+  shareShibPercentage: number;
+  /** Allocation snapshot at settle time (basis points). */
+  allocationPolBps: number;
+  /** SHIB minted to this miner for this block. */
+  rewardAmountShib: number;
 };
 
 export type PersistBlockRewardsPayload = {
   blockNumber: number;
   blockReward: number;
+  blockRewardShib: number;
   totalWork: number;
+  totalWorkPol: number;
+  totalWorkShib: number;
   minerRewards: MinerRewardRow[];
   now: number;
 };
@@ -93,6 +139,8 @@ export class MiningEngine {
   tokenSymbol!: string;
   blockNumber!: number;
   rewardBase!: number;
+  /** SHIB minted per block (shared by all hashrate allocated to SHIB pool). */
+  rewardBaseShib!: number;
   blockTarget!: number;
   blockProgress!: number;
   blockDurationMs!: number;
@@ -120,6 +168,7 @@ export class MiningEngine {
     this.tokenSymbol = "POL";
     this.blockNumber = 1;
     this.rewardBase = readMiningBlockRewardPol();
+    this.rewardBaseShib = readMiningBlockRewardShib();
     this.blockTarget = 100;
     this.blockProgress = 0;
     this.blockDurationMs = readMiningBlockDurationMs();
@@ -145,8 +194,9 @@ export class MiningEngine {
     this.profileLoader = null;
 
     if (process.env.NODE_ENV === "production") {
-      logger.info("Mining POL block economy", {
+      logger.info("Mining block economy", {
         rewardBasePol: this.rewardBase,
+        rewardBaseShib: this.rewardBaseShib,
         blockIntervalMinutes: this.blockDurationMs / 60000
       });
     }
@@ -185,6 +235,15 @@ export class MiningEngine {
           miner.referralCount = Number(p.referralCount || 0);
           miner.miningPayoutMode =
             p.mining_payout_mode === "blk" || p.miningPayoutMode === "blk" ? "blk" : "pol";
+          const rawAlloc =
+            (p as { mining_allocation_pol_bps?: unknown; miningAllocationPolBps?: unknown })
+              .mining_allocation_pol_bps ??
+            (p as { miningAllocationPolBps?: unknown }).miningAllocationPolBps;
+          if (rawAlloc != null) miner.miningAllocationPolBps = normalizeAllocationBps(rawAlloc);
+          const rawShib =
+            (p as { shib_balance?: unknown; shibBalance?: unknown }).shib_balance ??
+            (p as { shibBalance?: unknown }).shibBalance;
+          if (rawShib != null) miner.shibBalance = Number(rawShib) || 0;
           // Sincroniza saldo:
           // - modo normal: só sobe para não perder rewards ainda não persistidos
           // - modo forçado: espelha o banco após mutações explícitas de saldo
@@ -226,6 +285,10 @@ export class MiningEngine {
         existing.referralCount = profile.referralCount;
         existing.miningPayoutMode =
           profile.mining_payout_mode === "blk" || profile.miningPayoutMode === "blk" ? "blk" : "pol";
+        const rawAlloc = profile.mining_allocation_pol_bps ?? profile.miningAllocationPolBps;
+        if (rawAlloc != null) existing.miningAllocationPolBps = normalizeAllocationBps(rawAlloc);
+        const rawShib = profile.shib_balance ?? profile.shibBalance;
+        if (rawShib != null) existing.shibBalance = Number(rawShib) || 0;
         // Sincroniza saldo com o banco ao reconectar (pega o maior valor para nao perder rewards nao persistidos)
         const dbBalance = Number(profile.balance || 0);
         if (dbBalance > existing.balance) {
@@ -238,7 +301,7 @@ export class MiningEngine {
     }
 
     const id = uuidv4();
-    const miner = {
+    const miner: EngineMiner = {
       id,
       userId,
       walletAddress: walletAddress || null,
@@ -255,7 +318,13 @@ export class MiningEngine {
       refCode: profile?.refCode || null,
       referralCount: profile?.referralCount || 0,
       miningPayoutMode:
-        profile?.mining_payout_mode === "blk" || profile?.miningPayoutMode === "blk" ? "blk" : "pol"
+        profile?.mining_payout_mode === "blk" || profile?.miningPayoutMode === "blk" ? "blk" : "pol",
+      miningAllocationPolBps: normalizeAllocationBps(
+        profile?.mining_allocation_pol_bps ?? profile?.miningAllocationPolBps ?? ALLOCATION_BPS_MAX
+      ),
+      lifetimeMinedShib: 0,
+      lastShibReward: 0,
+      shibBalance: Number(profile?.shib_balance ?? profile?.shibBalance ?? 0)
     };
 
     this.miners.set(id, miner);
@@ -284,6 +353,20 @@ export class MiningEngine {
     if (!miner) return null;
     miner.walletAddress = walletAddress || null;
     return miner;
+  }
+
+  /**
+   * Live-set the miner's POL/SHIB hashrate allocation. Takes effect on the NEXT settled block —
+   * accumulated work for the current round still uses whatever split each miner had when ticks ran.
+   * Caller is responsible for persisting to the DB; this just mutates the in-memory engine.
+   */
+  setMinerAllocation(minerId: string, rawBps: unknown) {
+    const miner = this.miners.get(minerId);
+    if (!miner) return { ok: false, message: "Miner não encontrado." } as const;
+    const normalized = normalizeAllocationBps(rawBps);
+    miner.miningAllocationPolBps = normalized;
+    this.markLeaderboardDirty();
+    return { ok: true, polBps: normalized, shibBps: ALLOCATION_BPS_MAX - normalized } as const;
   }
 
   applyBoost(minerId) {
@@ -326,8 +409,13 @@ export class MiningEngine {
   }
 
   /**
-   * Settles the current POL block: persists rewards before advancing blockNumber / clearing roundWork.
-   * Freezes roundWork accumulation while awaiting Postgres so work is not lost on persist failure.
+   * Settles the current block (dual-pool: POL + SHIB on the same cadence). Each miner's raw
+   * accumulated `work` is split by their `miningAllocationPolBps` snapshot at settle time:
+   *   workPol = work * (bps / ALLOCATION_BPS_MAX)
+   *   workShib = work - workPol
+   * Then `totalWorkPol` and `totalWorkShib` are computed independently, and each pool's reward
+   * is shared in proportion to that pool's contributing work. Persists before advancing
+   * blockNumber/clearing roundWork; freezes accumulation while awaiting Postgres.
    */
   async distributeRewardsAsync() {
     this._settlementFreezingRoundWork = true;
@@ -336,9 +424,29 @@ export class MiningEngine {
       const roundSnapshot = new Map(this.roundWork);
       const totalWork = [...roundSnapshot.values()].reduce((sum, value) => sum + value, 0);
 
+      const blockReward = this.rewardBase;
+      const blockRewardShib = this.rewardBaseShib;
+
+      // Snapshot per-miner work split now — allocation changes mid-block don't retroactively shift this round.
+      type Split = { work: number; workPol: number; workShib: number; allocBps: number };
+      const splitByMiner = new Map<string, Split>();
+      let totalWorkPol = 0;
+      let totalWorkShib = 0;
+      for (const [minerId, work] of roundSnapshot.entries()) {
+        const miner = this.miners.get(minerId);
+        if (!miner || work <= 0) continue;
+        const allocBps = normalizeAllocationBps(miner.miningAllocationPolBps);
+        const polFactor = allocBps / ALLOCATION_BPS_MAX;
+        const workPol = work * polFactor;
+        const workShib = work - workPol;
+        splitByMiner.set(minerId, { work, workPol, workShib, allocBps });
+        totalWorkPol += workPol;
+        totalWorkShib += workShib;
+      }
+
       if (totalWork <= 0) {
         if (this.activeMiners > 0 || this.currentNetworkHashRate > 0) {
-          logger.warn("POL block closed with zero accumulated work while miners report hashrate", {
+          logger.warn("Block closed with zero accumulated work while miners report hashrate", {
             blockNumber: minedBlockNumber,
             activeMiners: this.activeMiners,
             networkHashRate: this.currentNetworkHashRate
@@ -349,44 +457,65 @@ export class MiningEngine {
         this.blockHistory.unshift({
           blockNumber: minedBlockNumber,
           reward: 0,
+          rewardShib: 0,
           minerCount: this.activeMiners,
           timestamp: Date.now(),
-          userRewards: {}
+          userRewards: {},
+          userRewardsShib: {}
         });
         if (this.blockHistory.length > 12) this.blockHistory.length = 12;
         this.finalizeBlockDistribution(minedBlockNumber, 0);
         return;
       }
 
-      const blockReward = this.rewardBase;
       const minerRewards: MinerRewardRow[] = [];
       const userRewardsMap: Record<number, number> = {};
+      const userRewardsShibMap: Record<number, number> = {};
       const balanceSnapshot = new Map<
         string,
-        { balance: number; lifetimeMined: number; lastPersistedBalance: number }
+        {
+          balance: number;
+          lifetimeMined: number;
+          lastPersistedBalance: number;
+          lifetimeMinedShib: number;
+          lastShibReward: number;
+          shibBalance: number;
+        }
       >();
 
-      for (const [minerId, work] of roundSnapshot.entries()) {
+      for (const [minerId, split] of splitByMiner.entries()) {
         const miner = this.miners.get(minerId);
-        if (!miner || work <= 0) {
-          this.roundWork.set(minerId, 0);
-          continue;
-        }
+        if (!miner) continue;
 
         balanceSnapshot.set(minerId, {
           balance: miner.balance,
           lifetimeMined: miner.lifetimeMined,
-          lastPersistedBalance: miner.lastPersistedBalance
+          lastPersistedBalance: miner.lastPersistedBalance,
+          lifetimeMinedShib: miner.lifetimeMinedShib ?? 0,
+          lastShibReward: miner.lastShibReward ?? 0,
+          shibBalance: miner.shibBalance ?? 0
         });
 
-        const share = work / totalWork;
-        const reward = blockReward * share;
-        miner.balance += reward;
-        miner.lastPersistedBalance = (miner.lastPersistedBalance ?? miner.balance - reward) + reward;
-        miner.lifetimeMined += reward;
-        this.totalMinted += reward;
+        const share = split.work / totalWork;
+        const sharePol = totalWorkPol > 0 ? split.workPol / totalWorkPol : 0;
+        const shareShib = totalWorkShib > 0 ? split.workShib / totalWorkShib : 0;
 
-        userRewardsMap[miner.userId] = reward;
+        const rewardPol = blockReward * sharePol;
+        const rewardShib = blockRewardShib * shareShib;
+
+        // POL is the in-engine live balance — keep current behavior.
+        miner.balance += rewardPol;
+        miner.lastPersistedBalance = (miner.lastPersistedBalance ?? miner.balance - rewardPol) + rewardPol;
+        miner.lifetimeMined += rewardPol;
+        this.totalMinted += rewardPol;
+        // SHIB lifetime is engine-session-scoped (informational); the authoritative balance is `User.shibBalance`.
+        miner.lifetimeMinedShib = (miner.lifetimeMinedShib ?? 0) + rewardShib;
+        miner.lastShibReward = rewardShib;
+        // Optimistically update the cached SHIB balance; persistBlockRewards will increment the DB row to match.
+        miner.shibBalance = (miner.shibBalance ?? 0) + rewardShib;
+
+        userRewardsMap[miner.userId] = rewardPol;
+        userRewardsShibMap[miner.userId] = rewardShib;
 
         minerRewards.push({
           minerId: miner.id,
@@ -395,11 +524,16 @@ export class MiningEngine {
           walletAddress: miner.walletAddress,
           rigs: miner.rigs,
           baseHashRate: miner.baseHashRate,
-          workAccumulated: work,
+          workAccumulated: split.work,
           sharePercentage: share * 100,
-          rewardAmount: reward,
+          rewardAmount: rewardPol,
           balanceAfter: miner.balance,
-          lifetimeMined: miner.lifetimeMined
+          lifetimeMined: miner.lifetimeMined,
+          workPol: split.workPol,
+          workShib: split.workShib,
+          shareShibPercentage: shareShib * 100,
+          allocationPolBps: split.allocBps,
+          rewardAmountShib: rewardShib
         });
       }
 
@@ -419,7 +553,10 @@ export class MiningEngine {
             await this.persistBlockRewardsCallback({
               blockNumber: minedBlockNumber,
               blockReward,
+              blockRewardShib,
               totalWork,
+              totalWorkPol,
+              totalWorkShib,
               minerRewards,
               now
             });
@@ -452,25 +589,27 @@ export class MiningEngine {
                 miner.balance = snapshot.balance;
                 miner.lifetimeMined = snapshot.lifetimeMined;
                 miner.lastPersistedBalance = snapshot.lastPersistedBalance;
+                miner.lifetimeMinedShib = snapshot.lifetimeMinedShib;
+                miner.lastShibReward = snapshot.lastShibReward;
+                miner.shibBalance = snapshot.shibBalance;
                 this.totalMinted -= rewardEntry.rewardAmount;
               }
             }
           }
-          // Do not restore roundWork: that would retry the same block forever while nextBlockAt stays in the past,
-          // freezing the countdown at 0 for every client. Drop this round's work from the chain and advance the
-          // schedule so mining keeps ticking; rewards for this block were not committed to Postgres.
+          // Drop this round's work and advance the schedule; rewards for this block were not committed.
           for (const [minerId, work] of roundSnapshot.entries()) {
             if (work > 0 && this.miners.get(minerId)) {
               this.roundWork.set(minerId, 0);
             }
           }
-          // Keep nominal pool size for UI (total do bloco); no user got on-chain POL for this round.
           this.blockHistory.unshift({
             blockNumber: minedBlockNumber,
             reward: blockReward,
+            rewardShib: blockRewardShib,
             minerCount: this.activeMiners,
             timestamp: Date.now(),
             userRewards: {},
+            userRewardsShib: {},
             persistFailed: true
           });
           if (this.blockHistory.length > 12) this.blockHistory.length = 12;
@@ -490,9 +629,11 @@ export class MiningEngine {
       this.blockHistory.unshift({
         blockNumber: minedBlockNumber,
         reward: blockReward,
+        rewardShib: blockRewardShib,
         minerCount: this.activeMiners,
         timestamp: Date.now(),
-        userRewards: userRewardsMap
+        userRewards: userRewardsMap,
+        userRewardsShib: userRewardsShibMap
       });
       if (this.blockHistory.length > 12) this.blockHistory.length = 12;
 
@@ -577,7 +718,9 @@ export class MiningEngine {
     const customizedHistory = this.blockHistory.map((b: BlockHistoryEntry) => ({
       blockNumber: b.blockNumber,
       totalReward: b.reward,
+      totalRewardShib: b.rewardShib ?? 0,
       userReward: userId ? (b.userRewards?.[userId] || 0) : 0,
+      userRewardShib: userId ? (b.userRewardsShib?.[userId] || 0) : 0,
       minerCount: b.minerCount,
       timestamp: b.timestamp,
       persistFailed: Boolean(b.persistFailed)
@@ -588,6 +731,7 @@ export class MiningEngine {
       tokenSymbol: this.tokenSymbol,
       tokenPrice: this.tokenPrice,
       blockReward: this.rewardBase,
+      blockRewardShib: this.rewardBaseShib,
       /** Minutes between POL block settlements (for calculator / UI). */
       blockIntervalMinutes: this.blockDurationMs / 60000,
       blockNumber: this.blockNumber,
@@ -611,7 +755,11 @@ export class MiningEngine {
         connected: miner.connected,
         estimatedHashRate: this.getMinerHashRate(miner),
         refCode: miner.refCode || null,
-        referralCount: miner.referralCount || 0
+        referralCount: miner.referralCount || 0,
+        miningAllocationPolBps: normalizeAllocationBps(miner.miningAllocationPolBps),
+        lastShibReward: miner.lastShibReward ?? 0,
+        lifetimeMinedShib: miner.lifetimeMinedShib ?? 0,
+        shibBalance: miner.shibBalance ?? 0
       } : null
     };
   }

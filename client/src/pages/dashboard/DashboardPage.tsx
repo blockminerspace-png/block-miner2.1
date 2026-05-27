@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
-import { getWalletBalance, postLinkReferral } from './dashboard.api';
+import { getWalletBalance, patchMiningAllocation, postLinkReferral } from './dashboard.api';
 import { useGameStore } from '../../store/game';
 import { formatHashrate } from '../../shared/utils/machine';
 import { toast } from 'sonner';
@@ -109,6 +109,9 @@ export default function Dashboard(): ReactElement {
   const [refInput, setRefInput] = useState('');
   const [linkingRef, setLinkingRef] = useState(false);
   const [blkBalance, setBlkBalance] = useState<number | null>(null);
+  // Local pending value for the allocation slider (in % POL, snapped to 5%).
+  const [polPercent, setPolPercent] = useState<number | null>(null);
+  const [savingAlloc, setSavingAlloc] = useState(false);
 
   useEffect(() => {
     initSocket();
@@ -160,6 +163,53 @@ export default function Dashboard(): ReactElement {
 
   const miner: DashboardMinerStats | undefined = stats?.miner ?? undefined;
   const blockHistory: DashboardBlockRow[] = Array.isArray(stats?.blockHistory) ? stats.blockHistory : [];
+  const serverPolBps = Math.max(0, Math.min(10000, Math.round(Number(miner?.miningAllocationPolBps ?? 10000))));
+  const serverPolPercent = Math.round(serverPolBps / 100);
+  const effectivePolPercent = polPercent ?? serverPolPercent;
+  const effectiveShibPercent = 100 - effectivePolPercent;
+  const blockRewardPol = Number(stats?.blockReward ?? 0);
+  const blockRewardShib = Number(stats?.blockRewardShib ?? 0);
+  const shibBalance = Number(miner?.shibBalance ?? 0);
+
+  // Debounced PATCH on slider change (500ms after last change).
+  useEffect(() => {
+    if (polPercent == null) return;
+    if (polPercent === serverPolPercent) return;
+    const handle = window.setTimeout(async () => {
+      try {
+        setSavingAlloc(true);
+        const polBps = Math.round(polPercent * 100);
+        const res = await patchMiningAllocation(polBps);
+        if (res?.ok) {
+          toast.success(t('dashboard.mining_allocation_saved'));
+          // Reflect saved value into the store so we don't keep "pending" indefinitely.
+          useGameStore.setState((state) => {
+            const prev = state.stats as DashboardGameStats | null | undefined;
+            if (!prev?.miner) return {};
+            return {
+              stats: {
+                ...prev,
+                miner: {
+                  ...prev.miner,
+                  miningAllocationPolBps: Number(res.polBps ?? polBps),
+                },
+              } as DashboardGameStats,
+            };
+          });
+          setPolPercent(null);
+        } else {
+          toast.error(res?.message || t('dashboard.mining_allocation_save_failed'));
+          setPolPercent(null);
+        }
+      } catch (err: unknown) {
+        toast.error(readApiErrorMessage(err, t('dashboard.mining_allocation_save_failed')));
+        setPolPercent(null);
+      } finally {
+        setSavingAlloc(false);
+      }
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [polPercent, serverPolPercent, t]);
 
   const referralLink =
     user?.id != null
@@ -221,29 +271,84 @@ export default function Dashboard(): ReactElement {
       <DashboardBanners />
 
       <div className="bg-surface border border-gray-800/50 rounded-2xl p-5 md:p-6 shadow-lg">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-              <Coins className="w-4 h-4 text-amber-400" />
-              {t('dashboard.mining_allocation_title')}
-            </h3>
-            <p className="text-[11px] text-gray-500 mt-1 max-w-xl">
-              {t('dashboard.mining_allocation_pol_only_prefix')} <strong className="text-gray-400">100% POL</strong>.
-            </p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                <Coins className="w-4 h-4 text-amber-400" />
+                {t('dashboard.mining_allocation_title')}
+              </h3>
+              <p className="text-[11px] text-gray-500 mt-1 max-w-xl">
+                {t('dashboard.mining_allocation_description')}
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest self-start sm:self-auto">
+              {savingAlloc ? t('dashboard.mining_allocation_saving') : t('dashboard.mining_allocation_applies_next_block')}
+            </span>
           </div>
-          <span className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-indigo-600 border border-indigo-400 text-white shadow-lg shadow-indigo-600/20">
-            100% POL
-          </span>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-indigo-600/20 border border-indigo-500/40 text-indigo-300">
+                {effectivePolPercent}% {t('dashboard.mining_allocation_pol_label')}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-amber-600/20 border border-amber-500/40 text-amber-300">
+                {effectiveShibPercent}% {t('dashboard.mining_allocation_shib_label')}
+              </span>
+            </div>
+          </div>
+
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={effectivePolPercent}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(100, Math.round(Number(e.target.value) / 5) * 5));
+              setPolPercent(v);
+            }}
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gradient-to-r from-indigo-500 to-amber-500 accent-indigo-500"
+            aria-label={t('dashboard.mining_allocation_title')}
+          />
+
+          <div className="grid grid-cols-2 gap-3 text-[11px] font-medium">
+            <div className="flex items-center justify-between bg-gray-800/30 rounded-lg px-3 py-2">
+              <span className="text-gray-500 uppercase tracking-widest text-[9px] font-black">
+                {t('dashboard.mining_allocation_estimated_pol')}
+              </span>
+              <span className="text-indigo-300 font-black">
+                {(blockRewardPol * (effectivePolPercent / 100)).toFixed(4)} POL
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-gray-800/30 rounded-lg px-3 py-2">
+              <span className="text-gray-500 uppercase tracking-widest text-[9px] font-black">
+                {t('dashboard.mining_allocation_estimated_shib')}
+              </span>
+              <span className="text-amber-300 font-black">
+                {(blockRewardShib * (effectiveShibPercent / 100)).toFixed(2)} SHIB
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
         <Card
           icon={Coins}
           label={t('dashboard.balance')}
           value={miner ? safeDashboardNumber(miner.balance, 6) : '0.000000'}
           unit={stats?.tokenSymbol || 'POL'}
           color="blue"
+        />
+        <Card
+          icon={Coins}
+          label={t('dashboard.balance_shib_label')}
+          value={safeDashboardNumber(shibBalance, 2)}
+          unit="SHIB"
+          color="amber"
         />
         <Card
           icon={Banknote}
