@@ -15,11 +15,13 @@ export function normalizeExplicitLanguage(raw: unknown): 'pt-BR' | 'es' | 'en' |
   return null;
 }
 
-export function normalizeBrowserLanguage(_raw: unknown): 'pt-BR' | 'es' | 'en' {
-  // English is the default for every visitor regardless of browser locale.
-  // The browser's preferred language is intentionally ignored — users in
-  // Brazil/Spain who want their native language must pick it from the
-  // switcher (which then persists via storedLanguageUserSet=1).
+export function normalizeBrowserLanguage(raw: unknown): 'pt-BR' | 'es' | 'en' {
+  // Auto-detect from the browser's preferred language. Portuguese → pt-BR,
+  // Spanish → es, anything else (including en-*, fr, de, ja, …) → en.
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value) return 'en';
+  if (value.startsWith('pt')) return 'pt-BR';
+  if (value.startsWith('es')) return 'es';
   return 'en';
 }
 
