@@ -14,6 +14,8 @@ import {
   Check,
   Link2,
   Banknote,
+  Sliders,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
@@ -109,9 +111,14 @@ export default function Dashboard(): ReactElement {
   const [refInput, setRefInput] = useState('');
   const [linkingRef, setLinkingRef] = useState(false);
   const [blkBalance, setBlkBalance] = useState<number | null>(null);
-  // Local pending value for the allocation slider (in % POL, snapped to 5%).
+  // Local pending value for the allocation (in % POL, snapped to 5%).
   const [polPercent, setPolPercent] = useState<number | null>(null);
   const [savingAlloc, setSavingAlloc] = useState(false);
+  // Allocation modal state
+  const [allocModalOpen, setAllocModalOpen] = useState(false);
+  const [draftPol, setDraftPol] = useState<string>('100');
+  const [draftShib, setDraftShib] = useState<string>('0');
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   useEffect(() => {
     initSocket();
@@ -287,32 +294,31 @@ export default function Dashboard(): ReactElement {
             </span>
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-indigo-600/20 border border-indigo-500/40 text-indigo-300">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest bg-indigo-600/20 border border-indigo-500/40 text-indigo-300">
                 {effectivePolPercent}% {t('dashboard.mining_allocation_pol_label')}
               </span>
-            </div>
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-amber-600/20 border border-amber-500/40 text-amber-300">
+              <span className="text-gray-600 text-xs font-black">/</span>
+              <span className="px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest bg-amber-600/20 border border-amber-500/40 text-amber-300">
                 {effectiveShibPercent}% {t('dashboard.mining_allocation_shib_label')}
               </span>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDraftPol(String(effectivePolPercent));
+                setDraftShib(String(effectiveShibPercent));
+                setDraftError(null);
+                setAllocModalOpen(true);
+              }}
+              disabled={savingAlloc}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest bg-indigo-500/10 border border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/20 hover:border-indigo-400/50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              {t('dashboard.mining_allocation_edit_split')}
+            </button>
           </div>
-
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={effectivePolPercent}
-            onChange={(e) => {
-              const v = Math.max(0, Math.min(100, Math.round(Number(e.target.value) / 5) * 5));
-              setPolPercent(v);
-            }}
-            className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gradient-to-r from-indigo-500 to-amber-500 accent-indigo-500"
-            aria-label={t('dashboard.mining_allocation_title')}
-          />
 
           <div className="grid grid-cols-2 gap-3 text-[11px] font-medium">
             <div className="flex items-center justify-between bg-gray-800/30 rounded-lg px-3 py-2">
@@ -334,6 +340,173 @@ export default function Dashboard(): ReactElement {
           </div>
         </div>
       </div>
+
+      {allocModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => {
+            if (!savingAlloc) setAllocModalOpen(false);
+          }}
+        >
+          <div
+            className="bg-surface border border-gray-800/80 rounded-2xl shadow-2xl w-full max-w-md p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setAllocModalOpen(false)}
+              disabled={savingAlloc}
+              className="absolute top-4 right-4 text-gray-500 hover:text-white transition disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-5">
+              <h3 className="text-base font-black text-white uppercase tracking-widest flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-indigo-400" />
+                {t('dashboard.mining_allocation_modal_title')}
+              </h3>
+              <p className="text-[11px] text-gray-500 mt-2">
+                {t('dashboard.mining_allocation_modal_description')}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-2">
+                  {t('dashboard.mining_allocation_pol_label')}
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    inputMode="numeric"
+                    value={draftPol}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setDraftPol('');
+                        setDraftError(null);
+                        return;
+                      }
+                      const n = Number(raw);
+                      if (!Number.isFinite(n)) return;
+                      const clamped = Math.max(0, Math.min(100, Math.round(n)));
+                      setDraftPol(String(clamped));
+                      setDraftShib(String(100 - clamped));
+                      setDraftError(null);
+                    }}
+                    disabled={savingAlloc}
+                    className="w-full bg-gray-900/80 border border-indigo-500/30 rounded-xl px-4 py-3 pr-10 text-white font-black text-lg tabular-nums focus:outline-none focus:border-indigo-400 disabled:opacity-50"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-300 font-black text-sm">%</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-amber-300 mb-2">
+                  {t('dashboard.mining_allocation_shib_label')}
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    inputMode="numeric"
+                    value={draftShib}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setDraftShib('');
+                        setDraftError(null);
+                        return;
+                      }
+                      const n = Number(raw);
+                      if (!Number.isFinite(n)) return;
+                      const clamped = Math.max(0, Math.min(100, Math.round(n)));
+                      setDraftShib(String(clamped));
+                      setDraftPol(String(100 - clamped));
+                      setDraftError(null);
+                    }}
+                    disabled={savingAlloc}
+                    className="w-full bg-gray-900/80 border border-amber-500/30 rounded-xl px-4 py-3 pr-10 text-white font-black text-lg tabular-nums focus:outline-none focus:border-amber-400 disabled:opacity-50"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-300 font-black text-sm">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[0, 25, 50, 75, 100].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  disabled={savingAlloc}
+                  onClick={() => {
+                    setDraftPol(String(preset));
+                    setDraftShib(String(100 - preset));
+                    setDraftError(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-800/60 border border-gray-700/60 text-gray-300 hover:bg-gray-700/60 hover:text-white transition disabled:opacity-50"
+                >
+                  {preset}/{100 - preset}
+                </button>
+              ))}
+            </div>
+
+            {draftError && (
+              <p className="text-[11px] font-bold text-red-400 mb-3">{draftError}</p>
+            )}
+
+            <p className="text-[10px] text-gray-500 mb-5">
+              {t('dashboard.mining_allocation_modal_hint')}
+            </p>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAllocModalOpen(false)}
+                disabled={savingAlloc}
+                className="px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition disabled:opacity-50"
+              >
+                {t('dashboard.mining_allocation_modal_cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={savingAlloc}
+                onClick={() => {
+                  const pol = Number(draftPol);
+                  const shib = Number(draftShib);
+                  if (!Number.isFinite(pol) || !Number.isFinite(shib)) {
+                    setDraftError(t('dashboard.mining_allocation_modal_error_invalid'));
+                    return;
+                  }
+                  if (pol < 0 || pol > 100 || shib < 0 || shib > 100) {
+                    setDraftError(t('dashboard.mining_allocation_modal_error_range'));
+                    return;
+                  }
+                  if (pol + shib !== 100) {
+                    setDraftError(t('dashboard.mining_allocation_modal_error_sum'));
+                    return;
+                  }
+                  // Snap to nearest 5%.
+                  const snapped = Math.round(pol / 5) * 5;
+                  setPolPercent(snapped);
+                  setAllocModalOpen(false);
+                }}
+                className="px-5 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingAlloc
+                  ? t('dashboard.mining_allocation_saving')
+                  : t('dashboard.mining_allocation_modal_save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card

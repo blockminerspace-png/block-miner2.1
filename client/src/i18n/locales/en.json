@@ -1642,6 +1642,15 @@
     "mining_allocation_saving": "Saving…",
     "mining_allocation_saved": "Allocation updated",
     "mining_allocation_save_failed": "Failed to save allocation",
+    "mining_allocation_edit_split": "Edit split",
+    "mining_allocation_modal_title": "Split mining power",
+    "mining_allocation_modal_description": "Set the hashrate percentage for each coin. The total must be 100%.",
+    "mining_allocation_modal_hint": "Values are rounded to the nearest 5% on save.",
+    "mining_allocation_modal_cancel": "Cancel",
+    "mining_allocation_modal_save": "Save split",
+    "mining_allocation_modal_error_invalid": "Enter valid numbers.",
+    "mining_allocation_modal_error_range": "Each value must be between 0 and 100.",
+    "mining_allocation_modal_error_sum": "POL + SHIB must equal exactly 100%.",
     "balance_shib_label": "SHIB Balance"
   },
   "shop": {

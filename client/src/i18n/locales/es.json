@@ -1243,6 +1243,15 @@
     "mining_allocation_saving": "Guardando…",
     "mining_allocation_saved": "Asignación actualizada",
     "mining_allocation_save_failed": "Error al guardar la asignación",
+    "mining_allocation_edit_split": "Editar split",
+    "mining_allocation_modal_title": "Dividir poder de minería",
+    "mining_allocation_modal_description": "Define el porcentaje de hashrate destinado a cada moneda. La suma debe ser 100%.",
+    "mining_allocation_modal_hint": "Los valores se redondean al múltiplo de 5% más cercano al guardar.",
+    "mining_allocation_modal_cancel": "Cancelar",
+    "mining_allocation_modal_save": "Guardar split",
+    "mining_allocation_modal_error_invalid": "Ingresa números válidos.",
+    "mining_allocation_modal_error_range": "Cada valor debe estar entre 0 y 100.",
+    "mining_allocation_modal_error_sum": "POL + SHIB debe sumar exactamente 100%.",
     "balance_shib_label": "Saldo SHIB"
   },
   "shop": {
