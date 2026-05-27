@@ -335,20 +335,13 @@ export default function Dashboard(): ReactElement {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card
           icon={Coins}
           label={t('dashboard.balance')}
           value={miner ? safeDashboardNumber(miner.balance, 6) : '0.000000'}
           unit={stats?.tokenSymbol || 'POL'}
           color="blue"
-        />
-        <Card
-          icon={Coins}
-          label={t('dashboard.balance_shib_label')}
-          value={safeDashboardNumber(shibBalance, 2)}
-          unit="SHIB"
-          color="amber"
         />
         <Card
           icon={Banknote}
