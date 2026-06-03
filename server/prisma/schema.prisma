@@ -1258,6 +1258,7 @@ model PtpEarning {
   id         Int      @id @default(autoincrement())
   userId     Int      @map("user_id")
   adId       Int      @map("ad_id")
+  amountUsd  Decimal  @default(0) @map("amount_usd") @db.Decimal(20, 2)
   amountShib Decimal  @default(0) @map("amount_shib") @db.Decimal(30, 8)
   paidAt     DateTime @default(now()) @map("paid_at")
 
