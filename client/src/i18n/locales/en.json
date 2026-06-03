@@ -2297,8 +2297,20 @@
     "stats_claims24h": "Claims (24h)",
     "stats_hash24h": "Hash granted (24h)",
     "stats_daily_progress": "Daily limit progress",
+    "stats_daily_remaining": "Hash remaining (24h)",
     "stats_claims_all": "Claims (all time)",
-    "stats_hash_all": "Hash granted (all time)"
+    "stats_hash_all": "Hash granted (all time)",
+    "tracker_verified_seconds": "Verified watch time (server)",
+    "player_state_idle": "Waiting for play",
+    "player_state_playing": "Counting",
+    "player_state_buffering": "Buffering — counting",
+    "player_state_paused": "Paused — count suspended",
+    "player_state_ended": "Video ended",
+    "player_state_cued": "Ready to play",
+    "video_ended_hint": "The video ended. Press Play in the embed above to keep earning watch time and hash rewards.",
+    "external_watch_warning": "Watching only on YouTube (another tab) does not count. Keep the video playing here in the embed.",
+    "embed_hint_after": "only if the embed fails — watch time counts only while this page's player is playing.",
+    "daily_limit_reached": "Daily YouTube hash limit reached. Try again tomorrow."
   },
   "offers": {
     "badge": "Limited time",

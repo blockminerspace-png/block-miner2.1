@@ -3,7 +3,7 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import type { LucideIcon } from 'lucide-react';
-import { Youtube, Zap, Clock, TrendingUp, AlertCircle, History, BarChart3, ShieldCheck, X } from 'lucide-react';
+import { Youtube, Zap, Clock, TrendingUp, AlertCircle, History, BarChart3, ShieldCheck, X, PauseCircle, PlayCircle } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
 import { formatHashrate } from '../../shared/utils/machine';
@@ -21,9 +21,12 @@ interface YoutubeStatsPayload {
     ok?: boolean;
     hashGranted24h?: number;
     dailyLimit?: number;
+    dailyRemainingHash?: number;
     claims24h?: number;
     claimsTotal?: number;
     hashGrantedTotal?: number;
+    watchSecondsBalance?: number;
+    minSecondsToClaim?: number;
 }
 
 interface YoutubeClaimResponse {
@@ -34,12 +37,16 @@ interface YoutubeClaimResponse {
 
 type TrackerColor = 'primary' | 'amber' | 'blue' | 'emerald';
 
+const CLAIM_INTERVAL_SEC = 60;
+
+type PlayerUiState = 'idle' | 'cued' | 'playing' | 'buffering' | 'paused' | 'ended';
+
 export default function YouTubeWatch() {
     const { t } = useTranslation();
     const [url, setUrl] = useState('');
     const [videoId, setVideoId] = useState<string | null>(null);
-    const [isRunning, setIsRunning] = useState(false);
-    const [countdown, setCountdown] = useState(60);
+    const [playerState, setPlayerState] = useState<PlayerUiState>('idle');
+    const [countdown, setCountdown] = useState(CLAIM_INTERVAL_SEC);
     const [status, setStatus] = useState<YoutubeStatusPayload | null>(null);
     const [stats, setStats] = useState<YoutubeStatsPayload | null>(null);
 
@@ -52,6 +59,23 @@ export default function YouTubeWatch() {
     const urlInputRef = useRef<HTMLInputElement | null>(null);
     const urlComposingRef = useRef(false);
     const [playerResetKey, setPlayerResetKey] = useState(0);
+    const [watchCycleActive, setWatchCycleActive] = useState(false);
+
+    const isActivelyWatching = playerState === 'playing' || playerState === 'buffering';
+
+    const resetWatchCycle = useCallback(() => {
+        cycleStartRef.current = null;
+        setWatchCycleActive(false);
+        setCountdown(CLAIM_INTERVAL_SEC);
+    }, []);
+
+    const playerStateLabel = useCallback(
+        (state: PlayerUiState) => {
+            const key = `youtube.player_state_${state}` as const;
+            return t(key);
+        },
+        [t],
+    );
 
     /**
      * Selects the full URL when the field has text (focus, click, Tab). Skipped during IME composition.
@@ -72,7 +96,8 @@ export default function YouTubeWatch() {
     const handleClearUrl = useCallback((e: MouseEvent<HTMLButtonElement>) => {
         if (!validateTrustedEvent(e)) return;
         setUrl('');
-        setIsRunning(false);
+        setPlayerState('idle');
+        resetWatchCycle();
         if (playerRef.current) {
             try {
                 playerRef.current.destroy();
@@ -86,7 +111,7 @@ export default function YouTubeWatch() {
         requestAnimationFrame(() => {
             urlInputRef.current?.focus();
         });
-    }, []);
+    }, [resetWatchCycle]);
 
     // Carrega a YouTube IFrame API uma vez
     useEffect(() => {
@@ -188,7 +213,8 @@ export default function YouTubeWatch() {
             toast.error(t('youtube.invalid_url'));
             return;
         }
-        setIsRunning(false);
+        setPlayerState('idle');
+        resetWatchCycle();
         // Sempre destrói o player antes de criar um novo — evita estado inválido
         if (playerRef.current) {
             try { playerRef.current.destroy(); } catch (_) {}
@@ -198,6 +224,10 @@ export default function YouTubeWatch() {
         setPlayerResetKey(k => k + 1);
         toast.success(t('youtube.video_loaded'));
     };
+
+    const handleExternalYoutubeClick = useCallback(() => {
+        toast.warning(t('youtube.external_watch_warning'), { duration: 8000 });
+    }, [t]);
 
     // Inicializa o player YT quando videoId ou playerResetKey muda
     useEffect(() => {
@@ -215,12 +245,17 @@ export default function YouTubeWatch() {
                     onStateChange: (event: { data: number }) => {
                         const YTState = window.YT!.PlayerState;
                         if (event.data === YTState.PLAYING) {
-                            setIsRunning(true);
-                        } else if (
-                            event.data === YTState.PAUSED ||
-                            event.data === YTState.ENDED
-                        ) {
-                            setIsRunning(false);
+                            setPlayerState('playing');
+                        } else if (event.data === YTState.BUFFERING) {
+                            setPlayerState('buffering');
+                        } else if (event.data === YTState.PAUSED) {
+                            setPlayerState('paused');
+                        } else if (event.data === YTState.ENDED) {
+                            setPlayerState('ended');
+                        } else if (event.data === YTState.CUED) {
+                            setPlayerState('cued');
+                        } else {
+                            setPlayerState('idle');
                         }
                     },
                 },
@@ -254,6 +289,11 @@ export default function YouTubeWatch() {
                 );
                 fetchStatus();
                 fetchUserStats();
+                resetWatchCycle();
+                if (playerState === 'playing' || playerState === 'buffering') {
+                    cycleStartRef.current = Date.now();
+                    setWatchCycleActive(true);
+                }
             }
         } catch (err: unknown) {
             if (isAxiosError(err) && err.response?.status === 400) {
@@ -264,12 +304,14 @@ export default function YouTubeWatch() {
                     scheduleRetry = true;
                     retryDelay = retryAfterMs;
                 } else {
-                    toast.error(data?.message ?? t('youtube.claim_failed'));
-                    setIsRunning(false);
+                    const msg = data?.message ?? '';
+                    const isDaily =
+                        /limite diário|daily limit/i.test(msg);
+                    toast.error(isDaily ? t('youtube.daily_limit_reached') : (msg || t('youtube.claim_failed')));
+                    if (isDaily) setPlayerState('paused');
                 }
             } else {
                 toast.error(t('youtube.claim_failed'));
-                setIsRunning(false);
             }
         } finally {
             isClaimingRef.current = false;
@@ -277,50 +319,56 @@ export default function YouTubeWatch() {
         if (scheduleRetry) {
             setTimeout(() => void claimReward(), retryDelay);
         }
-    }, [videoId, fetchStatus, fetchUserStats, t]);
+    }, [videoId, fetchStatus, fetchUserStats, t, resetWatchCycle, playerState]);
 
-    // Heartbeat — roda mesmo com a aba em segundo plano para acumular saldo no servidor.
-    // Envia imediatamente ao iniciar e depois a cada 10s para garantir 6 heartbeats
-    // antes que o timer dispare o claim aos 60s (evita rejeição por saldo insuficiente).
+    // Heartbeat — só enquanto PLAYING/BUFFERING; mantém saldo no servidor para o claim.
     useEffect(() => {
-        if (!isRunning) return;
+        if (!isActivelyWatching) return;
         const sendHeartbeat = async () => {
             try {
                 const security = generateSecurityPayload();
                 await api.post('/session/heartbeat', { type: 'youtube', security });
+                void fetchUserStats();
             } catch (_) {}
         };
         void sendHeartbeat();
         const heartbeatInterval = setInterval(sendHeartbeat, 10000);
         return () => clearInterval(heartbeatInterval);
-    }, [isRunning]);
+    }, [isActivelyWatching, fetchUserStats]);
 
-    // Timer baseado em Date.now() — preciso mesmo com aba em segundo plano
+    // Timer: acumula tempo de relógio só em PLAYING/BUFFERING; pausa não zera o ciclo de 60s.
     useEffect(() => {
         if (timerRef.current != null) clearInterval(timerRef.current);
-        if (!isRunning) {
-            cycleStartRef.current = null;
-            return undefined;
+        if (!isActivelyWatching) return undefined;
+
+        if (cycleStartRef.current == null) {
+            cycleStartRef.current = Date.now();
+            setWatchCycleActive(true);
         }
-        cycleStartRef.current = Date.now();
-        setCountdown(60);
+
         timerRef.current = setInterval(() => {
             if (!cycleStartRef.current) return;
             const elapsed = (Date.now() - cycleStartRef.current) / 1000;
-            const remaining = Math.max(0, Math.round(60 - elapsed));
+            const remaining = Math.max(0, Math.round(CLAIM_INTERVAL_SEC - elapsed));
             setCountdown(remaining);
-            if (elapsed >= 60) {
-                cycleStartRef.current = Date.now(); // reinicia ciclo imediatamente
+            if (elapsed >= CLAIM_INTERVAL_SEC) {
+                cycleStartRef.current = Date.now();
                 void claimReward();
             }
-        }, 500); // poll a cada 500ms para precisão mesmo throttled
+        }, 500);
         return () => {
             if (timerRef.current != null) clearInterval(timerRef.current);
             timerRef.current = null;
         };
-    }, [isRunning, claimReward]);
+    }, [isActivelyWatching, claimReward]);
 
     const dailyProgress = stats ? (Number(stats.hashGranted24h || 0) / Math.max(1, Number(stats.dailyLimit || 1))) * 100 : 0;
+    const minClaimSec = Number(stats?.minSecondsToClaim ?? 50);
+    const watchBalance = Number(stats?.watchSecondsBalance ?? 0);
+    const showClaimCountdown =
+        videoId != null &&
+        (isActivelyWatching || playerState === 'paused') &&
+        watchCycleActive;
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
@@ -407,6 +455,7 @@ export default function YouTubeWatch() {
                                     href={`https://www.youtube.com/watch?v=${videoId}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={handleExternalYoutubeClick}
                                     className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-black/70 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all backdrop-blur-sm"
                                 >
                                     <Youtube className="w-3 h-3" /> {t('youtube.open_on_youtube')}
@@ -414,11 +463,53 @@ export default function YouTubeWatch() {
                             )}
                         </div>
 
+                        {videoId && playerState === 'ended' && (
+                            <div className="mt-4 flex items-start gap-3 p-4 rounded-2xl border border-amber-500/25 bg-amber-500/10 relative z-10">
+                                <PlayCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                                <p className="text-[11px] text-amber-100/90 font-medium leading-relaxed">
+                                    {t('youtube.video_ended_hint')}
+                                </p>
+                            </div>
+                        )}
+
+                        {videoId && (
+                            <div className="mt-4 flex flex-wrap items-center gap-2 relative z-10">
+                                <span
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${
+                                        isActivelyWatching
+                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                                            : playerState === 'paused'
+                                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                                              : playerState === 'ended'
+                                                ? 'bg-gray-800 border-gray-700 text-gray-400'
+                                                : 'bg-gray-800/80 border-gray-700 text-gray-500'
+                                    }`}
+                                >
+                                    {isActivelyWatching ? (
+                                        <Clock className="w-3 h-3" />
+                                    ) : playerState === 'paused' ? (
+                                        <PauseCircle className="w-3 h-3" />
+                                    ) : (
+                                        <PlayCircle className="w-3 h-3" />
+                                    )}
+                                    {playerStateLabel(playerState)}
+                                </span>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+                                    {t('youtube.tracker_verified_seconds')}:{' '}
+                                    <span className={watchBalance >= minClaimSec ? 'text-emerald-400' : 'text-white'}>
+                                        {watchBalance}s
+                                    </span>
+                                    {' / '}
+                                    {minClaimSec}s
+                                </span>
+                            </div>
+                        )}
+
                         <div className="mt-4 sm:mt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
                             <div className="flex items-center gap-4">
-                                {isRunning && (
+                                {showClaimCountdown && (
                                     <div className="flex items-center gap-3 px-6 py-4 bg-gray-800/50 rounded-2xl border border-gray-700/50 shadow-inner">
-                                        <Clock className="w-4 h-4 text-primary animate-pulse" />
+                                        <Clock className={`w-4 h-4 text-primary ${isActivelyWatching ? 'animate-pulse' : ''}`} />
                                         <span className="text-sm font-bold text-white uppercase italic tracking-tighter">
                                             {t('youtube.next_claim', { seconds: countdown })}
                                         </span>
@@ -447,7 +538,18 @@ export default function YouTubeWatch() {
                         </h3>
                         
                         <div className="space-y-6 relative z-10">
-                            <TrackerItem label={t('youtube.tracker_next')} value={isRunning ? `${countdown}s` : '--'} icon={Clock} color="primary" />
+                            <TrackerItem
+                                label={t('youtube.tracker_next')}
+                                value={showClaimCountdown ? `${countdown}s` : '--'}
+                                icon={Clock}
+                                color="primary"
+                            />
+                            <TrackerItem
+                                label={t('youtube.tracker_verified_seconds')}
+                                value={`${watchBalance}s`}
+                                icon={ShieldCheck}
+                                color="blue"
+                            />
                             <TrackerItem label={t('youtube.tracker_per_minute')} value={formatHashrate(Number(status?.rewardGh || 3))} icon={Zap} color="amber" />
                             <TrackerItem label={t('youtube.tracker_duration')} value={`${Number(status?.durationMin || 1440)} min`} icon={History} color="blue" />
                             <div className="h-[1px] bg-gray-800 w-full my-2" />
@@ -464,6 +566,10 @@ export default function YouTubeWatch() {
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
                                 <span className="text-slate-500">{t('youtube.stats_hash24h')}</span>
                                 <span className="text-emerald-400">{formatHashrate(Number(stats?.hashGranted24h || 0))}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                                <span className="text-slate-500">{t('youtube.stats_daily_remaining')}</span>
+                                <span className="text-gray-400">{formatHashrate(Number(stats?.dailyRemainingHash ?? 0))}</span>
                             </div>
                             
                             <div className="space-y-2">

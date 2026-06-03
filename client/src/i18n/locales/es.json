@@ -1896,8 +1896,20 @@
     "stats_claims24h": "Reclamos (24h)",
     "stats_hash24h": "Hash concedido (24h)",
     "stats_daily_progress": "Progreso del límite diario",
+    "stats_daily_remaining": "Hash restante (24h)",
     "stats_claims_all": "Reclamos (total)",
-    "stats_hash_all": "Hash concedido (total)"
+    "stats_hash_all": "Hash concedido (total)",
+    "tracker_verified_seconds": "Tiempo verificado (servidor)",
+    "player_state_idle": "Esperando play",
+    "player_state_playing": "Contando",
+    "player_state_buffering": "Cargando — contando",
+    "player_state_paused": "En pausa — conteo suspendido",
+    "player_state_ended": "Video terminado",
+    "player_state_cued": "Listo para play",
+    "video_ended_hint": "El video terminó. Pulsa Play en el reproductor de arriba para seguir acumulando tiempo y reclamar hash.",
+    "external_watch_warning": "Ver solo en YouTube (otra pestaña) no cuenta. Mantén el video reproduciéndose aquí en el embed.",
+    "embed_hint_after": "solo si el embed falla — el tiempo solo cuenta con el reproductor de esta página en play.",
+    "daily_limit_reached": "Límite diario de hash YouTube alcanzado. Vuelve mañana."
   },
   "offers": {
     "badge": "Tiempo limitado",

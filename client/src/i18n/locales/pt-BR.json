@@ -2302,8 +2302,20 @@
     "stats_claims24h": "Resgates (24h)",
     "stats_hash24h": "Hash concedido (24h)",
     "stats_daily_progress": "Progresso do limite diário",
+    "stats_daily_remaining": "Hash restante (24h)",
     "stats_claims_all": "Resgates (total)",
-    "stats_hash_all": "Hash concedido (total)"
+    "stats_hash_all": "Hash concedido (total)",
+    "tracker_verified_seconds": "Tempo verificado (servidor)",
+    "player_state_idle": "Aguardando play",
+    "player_state_playing": "A contar",
+    "player_state_buffering": "A carregar — a contar",
+    "player_state_paused": "Em pausa — contagem suspensa",
+    "player_state_ended": "Vídeo terminou",
+    "player_state_cued": "Pronto para play",
+    "video_ended_hint": "O vídeo acabou. Carrega em Play no player acima para continuar a acumular tempo e resgatar hash.",
+    "external_watch_warning": "Assistir só no YouTube (outro separador) não conta. Mantém o vídeo a tocar aqui no embed.",
+    "embed_hint_after": "só se o embed não funcionar — o tempo só conta com o player desta página a tocar.",
+    "daily_limit_reached": "Limite diário de hash YouTube atingido. Volta amanhã."
   },
   "offers": {
     "badge": "Tempo limitado",

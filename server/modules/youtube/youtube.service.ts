@@ -9,11 +9,11 @@ import {
   DURATION_HOURS,
   MIN_SECONDS_TO_CLAIM,
   REWARD_PER_CLAIM,
+  getYtSecondsBalance,
   claimRewardTx,
   findActivePowers,
   getAggregateStats,
   getClaims24h,
-  getYtSecondsBalance,
 } from "./youtube.repository.js";
 
 const logger = loggerLib.child("YoutubeService");
@@ -35,9 +35,10 @@ export async function getStatsForUser(userId: number): Promise<YoutubeStatsResul
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  const [claims24h, aggregate] = await Promise.all([
+  const [claims24h, aggregate, balanceRow] = await Promise.all([
     getClaims24h(userId, yesterday),
     getAggregateStats(userId),
+    getYtSecondsBalance(userId),
   ]);
 
   const hash24h = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
@@ -49,6 +50,9 @@ export async function getStatsForUser(userId: number): Promise<YoutubeStatsResul
     claimsTotal: aggregate._count,
     hashGrantedTotal: Number(aggregate._sum.hashRate || 0),
     dailyLimit: DAILY_LIMIT_HASH,
+    dailyRemainingHash: Math.max(0, DAILY_LIMIT_HASH - hash24h),
+    watchSecondsBalance: balanceRow?.ytSecondsBalance ?? 0,
+    minSecondsToClaim: MIN_SECONDS_TO_CLAIM,
   };
 }
 

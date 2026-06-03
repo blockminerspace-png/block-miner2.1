@@ -13,6 +13,9 @@ export type YoutubeStatsResult = {
   claimsTotal: number;
   hashGrantedTotal: number;
   dailyLimit: number;
+  dailyRemainingHash: number;
+  watchSecondsBalance: number;
+  minSecondsToClaim: number;
 };
 
 export type YoutubeClaimSuccess = {
