@@ -56,11 +56,6 @@ export async function claimRewardTx(
     },
   });
 
-  await tx.user.update({
-    where: { id: userId },
-    data: { ytSecondsBalance: { decrement: 60 } },
-  });
-
   await tx.auditLog.create({
     data: {
       userId,

@@ -5,7 +5,9 @@ export const ROOM_MAX = parseInt(process.env.ROOM_MAX || "4", 10);
 export const RACK_VISUAL_COLUMNS = 4;
 
 export type RackMoveBackRow = { id: number; roomId: number; userId: number };
-export type MinerWithMinerRel = Prisma.UserMinerGetPayload<{ include: { miner: true } }>;
+export type MinerWithMinerRel = Prisma.UserMinerGetPayload<{
+  include: { miner: true; ownedMachine: { select: { minerName: true; imageUrl: true } } };
+}>;
 
 export type ListedRoomPayload =
   | {

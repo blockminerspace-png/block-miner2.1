@@ -40,8 +40,11 @@ async function moveRackMinerBackToInventoryTx(
   miner: MinerWithMinerRel,
   acquiredAt: Date,
 ): Promise<{ minerName: string }> {
-  const minerName = miner.miner?.name || (!miner.minerId ? "Máquina custom" : "Máquina");
-  const imageUrl = miner.imageUrl ?? miner.miner?.imageUrl ?? null;
+  const minerName =
+    miner.miner?.name ||
+    miner.ownedMachine?.minerName ||
+    (!miner.minerId ? "Máquina custom" : "Máquina");
+  const imageUrl = miner.imageUrl ?? miner.miner?.imageUrl ?? miner.ownedMachine?.imageUrl ?? null;
 
   await tx.userRack.update({
     where: { id: rack.id },
@@ -207,6 +210,29 @@ async function resolveInstallMinerContext(
   if (rack.userMinerId != null || rack.blockedByMinerId != null) {
     logger.warn("installMiner: rack occupied", { userId, rackId });
     return { status: 400, code: "RACK_OCCUPIED", message: "Este rack já está ocupado." };
+  }
+
+  // Guard: previous slot may have a 2-slot miner spilling into this one
+  // (legacy data may have missing blockedByMinerId — belt-and-suspenders check)
+  if (rack.position > 0) {
+    const prevRack = await roomsRepo.findRackByRoomAndPosition(rack.roomId, rack.position - 1);
+    if (prevRack?.userMinerId != null) {
+      const prevMinerRow = await import("../../src/db/prisma.js").then((m) =>
+        m.default.userMiner.findUnique({
+          where: { id: prevRack.userMinerId as number },
+          select: { slotSize: true },
+        }),
+      );
+      if ((prevMinerRow?.slotSize ?? 1) >= 2) {
+        logger.warn("installMiner: previous 2-slot miner spills into this rack", {
+          userId,
+          rackId,
+          prevRackId: prevRack.id,
+          prevUserMinerId: prevRack.userMinerId,
+        });
+        return { status: 400, code: "RACK_OCCUPIED", message: "Este rack já está ocupado." };
+      }
+    }
   }
 
   const inventoryItem = await roomsRepo.findInventoryItemForUser(inventoryId, userId);
@@ -394,7 +420,10 @@ export async function uninstallMinerForUser(userId: number, rackId: number): Pro
     userId,
     rackId,
     minerId: miner.minerId,
-    returnedMinerName: miner.miner?.name || (!miner.minerId ? "Máquina custom" : "Máquina"),
+    returnedMinerName:
+      miner.miner?.name ||
+      miner.ownedMachine?.minerName ||
+      (!miner.minerId ? "Máquina custom" : "Máquina"),
   });
 }
 
@@ -407,7 +436,7 @@ export async function uninstallMinerBatchForUser(userId: number, rackIds: number
       where: { id: { in: rackIds }, userId },
       include: {
         userMiner: {
-          include: { miner: true },
+          include: { miner: true, ownedMachine: { select: { minerName: true, imageUrl: true } } },
         },
       },
     });

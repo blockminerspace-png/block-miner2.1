@@ -57,13 +57,24 @@ export async function listBrokenMachineGroups(prisma: PrismaClient): Promise<Bro
     eventByHashRate.set(e.hashRate, list);
   }
 
-  return rows.map((row) => {
+  const knownEventNames = new Set(eventMiners.map((e) => e.name.toLowerCase().trim()));
+
+  const groups: BrokenMachineGroup[] = [];
+  for (const row of rows) {
     const minerName = String(row.miner_name ?? "");
-    const isEvent = /^\[event\]/i.test(minerName.trim());
+    const trimmed = minerName.trim();
+    const isEvent = /^\[event\]/i.test(trimmed);
+
+    if (isEvent) {
+      const eventLabel = trimmed.replace(/^\[event\]\s*/i, "").toLowerCase().trim();
+      // Functioning event miner — name resolves to a real EventMiner. Not broken.
+      if (knownEventNames.has(eventLabel)) continue;
+    }
+
     const matches = isEvent ? [] : (byHashRate.get(row.hash_rate) ?? []);
     const eventMatches = eventByHashRate.get(row.hash_rate) ?? [];
     const autoMiner = !isEvent && matches.length === 1 ? matches[0] : null;
-    return {
+    groups.push({
       minerName,
       hashRate: Number(row.hash_rate),
       location: String(row.location),
@@ -73,8 +84,9 @@ export async function listBrokenMachineGroups(prisma: PrismaClient): Promise<Bro
       autoMinerName: autoMiner?.name ?? null,
       catalogMatches: matches,
       eventMatches,
-    };
-  });
+    });
+  }
+  return groups;
 }
 
 export async function assignMinerToGroup(

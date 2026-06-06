@@ -76,7 +76,11 @@ export async function findRackByRoomAndPosition(roomId: number, position: number
 export async function findRackWithMinerForUser(rackId: number, userId: number) {
   return prisma.userRack.findFirst({
     where: { id: rackId, userId },
-    include: { userMiner: { include: { miner: true } } },
+    include: {
+      userMiner: {
+        include: { miner: true, ownedMachine: { select: { minerName: true, imageUrl: true } } },
+      },
+    },
   });
 }
 
@@ -85,7 +89,7 @@ export async function findRacksWithMinersByIds(rackIds: number[], userId: number
     where: { id: { in: rackIds }, userId },
     include: {
       userMiner: {
-        include: { miner: true },
+        include: { miner: true, ownedMachine: { select: { minerName: true, imageUrl: true } } },
       },
     },
   });

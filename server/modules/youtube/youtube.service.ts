@@ -57,21 +57,6 @@ export async function getStatsForUser(userId: number): Promise<YoutubeStatsResul
 }
 
 export async function claimForUser(userId: number, videoId: string): Promise<YoutubeClaimResult> {
-  const user = await getYtSecondsBalance(userId);
-
-  if (!user || user.ytSecondsBalance < MIN_SECONDS_TO_CLAIM) {
-    const currentBalance = user?.ytSecondsBalance ?? 0;
-    const needed = MIN_SECONDS_TO_CLAIM - currentBalance;
-    // Estimate how many more heartbeats are needed (each adds 10s, sent every 10s)
-    const retryAfterMs = Math.max(5000, needed * 1000 + 3000);
-    return {
-      ok: false,
-      status: 400,
-      message: "Tempo de visualização insuficiente. Aguarde alguns segundos.",
-      retryAfterMs,
-    };
-  }
-
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const claims24h = await getClaims24h(userId, yesterday);

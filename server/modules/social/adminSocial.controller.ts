@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import prisma from "../../src/db/prisma.js";
-import { createInventoryWithOwnedMachineTx } from "../../services/userOwnedMachineService.js";
+import { createRewardInboxEntry } from "../../services/rewardInboxService.js";
 import { createAuditLogBestEffort } from "../../models/auditLogModel.js";
 import loggerLib from "../../utils/logger.js";
 
@@ -188,16 +188,15 @@ export async function approveSubmission(
     });
 
     if (rewardMiner) {
-      await createInventoryWithOwnedMachineTx(tx, {
+      await createRewardInboxEntry(tx, {
         userId: submission.userId,
+        source: "youtuber_reward",
+        rewardType: "machine",
+        rewardValue: Number(rewardMiner.baseHashRate ?? 0),
         minerId: rewardMiner.id,
         minerName: rewardMiner.name,
-        hashRate: rewardMiner.baseHashRate,
-        slotSize: rewardMiner.slotSize,
-        imageUrl: rewardMiner.imageUrl ?? null,
-        snapshotSlug: rewardMiner.slug,
-        snapshotPrice: Number(rewardMiner.price),
-        acquisitionSource: "youtuber_reward",
+        minerImageUrl: rewardMiner.imageUrl ?? null,
+        slotSize: rewardMiner.slotSize ?? 1,
       });
     }
   });
