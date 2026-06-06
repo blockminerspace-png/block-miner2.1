@@ -5,9 +5,11 @@ export type BrokenMachineGroup = {
   hashRate: number;
   location: string;
   count: number;
+  isEvent: boolean;
   autoMinerId: number | null;
   autoMinerName: string | null;
   catalogMatches: { id: number; name: string; baseHashRate: number }[];
+  eventMatches: { id: number; name: string; hashRate: number }[];
 };
 
 export type AssignResult = {
@@ -26,6 +28,16 @@ export async function assignMinerToGroup(opts: {
   hashRate: number;
   location: string;
   catalogMinerId: number;
+}): Promise<AssignResult> {
+  const res = await api.post<AssignResult>('/admin/miners/broken-machines/assign', opts);
+  return res.data;
+}
+
+export async function assignEventMinerToGroup(opts: {
+  minerName: string;
+  hashRate: number;
+  location: string;
+  eventMinerId: number;
 }): Promise<AssignResult> {
   const res = await api.post<AssignResult>('/admin/miners/broken-machines/assign', opts);
   return res.data;

@@ -5,9 +5,11 @@ export type BrokenMachineGroup = {
   hashRate: number;
   location: string;
   count: number;
+  isEvent: boolean;
   autoMinerId: number | null;
   autoMinerName: string | null;
   catalogMatches: { id: number; name: string; baseHashRate: number }[];
+  eventMatches: { id: number; name: string; hashRate: number }[];
 };
 
 export type BrokenMachineAssignResult = {
@@ -36,6 +38,11 @@ export async function listBrokenMachineGroups(prisma: PrismaClient): Promise<Bro
     select: { id: true, name: true, baseHashRate: true },
     orderBy: { id: "asc" },
   });
+  const eventMiners = await prisma.eventMiner.findMany({
+    where: { hashRate: { in: uniqueHashRates } },
+    select: { id: true, name: true, hashRate: true },
+    orderBy: { id: "asc" },
+  });
 
   const byHashRate = new Map<number, { id: number; name: string; baseHashRate: number }[]>();
   for (const m of catalogMiners) {
@@ -43,18 +50,29 @@ export async function listBrokenMachineGroups(prisma: PrismaClient): Promise<Bro
     list.push(m);
     byHashRate.set(m.baseHashRate, list);
   }
+  const eventByHashRate = new Map<number, { id: number; name: string; hashRate: number }[]>();
+  for (const e of eventMiners) {
+    const list = eventByHashRate.get(e.hashRate) ?? [];
+    list.push(e);
+    eventByHashRate.set(e.hashRate, list);
+  }
 
   return rows.map((row) => {
-    const matches = byHashRate.get(row.hash_rate) ?? [];
-    const autoMiner = matches.length === 1 ? matches[0] : null;
+    const minerName = String(row.miner_name ?? "");
+    const isEvent = /^\[event\]/i.test(minerName.trim());
+    const matches = isEvent ? [] : (byHashRate.get(row.hash_rate) ?? []);
+    const eventMatches = eventByHashRate.get(row.hash_rate) ?? [];
+    const autoMiner = !isEvent && matches.length === 1 ? matches[0] : null;
     return {
-      minerName: String(row.miner_name ?? ""),
+      minerName,
       hashRate: Number(row.hash_rate),
       location: String(row.location),
       count: Number(row.cnt),
+      isEvent,
       autoMinerId: autoMiner?.id ?? null,
       autoMinerName: autoMiner?.name ?? null,
       catalogMatches: matches,
+      eventMatches,
     };
   });
 }
@@ -122,6 +140,69 @@ export async function assignMinerToGroup(
   return { ok: true, assigned: ownedIds.length, message: `${ownedIds.length} máquina(s) atribuída(s) a «${catalog.name}».` };
 }
 
+export async function assignEventMinerToGroup(
+  prisma: PrismaClient,
+  opts: { minerName: string; hashRate: number; location: string; eventMinerId: number },
+): Promise<BrokenMachineAssignResult> {
+  const event = await prisma.eventMiner.findUnique({
+    where: { id: opts.eventMinerId },
+    select: { id: true, name: true, hashRate: true },
+  });
+  if (!event) return { ok: false, assigned: 0, message: "Miner de evento não encontrado." };
+
+  const canonicalName = `[Event] ${event.name}`;
+  const where = {
+    minerId: null,
+    minerName: opts.minerName,
+    hashRate: opts.hashRate,
+    location: opts.location as "RACK" | "INVENTORY" | "WAREHOUSE",
+  };
+
+  const ownedRows = await prisma.userOwnedMachine.findMany({ where, select: { id: true } });
+  const ownedIds = ownedRows.map((r) => r.id);
+  if (ownedIds.length === 0) return { ok: false, assigned: 0, message: "Nenhuma máquina encontrada com esses critérios." };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.userOwnedMachine.updateMany({
+      where: { id: { in: ownedIds } },
+      data: { minerName: canonicalName, imageUrl: null },
+    });
+    if (opts.location === "INVENTORY") {
+      await tx.userInventory.updateMany({
+        where: { ownedMachineId: { in: ownedIds } },
+        data: { minerName: canonicalName, imageUrl: null },
+      });
+    } else if (opts.location === "WAREHOUSE") {
+      await tx.userVault.updateMany({
+        where: { ownedMachineId: { in: ownedIds } },
+        data: { minerName: canonicalName, imageUrl: null },
+      });
+    } else if (opts.location === "RACK") {
+      await tx.userMiner.updateMany({
+        where: { ownedMachineId: { in: ownedIds } },
+        data: { imageUrl: null },
+      });
+    }
+  });
+
+  await prisma.auditLog
+    .create({
+      data: {
+        userId: null,
+        action: "ADMIN_BROKEN_MACHINES_ASSIGN_EVENT",
+        label: "Broken machines assigned to event miner",
+        source: "admin",
+        severity: "info",
+        metadata: { minerName: opts.minerName, hashRate: opts.hashRate, location: opts.location, eventMinerId: event.id, count: ownedIds.length },
+        relatedEntityType: "event_miner",
+        relatedEntityId: String(event.id),
+      },
+    })
+    .catch(() => null);
+
+  return { ok: true, assigned: ownedIds.length, message: `${ownedIds.length} máquina(s) atribuída(s) ao evento «${event.name}».` };
+}
+
 export async function autoAssignAllBrokenMachines(prisma: PrismaClient): Promise<{
   ok: boolean;
   assigned: number;
@@ -133,7 +214,7 @@ export async function autoAssignAllBrokenMachines(prisma: PrismaClient): Promise
   let skipped = 0;
 
   for (const group of groups) {
-    if (!group.autoMinerId) { skipped += group.count; continue; }
+    if (group.isEvent || !group.autoMinerId) { skipped += group.count; continue; }
     const result = await assignMinerToGroup(prisma, {
       minerName: group.minerName,
       hashRate: group.hashRate,

@@ -85,7 +85,7 @@ export async function listBrokenMachineGroupsController(req: Request, res: Respo
 export async function assignBrokenMachinesController(req: Request, res: Response) {
   try {
     const body = (req.body ?? {}) as QueryRecord;
-    const { assignMinerToGroup, autoAssignAllBrokenMachines } = await import("./adminMiners.machineRepair.js");
+    const { assignMinerToGroup, assignEventMinerToGroup, autoAssignAllBrokenMachines } = await import("./adminMiners.machineRepair.js");
 
     if (body.autoAll === true || body.autoAll === "true" || body.autoAll === 1) {
       const result = await autoAssignAllBrokenMachines(prisma);
@@ -95,13 +95,16 @@ export async function assignBrokenMachinesController(req: Request, res: Response
     const minerName = String(body.minerName ?? "").trim();
     const hashRate = Number(body.hashRate);
     const location = String(body.location ?? "").trim();
-    const catalogMinerId = Number(body.catalogMinerId);
+    const eventMinerId = body.eventMinerId != null ? Number(body.eventMinerId) : 0;
+    const catalogMinerId = body.catalogMinerId != null ? Number(body.catalogMinerId) : 0;
 
-    if (!minerName || isNaN(hashRate) || !location || !catalogMinerId) {
-      return sendFailure(res, 400, ADMIN_MINERS_ERROR.INVALID_PAYLOAD, "Campos obrigatórios: minerName, hashRate, location, catalogMinerId.");
+    if (!minerName || isNaN(hashRate) || !location || (!catalogMinerId && !eventMinerId)) {
+      return sendFailure(res, 400, ADMIN_MINERS_ERROR.INVALID_PAYLOAD, "Campos obrigatórios: minerName, hashRate, location, catalogMinerId ou eventMinerId.");
     }
 
-    const result = await assignMinerToGroup(prisma, { minerName, hashRate, location, catalogMinerId });
+    const result = eventMinerId
+      ? await assignEventMinerToGroup(prisma, { minerName, hashRate, location, eventMinerId })
+      : await assignMinerToGroup(prisma, { minerName, hashRate, location, catalogMinerId });
     return res.status(result.ok ? 200 : 400).json(result);
   } catch (err: unknown) {
     console.error("assignBrokenMachines", err);

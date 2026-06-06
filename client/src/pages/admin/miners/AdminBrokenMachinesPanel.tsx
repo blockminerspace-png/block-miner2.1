@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertOctagon, RefreshCw, Wand2, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  assignEventMinerToGroup,
   assignMinerToGroup,
   autoAssignAllBroken,
   fetchBrokenMachineGroups,
   type BrokenMachineGroup,
 } from './adminMiners.repair.api';
+import { repairOrphanEventType } from './adminMiners.orphan.api';
 import { useAdminMinersList } from './adminMiners.hooks';
 
 const LOCATION_LABEL: Record<string, string> = {
@@ -27,6 +29,7 @@ export function AdminBrokenMachinesPanel() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
   const [picks, setPicks] = useState<Record<string, string>>({});
+  const [eventPicks, setEventPicks] = useState<Record<string, string>>({});
 
   const { miners: catalogMiners } = useAdminMinersList({ page: 1, limit: 200, filter: 'all', sort: 'name', q: '' });
 
@@ -52,18 +55,33 @@ export function AdminBrokenMachinesPanel() {
 
   const handleAssign = async (group: BrokenMachineGroup) => {
     const key = groupKey(group);
-    const catalogId = picks[key] != null ? Number(picks[key]) : group.autoMinerId;
-    if (!catalogId) { toast.error('Selecione uma mineradora do catálogo.'); return; }
     setBusyKey(key);
     try {
-      const result = await assignMinerToGroup({
-        minerName: group.minerName,
-        hashRate: group.hashRate,
-        location: group.location,
-        catalogMinerId: catalogId,
-      });
-      if (result.ok) toast.success(result.message);
-      else toast.error(result.message);
+      if (group.isEvent) {
+        const result = await repairOrphanEventType(group.minerName);
+        if (result.ok) toast.success(result.message);
+        else toast.error(result.message);
+      } else if (eventPicks[key]) {
+        const result = await assignEventMinerToGroup({
+          minerName: group.minerName,
+          hashRate: group.hashRate,
+          location: group.location,
+          eventMinerId: Number(eventPicks[key]),
+        });
+        if (result.ok) toast.success(result.message);
+        else toast.error(result.message);
+      } else {
+        const catalogId = picks[key] != null ? Number(picks[key]) : group.autoMinerId;
+        if (!catalogId) { toast.error('Selecione uma mineradora do catálogo ou de evento.'); setBusyKey(null); return; }
+        const result = await assignMinerToGroup({
+          minerName: group.minerName,
+          hashRate: group.hashRate,
+          location: group.location,
+          catalogMinerId: catalogId,
+        });
+        if (result.ok) toast.success(result.message);
+        else toast.error(result.message);
+      }
       await load();
     } catch {
       toast.error('Falha ao atribuir mineradora.');
@@ -166,37 +184,62 @@ export function AdminBrokenMachinesPanel() {
                       </td>
                       <td className="px-3 py-2 font-bold text-red-300">{g.count}</td>
                       <td className="px-3 py-2 min-w-[200px]">
-                        <select
-                          value={pickedId ?? (g.autoMinerId != null ? String(g.autoMinerId) : '')}
-                          onChange={(e) => setPicks((prev) => ({ ...prev, [key]: e.target.value }))}
-                          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                        >
-                          <option value="">-- escolher --</option>
-                          {catalogMiners.map((m) => (
-                            <option key={m.id} value={String(m.id)}>
-                              #{m.id} {m.name} ({m.baseHashRate} H/s)
-                            </option>
-                          ))}
-                        </select>
-                        {g.autoMinerId && !pickedId ? (
-                          <p className="mt-0.5 text-[10px] text-emerald-400">✓ match automático: {g.autoMinerName}</p>
-                        ) : null}
-                        {g.catalogMatches.length > 1 && !pickedId ? (
-                          <p className="mt-0.5 text-[10px] text-amber-400">⚠ {g.catalogMatches.length} miners com mesmo H/s — escolha manualmente</p>
-                        ) : null}
-                        {g.catalogMatches.length === 0 && !pickedId ? (
-                          <p className="mt-0.5 text-[10px] text-red-400">✗ sem match por H/s — escolha manualmente</p>
-                        ) : null}
+                        {g.isEvent ? (
+                          <p className="text-[10px] text-amber-300">Máquina de evento — use «Sync evento» para restaurar nome e imagem.</p>
+                        ) : (
+                          <>
+                            {g.eventMatches.length > 0 ? (
+                              <select
+                                value={eventPicks[key] ?? ''}
+                                onChange={(e) => setEventPicks((prev) => ({ ...prev, [key]: e.target.value }))}
+                                className="mb-1 w-full rounded-lg border border-amber-600/60 bg-amber-900/20 px-2 py-1 text-xs text-amber-100 focus:border-amber-400 focus:outline-none"
+                              >
+                                <option value="">-- evento (mesmo H/s) --</option>
+                                {g.eventMatches.map((e) => (
+                                  <option key={e.id} value={String(e.id)}>
+                                    [Event] #{e.id} {e.name} ({e.hashRate} H/s)
+                                  </option>
+                                ))}
+                              </select>
+                            ) : null}
+                            <select
+                              value={pickedId ?? (g.autoMinerId != null ? String(g.autoMinerId) : '')}
+                              onChange={(e) => setPicks((prev) => ({ ...prev, [key]: e.target.value }))}
+                              disabled={!!eventPicks[key]}
+                              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-white focus:border-emerald-500 focus:outline-none disabled:opacity-40"
+                            >
+                              <option value="">-- catálogo --</option>
+                              {catalogMiners.map((m) => (
+                                <option key={m.id} value={String(m.id)}>
+                                  #{m.id} {m.name} ({m.baseHashRate} H/s)
+                                </option>
+                              ))}
+                            </select>
+                            {g.autoMinerId && !pickedId ? (
+                              <p className="mt-0.5 text-[10px] text-emerald-400">✓ match automático: {g.autoMinerName}</p>
+                            ) : null}
+                            {g.catalogMatches.length > 1 && !pickedId ? (
+                              <p className="mt-0.5 text-[10px] text-amber-400">⚠ {g.catalogMatches.length} miners com mesmo H/s — escolha manualmente</p>
+                            ) : null}
+                            {g.catalogMatches.length === 0 && !pickedId ? (
+                              <p className="mt-0.5 text-[10px] text-red-400">✗ sem match por H/s — escolha manualmente</p>
+                            ) : null}
+                          </>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <button
                           type="button"
-                          disabled={busy || !effectiveId || autoBusy}
+                          disabled={busy || autoBusy || (!g.isEvent && !effectiveId && !eventPicks[key])}
                           onClick={() => void handleAssign(g)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-2.5 py-1.5 text-[10px] font-bold uppercase text-emerald-300 disabled:opacity-40"
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase disabled:opacity-40 ${
+                            g.isEvent
+                              ? 'border-amber-600/40 bg-amber-600/10 text-amber-300'
+                              : 'border-emerald-600/40 bg-emerald-600/10 text-emerald-300'
+                          }`}
                         >
                           <Wrench className="h-3 w-3" aria-hidden />
-                          {busy ? '…' : 'Atribuir'}
+                          {busy ? '…' : g.isEvent ? 'Sync evento' : 'Atribuir'}
                         </button>
                       </td>
                     </tr>
