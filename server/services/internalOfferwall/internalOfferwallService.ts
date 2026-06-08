@@ -752,15 +752,16 @@ export async function userSubmitAttempt(userId, attemptId) {
 
   // Self-claim: grant + complete in one transaction
   const snap = await buildUserAuditSnapshotJson(userId);
+  let grantResult: { kind: string; polDelta: number } | null = null;
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    grantResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await advisoryXactTryLockOrThrow(tx, `internal_offerwall:${userId}`);
       const fresh = await tx.internalOfferwallAttempt.findFirst({
         where: { id: attemptId, userId, status: ATTEMPT_STATUS_STARTED }
       });
       if (!fresh) throw new Error("CONFLICT");
 
-      await grantInternalOfferwallRewardInTx(tx, {
+      const result = await grantInternalOfferwallRewardInTx(tx, {
         userId,
         rewardKind: attempt.offer.rewardKind,
         rewardBlkAmount: attempt.offer.rewardBlkAmount,
@@ -779,6 +780,8 @@ export async function userSubmitAttempt(userId, attemptId) {
           auditSnapshot: snap
         }
       });
+
+      return result;
     });
   } catch (e: unknown) {
     if (errMsg(e) === "CONFLICT") {
@@ -829,6 +832,10 @@ export async function userSubmitAttempt(userId, attemptId) {
 
   const { syncUserBaseHashRate } = await import("../../models/minerProfileModel.js");
   const { getMiningEngine } = await import("../../src/miningEngineInstance.js");
+  const { applyUserBalanceDelta } = await import("../../src/runtime/miningRuntime.js");
+  if (grantResult?.polDelta && grantResult.polDelta > 0) {
+    applyUserBalanceDelta(userId, grantResult.polDelta);
+  }
   if (String(attempt.offer.rewardKind).toUpperCase() === REWARD_HASHRATE_TEMP) {
     await syncUserBaseHashRate(userId);
     getMiningEngine()?.reloadMinerProfile(userId).catch(() => {});
@@ -866,14 +873,15 @@ export async function adminApproveAttempt(attemptId) {
   }
 
   const now = new Date();
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  let adminGrantResult: { kind: string; polDelta: number } | null = null;
+  adminGrantResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await advisoryXactTryLockOrThrow(tx, `internal_offerwall:${attempt.userId}`);
     const row = await tx.internalOfferwallAttempt.findFirst({
       where: { id: attemptId, status: ATTEMPT_STATUS_PENDING_REVIEW }
     });
     if (!row) throw new Error("gone");
 
-    await grantInternalOfferwallRewardInTx(tx, {
+    const result = await grantInternalOfferwallRewardInTx(tx, {
       userId: attempt.userId,
       rewardKind: attempt.offer.rewardKind,
       rewardBlkAmount: attempt.offer.rewardBlkAmount,
@@ -890,6 +898,8 @@ export async function adminApproveAttempt(attemptId) {
         rewardGrantedAt: now
       }
     });
+
+    return result;
   });
 
   try {
@@ -920,6 +930,10 @@ export async function adminApproveAttempt(attemptId) {
 
   const { syncUserBaseHashRate } = await import("../../models/minerProfileModel.js");
   const { getMiningEngine } = await import("../../src/miningEngineInstance.js");
+  const { applyUserBalanceDelta } = await import("../../src/runtime/miningRuntime.js");
+  if (adminGrantResult?.polDelta && adminGrantResult.polDelta > 0) {
+    applyUserBalanceDelta(attempt.userId, adminGrantResult.polDelta);
+  }
   if (String(attempt.offer.rewardKind).toUpperCase() === REWARD_HASHRATE_TEMP) {
     await syncUserBaseHashRate(attempt.userId);
     getMiningEngine()?.reloadMinerProfile(attempt.userId).catch(() => {});

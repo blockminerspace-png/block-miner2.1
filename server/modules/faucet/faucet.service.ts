@@ -103,7 +103,7 @@ export async function getStatusForUser(userId: number) {
   const now = new Date();
   const payload = buildStatusCore(normalized.record, now, reward.cooldownMs);
 
-  const visit = await faucetRepository.findFaucetPartnerVisit(userId, normalized.todayKey);
+  const visit = await faucetRepository.findFaucetPartnerVisitLatest(userId);
   const partner = computePartnerState(normalized.record, visit, now);
 
   return {
@@ -144,7 +144,7 @@ export async function claimForUser(userId: number, req: Request): Promise<Faucet
     };
   }
 
-  const visit = await faucetRepository.findFaucetPartnerVisit(userId, normalized.todayKey);
+  const visit = await faucetRepository.findFaucetPartnerVisitLatest(userId);
   const partner = computePartnerState(normalized.record, visit, now);
 
   if (!partner.partnerReady) {

@@ -242,6 +242,24 @@ export default function YouTubeWatch() {
                 height: '100%',
                 playerVars: { autoplay: 1, rel: 0, modestbranding: 1 },
                 events: {
+                    onReady: () => {
+                        setPlayerState((prev) => {
+                            if (prev === 'idle') {
+                                toast.info(t('youtube.click_to_play'), { duration: 4000 });
+                                return 'cued';
+                            }
+                            return prev;
+                        });
+                    },
+                    onError: (event: { data: number }) => {
+                        if (event.data === 101 || event.data === 150) {
+                            toast.error(t('youtube.video_error_embed'), { duration: 8000 });
+                        } else {
+                            toast.error(t('youtube.video_error'), { duration: 5000 });
+                        }
+                        setPlayerState('idle');
+                        resetWatchCycle();
+                    },
                     onStateChange: (event: { data: number }) => {
                         const YTState = window.YT!.PlayerState;
                         if (event.data === YTState.PLAYING) {

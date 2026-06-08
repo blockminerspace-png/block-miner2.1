@@ -59,7 +59,18 @@ export async function getStatsForUser(userId: number): Promise<YoutubeStatsResul
 export async function claimForUser(userId: number, videoId: string): Promise<YoutubeClaimResult> {
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const claims24h = await getClaims24h(userId, yesterday);
+
+  const [claims24h, balanceRow] = await Promise.all([
+    getClaims24h(userId, yesterday),
+    getYtSecondsBalance(userId),
+  ]);
+
+  const watchSeconds = balanceRow?.ytSecondsBalance ?? 0;
+  if (watchSeconds < MIN_SECONDS_TO_CLAIM) {
+    const retryAfterMs = Math.max(0, (MIN_SECONDS_TO_CLAIM - watchSeconds) * 1000);
+    return { ok: false, status: 400, retryAfterMs, message: "Tempo de visualização insuficiente verificado pelo servidor." };
+  }
+
   const currentDailyHash = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
 
   if (currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {

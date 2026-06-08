@@ -217,6 +217,7 @@ export async function getStatusPayload(userId) {
     dailyUsedHash: dailyUsed,
     dailyLimitHash: DAILY_LIMIT_HASH,
     dailyRemainingHash: Math.max(0, DAILY_LIMIT_HASH - dailyUsed),
+    dailyLimitReached: dailyUsed >= DAILY_LIMIT_HASH,
     cycleSeconds: CYCLE_SECONDS,
     activeGrants,
     sessionEarningsHash,

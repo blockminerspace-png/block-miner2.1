@@ -26,6 +26,13 @@ export async function findFaucetPartnerVisit(userId: number, dayKey: string) {
   });
 }
 
+export async function findFaucetPartnerVisitLatest(userId: number) {
+  return prisma.faucetPartnerVisit.findFirst({
+    where: { userId },
+    orderBy: { openedAt: "desc" },
+  });
+}
+
 export async function upsertFaucetPartnerVisit(
   userId: number,
   dayKey: string,

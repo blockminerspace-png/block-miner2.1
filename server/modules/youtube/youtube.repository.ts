@@ -45,6 +45,11 @@ export async function claimRewardTx(
     data: { userId, sourceVideoId: videoId, hashRate: REWARD_PER_CLAIM, claimedAt: now, expiresAt },
   });
 
+  await tx.user.update({
+    where: { id: userId },
+    data: { ytSecondsBalance: { decrement: 60 } },
+  });
+
   const hist = await tx.youtubeWatchHistory.create({
     data: {
       userId,

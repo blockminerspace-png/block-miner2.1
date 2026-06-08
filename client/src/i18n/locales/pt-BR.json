@@ -2292,7 +2292,7 @@
     "waiting_placeholder": "Aguardando vídeo do YouTube…",
     "open_on_youtube": "Abrir no YouTube",
     "embed_hint_before": "Se aparecer Erro 153, o autor bloqueou o embed. Clique em",
-    "embed_hint_after": "para assistir lá e ganhar normalmente.",
+    "embed_hint_after": "só se o embed não funcionar — o tempo só conta com o player desta página a tocar.",
     "next_claim": "Próximo ganho em {{seconds}}s",
     "tracker_title": "Painel de recompensas",
     "tracker_next": "Próximo resgate em",
@@ -2314,8 +2314,10 @@
     "player_state_cued": "Pronto para play",
     "video_ended_hint": "O vídeo acabou. Carrega em Play no player acima para continuar a acumular tempo e resgatar hash.",
     "external_watch_warning": "Assistir só no YouTube (outro separador) não conta. Mantém o vídeo a tocar aqui no embed.",
-    "embed_hint_after": "só se o embed não funcionar — o tempo só conta com o player desta página a tocar.",
-    "daily_limit_reached": "Limite diário de hash YouTube atingido. Volta amanhã."
+    "daily_limit_reached": "Limite diário de hash YouTube atingido. Volta amanhã.",
+    "click_to_play": "Clique Play no player para começar a contar tempo e ganhar hash.",
+    "video_error": "Erro ao carregar o vídeo. Tente com outra URL.",
+    "video_error_embed": "Este vídeo bloqueou o embed. Clique em \"Abrir no YouTube\" abaixo do player."
   },
   "offers": {
     "badge": "Tempo limitado",
@@ -2526,7 +2528,8 @@
     "error_code": "Erro ({{code}})",
     "schema_unavailable_title": "Auto Mining a atualizar",
     "schema_unavailable_body": "O servidor ainda está a aplicar alterações na base de dados para esta funcionalidade. Espera um minuto e atualiza a página.",
-    "legacy_note": "Resgates antigos de GPU (se houver) ainda entram no seu hashrate até expirarem."
+    "legacy_note": "Resgates antigos de GPU (se houver) ainda entram no seu hashrate até expirarem.",
+    "daily_limit_reached": "Limite diário de hash atingido. Sessão encerrada. Volte amanhã (UTC)."
   },
   "pages": {
     "dashboard": "Dashboard Central",

@@ -2287,7 +2287,7 @@
     "waiting_placeholder": "Waiting for a YouTube video…",
     "open_on_youtube": "Open on YouTube",
     "embed_hint_before": "If Error 153 appears, the creator blocked embed. Click",
-    "embed_hint_after": "to watch there and earn normally.",
+    "embed_hint_after": "only if the embed fails — watch time counts only while this page's player is playing.",
     "next_claim": "Next reward in {{seconds}}s",
     "tracker_title": "Reward Tracker",
     "tracker_next": "Next claim in",
@@ -2309,8 +2309,10 @@
     "player_state_cued": "Ready to play",
     "video_ended_hint": "The video ended. Press Play in the embed above to keep earning watch time and hash rewards.",
     "external_watch_warning": "Watching only on YouTube (another tab) does not count. Keep the video playing here in the embed.",
-    "embed_hint_after": "only if the embed fails — watch time counts only while this page's player is playing.",
-    "daily_limit_reached": "Daily YouTube hash limit reached. Try again tomorrow."
+    "daily_limit_reached": "Daily YouTube hash limit reached. Try again tomorrow.",
+    "click_to_play": "Click Play in the player to start tracking time and earning hash.",
+    "video_error": "Failed to load the video. Try a different URL.",
+    "video_error_embed": "This video has disabled embedding. Click \"Open on YouTube\" below the player."
   },
   "offers": {
     "badge": "Limited time",
@@ -2521,7 +2523,8 @@
     "error_code": "Error ({{code}})",
     "schema_unavailable_title": "Auto Mining is updating",
     "schema_unavailable_body": "The server is still applying database changes for this feature, or they are not ready yet. Wait a minute and refresh the page.",
-    "legacy_note": "Legacy GPU claims (if any) still appear in your total hashrate until they expire."
+    "legacy_note": "Legacy GPU claims (if any) still appear in your total hashrate until they expire.",
+    "daily_limit_reached": "Daily hash limit reached. Session stopped. Come back tomorrow (UTC)."
   },
   "pages": {
     "dashboard": "Main Dashboard",

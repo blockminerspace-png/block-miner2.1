@@ -1886,7 +1886,7 @@
     "waiting_placeholder": "Esperando un video de YouTube…",
     "open_on_youtube": "Abrir en YouTube",
     "embed_hint_before": "Si aparece el error 153, el autor bloqueó el embed. Haz clic en",
-    "embed_hint_after": "para ver allí y ganar con normalidad.",
+    "embed_hint_after": "solo si el embed falla — el tiempo solo cuenta con el reproductor de esta página en play.",
     "next_claim": "Próxima recompensa en {{seconds}}s",
     "tracker_title": "Seguimiento de recompensas",
     "tracker_next": "Próximo reclamo en",
@@ -1908,8 +1908,10 @@
     "player_state_cued": "Listo para play",
     "video_ended_hint": "El video terminó. Pulsa Play en el reproductor de arriba para seguir acumulando tiempo y reclamar hash.",
     "external_watch_warning": "Ver solo en YouTube (otra pestaña) no cuenta. Mantén el video reproduciéndose aquí en el embed.",
-    "embed_hint_after": "solo si el embed falla — el tiempo solo cuenta con el reproductor de esta página en play.",
-    "daily_limit_reached": "Límite diario de hash YouTube alcanzado. Vuelve mañana."
+    "daily_limit_reached": "Límite diario de hash YouTube alcanzado. Vuelve mañana.",
+    "click_to_play": "Haz clic en Play para comenzar a contar tiempo y ganar hash.",
+    "video_error": "Error al cargar el video. Prueba con otra URL.",
+    "video_error_embed": "Este video bloqueó el embed. Haz clic en \"Abrir en YouTube\" debajo del reproductor."
   },
   "offers": {
     "badge": "Tiempo limitado",
@@ -2120,7 +2122,8 @@
     "error_code": "Error ({{code}})",
     "schema_unavailable_title": "Auto Mining se está actualizando",
     "schema_unavailable_body": "El servidor aún está aplicando cambios en la base de datos para esta función. Espera un minuto y actualiza la página.",
-    "legacy_note": "Los reclamos antiguos de GPU (si los hay) siguen contando en tu hashrate hasta que caduquen."
+    "legacy_note": "Los reclamos antiguos de GPU (si los hay) siguen contando en tu hashrate hasta que caduquen.",
+    "daily_limit_reached": "Límite diario de hash alcanzado. Sesión detenida. Vuelve mañana (UTC)."
   },
   "pages": {
     "dashboard": "Panel de Control",

@@ -39,6 +39,7 @@ interface AutoMiningV2Payload {
   dailyUsedHash?: number;
   dailyRemainingHash?: number;
   dailyLimitHash?: number;
+  dailyLimitReached?: boolean;
   sessionEarningsHash?: number;
   activeGrants?: ActiveGrant[];
   recentGrants?: GrantRow[];
@@ -120,6 +121,13 @@ export default function AutoMining() {
   }, [nextClaimAtIso]);
 
   useEffect(() => {
+    if (v2?.dailyLimitReached && v2?.session?.isActive) {
+      toast.warning(t("autoMiningGpuPage.daily_limit_reached"));
+      api.post("/auto-mining-gpu/v2/session/stop").then(() => refreshStatus()).catch(() => refreshStatus());
+    }
+  }, [v2?.dailyLimitReached, v2?.session?.isActive, t, refreshStatus]);
+
+  useEffect(() => {
     if (!isRunning) return;
     const id = setInterval(() => {
       refreshStatus();
@@ -148,7 +156,11 @@ export default function AutoMining() {
       } catch (err: unknown) {
         const ax = err as AxiosError<{ code?: string }>;
         const code = ax.response?.data?.code;
-        if (code && code !== "CLAIM_NOT_DUE" && code !== "CONCURRENT_CLAIM") {
+        if (code === "DAILY_LIMIT") {
+          toast.warning(t("autoMiningGpuPage.daily_limit_reached"));
+          try { await api.post("/auto-mining-gpu/v2/session/stop"); } catch { /* non-fatal */ }
+          await refreshStatus();
+        } else if (code && code !== "CLAIM_NOT_DUE" && code !== "CONCURRENT_CLAIM") {
           errToast(t, err);
         }
       } finally {
@@ -156,7 +168,7 @@ export default function AutoMining() {
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [isRunning, mode, t]);
+  }, [isRunning, mode, t, refreshStatus]);
 
   useEffect(() => {
     if (!isRunning || mode !== "TURBO") {
@@ -291,7 +303,14 @@ export default function AutoMining() {
         setBannerTracked(false);
       }
     } catch (err: unknown) {
-      errToast(t, err);
+      const ax = err as AxiosError<{ code?: string }>;
+      if (ax.response?.data?.code === "DAILY_LIMIT") {
+        toast.warning(t("autoMiningGpuPage.daily_limit_reached"));
+        try { await api.post("/auto-mining-gpu/v2/session/stop"); } catch { /* non-fatal */ }
+        await refreshStatus();
+      } else {
+        errToast(t, err);
+      }
     } finally {
       setActionBusy(false);
     }

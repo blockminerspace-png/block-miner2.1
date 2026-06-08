@@ -7,6 +7,12 @@ import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import type { Prisma } from "@prisma/client";
 import { getBoostTtlMs } from "../services/powerBoostService.js";
+import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
+
+function brazilMidnightUTC(): Date {
+  const todayKey = getBrazilCheckinDateKey();
+  return new Date(`${todayKey}T00:00:00-03:00`);
+}
 
 const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
@@ -16,17 +22,11 @@ const REWARD_DURATION_HOURS = 24;
 
 type AuthedRequest = Request & { user: { id: number } };
 
-function todayMidnightUTC(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
 async function resetDailyIfNeeded(status: Awaited<ReturnType<typeof prisma.shortlinkCompletion.findUnique>>) {
   if (!status) return status;
-  const midnight = todayMidnightUTC();
+  const brazilMidnight = brazilMidnightUTC();
   const lastCompletion = status.completedAt || status.resetAt;
-  if (status.dailyRuns > 0 && lastCompletion && lastCompletion < midnight) {
+  if (status.dailyRuns > 0 && lastCompletion && lastCompletion < brazilMidnight) {
     return prisma.shortlinkCompletion.update({
       where: { userId: status.userId },
       data: { dailyRuns: 0, resetAt: new Date() }
@@ -108,6 +108,10 @@ export async function completeShortlinkStep(req: Request, res: Response) {
       securityFlags?: { isUntrustedEvent?: boolean };
     };
     const normalizedStep = Number(step);
+    if (!Number.isInteger(normalizedStep) || normalizedStep < 1 || normalizedStep > TOTAL_STEPS) {
+      res.status(400).json({ ok: false, message: "Invalid step" });
+      return;
+    }
     const now = new Date();
 
     const status = await prisma.shortlinkCompletion.findUnique({ where: { userId } });
