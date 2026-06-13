@@ -492,7 +492,9 @@
       "user_app_sidebar": "Barra lateral de usuario",
       "public_support": "Soporte Pre-login",
       "ptc": "PTC",
-      "partner_games": "Juegos Asociados"
+      "partner_games": "Juegos Asociados",
+      "tournaments": "Torneos",
+      "burn_events": "Quema"
     },
     "logout": "Cerrar sesión"
   },
@@ -1552,6 +1554,8 @@
     "partner_click_hint": "Toca el área del patrocinador para continuar",
     "partner_new_tab_hint": "El patrocinador se abre en una pestaña nueva",
     "partner_toast_started": "Patrocinador abierto en una pestaña nueva. Manténla abierta unos segundos.",
+    "partner_retry_banner": "Recargar banner",
+    "partner_open_btn": "Abrir patrocinador",
     "wait_seconds": "Mantener abierto por {{seconds}}s...",
     "claim_miner": "Reclamar Poder",
     "claiming": "Reclamando...",
@@ -1574,8 +1578,18 @@
     "continue_link": "Continuar Enlace",
     "start_link": "Iniciar Enlace",
     "starting": "Iniciando...",
-    "what_is_shortlink": "¿Qué son os Shortlinks?",
-    "shortlink_msg": "Los Shortlinks son enlaces de terceros que generan ingresos para el pool, lo que nos permite distribuir mineros gratuitos. Debes pasar por algunas páginas de verificación (captchas) para completar el enlace. Al finalizar, o poder de minería se añade instantáneamente a tu inventario."
+    "what_is_shortlink": "¿Qué son los Shortlinks?",
+    "shortlink_msg": "Los Shortlinks son enlaces de terceros que generan ingresos para el pool, lo que nos permite distribuir mineros gratuitos. Debes pasar por algunas páginas de verificación (captchas) para completar el enlace. Al finalizar, el poder de minería se añade instantáneamente a tu inventario.",
+    "step_title": "Paso de verificación {{step}} de {{total}}",
+    "step_subtitle": "Validación de URL única activa",
+    "step_syncing": "Sincronizando conexión...",
+    "step_verified": "Protocolo verificado",
+    "step_continue": "Continuar a la siguiente página",
+    "step_claim_final": "Reclamar recompensa final",
+    "step_no_refresh": "No actualices la página o se interrumpirá la secuencia",
+    "step_no_session": "No hay sesión activa. Empieza de nuevo.",
+    "step_sequence_error": "Error en la secuencia. Sigue el enlace correctamente.",
+    "step_reward_default": "+5 H/s activado por 24h!"
   },
   "checkin": {
     "title": "Check-in",

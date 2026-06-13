@@ -117,6 +117,7 @@ model User {
   polygonHdAddress               PolygonHdAddress?
   rewardInbox                    UserRewardInbox[]
   tournamentEntries              TournamentEntry[]
+  burnClaims                     BurnClaim[]
   checkinStreakRecoveries         CheckinStreakRecovery[]
   zeradsCallbacks                ZeradsCallback[]
   offerwallMeCallbacks           OfferwallMeCallback[]
@@ -448,6 +449,7 @@ model Miner {
   videoSubmissionRewards  YoutubeVideoSubmission[]
   youtuberRewardSettings  YoutuberRewardSettings[]
   tournamentPrizes       TournamentPrize[]
+  burnEvents             BurnEvent[]
 
   @@index([isActive, showInShop])
   @@index([isArchived])
@@ -2278,6 +2280,7 @@ model Tournament {
   startsAt    DateTime           @map("starts_at")
   endsAt      DateTime           @map("ends_at")
   status      TournamentStatus   @default(SCHEDULED)
+  recurring   Boolean            @default(false)
   prizes      TournamentPrize[]
   entries     TournamentEntry[]
   createdAt   DateTime           @default(now()) @map("created_at")
@@ -2325,4 +2328,48 @@ model TournamentEntry {
   @@index([tournamentId, score(sort: Desc)])
   @@index([userId])
   @@map("tournament_entries")
+}
+
+// ─── Burn events ─────────────────────────────────────────────────────────────
+
+model BurnEvent {
+  id                Int       @id @default(autoincrement())
+  title             String
+  description       String?
+  imageUrl          String?   @map("image_url")
+  requiredHashRate  Float     @map("required_hash_rate")
+  rewardMinerId     Int       @map("reward_miner_id")
+  claimLimitPerUser Int       @default(1) @map("claim_limit_per_user")
+  stockTotal        Int?      @map("stock_total")
+  stockClaimed      Int       @default(0) @map("stock_claimed")
+  startsAt          DateTime? @map("starts_at")
+  endsAt            DateTime? @map("ends_at")
+  isActive          Boolean   @default(true) @map("is_active")
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  rewardMiner Miner       @relation(fields: [rewardMinerId], references: [id], onDelete: Restrict)
+  claims      BurnClaim[]
+
+  @@index([isActive, deletedAt])
+  @@map("burn_events")
+}
+
+model BurnClaim {
+  id                Int       @id @default(autoincrement())
+  eventId           Int       @map("event_id")
+  userId            Int       @map("user_id")
+  totalHashRate     Float     @map("total_hash_rate")
+  burnedMachinesJson Json     @map("burned_machines_json")
+  rewardMinerName   String    @map("reward_miner_name")
+  rewardInboxId     Int?      @map("reward_inbox_id")
+  claimedAt         DateTime  @default(now()) @map("claimed_at")
+
+  event BurnEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, userId])
+  @@index([userId])
+  @@map("burn_claims")
 }

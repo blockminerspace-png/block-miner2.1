@@ -889,6 +889,17 @@ function SubmissionsTab() {
 
   useEffect(() => { void load(statusFilter); }, [statusFilter, load]);
 
+  const handleDelete = async (sub: Submission) => {
+    if (!confirm(`Remover este vídeo da lista?\n\n"${sub.title ?? sub.videoUrl}"\n\nA recompensa já entregue ao usuário NÃO será revogada.`)) return;
+    try {
+      await api.delete(`/admin/social/submissions/${sub.id}`);
+      toast.success('Vídeo removido.');
+      void load(statusFilter);
+    } catch (err) {
+      toast.error(readAxiosResponseMessage(err) ?? 'Erro ao remover.');
+    }
+  };
+
   const handleApprove = async (sub: Submission) => {
     try {
       const res = await api.post<{ ok: boolean; rewardGranted: boolean; rewardMinerName: string | null }>(
@@ -998,7 +1009,7 @@ function SubmissionsTab() {
                   </div>
                 </div>
 
-                {s.status === 'pending' && (
+                {s.status === 'pending' ? (
                   <div className="flex gap-2 px-4 pb-4 pt-0">
                     <button
                       onClick={() => void handleApprove(s)}
@@ -1013,6 +1024,16 @@ function SubmissionsTab() {
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       Recusar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 px-4 pb-4 pt-0">
+                    <button
+                      onClick={() => void handleDelete(s)}
+                      className="flex items-center justify-center gap-2 py-2 px-3 bg-red-500/10 hover:bg-red-500/20 rounded-xl text-xs font-black text-red-400 hover:text-red-300 transition-colors border border-red-500/20"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Remover
                     </button>
                   </div>
                 )}

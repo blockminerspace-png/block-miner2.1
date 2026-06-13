@@ -11,6 +11,7 @@ import {
   Trash2,
   Play,
   Clock,
+  Repeat,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ interface Tournament {
   startsAt: string;
   endsAt: string;
   status: string;
+  recurring: boolean;
   prizes: Array<Prize & { id: number; minerName?: string }>;
   _count: { entries: number };
 }
@@ -96,6 +98,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
   const [metric, setMetric] = useState<string>('HASHRATE');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  const [recurring, setRecurring] = useState(false);
   const [prizes, setPrizes] = useState<Prize[]>([emptyPrize()]);
 
   const addPrize = () => setPrizes((p) => [...p, emptyPrize()]);
@@ -115,11 +118,13 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
         metric,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(endsAt).toISOString(),
+        recurring,
         prizes,
       });
       setOpen(false);
       setName('');
       setDescription('');
+      setRecurring(false);
       setPrizes([emptyPrize()]);
       onCreated();
     } catch (e: any) {
@@ -216,6 +221,25 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
               />
             </div>
           </div>
+
+          <label className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 cursor-pointer hover:bg-amber-500/10 transition-colors">
+            <input
+              type="checkbox"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded accent-amber-500"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-sm font-bold text-amber-300">
+                <Repeat className="h-3.5 w-3.5" />
+                Em loop (reiniciar automaticamente)
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                Quando o torneio terminar e os prêmios forem distribuídos, um novo ciclo é criado automaticamente
+                com a mesma duração, prêmios e métrica — todos voltam a zero.
+              </p>
+            </div>
+          </label>
 
           {/* Prizes */}
           <div>
@@ -422,6 +446,12 @@ function TournamentRow({
         </span>
         <span className="font-semibold text-white text-sm">{t.name}</span>
         <span className="text-[10px] text-slate-500 font-mono">{t.type} · {t.metric}</span>
+        {t.recurring && (
+          <span className="flex items-center gap-1 rounded-full bg-amber-500/10 text-amber-300 px-2 py-0.5 text-[10px] font-bold">
+            <Repeat className="h-2.5 w-2.5" />
+            LOOP
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
           <Users className="h-3.5 w-3.5" />
           {t._count.entries}

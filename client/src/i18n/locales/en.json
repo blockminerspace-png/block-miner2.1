@@ -858,7 +858,9 @@
       "user_app_sidebar": "User sidebar",
       "public_support": "Pre-login Support",
       "ptc": "PTC",
-      "partner_games": "Partner Games"
+      "partner_games": "Partner Games",
+      "tournaments": "Tournaments",
+      "burn_events": "Burn Events"
     },
     "logout": "Sign out"
   },
@@ -1953,6 +1955,8 @@
     "partner_click_hint": "Tap the sponsor area to continue",
     "partner_new_tab_hint": "The sponsor opens in a new tab",
     "partner_toast_started": "Sponsor opened in a new tab. Keep it open for a few seconds.",
+    "partner_retry_banner": "Reload banner",
+    "partner_open_btn": "Open sponsor",
     "wait_seconds": "Keep open for {{seconds}}s...",
     "claim_miner": "Claim Power",
     "claiming": "Claiming...",
@@ -1976,7 +1980,17 @@
     "start_link": "Start Link",
     "starting": "Starting...",
     "what_is_shortlink": "What are Shortlinks?",
-    "shortlink_msg": "Shortlinks are third-party links that generate revenue for the pool, allowing us to distribute free miners. You must pass through some verification pages (captchas) to complete the link. Upon completion, mining power is added instantly to your inventory."
+    "shortlink_msg": "Shortlinks are third-party links that generate revenue for the pool, allowing us to distribute free miners. You must pass through some verification pages (captchas) to complete the link. Upon completion, mining power is added instantly to your inventory.",
+    "step_title": "Verification step {{step}} of {{total}}",
+    "step_subtitle": "Unique URL validation active",
+    "step_syncing": "Synchronizing connection...",
+    "step_verified": "Protocol verified",
+    "step_continue": "Continue to next page",
+    "step_claim_final": "Claim final reward",
+    "step_no_refresh": "Do not refresh or the sequence will break",
+    "step_no_session": "No active session. Start again.",
+    "step_sequence_error": "Sequence error. Please follow the link.",
+    "step_reward_default": "+5 H/s activated for 24h!"
   },
   "checkin": {
     "title": "Check-in",

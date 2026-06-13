@@ -17,13 +17,14 @@ export async function listAll(req: Request, res: Response): Promise<void> {
 }
 
 export async function create(req: Request, res: Response): Promise<void> {
-  const { name, description, type, metric, startsAt, endsAt, prizes } = req.body as {
+  const { name, description, type, metric, startsAt, endsAt, prizes, recurring } = req.body as {
     name: string;
     description?: string;
     type: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
     metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL";
     startsAt: string;
     endsAt: string;
+    recurring?: boolean;
     prizes: any[];
   };
 
@@ -71,6 +72,7 @@ export async function create(req: Request, res: Response): Promise<void> {
       metric,
       startsAt: start,
       endsAt: end,
+      recurring: Boolean(recurring),
       prizes,
     });
     res.json({ ok: true, tournament });

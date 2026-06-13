@@ -252,6 +252,30 @@ export async function rejectSubmission(
   res.json({ ok: true });
 }
 
+export async function deleteSubmission(
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> {
+  const id = parseInt(req.params.id, 10);
+  if (!id) { res.status(400).json({ ok: false, message: "ID inválido." }); return; }
+
+  const submission = await prisma.youtubeVideoSubmission.findUnique({ where: { id } });
+  if (!submission) { res.status(404).json({ ok: false, message: "Submissão não encontrada." }); return; }
+
+  const adminId = (req as Request & { adminUser?: { id: number } }).adminUser?.id ?? null;
+
+  await prisma.youtubeVideoSubmission.delete({ where: { id } });
+
+  logger.info("social.submission_deleted", {
+    submissionId: id,
+    userId: submission.userId,
+    status: submission.status,
+    adminId,
+  });
+
+  res.json({ ok: true });
+}
+
 // ─── Reward Settings ──────────────────────────────────────────────────────────
 
 export async function getRewardSettings(_req: Request, res: Response): Promise<void> {

@@ -449,6 +449,7 @@ adminRouter.delete("/social/profiles/:id", adminSocialController.deleteProfile);
 adminRouter.get("/social/submissions", adminSocialController.listSubmissions);
 adminRouter.post("/social/submissions/:id/approve", adminSocialController.approveSubmission);
 adminRouter.post("/social/submissions/:id/reject", adminSocialController.rejectSubmission);
+adminRouter.delete("/social/submissions/:id", adminSocialController.deleteSubmission);
 adminRouter.get("/social/reward-settings", adminSocialController.getRewardSettings);
 adminRouter.put("/social/reward-settings", adminSocialController.setRewardSettings);
 

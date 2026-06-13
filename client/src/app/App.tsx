@@ -76,6 +76,7 @@ const AdminTournaments = lazy(() => import('../pages/admin/AdminTournaments'));
 const AdminTrafficStats = lazy(() => import('../pages/admin/AdminTrafficStats'));
 const AdminPtc = lazy(() => import('../pages/admin/AdminPtc'));
 const AdminPartnerGames = lazy(() => import('../pages/admin/AdminPartnerGames'));
+const AdminBurnEvents = lazy(() => import('../pages/admin/AdminBurnEvents'));
 const PtcViewPage = lazy(() => import('../pages/ptc/PtcViewPage'));
 const PtcCampaignsPage = lazy(() => import('../pages/ptc/PtcCampaignsPage'));
 const ReadEarn = lazy(() => import('../pages/read-earn'));
@@ -89,6 +90,7 @@ const DashboardCryptoStream = lazy(() => import('../pages/crypto-stream'));
 const PrivacyPolicy = lazy(() => import('../pages/legal/privacy-policy'));
 const TermsOfUse = lazy(() => import('../pages/legal/terms-of-use'));
 const Tournaments = lazy(() => import('../pages/tournaments'));
+const BurnEvents = lazy(() => import('../pages/burn/BurnEventsPage'));
 import Web3Boundary from '../shared/web3/Web3Boundary';
 import { clearChunkReloadMarkers } from '../shared/utils/chunkLoadError';
 
@@ -255,6 +257,7 @@ function App() {
             <Route path="/manual" element={<Manual />} />
             <Route path="/calculator" element={<CalculatorPage />} />
             <Route path="/tournaments" element={<Tournaments />} />
+            <Route path="/burn" element={<BurnEvents />} />
             <Route path="/transparency" element={<TransparencyErrorBoundary><Transparency /></TransparencyErrorBoundary>} />
             <Route path="/shortlink/internal-shortlink/step/:step" element={<ShortlinkStep />} />
           </Route>
@@ -293,6 +296,7 @@ function App() {
             <Route path="/admin/traffic" element={<AdminTrafficStats />} />
             <Route path="/admin/ptc" element={<AdminPtc />} />
             <Route path="/admin/partner-games" element={<AdminPartnerGames />} />
+            <Route path="/admin/burn-events" element={<AdminBurnEvents />} />
           </Route>
         </Routes>
       </Suspense>

@@ -859,7 +859,9 @@
       "user_app_sidebar": "Sidebar do usuário",
       "public_support": "Suporte Pré-login",
       "ptc": "PTC",
-      "partner_games": "Jogos Parceiros"
+      "partner_games": "Jogos Parceiros",
+      "tournaments": "Torneios",
+      "burn_events": "Queima"
     },
     "logout": "Encerrar sessão"
   },
@@ -1956,6 +1958,8 @@
     "partner_click_hint": "Toque na área do patrocinador para continuar",
     "partner_new_tab_hint": "O patrocinador abre numa nova aba",
     "partner_toast_started": "Patrocinador aberto numa nova aba. Mantenha-a aberta por alguns segundos.",
+    "partner_retry_banner": "Recarregar banner",
+    "partner_open_btn": "Abrir patrocinador",
     "wait_seconds": "Mantenha aberto por {{seconds}}s...",
     "claim_miner": "Resgatar Poder",
     "claiming": "Resgatando...",
@@ -1979,7 +1983,17 @@
     "start_link": "Iniciar Link",
     "starting": "Iniciando...",
     "what_is_shortlink": "O que são Shortlinks?",
-    "shortlink_msg": "Shortlinks são links de terceiros que geram receita para o pool, permitindo que distribuamos mineradoras gratuitas. Você deve passar por algumas páginas de verificação (captchas) para completar o link. Ao finalizar, o poder de mineração é adicionado instantaneamente ao seu inventário."
+    "shortlink_msg": "Shortlinks são links de terceiros que geram receita para o pool, permitindo que distribuamos mineradoras gratuitas. Você deve passar por algumas páginas de verificação (captchas) para completar o link. Ao finalizar, o poder de mineração é adicionado instantaneamente ao seu inventário.",
+    "step_title": "Etapa de verificação {{step}} de {{total}}",
+    "step_subtitle": "Validação de URL única ativa",
+    "step_syncing": "Sincronizando conexão...",
+    "step_verified": "Protocolo verificado",
+    "step_continue": "Continuar para próxima página",
+    "step_claim_final": "Resgatar recompensa final",
+    "step_no_refresh": "Não atualize a página ou a sequência será interrompida",
+    "step_no_session": "Nenhuma sessão ativa. Comece novamente.",
+    "step_sequence_error": "Erro na sequência. Siga o link corretamente.",
+    "step_reward_default": "+5 H/s ativado por 24h!"
   },
   "checkin": {
     "title": "Check-in",

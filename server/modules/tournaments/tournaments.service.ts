@@ -112,13 +112,13 @@ async function batchUpsertEntries(
 
 // ─── Finalization ───────────────────────────────────────────────────────────
 
-export async function finalizeTournament(tournamentId: number): Promise<{ ranked: number; rewarded: number }> {
+export async function finalizeTournament(tournamentId: number): Promise<{ ranked: number; rewarded: number; nextId: number | null }> {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
     include: { prizes: { include: { miner: true } } },
   });
   if (!tournament) throw new Error("Tournament not found");
-  if (tournament.status === "ENDED") return { ranked: 0, rewarded: 0 };
+  if (tournament.status === "ENDED") return { ranked: 0, rewarded: 0, nextId: null };
 
   // Final score update before ranking
   await computeScoresForTournament(tournament);
@@ -158,7 +158,46 @@ export async function finalizeTournament(tournamentId: number): Promise<{ ranked
     });
   });
 
-  return { ranked: entries.length, rewarded };
+  // Loop / recurring: spawn next cycle with the same prizes
+  let nextId: number | null = null;
+  if (tournament.recurring) {
+    try {
+      const duration = tournament.endsAt.getTime() - tournament.startsAt.getTime();
+      const newStart = tournament.endsAt;
+      const newEnd = new Date(newStart.getTime() + duration);
+      const next = await prisma.tournament.create({
+        data: {
+          name: tournament.name,
+          description: tournament.description,
+          type: tournament.type,
+          metric: tournament.metric,
+          startsAt: newStart,
+          endsAt: newEnd,
+          recurring: true,
+          status: newStart <= new Date() ? "ACTIVE" : "SCHEDULED",
+          prizes: {
+            create: tournament.prizes.map((p: TournamentPrize) => ({
+              rankFrom: p.rankFrom,
+              rankTo: p.rankTo,
+              prizeType: p.prizeType,
+              polAmount: p.polAmount,
+              blkAmount: p.blkAmount,
+              boostHashRate: p.boostHashRate,
+              boostHours: p.boostHours,
+              minerId: p.minerId,
+              minerCount: p.minerCount ?? 1,
+            })),
+          },
+        },
+      });
+      nextId = next.id;
+      console.info(`[tournaments] recurring: spawned next cycle #${next.id} for "${tournament.name}"`);
+    } catch (err) {
+      console.error(`[tournaments] failed to spawn next cycle for #${tournamentId}:`, err);
+    }
+  }
+
+  return { ranked: entries.length, rewarded, nextId };
 }
 
 async function grantPrize(
@@ -318,6 +357,7 @@ export async function adminCreateTournament(data: {
   metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL";
   startsAt: Date;
   endsAt: Date;
+  recurring?: boolean;
   prizes: Array<{
     rankFrom: number;
     rankTo: number;
@@ -338,6 +378,7 @@ export async function adminCreateTournament(data: {
       metric: data.metric,
       startsAt: data.startsAt,
       endsAt: data.endsAt,
+      recurring: data.recurring ?? false,
       prizes: {
         create: data.prizes.map((p) => ({
           rankFrom: p.rankFrom,

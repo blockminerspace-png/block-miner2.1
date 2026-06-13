@@ -189,6 +189,9 @@
       "#server/modules/ptc/ptc.routes.js": [
         "./src/types/stubs/stub-server-modules-ptc-routes.d.ts"
       ],
+      "#server/modules/burnEvents/index.js": [
+        "./src/types/stubs/stub-server-modules-burnEvents-index.d.ts"
+      ],
       "#server/modules/partnerGames/index.js": [
         "./src/types/stubs/stub-server-modules-partnerGames-index.d.ts"
       ],
