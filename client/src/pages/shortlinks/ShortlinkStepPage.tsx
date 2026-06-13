@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Timer, ArrowRight, ShieldCheck, Zap, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
+import AdBanner from '../../shared/components/AdBanner';
 
 interface ShortlinkSessionStored {
   token: string;
@@ -59,8 +60,8 @@ export default function ShortlinkStep() {
     useEffect(() => {
         // Validation: Must have a token and must be on the correct step URL
         if (!session?.token || session.currentStep !== currentStepNum) {
-            if (!session?.token) toast.error("No active session. Start again.");
-            else toast.error("Sequence error. Please follow the link.");
+            if (!session?.token) toast.error(t('shortlinks.step_no_session'));
+            else toast.error(t('shortlinks.step_sequence_error'));
             navigate('/shortlinks');
             return;
         }
@@ -88,7 +89,7 @@ export default function ShortlinkStep() {
             if (timerRef.current != null) clearInterval(timerRef.current);
             timerRef.current = null;
         };
-    }, [currentStepNum]);
+    }, [currentStepNum, navigate, t]);
 
     const handleNext = async (e: MouseEvent<HTMLButtonElement>) => {
         if (!canProceed || isProcessing) return;
@@ -110,7 +111,7 @@ export default function ShortlinkStep() {
             if (res.data.ok) {
                 if (res.data.runCompleted) {
                     sessionStorage.removeItem('sl_session');
-                    toast.success(res.data.reward?.message || '+5 H/s ativado por 24h!');
+                    toast.success(res.data.reward?.message || t('shortlinks.step_reward_default'));
                     navigate('/shortlinks');
                 } else {
                     const nextStep = currentStepNum + 1;
@@ -145,9 +146,8 @@ export default function ShortlinkStep() {
 
     return (
         <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 space-y-8">
-            {/* Ad Space Placeholder Top */}
-            <div className="w-full max-w-2xl h-32 bg-slate-900/50 border border-dashed border-slate-800 rounded-3xl flex items-center justify-center">
-                <span className="text-slate-700 font-bold uppercase tracking-widest text-xs">Advertisement Space #1</span>
+            <div className="w-full max-w-2xl flex justify-center">
+                <AdBanner size="728x90" />
             </div>
 
             <div className="w-full max-w-md bg-surface border border-gray-800 rounded-[2.5rem] p-10 shadow-2xl space-y-8 text-center relative overflow-hidden">
@@ -164,9 +164,11 @@ export default function ShortlinkStep() {
                     </div>
                     <div>
                         <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">
-                            Verification Step {currentStepNum} of 3
+                            {t('shortlinks.step_title', { step: currentStepNum, total: 3 })}
                         </h2>
-                        <p className="text-gray-500 font-medium mt-1 uppercase text-[10px] tracking-widest">Unique URL Validation Active</p>
+                        <p className="text-gray-500 font-medium mt-1 uppercase text-[10px] tracking-widest">
+                            {t('shortlinks.step_subtitle')}
+                        </p>
                     </div>
                 </div>
 
@@ -177,14 +179,18 @@ export default function ShortlinkStep() {
                                 <div className="absolute inset-0 rounded-full border-4 border-gray-800 border-t-primary animate-spin" />
                                 <span className="text-3xl font-black text-white">{timeLeft}</span>
                             </div>
-                            <p className="mt-6 text-[10px] font-black text-primary animate-pulse uppercase tracking-[0.2em]">Synchronizing Connection...</p>
+                            <p className="mt-6 text-[10px] font-black text-primary animate-pulse uppercase tracking-[0.2em]">
+                                {t('shortlinks.step_syncing')}
+                            </p>
                         </div>
                     ) : (
                         <div className="space-y-4 animate-in zoom-in duration-500">
                             <div className="w-24 h-24 mx-auto rounded-full bg-emerald-500/10 border-4 border-emerald-500/20 flex items-center justify-center">
                                 <ShieldCheck className="w-12 h-12 text-emerald-500" />
                             </div>
-                            <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest">Protocol Verified</p>
+                            <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest">
+                                {t('shortlinks.step_verified')}
+                            </p>
                         </div>
                     )}
                 </div>
@@ -203,7 +209,7 @@ export default function ShortlinkStep() {
                             <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
                             <>
-                                {currentStepNum === 3 ? 'CLAIM FINAL REWARD' : 'CONTINUE TO NEXT PAGE'}
+                                {currentStepNum === 3 ? t('shortlinks.step_claim_final') : t('shortlinks.step_continue')}
                                 <ArrowRight className="w-5 h-5" />
                             </>
                         )}
@@ -211,14 +217,15 @@ export default function ShortlinkStep() {
 
                     <div className="flex items-center justify-center gap-2 text-slate-600">
                         <AlertTriangle className="w-3 h-3" />
-                        <span className="text-[9px] font-bold uppercase tracking-tighter tracking-widest">Do not refresh or sequence will break</span>
+                        <span className="text-[9px] font-bold uppercase tracking-tighter tracking-widest">
+                            {t('shortlinks.step_no_refresh')}
+                        </span>
                     </div>
                 </div>
             </div>
 
-            {/* Ad Space Placeholder Bottom */}
-            <div className="w-full max-w-2xl h-48 bg-slate-900/50 border border-dashed border-slate-800 rounded-3xl flex items-center justify-center">
-                <span className="text-slate-700 font-bold uppercase tracking-widest text-xs">Advertisement Space #2</span>
+            <div className="w-full max-w-2xl flex justify-center">
+                <AdBanner size="300x250" />
             </div>
         </div>
     );

@@ -71,7 +71,8 @@ export const generateSecurityPayload = () => dome.generatePayload();
 
 export const validateTrustedEvent = (e: unknown): boolean => {
     if (typeof e !== 'object' || e === null) return false;
-    const trusted = (e as { isTrusted?: boolean }).isTrusted;
+    const ev = e as { isTrusted?: boolean; nativeEvent?: { isTrusted?: boolean } };
+    const trusted = ev.isTrusted ?? ev.nativeEvent?.isTrusted;
     if (trusted === false) return false;
     if (dome.isBotDetected) return false;
     return true;

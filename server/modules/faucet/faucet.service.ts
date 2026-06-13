@@ -110,6 +110,9 @@ export async function getStatusForUser(userId: number) {
     ok: true as const,
     ...payload,
     canClaim: Boolean(payload.available && partner.partnerReady),
+    partnerReady: partner.partnerReady,
+    partnerVisitActive: partner.hasFreshVisit,
+    partnerWaitRemainingMs: partner.waitRemainingMs,
     reward: mapPublicReward(reward),
   };
 }

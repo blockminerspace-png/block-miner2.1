@@ -10,7 +10,9 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("../../store/auth", () => ({
-  api
+  api,
+  useAuthStore: (selector: (s: { authHydrated: boolean; isAuthenticated: boolean }) => unknown) =>
+    selector({ authHydrated: true, isAuthenticated: true }),
 }));
 
 vi.mock("react-i18next", () => ({

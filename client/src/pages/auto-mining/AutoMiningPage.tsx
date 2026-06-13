@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { AxiosError } from "axios";
 import { Cpu, Zap, History, BarChart3, ShieldCheck, Play, Pause, Loader2, CheckCircle2 } from "lucide-react";
-import { api } from "../../store/auth";
-import { validateTrustedEvent, generateSecurityPayload } from "../../shared/utils/security";
+import { api, useAuthStore } from "../../store/auth";
+import { validateTrustedEvent, generateSecurityPayload, isAutomationDetected } from "../../shared/utils/security";
 import PowerBoostBanner from "../../components/PowerBoostBanner/PowerBoostBanner";
 import AutoMiningModeSelector from "../../shared/components/autoMining/AutoMiningModeSelector";
 import AutoMiningCycleTimer from "../../shared/components/autoMining/AutoMiningCycleTimer";
@@ -69,6 +69,8 @@ function errToast(t: TFunction, err: unknown) {
 
 export default function AutoMining() {
   const { t } = useTranslation();
+  const authHydrated = useAuthStore((s) => s.authHydrated);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [v2, setV2] = useState<AutoMiningV2Payload | null>(null);
   const [selectedMode, setSelectedMode] = useState<MiningMode>("NORMAL");
   const [isLoading, setIsLoading] = useState(true);
@@ -93,11 +95,15 @@ export default function AutoMining() {
   }, []);
 
   useEffect(() => {
+    if (!authHydrated || !isAuthenticated) return;
     let cancelled = false;
     (async () => {
+      setIsLoading(true);
       try {
         const res = await api.get<AutoMiningV2Payload>("/auto-mining-gpu/v2/status");
-        if (!cancelled && res.data.success) setV2(res.data);
+        if (!cancelled && res.data.success) {
+          setV2(res.data);
+        }
       } catch (err: unknown) {
         console.error("auto-mining v2 status", err);
       } finally {
@@ -107,7 +113,7 @@ export default function AutoMining() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authHydrated, isAuthenticated]);
 
   const session = v2?.session;
   const isRunning = !!(session && session.isActive);
@@ -247,14 +253,23 @@ export default function AutoMining() {
   }, [isRunning]);
 
   const handleStart = async (e: MouseEvent<HTMLButtonElement>) => {
-    if (!validateTrustedEvent(e)) return;
-    if (v2?.schemaUnavailable) return;
+    const trustedOk = validateTrustedEvent(e);
+    if (!trustedOk) {
+      toast.error(t("autoMiningGpuPage.error_network"));
+      return;
+    }
+    if (v2?.schemaUnavailable) {
+      toast.error(t("autoMiningGpuPage.schema_unavailable_body"));
+      return;
+    }
     setActionBusy(true);
     try {
       const res = await api.post<AutoMiningV2Payload>("/auto-mining-gpu/v2/session/start", { mode: selectedMode });
       if (res.data.success) {
         setV2(res.data);
         toast.success(t("autoMiningGpuPage.toast_started"));
+      } else {
+        toast.error(t("autoMiningGpuPage.error_network"));
       }
     } catch (err: unknown) {
       errToast(t, err);

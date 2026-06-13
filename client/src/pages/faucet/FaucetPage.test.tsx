@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import Faucet from "./FaucetPage";
+import Faucet, { __resetFaucetStatusBootstrapForTests } from "./FaucetPage";
 
 const api = vi.hoisted(() => ({
   get: vi.fn(),
@@ -46,6 +46,7 @@ function statusPayload(overrides: { reward?: Record<string, unknown> } & Record<
 
 describe("Faucet page", () => {
   beforeEach(() => {
+    __resetFaucetStatusBootstrapForTests();
     vi.clearAllMocks();
     api.post.mockResolvedValue({ data: { ok: true } });
   });
@@ -85,6 +86,80 @@ describe("Faucet page", () => {
 
     await waitFor(() => {
       expect(screen.getByText("faucet.reward_permanent")).toBeInTheDocument();
+    });
+  });
+
+  it("shows sponsor step when API partnerReady is stale until session unlock", async () => {
+    api.get.mockResolvedValue({
+      data: statusPayload({
+        partnerReady: true,
+        partnerVisitActive: true,
+        partnerWaitRemainingMs: 0,
+        canClaim: true,
+      }),
+    });
+
+    render(<Faucet />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "faucet.partner_open_btn" }).length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("faucet.unlocked")).not.toBeInTheDocument();
+  });
+
+  it("starts partner visit when open-sponsor button is clicked", async () => {
+    api.get.mockResolvedValue({ data: statusPayload() });
+    api.post.mockResolvedValue({ data: { ok: true, waitMs: 10000 } });
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    render(<Faucet />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "faucet.partner_open_btn" }).length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "faucet.partner_open_btn" })[0]);
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith("/faucet/partner/start");
+    });
+    expect(openSpy).toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
+
+  it("keeps partner countdown when a stale status response arrives after partner/start", async () => {
+    let resolveLateStatus: (value: { data: ReturnType<typeof statusPayload> }) => void = () => undefined;
+    const lateStatus = new Promise<{ data: ReturnType<typeof statusPayload> }>((resolve) => {
+      resolveLateStatus = resolve;
+    });
+    api.get
+      .mockResolvedValueOnce({ data: statusPayload() })
+      .mockImplementationOnce(() => lateStatus);
+    api.post.mockResolvedValue({ data: { ok: true, waitMs: 10000 } });
+    vi.spyOn(window, "open").mockImplementation(() => null);
+
+    render(<Faucet />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "faucet.partner_open_btn" }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "faucet.partner_open_btn" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("faucet.wait_seconds").length).toBeGreaterThan(0);
+    });
+
+    resolveLateStatus({
+      data: statusPayload({
+        partnerReady: false,
+        partnerVisitActive: false,
+        partnerWaitRemainingMs: 0,
+        canClaim: false,
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("faucet.wait_seconds").length).toBeGreaterThan(0);
     });
   });
 

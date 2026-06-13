@@ -30,7 +30,89 @@ interface FaucetReward {
 interface FaucetStatus {
     ok?: boolean;
     remainingMs?: number;
+    canClaim?: boolean;
+    partnerReady?: boolean;
+    partnerVisitActive?: boolean;
+    partnerWaitRemainingMs?: number;
     reward?: FaucetReward;
+}
+
+const FAUCET_MND_SCRIPT = 'https://ss.mrmnd.com/banner.js';
+const FAUCET_MND_BANNER_ID = '5674e300-8e33-44ee-ba4c-1f67f2934df2';
+const FAUCET_ZERADS_FALLBACK = 'https://zerads.com/ad/ad.php?width=300&ref=10776';
+
+/** Survives React Strict Mode remounts (refs reset per instance). */
+let faucetStatusBootstrapped = false;
+/** Survives remounts while partner countdown is driven locally (not from API). */
+let faucetLocalPartnerFlowLock = false;
+
+const FAUCET_PARTNER_SESSION_KEY = 'bm_faucet_partner_session_v1';
+
+function isPartnerUnlockedInSession(): boolean {
+    try {
+        return sessionStorage.getItem(FAUCET_PARTNER_SESSION_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function markPartnerUnlockedInSession() {
+    try {
+        sessionStorage.setItem(FAUCET_PARTNER_SESSION_KEY, '1');
+    } catch {
+        /* private mode */
+    }
+}
+
+function clearPartnerSession() {
+    faucetLocalPartnerFlowLock = false;
+    try {
+        sessionStorage.removeItem(FAUCET_PARTNER_SESSION_KEY);
+    } catch {
+        /* private mode */
+    }
+}
+
+/** @internal Vitest only */
+export function __resetFaucetStatusBootstrapForTests() {
+    faucetStatusBootstrapped = false;
+    faucetLocalPartnerFlowLock = false;
+    clearPartnerSession();
+}
+
+declare global {
+    interface Window {
+        __bmMndScriptLoaded?: boolean;
+    }
+}
+
+function ensureMondiadScript(): Promise<void> {
+    if (window.__bmMndScriptLoaded) return Promise.resolve();
+    const existing = document.querySelector(`script[src="${FAUCET_MND_SCRIPT}"]`);
+    if (existing) {
+        return new Promise((resolve, reject) => {
+            if (window.__bmMndScriptLoaded) {
+                resolve();
+                return;
+            }
+            existing.addEventListener('load', () => {
+                window.__bmMndScriptLoaded = true;
+                resolve();
+            }, { once: true });
+            existing.addEventListener('error', () => reject(new Error('mnd_script_failed')), { once: true });
+        });
+    }
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = FAUCET_MND_SCRIPT;
+        script.onload = () => {
+            window.__bmMndScriptLoaded = true;
+            resolve();
+        };
+        script.onerror = () => reject(new Error('mnd_script_failed'));
+        document.head.appendChild(script);
+    });
 }
 
 export default function Faucet() {
@@ -45,51 +127,116 @@ export default function Faucet() {
     const [isAdClicked, setIsAdClicked] = useState(false);
     /** True after /partner/start returned waitMs — avoids one-frame iframe flash when countdown hits 0 */
     const [partnerFlowActive, setPartnerFlowActive] = useState(false);
-
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const partnerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const remainingMsRef = useRef(0);
+    const partnerFlowActiveRef = useRef(false);
+    const partnerWaitMsRef = useRef(0);
+    const isAdClickedRef = useRef(false);
+    const statusFetchSeqRef = useRef(0);
+
+    const applyPartnerStateFromStatus = useCallback((data: FaucetStatus) => {
+        const remaining = data.remainingMs || 0;
+        if (remaining > 0) {
+            clearPartnerSession();
+            setIsPartnerUnlocked(false);
+            setCanClaim(false);
+            setIsAdClicked(false);
+            setPartnerFlowActive(false);
+            setPartnerWaitMs(0);
+            return;
+        }
+        const waitMs = Math.max(0, Number(data.partnerWaitRemainingMs || 0));
+        const visitActive = Boolean(data.partnerVisitActive);
+        const ready = Boolean(data.partnerReady);
+        if (visitActive && waitMs > 0) {
+            setPartnerFlowActive(true);
+            setPartnerWaitMs(waitMs);
+            setIsAdClicked(true);
+            setIsPartnerUnlocked(false);
+            setCanClaim(false);
+            return;
+        }
+        if (ready) {
+            if (!isPartnerUnlockedInSession()) {
+                setIsPartnerUnlocked(false);
+                setCanClaim(false);
+                setIsAdClicked(false);
+                setPartnerFlowActive(false);
+                setPartnerWaitMs(0);
+                return;
+            }
+            setPartnerFlowActive(true);
+            setPartnerWaitMs(0);
+            setIsAdClicked(true);
+            setIsPartnerUnlocked(true);
+            setCanClaim(Boolean(data.canClaim));
+            return;
+        }
+        setIsPartnerUnlocked(false);
+        setCanClaim(false);
+        setIsAdClicked(false);
+        setPartnerFlowActive(false);
+        setPartnerWaitMs(0);
+    }, []);
 
     const fetchStatus = useCallback(async () => {
+        const fetchId = ++statusFetchSeqRef.current;
         try {
-            const res = await api.get('/faucet/status');
+            const res = await api.get<FaucetStatus>('/faucet/status');
+            if (fetchId !== statusFetchSeqRef.current) {
+                return;
+            }
             if (res.data.ok) {
                 setStatus(res.data);
                 setRemainingMs(res.data.remainingMs || 0);
-                if (res.data.remainingMs > 0) {
-                    setIsPartnerUnlocked(false);
-                    setCanClaim(false);
-                    setIsAdClicked(false);
-                    setPartnerFlowActive(false);
+                const onCooldown = (res.data.remainingMs || 0) > 0;
+                const inLocalPartnerFlow =
+                    faucetLocalPartnerFlowLock ||
+                    partnerFlowActiveRef.current ||
+                    partnerWaitMsRef.current > 0 ||
+                    isAdClickedRef.current;
+                if (!inLocalPartnerFlow || onCooldown) {
+                    applyPartnerStateFromStatus(res.data);
                 }
             }
         } catch (err: unknown) {
             console.error("Faucet status fetch failed", err);
         } finally {
-            setIsLoading(false);
+            if (fetchId === statusFetchSeqRef.current) {
+                setIsLoading(false);
+            }
         }
-    }, []);
+    }, [applyPartnerStateFromStatus]);
 
     useEffect(() => {
-        fetchStatus();
+        if (faucetStatusBootstrapped) return;
+        faucetStatusBootstrapped = true;
+        void fetchStatus();
     }, [fetchStatus]);
 
     const bannerShouldShow = !isLoading && remainingMs === 0 && !isPartnerUnlocked && !partnerFlowActive && partnerWaitMs === 0;
 
     useEffect(() => {
         if (!bannerShouldShow) return;
-        // Remove stale instance so re-entry re-triggers Mondiad DOM scan
-        document.querySelector('script[src="https://ss.mrmnd.com/banner.js"]')?.remove();
-        const script = document.createElement('script');
-        script.async = true;
-        script.src = 'https://ss.mrmnd.com/banner.js';
-        document.head.appendChild(script);
-        return () => script.remove();
+        void ensureMondiadScript().catch(() => {});
     }, [bannerShouldShow]);
 
     useEffect(() => {
         remainingMsRef.current = remainingMs;
     }, [remainingMs]);
+
+    useEffect(() => {
+        partnerFlowActiveRef.current = partnerFlowActive;
+    }, [partnerFlowActive]);
+
+    useEffect(() => {
+        partnerWaitMsRef.current = partnerWaitMs;
+    }, [partnerWaitMs]);
+
+    useEffect(() => {
+        isAdClickedRef.current = isAdClicked;
+    }, [isAdClicked]);
 
     useEffect(() => {
         if (remainingMs > 0) {
@@ -127,6 +274,7 @@ export default function Faucet() {
 
     useEffect(() => {
         if (partnerWaitMs !== 0 || !partnerFlowActive) return;
+        markPartnerUnlockedInSession();
         setIsPartnerUnlocked(true);
         setCanClaim(remainingMsRef.current <= 0);
     }, [partnerWaitMs, partnerFlowActive]);
@@ -135,22 +283,33 @@ export default function Faucet() {
     // We only call the backend to start the 10s timer and unlock the claim — we do NOT redirect anywhere.
     const startPartnerTimer = async () => {
         try {
-            setIsAdClicked(true);
             const res = await api.post('/faucet/partner/start');
             if (res.data.ok) {
                 const waitMs = res.data.waitMs || 10000;
+                partnerFlowActiveRef.current = true;
+                partnerWaitMsRef.current = waitMs;
                 setPartnerFlowActive(true);
                 setPartnerWaitMs(waitMs);
                 toast.info(t('faucet.partner_toast_started'));
             }
         } catch (err) {
+            faucetLocalPartnerFlowLock = false;
+            isAdClickedRef.current = false;
             setIsAdClicked(false);
+            toast.error(t('common.error'));
         }
     };
 
-    const handleAdClick = () => {
-        if (isAdClicked || remainingMs > 0 || isPartnerUnlocked) return;
-        startPartnerTimer();
+    const handlePartnerVisit = () => {
+        if (isAdClicked || remainingMs > 0 || isPartnerUnlocked) {
+            return;
+        }
+        statusFetchSeqRef.current += 1;
+        faucetLocalPartnerFlowLock = true;
+        isAdClickedRef.current = true;
+        setIsAdClicked(true);
+        window.open(FAUCET_ZERADS_FALLBACK, '_blank', 'noopener,noreferrer');
+        void startPartnerTimer();
     };
 
     const handleClaim = async () => {
@@ -161,6 +320,7 @@ export default function Faucet() {
             const res = await api.post('/faucet/claim');
             if (res.data.ok) {
                 toast.success(res.data.message || t('common.success'));
+                clearPartnerSession();
                 fetchStatus();
                 setIsPartnerUnlocked(false);
                 setCanClaim(false);
@@ -286,18 +446,37 @@ export default function Faucet() {
                                     ) : (
                                         <div className="space-y-3">
                                             {/*
-                                              Monetag banner: the script (ss.mrmnd.com/banner.js) renders the ad inside
-                                              the [data-mndbanid] div and handles the click itself (opens its own URL in a new tab).
-                                              We use onClickCapture on the wrapper to detect the click and start the backend timer
-                                              WITHOUT preventing the click — Monetag still gets the click and opens its ad.
+                                              ZerAds iframe is visual only (pointer-events-none). The button receives
+                                              every click — iframe isolation was blocking partner/start (H4 confirmed).
+                                              Monetag slot loads opportunistically behind the preview when banner.js fills.
                                             */}
-                                            <div
-                                                className="w-full rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 flex items-center justify-center max-w-[300px] mx-auto"
-                                                onClickCapture={handleAdClick}
-                                            >
-                                                <div className="mx-auto w-[300px] max-w-full min-h-[250px] flex items-center justify-center">
-                                                    <div data-mndbanid="5674e300-8e33-44ee-ba4c-1f67f2934df2" />
+                                            <div className="w-full max-w-[300px] mx-auto space-y-3">
+                                                <div className="relative rounded-2xl overflow-hidden border border-gray-700 bg-gray-900 min-h-[250px]">
+                                                    <div
+                                                        data-mndbanid={FAUCET_MND_BANNER_ID}
+                                                        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                                                    />
+                                                    <iframe
+                                                        src={FAUCET_ZERADS_FALLBACK}
+                                                        width={300}
+                                                        height={250}
+                                                        marginWidth={0}
+                                                        marginHeight={0}
+                                                        scrolling="no"
+                                                        frameBorder={0}
+                                                        style={{ border: 'none', maxWidth: '100%', width: '100%', display: 'block', pointerEvents: 'none' }}
+                                                        title={t('faucet.partner_iframe_title')}
+                                                    />
                                                 </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handlePartnerVisit}
+                                                    disabled={isAdClicked}
+                                                    className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-primary text-white shadow-lg hover:brightness-110 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                                                >
+                                                    <ExternalLink className="w-4 h-4" />
+                                                    {t('faucet.partner_open_btn')}
+                                                </button>
                                             </div>
                                             <div className="flex items-center justify-center gap-2 text-primary/60">
                                                 <MousePointer2 className="w-3 h-3" />

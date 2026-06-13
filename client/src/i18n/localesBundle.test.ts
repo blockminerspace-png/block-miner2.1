@@ -123,6 +123,15 @@ describe("locale bundles (pt-BR / es parity)", () => {
     expect(es.wallet.web3_deposit.hint_disconnect_for_wc).toBeTruthy();
   });
 
+  it("exposes shortlink verification step strings in en, pt-BR, and es", () => {
+    expect(en.shortlinks.step_title).toContain("{{step}}");
+    expect(pt.shortlinks.step_title).toContain("{{step}}");
+    expect(es.shortlinks.step_title).toContain("{{step}}");
+    expect(pt.shortlinks.step_continue).toBeTruthy();
+    expect(en.shortlinks.step_continue).toBeTruthy();
+    expect(es.shortlinks.step_continue).toBeTruthy();
+  });
+
   it("exposes Read & Earn strings in en, pt-BR, and es", () => {
     expect(en.readEarn.title).toBeTruthy();
     expect(pt.readEarn.title).toBeTruthy();

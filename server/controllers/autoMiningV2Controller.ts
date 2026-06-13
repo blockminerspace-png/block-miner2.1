@@ -59,7 +59,9 @@ async function syncEngineForUser(userId: number) {
 export async function postStartSession(req: Request, res: Response) {
   try {
     const mode = String((req.body as { mode?: string })?.mode || "").toUpperCase();
-    await startSession((req as AuthedRequest).user.id, mode);
+    const userId = (req as AuthedRequest).user.id;
+    logger.info("postStartSession_entered", { userId, mode });
+    await startSession(userId, mode);
     const payload = await getStatusPayload((req as AuthedRequest).user.id);
     res.json({ success: true, ...payload });
   } catch (err: unknown) {
