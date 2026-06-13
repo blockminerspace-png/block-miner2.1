@@ -284,8 +284,8 @@ export default function Checkin() {
   const totalConfirmed = status.totalConfirmed ?? 0;
   const rawRecent = Array.isArray(status.recentCheckins) ? status.recentCheckins : [];
   const recentCheckins = rawRecent.filter((row) => row && isValidHistoryDateKey(row.date));
-  const milestones = (Array.isArray(status.milestones) ? status.milestones : []).sort(
-    (a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.dayThreshold ?? 0) - (b.dayThreshold ?? 0),
+  const milestones = [...(Array.isArray(status.milestones) ? status.milestones : [])].sort(
+    (a: any, b: any) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || (Number(a.dayThreshold) || 0) - (Number(b.dayThreshold) || 0),
   );
   const allowsOffchain = status.allowsOffchainCheckin !== false;
   const allowsWallet = status.allowsWalletCheckin !== false;
