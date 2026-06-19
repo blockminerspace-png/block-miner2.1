@@ -41,6 +41,7 @@ export type CheckinMilestoneRow = {
   validityDays?: number | null;
   minerId?: number | null;
   minerName?: string | null;
+  minerImageUrl?: string | null;
   itemCode?: string | null;
   legacyInvalid?: boolean;
   status?: string;

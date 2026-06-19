@@ -7,6 +7,7 @@ import { Timer, ArrowRight, ShieldCheck, Zap, Loader2, AlertTriangle, Clock } fr
 import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
 import AdBanner from '../../shared/components/AdBanner';
+import MondiadBanner from '../../shared/components/MondiadBanner';
 
 interface ShortlinkSessionStored {
   token: string;
@@ -148,6 +149,13 @@ export default function ShortlinkStep() {
         <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 space-y-8">
             <div className="w-full max-w-2xl flex justify-center">
                 <AdBanner size="728x90" />
+            </div>
+
+            <div className="w-full max-w-2xl mx-auto">
+                <MondiadBanner
+                    bannerId="5674e300-8e33-44ee-ba4c-1f67f2934df2"
+                    className="w-full min-h-[250px] flex items-center justify-center"
+                />
             </div>
 
             <div className="w-full max-w-md bg-surface border border-gray-800 rounded-[2.5rem] p-10 shadow-2xl space-y-8 text-center relative overflow-hidden">

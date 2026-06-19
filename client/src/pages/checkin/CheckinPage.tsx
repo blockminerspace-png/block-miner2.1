@@ -28,6 +28,7 @@ import {
   getCheckinMilestoneRewardLine,
   getCheckinMilestoneStatusLabel,
   getCheckinMilestoneTitle,
+  normalizeCheckinRewardType,
 } from './checkinMilestoneI18n';
 import {
   readAxiosHttpStatus,
@@ -285,7 +286,7 @@ export default function Checkin() {
   const rawRecent = Array.isArray(status.recentCheckins) ? status.recentCheckins : [];
   const recentCheckins = rawRecent.filter((row) => row && isValidHistoryDateKey(row.date));
   const milestones = [...(Array.isArray(status.milestones) ? status.milestones : [])].sort(
-    (a: any, b: any) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || (Number(a.dayThreshold) || 0) - (Number(b.dayThreshold) || 0),
+    (a: any, b: any) => (Number(a.dayThreshold) || 0) - (Number(b.dayThreshold) || 0),
   );
   const allowsOffchain = status.allowsOffchainCheckin !== false;
   const allowsWallet = status.allowsWalletCheckin !== false;
@@ -560,6 +561,7 @@ export default function Checkin() {
               const rewardLine = getCheckinMilestoneRewardLine(t, m);
               const description = getCheckinMilestoneDescription(t, m);
               const state = m.state || 'locked';
+              const rewardType = normalizeCheckinRewardType(m.rewardType);
               const border =
                 state === 'claimed'
                   ? 'border-emerald-500/35'
@@ -572,11 +574,23 @@ export default function Checkin() {
                   : state === 'eligible'
                     ? 'bg-amber-500/15 text-amber-400'
                     : 'bg-slate-900 text-slate-600';
+              const showMinerImg = rewardType === 'machine' && m.minerImageUrl;
+              const showPolBadge = rewardType === 'pol';
               return (
                 <div key={m.id} className={`bg-gray-800/30 border rounded-2xl p-5 flex items-start gap-4 ${border}`}>
-                  <div className={`p-3 rounded-xl shrink-0 ${iconBg}`}>
-                    {state === 'locked' ? <Lock className="w-5 h-5" /> : <Gift className="w-5 h-5" />}
-                  </div>
+                  {showMinerImg ? (
+                    <div className="w-12 h-12 rounded-xl shrink-0 bg-slate-900/60 border border-slate-700/60 overflow-hidden flex items-center justify-center">
+                      <img src={m.minerImageUrl as string} alt={m.minerName ?? ''} className="w-full h-full object-contain" />
+                    </div>
+                  ) : showPolBadge ? (
+                    <div className={`w-12 h-12 rounded-full shrink-0 flex items-center justify-center font-black text-sm ${iconBg}`}>
+                      POL
+                    </div>
+                  ) : (
+                    <div className={`p-3 rounded-xl shrink-0 ${iconBg}`}>
+                      {state === 'locked' ? <Lock className="w-5 h-5" /> : <Gift className="w-5 h-5" />}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                       {getCheckinMilestoneDayLabel(t, m.dayThreshold).toUpperCase()}

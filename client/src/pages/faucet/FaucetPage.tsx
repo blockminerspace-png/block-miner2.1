@@ -19,6 +19,7 @@ import {
 import { api } from '../../store/auth';
 import type { AxiosError } from 'axios';
 import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
+import MondiadBanner from '../../shared/components/MondiadBanner';
 
 interface FaucetReward {
     imageUrl?: string | null;

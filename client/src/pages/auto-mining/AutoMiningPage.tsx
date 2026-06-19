@@ -11,6 +11,7 @@ import PowerBoostBanner from "../../components/PowerBoostBanner/PowerBoostBanner
 import AutoMiningModeSelector from "../../shared/components/autoMining/AutoMiningModeSelector";
 import AutoMiningCycleTimer from "../../shared/components/autoMining/AutoMiningCycleTimer";
 import TurboPartnerBanner from "../../shared/components/autoMining/TurboPartnerBanner";
+import MondiadBanner from "../../shared/components/MondiadBanner";
 
 type MiningMode = "NORMAL" | "TURBO";
 
@@ -354,6 +355,12 @@ export default function AutoMining() {
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <PowerBoostBanner />
+      <div className="w-full max-w-2xl mx-auto">
+        <MondiadBanner
+          bannerId="5674e300-8e33-44ee-ba4c-1f67f2934df2"
+          className="w-full min-h-[250px] flex items-center justify-center"
+        />
+      </div>
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <div className="inline-flex p-3 bg-primary/10 rounded-2xl">

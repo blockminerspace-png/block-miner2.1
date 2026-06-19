@@ -247,6 +247,7 @@ export async function buildMilestoneStatusForUser(userId: number, streak: number
       validityDays: m.validityDays,
       minerId: m.minerId,
       minerName: m.miner?.name ?? null,
+      minerImageUrl: m.miner?.imageUrl ?? null,
       itemCode: null,
       status: state,
       state,
