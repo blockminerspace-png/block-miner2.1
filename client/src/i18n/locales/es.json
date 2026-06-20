@@ -1148,6 +1148,23 @@
     "reply_image_only": "(adjunto de imagen)",
     "reply_compose_expand": "Escribir respuesta",
     "reply_compose_collapse": "Ocultar formulario de respuesta",
+    "credit_pol": {
+      "button": "Acreditar POL",
+      "title": "Acreditar POL al jugador",
+      "target": "Jugador: {{player}}",
+      "amount_label": "Cantidad (POL)",
+      "reason_label": "Motivo",
+      "reason_placeholder": "Ej.: depósito no acreditado por fallo de red (tx 0x...)",
+      "warning": "Esta acción suma POL directamente al saldo del usuario y queda registrada en el log de auditoría. Confirme antes de continuar.",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar acreditación",
+      "close": "Cerrar",
+      "success": "{{amount}} POL acreditados con éxito.",
+      "error": "No se pudo acreditar POL.",
+      "invalid_amount": "Ingrese un valor positivo.",
+      "amount_too_high": "Valor por encima del límite permitido (1000 POL).",
+      "reason_required": "Indique un motivo (mín. 3 caracteres)."
+    },
     "dossier": {
       "section_title": "Expediente del jugador",
       "loading": "Cargando datos del jugador…",

@@ -23,11 +23,13 @@ import {
   ChevronDown,
   ChevronUp,
   Fingerprint,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../../store/auth";
 import SupportAttachmentThumbnails from "../../../shared/components/SupportAttachmentThumbnails";
 import AdminSupportPlayerDossier from "../components/AdminSupportPlayerDossier";
+import AdminSupportCreditPolModal from "../components/AdminSupportCreditPolModal";
 import {
   isAdminSupportPlayerDossierBundle,
   type AdminSupportAttachment,
@@ -92,6 +94,7 @@ export default function AdminSupport() {
   const [dossierParams, setDossierParams] = useState<AdminSupportPlayerDossierParams>(() => defaultDossierParams());
   const [replyComposerOpen, setReplyComposerOpen] = useState(true);
   const [dossierOpen, setDossierOpen] = useState(false);
+  const [creditPolOpen, setCreditPolOpen] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const selectedIdRef = useRef<number | null>(null);
   selectedIdRef.current = selectedMessage?.id ?? null;
@@ -441,11 +444,21 @@ export default function AdminSupport() {
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="flex flex-col items-end gap-2 text-right">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                     {t("admin_support.protocol", { id: selectedMessage.id })}
                   </p>
                   <p className="text-white font-mono text-xs">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
+                  {selectedMessage.user ? (
+                    <button
+                      type="button"
+                      onClick={() => setCreditPolOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/50 bg-emerald-950/30 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-300 hover:border-emerald-500/60 hover:bg-emerald-900/40"
+                    >
+                      <Wallet className="h-3.5 w-3.5" />
+                      {t("admin_support.credit_pol.button")}
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -469,6 +482,7 @@ export default function AdminSupport() {
                     onRetry={() => {
                       if (selectedMessage?.id) setDossierParams((p) => ({ ...p }));
                     }}
+                    onCreditPol={() => setCreditPolOpen(true)}
                   />
                 )}
                 <div className="rounded-3xl border border-slate-800/50 bg-slate-900/30 p-4 sm:p-5 xl:p-6">
@@ -623,6 +637,20 @@ export default function AdminSupport() {
           )}
         </div>
       </div>
+      <AdminSupportCreditPolModal
+        open={creditPolOpen}
+        ticketId={selectedMessage?.id ?? null}
+        playerLabel={selectedMessage?.user?.username ?? selectedMessage?.name ?? selectedMessage?.email ?? null}
+        onClose={() => setCreditPolOpen(false)}
+        onCredited={() => {
+          if (selectedMessage?.id) {
+            setDossierParams((p) => ({ ...p }));
+            void api.get<AdminSupportMessageApiResponse>(`/admin/support/${selectedMessage.id}`).then((detailsRes) => {
+              if (detailsRes.data.ok) setSelectedMessage(detailsRes.data.message);
+            }).catch(() => {});
+          }
+        }}
+      />
     </div>
   );
 }

@@ -326,6 +326,7 @@ export type AdminSupportPlayerDossierProps = {
   params: AdminSupportPlayerDossierParams;
   onParamsChange: (patch: Partial<AdminSupportPlayerDossierParams>) => void;
   onRetry: () => void;
+  onCreditPol?: () => void;
 };
 
 /** Image row attached to support message / reply (admin upload + ticket payloads). */

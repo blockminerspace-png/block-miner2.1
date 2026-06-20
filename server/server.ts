@@ -36,6 +36,7 @@ import { registerMinerSocketHandlers } from "./src/socket/registerMinerSocketHan
 import { registerGamesSocketHandlers } from "./src/socket/registerGamesSocketHandlers.js";
 import { registerSupportSocketHandlers } from "./src/socket/registerSupportSocketHandlers.js";
 import { setSupportIo } from "./services/supportRealtime.js";
+import { startSupportTelegramNotifier } from "./services/supportTelegramNotifier.js";
 import { verifyAdminJwtToken } from "./middleware/adminAuth.js";
 import { getTokenFromRequest, getAdminTokenFromRequest } from "./utils/token.js";
 import serverDatabaseModel from "./models/database/serverDatabaseModel.js";
@@ -230,6 +231,7 @@ registerGamesSocketHandlers({
 });
 
 setSupportIo(io);
+startSupportTelegramNotifier();
 registerSupportSocketHandlers({
   io,
   verifyAccessToken,

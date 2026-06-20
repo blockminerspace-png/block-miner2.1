@@ -1548,6 +1548,23 @@
     "reply_image_only": "(anexo de imagem)",
     "reply_compose_expand": "Escrever resposta",
     "reply_compose_collapse": "Ocultar formulário de resposta",
+    "credit_pol": {
+      "button": "Creditar POL",
+      "title": "Creditar POL ao jogador",
+      "target": "Jogador: {{player}}",
+      "amount_label": "Valor (POL)",
+      "reason_label": "Motivo",
+      "reason_placeholder": "Ex.: depósito não creditado por falha de rede (tx 0x...)",
+      "warning": "Esta ação adiciona POL diretamente ao saldo do usuário e fica registrada no log de auditoria. Confirme antes de prosseguir.",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar crédito",
+      "close": "Fechar",
+      "success": "{{amount}} POL creditados com sucesso.",
+      "error": "Não foi possível creditar POL.",
+      "invalid_amount": "Informe um valor positivo.",
+      "amount_too_high": "Valor acima do limite permitido (1000 POL).",
+      "reason_required": "Informe um motivo (mínimo 3 caracteres)."
+    },
     "dossier": {
       "section_title": "Ficha do jogador",
       "loading": "A carregar dados do jogador…",

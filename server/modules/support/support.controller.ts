@@ -80,6 +80,26 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       }
     });
 
+    try {
+      const { notifyNewSupportTicket } = await import("../../services/supportTelegramNotifier.js");
+      let username: string | null = null;
+      if (userId) {
+        const u = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } });
+        username = u?.username ?? null;
+      }
+      notifyNewSupportTicket({
+        id: newMessage.id,
+        name,
+        email,
+        subject,
+        body: message,
+        userId,
+        username,
+      });
+    } catch (notifyErr) {
+      console.warn("[SupportController] Telegram notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+    }
+
     res.status(201).json({ ok: true, message: "Created", id: newMessage.id });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

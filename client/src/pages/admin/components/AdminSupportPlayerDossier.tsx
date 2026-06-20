@@ -10,6 +10,7 @@ import {
   Fingerprint,
   Loader2,
   Mail,
+  Plus,
   RefreshCw,
   User,
   Wallet,
@@ -87,6 +88,7 @@ export default function AdminSupportPlayerDossier({
   params,
   onParamsChange,
   onRetry,
+  onCreditPol,
 }: AdminSupportPlayerDossierProps) {
   const { t } = useTranslation();
 
@@ -242,7 +244,19 @@ export default function AdminSupportPlayerDossier({
         ) : null}
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t("admin_support.dossier.pol_balance")}</p>
-          <p className="font-mono text-sm text-emerald-300/90">{summary?.polBalance ?? "—"}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-mono text-sm text-emerald-300/90">{summary?.polBalance ?? "—"}</p>
+            {onCreditPol ? (
+              <button
+                type="button"
+                onClick={onCreditPol}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/40 bg-emerald-950/30 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-300 hover:border-emerald-500/60 hover:bg-emerald-900/40"
+              >
+                <Plus className="h-3 w-3" />
+                {t("admin_support.credit_pol.button")}
+              </button>
+            ) : null}
+          </div>
         </div>
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t("admin_support.dossier.blk_balance")}</p>

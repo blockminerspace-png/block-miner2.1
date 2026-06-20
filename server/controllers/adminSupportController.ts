@@ -5,11 +5,23 @@ import { parseSupportPayload } from "../utils/supportMessagePayload.js";
 import { toPublicSupportReply } from "../services/supportRealtime.js";
 import { addAdminReply } from "../services/supportTicketService.js";
 import { getSupportTicketPlayerDossier } from "../services/supportPlayerDossierService.js";
+import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
+import { getClientIp } from "../utils/clientIp.js";
 import type { SupportMessage, SupportReply, User } from "@prisma/client";
 
 const attachmentSchema = z.object({
   url: z.string().min(1).max(512),
   mimeType: z.string().max(120).optional()
+});
+
+const creditPolSchema = z.object({
+  amount: z.union([z.number(), z.string()]).transform((v) => {
+    const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  }).refine((n) => Number.isFinite(n) && n > 0 && n <= 1000, {
+    message: "Amount must be a positive number up to 1000.",
+  }),
+  reason: z.string().trim().min(3).max(500),
 });
 
 const adminReplySchema = z.object({
@@ -152,6 +164,117 @@ export const getPlayerDossier = async (req: Request<IdParams>, res: Response): P
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[AdminSupportController] Error loading player dossier:", msg);
     res.status(500).json({ ok: false, message: "Error loading player dossier" });
+  }
+};
+
+export const creditPol = async (req: Request<IdParams>, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      res.status(400).json({ ok: false, message: "Invalid id" });
+      return;
+    }
+
+    const parsed = creditPolSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ ok: false, message: "Invalid request body", issues: parsed.error.flatten() });
+      return;
+    }
+
+    const ticket = await prisma.supportMessage.findUnique({
+      where: { id },
+      select: { id: true, userId: true, email: true, name: true },
+    });
+    if (!ticket) {
+      res.status(404).json({ ok: false, message: "Ticket not found" });
+      return;
+    }
+    if (!ticket.userId) {
+      res.status(400).json({ ok: false, message: "Ticket is not linked to a player account" });
+      return;
+    }
+
+    const userId = ticket.userId;
+    const amount = parsed.data.amount;
+    const reason = parsed.data.reason;
+    const ip = getClientIp(req) ?? null;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!user) throw Object.assign(new Error("User not found"), { code: "USER_NOT_FOUND" });
+
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { polBalance: { increment: amount } },
+        select: { polBalance: true },
+      });
+
+      const transaction = await tx.transaction.create({
+        data: {
+          userId,
+          type: "admin_credit",
+          amount,
+          status: "completed",
+          completedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: "ADMIN_SUPPORT_CREDIT_POL",
+          label: "Support POL credit",
+          description: `Support ticket #${ticket.id}: ${reason}`,
+          source: "admin",
+          severity: "warn",
+          ip,
+          detailsJson: JSON.stringify({
+            supportMessageId: ticket.id,
+            amount,
+            reason,
+            transactionId: transaction.id,
+          }),
+          relatedEntityType: "support_message",
+          relatedEntityId: String(ticket.id),
+        },
+      });
+
+      return { polBalance: updated.polBalance, transactionId: transaction.id };
+    });
+
+    applyUserBalanceDelta(userId, Number(amount));
+
+    try {
+      const noteBody = `[Admin] Foram creditados ${amount.toFixed(6)} POL na sua conta. Motivo: ${reason}`;
+      const reply = await addAdminReply({
+        supportMessageId: ticket.id,
+        body: noteBody,
+      });
+      res.json({
+        ok: true,
+        message: "POL credited",
+        amount,
+        polBalance: result.polBalance == null ? null : Number(result.polBalance),
+        transactionId: result.transactionId,
+        reply: toPublicSupportReply(reply),
+      });
+      return;
+    } catch (replyErr) {
+      console.error("[AdminSupportController] Could not append credit note to ticket:", replyErr);
+      res.json({
+        ok: true,
+        message: "POL credited",
+        amount,
+        polBalance: result.polBalance == null ? null : Number(result.polBalance),
+        transactionId: result.transactionId,
+      });
+      return;
+    }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[AdminSupportController] Error crediting POL:", msg);
+    res.status(500).json({ ok: false, message: "Error crediting POL" });
   }
 };
 

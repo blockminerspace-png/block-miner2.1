@@ -1547,6 +1547,23 @@
     "reply_image_only": "(image attachment)",
     "reply_compose_expand": "Write a reply",
     "reply_compose_collapse": "Hide reply form",
+    "credit_pol": {
+      "button": "Credit POL",
+      "title": "Credit POL to player",
+      "target": "Player: {{player}}",
+      "amount_label": "Amount (POL)",
+      "reason_label": "Reason",
+      "reason_placeholder": "e.g.: deposit not credited due to network failure (tx 0x...)",
+      "warning": "This action adds POL directly to the user's balance and is recorded in the audit log. Confirm before proceeding.",
+      "cancel": "Cancel",
+      "confirm": "Confirm credit",
+      "close": "Close",
+      "success": "{{amount}} POL credited successfully.",
+      "error": "Could not credit POL.",
+      "invalid_amount": "Enter a positive amount.",
+      "amount_too_high": "Amount above the allowed limit (1000 POL).",
+      "reason_required": "Reason is required (min. 3 characters)."
+    },
     "dossier": {
       "section_title": "Player file",
       "loading": "Loading player data…",
