@@ -91,7 +91,7 @@ function parseMinerWriteBody(b: unknown): ParsedMinerWrite {
 }
 
 // Utility: Server Metrics
-async function measureCpuUsagePercent(sampleMs = 300) {
+async function measureCpuUsagePercent(sampleMs = 1500) {
   const before = os.cpus().reduce((acc, cpu) => {
     acc.idle += cpu.times.idle;
     acc.total += Object.values(cpu.times).reduce((a, b) => a + b, 0);
@@ -173,7 +173,8 @@ async function collectServerMetrics() {
     serverDiskUsedBytes: disk?.usedBytes ?? null,
     serverDiskUsagePercent: disk?.diskUsagePercent ?? null,
     serverDiskMetricsAvailable: Boolean(disk),
-    uptimeSeconds: process.uptime(),
+    uptimeSeconds: os.uptime(),
+    processUptimeSeconds: process.uptime(),
     platform: process.platform,
     nodeVersion: process.version,
     processId: process.pid,
@@ -198,6 +199,7 @@ export async function getServerMetrics(_req: Request, res: Response) {
         diskUsagePercent: m.serverDiskUsagePercent,
         diskUnavailable: !m.serverDiskMetricsAvailable,
         uptimeSeconds: m.uptimeSeconds,
+        processUptimeSeconds: m.processUptimeSeconds,
         platform: m.platform,
         nodeVersion: m.nodeVersion,
         processId: m.processId,

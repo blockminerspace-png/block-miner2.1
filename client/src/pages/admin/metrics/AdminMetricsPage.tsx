@@ -96,8 +96,13 @@ export default function AdminMetrics() {
                         <span className="text-[10px] text-slate-500 font-mono">PID: {metrics.processId || '---'}</span>
                     </div>
                     <div className="z-10 mt-2">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Uptime</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Uptime (host)</p>
                         <h3 className="text-2xl font-black text-white">{formatUptime(metrics.uptimeSeconds || 0)}</h3>
+                        {metrics.processUptimeSeconds != null ? (
+                            <p className="text-[10px] text-slate-500 mt-2">
+                                App: <span className="font-mono text-slate-300">{formatUptime(metrics.processUptimeSeconds)}</span>
+                            </p>
+                        ) : null}
                     </div>
                 </div>
 

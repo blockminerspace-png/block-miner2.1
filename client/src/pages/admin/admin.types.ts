@@ -546,6 +546,7 @@ export type AdminServerMetricsSnapshot = {
   diskUsagePercent: number | null;
   diskUnavailable: boolean;
   uptimeSeconds: number;
+  processUptimeSeconds?: number;
   platform: string;
   nodeVersion: string;
   processId: number;
