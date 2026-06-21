@@ -59,7 +59,7 @@ const AdminOfferEventManage = lazy(() => import('../pages/admin/AdminOfferEventM
 const AdminSupport = lazy(() => import('../pages/admin/AdminSupport'));
 const AdminPublicSupport = lazy(() => import('../pages/admin/AdminPublicSupport'));
 const AdminBanners = lazy(() => import('../pages/admin/AdminBanners'));
-const AdminCreators = lazy(() => import('../pages/admin/AdminCreators'));
+const AdminCreatorsSocial = lazy(() => import('../pages/admin/AdminCreatorsSocial'));
 const AdminTransparency = lazy(() => import('../pages/admin/AdminTransparency'));
 const AdminAnalytics = lazy(() => import('../pages/admin/AdminAnalytics'));
 const AdminBroadcast = lazy(() => import('../pages/admin/AdminBroadcast'));
@@ -68,10 +68,8 @@ const AdminReadEarn = lazy(() => import('../pages/admin/AdminReadEarn'));
 const AdminUserSidebar = lazy(() => import('../pages/admin/AdminUserSidebar'));
 const AdminDailyTasks = lazy(() => import('../pages/admin/AdminDailyTasks'));
 const AdminInternalOfferwall = lazy(() => import('../pages/admin/AdminInternalOfferwall'));
-const AdminStreaming = lazy(() => import('../pages/admin/AdminStreaming'));
 const AdminMiniPass = lazy(() => import('../pages/admin/AdminMiniPass'));
 const AdminMiniPassSeason = lazy(() => import('../pages/admin/AdminMiniPassSeason'));
-const AdminSocial = lazy(() => import('../pages/admin/AdminSocial'));
 const AdminTournaments = lazy(() => import('../pages/admin/AdminTournaments'));
 const AdminTrafficStats = lazy(() => import('../pages/admin/AdminTrafficStats'));
 const AdminPtc = lazy(() => import('../pages/admin/AdminPtc'));
@@ -86,7 +84,6 @@ const Offerwall = lazy(() => import('../pages/offerwall'));
 const MiniPass = lazy(() => import('../pages/mini-pass'));
 const Transparency = lazy(() => import('../pages/transparency'));
 const LiveServer = lazy(() => import('../pages/live-server'));
-const DashboardCryptoStream = lazy(() => import('../pages/crypto-stream'));
 const PrivacyPolicy = lazy(() => import('../pages/legal/privacy-policy'));
 const TermsOfUse = lazy(() => import('../pages/legal/terms-of-use'));
 const Tournaments = lazy(() => import('../pages/tournaments'));
@@ -214,8 +211,6 @@ function App() {
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-use" element={<TermsOfUse />} />
           <Route path="/liveserver" element={<LiveServer />} />
-          <Route path="/dashboardcrypto" element={<DashboardCryptoStream />} />
-
           <Route element={<ProtectedLayout />}>
             <Route path="/checkin" element={<Checkin />} />
           </Route>
@@ -278,7 +273,7 @@ function App() {
             <Route path="/admin/support" element={<AdminSupport />} />
             <Route path="/admin/public-support" element={<AdminPublicSupport />} />
             <Route path="/admin/banners" element={<AdminBanners />} />
-            <Route path="/admin/creators" element={<AdminCreators />} />
+            <Route path="/admin/creators" element={<AdminCreatorsSocial />} />
             <Route path="/admin/transparency" element={<AdminTransparency />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/broadcast" element={<AdminBroadcast />} />
@@ -287,11 +282,10 @@ function App() {
             <Route path="/admin/daily-tasks" element={<Navigate to="/admin/tasks" replace />} />
             <Route path="/admin/read-earn" element={<AdminReadEarn />} />
             <Route path="/admin/internal-offerwall" element={<AdminInternalOfferwall />} />
-            <Route path="/admin/streaming" element={<AdminStreaming />} />
             <Route path="/admin/user-sidebar" element={<AdminUserSidebar />} />
             <Route path="/admin/mini-pass" element={<AdminMiniPass />} />
             <Route path="/admin/mini-pass/:id" element={<AdminMiniPassSeason />} />
-            <Route path="/admin/social" element={<AdminSocial />} />
+            <Route path="/admin/social" element={<Navigate to="/admin/creators" replace />} />
             <Route path="/admin/tournaments" element={<AdminTournaments />} />
             <Route path="/admin/traffic" element={<AdminTrafficStats />} />
             <Route path="/admin/ptc" element={<AdminPtc />} />

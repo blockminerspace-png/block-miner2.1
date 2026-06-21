@@ -23,7 +23,6 @@ import * as sidebarNavController from "../controllers/sidebarNavController.js";
 import * as adminDailyTasksController from "../controllers/adminDailyTasksController.js";
 import * as adminInternalOfferwallController from "../controllers/adminInternalOfferwallController.js";
 import * as adminWithdrawalTelegramController from "../controllers/adminWithdrawalTelegramController.js";
-import { adminYoutubeStreamRouter } from "./admin-youtube-stream.js";
 import type { Prisma } from "@prisma/client";
 import prisma from "../src/db/prisma.js";
 import { bulkCreateInventoryWithOwnedMachinesTx } from "../services/userOwnedMachineService.js";
@@ -196,8 +195,6 @@ adminRouter.delete(
   "/internal-offerwall/frame-hosts/:id",
   adminInternalOfferwallController.deactivateFrameHost
 );
-
-adminRouter.use(adminYoutubeStreamRouter);
 
 // Dashboard Stats
 adminRouter.get("/stats", adminController.getStats);
@@ -394,6 +391,307 @@ adminRouter.get("/analytics", async (req, res) => {
     } catch (err) {
         console.error('[admin analytics error]', adminErrMessage(err));
         res.status(500).json({ ok: false, message: 'Erro ao carregar analytics.' });
+    }
+});
+
+// ---------- Analytics extra tabs ----------
+type AnalyticsPeriod = "week" | "month" | "year";
+
+function resolveAnalyticsPeriod(raw: unknown): { period: AnalyticsPeriod; since: Date; buckets: { label: string; from: Date; to: Date }[]; bucketUnit: "day" | "month" } {
+    const period: AnalyticsPeriod = raw === "week" ? "week" : raw === "year" ? "year" : "month";
+    const now = new Date();
+    const buckets: { label: string; from: Date; to: Date }[] = [];
+    let since: Date;
+    if (period === "week") {
+        since = new Date(now); since.setDate(since.getDate() - 6); since.setHours(0,0,0,0);
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
+            const end = new Date(d); end.setDate(end.getDate() + 1);
+            buckets.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, from: d, to: end });
+        }
+        return { period, since, buckets, bucketUnit: "day" };
+    }
+    if (period === "year") {
+        since = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+            buckets.push({ label: d.toLocaleString("pt-BR", { month: "short", year: "2-digit" }), from: d, to: end });
+        }
+        return { period, since, buckets, bucketUnit: "month" };
+    }
+    since = new Date(now); since.setDate(since.getDate() - 29); since.setHours(0,0,0,0);
+    for (let i = 29; i >= 0; i--) {
+        const d = new Date(now); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
+        const end = new Date(d); end.setDate(end.getDate() + 1);
+        buckets.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, from: d, to: end });
+    }
+    return { period, since, buckets, bucketUnit: "day" };
+}
+
+function bucketKey(d: Date, unit: "day" | "month"): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    if (unit === "month") return `${y}-${m}`;
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+}
+
+function percentile(sorted: number[], p: number): number {
+    if (sorted.length === 0) return 0;
+    const idx = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
+    return sorted[idx] ?? 0;
+}
+
+// Inflation: per-bucket POL distributed (mining) vs POL withdrawn, cumulative supply curve
+adminRouter.get("/analytics/inflation", async (req, res) => {
+    try {
+        const { period, since, buckets, bucketUnit } = resolveAnalyticsPeriod(req.query.period);
+        let polPrice = 0.35; try { polPrice = await getPolUsdPrice(); } catch {}
+
+        const [distributedRows, withdrawalRows, totalDistributedAgg, totalWithdrawnAgg] = await Promise.all([
+            prisma.blockMinerReward.findMany({ where: { createdAt: { gte: since } }, select: { rewardAmount: true, createdAt: true } }),
+            prisma.transaction.findMany({ where: { type: "withdrawal", status: "completed", createdAt: { gte: since } }, select: { amount: true, createdAt: true } }),
+            prisma.blockMinerReward.aggregate({ _sum: { rewardAmount: true } }),
+            prisma.transaction.aggregate({ _sum: { amount: true }, where: { type: "withdrawal", status: "completed" } }),
+        ]);
+
+        const distMap: Record<string, number> = {};
+        for (const r of distributedRows) {
+            const k = bucketKey(new Date(r.createdAt), bucketUnit);
+            distMap[k] = (distMap[k] || 0) + Number(r.rewardAmount || 0);
+        }
+        const wMap: Record<string, number> = {};
+        for (const r of withdrawalRows) {
+            const k = bucketKey(new Date(r.createdAt), bucketUnit);
+            wMap[k] = (wMap[k] || 0) + Number(r.amount || 0);
+        }
+
+        const totalDistributedAll = Number(totalDistributedAgg._sum.rewardAmount || 0);
+        const totalWithdrawnAll = Number(totalWithdrawnAgg._sum.amount || 0);
+        // Cumulative supply at start of window = total - sum(window distributed) + sum(window withdrawn) -- approximate net curve
+        const periodDistributedTotal = distributedRows.reduce((s, r) => s + Number(r.rewardAmount || 0), 0);
+        const periodWithdrawnTotal = withdrawalRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+        let cumulative = totalDistributedAll - periodDistributedTotal + periodWithdrawnTotal; // net at start of window
+
+        const series = buckets.map(b => {
+            const k = bucketKey(b.from, bucketUnit);
+            const distributed = Number((distMap[k] || 0).toFixed(8));
+            const withdrawn = Number((wMap[k] || 0).toFixed(8));
+            const net = distributed - withdrawn;
+            cumulative += net;
+            return { label: b.label, distributed, withdrawn, net: Number(net.toFixed(8)), cumulative: Number(cumulative.toFixed(8)) };
+        });
+
+        const avgDailyDistributed = bucketUnit === "day" && series.length > 0 ? periodDistributedTotal / series.length : 0;
+        const avgDailyWithdrawn = bucketUnit === "day" && series.length > 0 ? periodWithdrawnTotal / series.length : 0;
+        const netInflationRate = totalDistributedAll > 0 ? ((totalDistributedAll - totalWithdrawnAll) / totalDistributedAll) * 100 : 0;
+
+        res.json({
+            ok: true,
+            period,
+            polPrice,
+            series,
+            totals: {
+                allTimeDistributed: totalDistributedAll,
+                allTimeWithdrawn: totalWithdrawnAll,
+                periodDistributed: periodDistributedTotal,
+                periodWithdrawn: periodWithdrawnTotal,
+                circulatingNet: totalDistributedAll - totalWithdrawnAll,
+                netInflationRatePercent: netInflationRate,
+                avgDailyDistributed,
+                avgDailyWithdrawn,
+            },
+        });
+    } catch (err) {
+        console.error("[admin analytics inflation error]", adminErrMessage(err));
+        res.status(500).json({ ok: false, message: "Erro ao carregar inflação." });
+    }
+});
+
+// Projections: 7/30/90 day forecasts using network hashrate
+adminRouter.get("/analytics/projections", async (req, res) => {
+    try {
+        const userIdNum = queryPositiveInt(req.query.userId);
+        let polPrice = 0.35; try { polPrice = await getPolUsdPrice(); } catch {}
+
+        const BLOCK_REWARD = 0.30;
+        const BLOCKS_PER_DAY = 144;
+
+        const [netAgg, userAgg, last30Rows] = await Promise.all([
+            prisma.userMiner.aggregate({ _sum: { hashRate: true }, where: { isActive: true } }),
+            userIdNum !== undefined
+                ? prisma.userMiner.aggregate({ _sum: { hashRate: true }, where: { isActive: true, userId: userIdNum } })
+                : Promise.resolve(null),
+            prisma.blockMinerReward.findMany({
+                where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+                select: { rewardAmount: true, createdAt: true },
+            }),
+        ]);
+
+        const networkHashRate = Number(netAgg._sum.hashRate || 0);
+        const userHashRate = userAgg ? Number(userAgg._sum.hashRate || 0) : 0;
+        const share = userIdNum !== undefined && networkHashRate > 0 ? userHashRate / networkHashRate : 1;
+
+        // Theoretical projection
+        const theo = (days: number) => BLOCKS_PER_DAY * BLOCK_REWARD * share * days;
+
+        // Empirical projection from last 30d actuals
+        const last30Total = last30Rows.reduce((s, r) => s + Number(r.rewardAmount || 0), 0);
+        const empiricalDaily = last30Rows.length > 0 ? last30Total / 30 : 0;
+        const empirical = (days: number) => empiricalDaily * (userIdNum !== undefined ? share : 1) * days;
+
+        res.json({
+            ok: true,
+            polPrice,
+            networkHashRate,
+            userHashRate: userIdNum !== undefined ? userHashRate : null,
+            sharePercent: userIdNum !== undefined ? share * 100 : null,
+            theoretical: {
+                day1: theo(1), day7: theo(7), day30: theo(30), day90: theo(90), day365: theo(365),
+            },
+            empirical: {
+                avgDailyLast30: empiricalDaily * (userIdNum !== undefined ? share : 1),
+                day7: empirical(7), day30: empirical(30), day90: empirical(90),
+            },
+            assumptions: { blockRewardPol: BLOCK_REWARD, blocksPerDay: BLOCKS_PER_DAY },
+        });
+    } catch (err) {
+        console.error("[admin analytics projections error]", adminErrMessage(err));
+        res.status(500).json({ ok: false, message: "Erro ao carregar projeções." });
+    }
+});
+
+// Withdrawal stats: mean / median / P90 / time-to-complete, period series
+adminRouter.get("/analytics/withdrawals", async (req, res) => {
+    try {
+        const { period, since, buckets, bucketUnit } = resolveAnalyticsPeriod(req.query.period);
+        const userIdNum = queryPositiveInt(req.query.userId);
+        let polPrice = 0.35; try { polPrice = await getPolUsdPrice(); } catch {}
+
+        const baseWhere = { type: "withdrawal" as const, ...(userIdNum !== undefined ? { userId: userIdNum } : {}) };
+        const periodWhere = { ...baseWhere, createdAt: { gte: since } };
+
+        const [allCompleted, periodAll] = await Promise.all([
+            prisma.transaction.findMany({ where: { ...baseWhere, status: "completed" }, select: { amount: true, createdAt: true, completedAt: true } }),
+            prisma.transaction.findMany({ where: periodWhere, select: { amount: true, status: true, createdAt: true, completedAt: true } }),
+        ]);
+
+        const completedAmts = allCompleted.map(r => Number(r.amount || 0)).sort((a,b) => a - b);
+        const sum = completedAmts.reduce((s,n) => s + n, 0);
+        const avg = completedAmts.length ? sum / completedAmts.length : 0;
+        const median = percentile(completedAmts, 50);
+        const p90 = percentile(completedAmts, 90);
+        const p99 = percentile(completedAmts, 99);
+
+        // time-to-complete (ms) for those with completedAt
+        const ttcMs = allCompleted
+            .filter(r => r.completedAt)
+            .map(r => new Date(r.completedAt as Date).getTime() - new Date(r.createdAt).getTime())
+            .filter(n => Number.isFinite(n) && n >= 0)
+            .sort((a,b) => a - b);
+        const avgTtcMs = ttcMs.length ? ttcMs.reduce((s,n) => s + n, 0) / ttcMs.length : 0;
+        const medianTtcMs = percentile(ttcMs, 50);
+
+        // status counts in period
+        const statusCount = { completed: 0, pending: 0, failed: 0, other: 0 };
+        for (const r of periodAll) {
+            const s = (r.status || "").toLowerCase();
+            if (s === "completed") statusCount.completed++;
+            else if (s === "pending") statusCount.pending++;
+            else if (s === "failed") statusCount.failed++;
+            else statusCount.other++;
+        }
+
+        // period series (count + amount)
+        const bucketMap: Record<string, { count: number; amount: number }> = {};
+        for (const r of periodAll) {
+            if (r.status !== "completed") continue;
+            const k = bucketKey(new Date(r.createdAt), bucketUnit);
+            const cur = bucketMap[k] || { count: 0, amount: 0 };
+            cur.count++;
+            cur.amount += Number(r.amount || 0);
+            bucketMap[k] = cur;
+        }
+        const series = buckets.map(b => {
+            const k = bucketKey(b.from, bucketUnit);
+            const cur = bucketMap[k] || { count: 0, amount: 0 };
+            return { label: b.label, count: cur.count, amount: Number(cur.amount.toFixed(8)) };
+        });
+
+        res.json({
+            ok: true,
+            period,
+            polPrice,
+            stats: {
+                completedCount: completedAmts.length,
+                totalAmount: sum,
+                avg, median, p90, p99,
+                avgTimeToCompleteMs: avgTtcMs,
+                medianTimeToCompleteMs: medianTtcMs,
+            },
+            statusBreakdownPeriod: statusCount,
+            series,
+        });
+    } catch (err) {
+        console.error("[admin analytics withdrawals error]", adminErrMessage(err));
+        res.status(500).json({ ok: false, message: "Erro ao carregar saques." });
+    }
+});
+
+// Distribution by source: aggregate POL credited per source over the period.
+adminRouter.get("/analytics/distribution", async (req, res) => {
+    try {
+        const { period, since } = resolveAnalyticsPeriod(req.query.period);
+        const userIdNum = queryPositiveInt(req.query.userId);
+        let polPrice = 0.35; try { polPrice = await getPolUsdPrice(); } catch {}
+        const userFilter = userIdNum !== undefined ? { userId: userIdNum } : {};
+        const referrerFilter = userIdNum !== undefined ? { referrerId: userIdNum } : {};
+
+        const [
+            miningAgg,
+            referralAgg,
+            zeradsAgg,
+            offerwallMeAgg,
+            inboxAgg,
+            withdrawalsAgg,
+            depositsAgg,
+        ] = await Promise.all([
+            prisma.blockMinerReward.aggregate({ _sum: { rewardAmount: true }, _count: { _all: true }, where: { ...userFilter, createdAt: { gte: since } } }),
+            prisma.referralEarning.aggregate({ _sum: { amount: true }, _count: { _all: true }, where: { ...referrerFilter, createdAt: { gte: since } } }),
+            prisma.zeradsCallback.aggregate({ _sum: { payoutAmount: true }, _count: { _all: true }, where: { ...userFilter, createdAt: { gte: since } } }),
+            prisma.offerwallMeCallback.aggregate({ _sum: { polCredited: true }, _count: { _all: true }, where: { ...userFilter, createdAt: { gte: since } } }),
+            prisma.userRewardInbox.aggregate({ _sum: { rewardValue: true }, _count: { _all: true }, where: { ...userFilter, status: "collected", collectedAt: { gte: since } } }),
+            prisma.transaction.aggregate({ _sum: { amount: true }, _count: { _all: true }, where: { ...userFilter, type: "withdrawal", status: "completed", createdAt: { gte: since } } }),
+            prisma.transaction.aggregate({ _sum: { amount: true }, _count: { _all: true }, where: { ...userFilter, type: "deposit", status: "completed", createdAt: { gte: since } } }),
+        ]);
+
+        const sources = [
+            { key: "mining", label: "Mineração (blocos)", pol: Number(miningAgg._sum.rewardAmount || 0), count: miningAgg._count._all },
+            { key: "referral", label: "Indicações", pol: Number(referralAgg._sum.amount || 0), count: referralAgg._count._all },
+            { key: "zerads", label: "PTC (ZerAds)", pol: Number(zeradsAgg._sum.payoutAmount || 0), count: zeradsAgg._count._all },
+            { key: "offerwallme", label: "Offerwall (OfferwallMe)", pol: Number(offerwallMeAgg._sum.polCredited || 0), count: offerwallMeAgg._count._all },
+            { key: "inbox", label: "Inbox de recompensas (faucet/checkin/tasks)", pol: Number(inboxAgg._sum.rewardValue || 0), count: inboxAgg._count._all },
+        ];
+        const inflowTotal = sources.reduce((s, x) => s + x.pol, 0);
+
+        const outflows = [
+            { key: "withdrawals", label: "Saques", pol: Number(withdrawalsAgg._sum.amount || 0), count: withdrawalsAgg._count._all },
+        ];
+        const depositsInflow = { key: "deposits", label: "Depósitos (entrada externa)", pol: Number(depositsAgg._sum.amount || 0), count: depositsAgg._count._all };
+
+        res.json({
+            ok: true,
+            period,
+            polPrice,
+            sources: sources.map(s => ({ ...s, sharePercent: inflowTotal > 0 ? (s.pol / inflowTotal) * 100 : 0 })),
+            totalInflowFromSources: inflowTotal,
+            depositsInflow,
+            outflows,
+        });
+    } catch (err) {
+        console.error("[admin analytics distribution error]", adminErrMessage(err));
+        res.status(500).json({ ok: false, message: "Erro ao carregar distribuição." });
     }
 });
 

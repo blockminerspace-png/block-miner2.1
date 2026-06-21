@@ -84,11 +84,11 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
     async function handleWithdraw(e: React.FormEvent) {
         e.preventDefault();
         if (effectiveMin > 0 && Number(amount) < effectiveMin) {
-            toast.error(`Mínimo: ${Math.ceil(effectiveMin).toLocaleString()} SHIB ($0.10)`);
+            toast.error(`Mínimo: ${Math.ceil(effectiveMin).toLocaleString('en-US')} SHIB ($0.10)`);
             return;
         }
         if (Number(amount) + SHIB_WITHDRAW_FEE > balance) {
-            toast.error(`Insufficient balance (need ${Number(amount) + SHIB_WITHDRAW_FEE} SHIB including fee)`);
+            toast.error(`Saldo insuficiente (precisa de ${(Number(amount) + SHIB_WITHDRAW_FEE).toLocaleString('en-US')} SHIB incluindo a taxa)`);
             return;
         }
         setLoading(true);
@@ -178,7 +178,7 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                             <p>Taxa padrão: <span className="text-orange-300 font-black">{SHIB_WITHDRAW_FEE.toLocaleString()} SHIB</span></p>
                             <p>Mínimo:{' '}
                                 {minShib !== null
-                                    ? <><span className="text-orange-300 font-black">{Math.ceil(minShib).toLocaleString()} SHIB</span><span className="text-gray-500 ml-1">($0.10)</span></>
+                                    ? <><span className="text-orange-300 font-black">{Math.ceil(minShib).toLocaleString('en-US')} SHIB</span><span className="text-gray-500 ml-1">($0.10)</span></>
                                     : <span className="text-gray-500">carregando...</span>
                                 }
                             </p>
@@ -195,14 +195,14 @@ export function ShibPanel({ balance, polBalance, onRefresh }: Props) {
                             min={effectiveMin > 0 ? effectiveMin : undefined}
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            placeholder={minShib !== null ? `Mínimo ${Math.ceil(minShib).toLocaleString()} SHIB` : 'Quantidade'}
+                            placeholder={minShib !== null ? `Mínimo ${Math.ceil(minShib).toLocaleString('en-US')} SHIB` : 'Quantidade'}
                             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-orange-500 transition-colors"
                             required
                         />
                         {Number(amount) > 0 && (
                             <p className="text-[9px] text-slate-500 mt-1.5 font-medium">
-                                Você receberá: <span className="text-orange-300 font-black">{Math.max(0, net).toLocaleString(undefined, { maximumFractionDigits: 2 })} SHIB</span>
-                                {' '}(taxa {SHIB_WITHDRAW_FEE.toLocaleString()} SHIB deduzida)
+                                Você receberá: <span className="text-orange-300 font-black">{Math.max(0, net).toLocaleString('en-US', { maximumFractionDigits: 2 })} SHIB</span>
+                                {' '}(taxa {SHIB_WITHDRAW_FEE.toLocaleString('en-US')} SHIB deduzida)
                             </p>
                         )}
                     </div>

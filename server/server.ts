@@ -1,6 +1,5 @@
 import "dotenv/config";
 import path from "path";
-import { existsSync } from "fs";
 import http from "http";
 import crypto from "crypto";
 import { fileURLToPath, pathToFileURL } from "url";
@@ -24,11 +23,6 @@ import { mountUploadsStatic } from "./utils/uploadsStatic.js";
 import { resolveWalletConnectProjectIdFromEnv } from "./utils/walletConnectProjectId.js";
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
-import {
-  resumeDesiredStreamsAfterBoot,
-  shutdownAllStreams,
-  startStreamDesiredWatchdog
-} from "./services/streaming/streamRunner.js";
 import { startDepositVerifier } from "./services/depositVerifier.js";
 import { startContractDepositSync } from "./services/contractDepositSync.js";
 import { startPolygonHdDepositScanner } from "./services/polygonHdDepositScanner.js";
@@ -269,42 +263,6 @@ if (!clientDist.indexExists) {
     indexPath: clientDist.indexPath,
   });
 }
-// Static crypto broadcast board (TradingView, etc.) — NOT under /dashboardcrypto so the SPA route
-// `/dashboardcrypto` works like `/liveserver` (no competing Express handlers → no redirect loops).
-const cryptoBroadcastDist = path.join(publicPath, "crypto-broadcast");
-const cryptoBroadcastSrc = path.join(PROJECT_ROOT, "client", "public", "crypto-broadcast");
-const cryptoBroadcastRoot = existsSync(path.join(cryptoBroadcastDist, "index.html"))
-  ? cryptoBroadcastDist
-  : cryptoBroadcastSrc;
-const cryptoBroadcastIndexPath = path.join(cryptoBroadcastRoot, "index.html");
-
-function sendCryptoBroadcastIndex(res, next) {
-  if (!existsSync(cryptoBroadcastIndexPath)) {
-    next();
-    return;
-  }
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  res.type("html");
-  res.sendFile(cryptoBroadcastIndexPath, (err) => {
-    if (err) next(err);
-  });
-}
-
-app.get("/crypto-broadcast", (_req, res, next) => sendCryptoBroadcastIndex(res, next));
-app.get("/crypto-broadcast/", (_req, res, next) => sendCryptoBroadcastIndex(res, next));
-
-app.use(
-  "/crypto-broadcast",
-  express.static(cryptoBroadcastRoot, {
-    index: false,
-    setHeaders(res, filePath) {
-      if (/\.html$/i.test(filePath)) {
-        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-      }
-    }
-  })
-);
-
 // Hashed Vite assets can be cached forever; unhashed JS/CSS must revalidate so users never
 // stick on an old bundle after deploy (stale check-in UI, etc.).
 // acceptRanges: false — some mobile clients + HTTP/2 + nginx proxy stall on 206 Range chains
@@ -449,23 +407,6 @@ async function bootstrap() {
 
     server.listen(port, host, () => {
       logger.info(`Server running on ${host}:${port}`);
-
-      const shutdownStreams = () => {
-        shutdownAllStreams().catch(() => {});
-      };
-      process.once("SIGINT", shutdownStreams);
-      process.once("SIGTERM", shutdownStreams);
-
-      if (process.env.NODE_ENV !== "test") {
-        setTimeout(() => {
-          void resumeDesiredStreamsAfterBoot().catch((err) =>
-            logger.error("resume streaming after boot failed", {
-              error: String(err?.message || err)
-            })
-          );
-        }, 8000);
-        startStreamDesiredWatchdog();
-      }
 
       // Start background tasks
       startCronTasks({

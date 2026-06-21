@@ -77,7 +77,6 @@ export function setupExpressHttpStack(app: Express, opts: SetupExpressHttpStackO
         "/health",
         "/uploads",
         "/assets",
-        "/crypto-broadcast",
         "/socket.io",
         "/favicon",
         "/manifest",
