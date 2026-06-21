@@ -1014,6 +1014,7 @@ model UserRewardInbox {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, status])
+  @@index([collectedAt])
   @@map("user_reward_inbox")
 }
 
@@ -1548,6 +1549,7 @@ model ReferralEarning {
   referrer User @relation("UserToReferrerEarnings", fields: [referrerId], references: [id])
   referred User @relation("UserToReferredEarnings", fields: [referredId], references: [id])
 
+  @@index([createdAt])
   @@map("referral_earnings")
 }
 
@@ -1583,6 +1585,7 @@ model BlockMinerReward {
 
   @@index([blockId])
   @@index([userId])
+  @@index([createdAt])
   @@map("block_miner_rewards")
 }
 
