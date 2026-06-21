@@ -1,22 +1,55 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, X } from 'lucide-react';
 import AdminSidebar from './AdminSidebar';
 import { fetchAdminAuthOk } from '../admin.api';
 
+const AUTH_CHECK_THROTTLE_MS = 30_000;
+
+let adminAuthCachedAt = 0;
+let adminAuthCachedValue: boolean | null = null;
+let adminAuthInflight: Promise<boolean> | null = null;
+
+async function checkAdminAuthThrottled(): Promise<boolean> {
+  const now = Date.now();
+  if (adminAuthCachedValue !== null && now - adminAuthCachedAt < AUTH_CHECK_THROTTLE_MS) {
+    return adminAuthCachedValue;
+  }
+  if (adminAuthInflight) return adminAuthInflight;
+  adminAuthInflight = fetchAdminAuthOk()
+    .then((ok) => {
+      adminAuthCachedAt = Date.now();
+      adminAuthCachedValue = ok;
+      return ok;
+    })
+    .finally(() => {
+      adminAuthInflight = null;
+    });
+  return adminAuthInflight;
+}
+
 export default function AdminLayout() {
   const { t } = useTranslation();
   const location = useLocation();
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(null);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(
+    adminAuthCachedValue !== null && Date.now() - adminAuthCachedAt < AUTH_CHECK_THROTTLE_MS
+      ? adminAuthCachedValue
+      : null,
+  );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const didCheckRef = useRef(false);
 
   useEffect(() => {
-    const checkAdminAuth = async () => {
-      const ok = await fetchAdminAuthOk();
-      setIsAdminAuthenticated(ok);
+    if (didCheckRef.current) return;
+    didCheckRef.current = true;
+    let cancelled = false;
+    void checkAdminAuthThrottled().then((ok) => {
+      if (!cancelled) setIsAdminAuthenticated(ok);
+    });
+    return () => {
+      cancelled = true;
     };
-    void checkAdminAuth();
   }, []);
 
   useEffect(() => {
