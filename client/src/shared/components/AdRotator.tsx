@@ -113,14 +113,27 @@ function MondiadAd({ ad }: { ad: AdConfig }) {
   );
 }
 
+// ─── Rotation interval ─────────────────────────────────────────────────────
+
+const ROTATION_INTERVAL_MS = 60_000;
+
 // ─── Main component ───────────────────────────────────────────────────────
 
 export default function AdRotator({ ads, size, slotId, className }: AdRotatorProps) {
-  const [selected] = useState<AdConfig | null>(() => {
+  const [selected, setSelected] = useState<AdConfig | null>(() => {
     if (ads.length === 0) return null;
     const idx = Math.floor(Math.random() * ads.length);
     return ads[idx];
   });
+
+  useEffect(() => {
+    if (ads.length <= 1) return;
+    const id = setInterval(() => {
+      const idx = Math.floor(Math.random() * ads.length);
+      setSelected(ads[idx]);
+    }, ROTATION_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [ads]);
 
   if (!selected) return null;
 
