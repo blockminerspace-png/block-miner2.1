@@ -23,6 +23,7 @@ import {
 } from './support.api';
 import { useSupportTicketSocket } from '../../shared/hooks/useSupportTicketSocket';
 import SupportAttachmentThumbnails from '../../shared/components/SupportAttachmentThumbnails';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface SupportAttachment {
   url: string;
@@ -511,6 +512,8 @@ export default function Support() {
           </div>
         </div>
       )}
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="support-bottom" />
     </div>
   );
 }

@@ -607,7 +607,7 @@ export async function getAdminUserProfile(prisma: PrismaClient, userId: unknown)
       id: true, name: true, username: true, email: true, createdAt: true, lastLoginAt: true,
       ip: true, registrationIp: true, isBanned: true, walletAddress: true, polBalance: true,
       btcBalance: true, ethBalance: true, usdtBalance: true, usdcBalance: true, zerBalance: true,
-      blkBalance: true, blkLocked: true, refCode: true, referredBy: true, oldBaseHashRate: true,
+      blkBalance: true, blkLocked: true, shibBalance: true, refCode: true, referredBy: true, oldBaseHashRate: true,
       polygonHdAddress: { select: { address: true, derivationIndex: true, createdAt: true } },
     },
   });
@@ -644,6 +644,12 @@ export async function getAdminUserProfile(prisma: PrismaClient, userId: unknown)
       polBalance: Number(user.polBalance || 0),
       blkBalance: Number(user.blkBalance || 0),
       blkLocked: Number(user.blkLocked || 0),
+      shibBalance: Number(user.shibBalance || 0),
+      btcBalance: Number(user.btcBalance || 0),
+      ethBalance: Number(user.ethBalance || 0),
+      usdtBalance: Number(user.usdtBalance || 0),
+      usdcBalance: Number(user.usdcBalance || 0),
+      zerBalance: Number(user.zerBalance || 0),
       lastIpIntelligence,
     },
     metrics: {

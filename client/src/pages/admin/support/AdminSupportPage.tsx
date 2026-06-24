@@ -646,7 +646,7 @@ export default function AdminSupport() {
           if (selectedMessage?.id) {
             setDossierParams((p) => ({ ...p }));
             void api.get<AdminSupportMessageApiResponse>(`/admin/support/${selectedMessage.id}`).then((detailsRes) => {
-              if (detailsRes.data.ok) setSelectedMessage(detailsRes.data.message);
+              if (detailsRes.data.ok) setSelectedMessage(detailsRes.data.message ?? null);
             }).catch(() => {});
           }
         }}

@@ -16,6 +16,7 @@ import {
   Store,
 } from 'lucide-react';
 import { api, useAuthStore } from '../../store/auth';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 // ─── Zerads provider detail ────────────────────────────────────────────────
 
@@ -349,6 +350,21 @@ function OfferwallMeDetail({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
+      <div className="rounded-xl border border-sky-500/25 bg-sky-500/8 px-4 py-3 text-xs text-sky-200 leading-relaxed space-y-1.5">
+        <p className="font-black uppercase tracking-wider text-sky-300 text-[10px]">
+          ⓘ Novo flow do provedor — login único
+        </p>
+        <p>
+          A Offerwall.me agora exige que <span className="font-black">cada usuário</span> crie/logue uma
+          conta gratuita no painel deles antes de ver as ofertas. É feito uma única vez e funciona em
+          todos os sites parceiros.
+        </p>
+        <p className="text-sky-200/80">
+          → Faça login (ou clique em <span className="font-black">"Create account"</span>) na tela
+          abaixo. Suas recompensas continuam vindo direto pra sua conta BlockMiner via callback automático.
+        </p>
+      </div>
+
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <iframe
           src={iframeUrl}
@@ -357,6 +373,7 @@ function OfferwallMeDetail({ onBack }: { onBack: () => void }) {
           title="Offerwall.me"
           style={{ width: '100%', height: '800px', border: 0, display: 'block' }}
           allow="fullscreen"
+          referrerPolicy="no-referrer-when-downgrade"
         />
       </div>
 
@@ -542,6 +559,8 @@ export default function OfferwallPage() {
           <ProviderCard key={p.id} provider={p} onSelect={() => setSelected(p.id)} />
         ))}
       </div>
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="offerwall-bottom" />
     </div>
   );
 }

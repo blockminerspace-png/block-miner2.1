@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Calculator, Zap, TrendingUp, RefreshCw, Info, Cpu, Wifi } from 'lucide-react';
 import { api } from '../../store/auth';
 import { useGameStore } from '../../store/game';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { formatHashrate } from '../../shared/utils/machine';
 import {
     DEFAULT_BLOCK_REWARD_POL,
@@ -439,6 +440,8 @@ export default function CalculatorPage() {
                     </div>
                 </div>
             </div>
+
+            <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="calculator-bottom" />
         </div>
     );
 }

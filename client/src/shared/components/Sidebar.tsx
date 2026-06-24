@@ -62,6 +62,77 @@ export default function Sidebar() {
 
   const unreadCount = (notifications || []).filter((n) => !n.isRead).length;
 
+  // Active tournament count — drives the sidebar badge that catches the user's eye.
+  const [activeTournamentsCount, setActiveTournamentsCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchTournaments = async () => {
+      try {
+        const res = await api.get<{ ok?: boolean; tournaments?: Array<{ status?: string }> }>('/tournaments');
+        if (cancelled) return;
+        const list = Array.isArray(res.data?.tournaments) ? res.data.tournaments : [];
+        setActiveTournamentsCount(list.filter((t) => t?.status === 'ACTIVE').length);
+      } catch { /* keep previous count */ }
+    };
+    void fetchTournaments();
+    const id = window.setInterval(() => void fetchTournaments(), 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
+  // Energy tax — badge âmbar no /taxes quando há mineração hoje sem pagar.
+  // Não mostra antes do `startsAt` (feature começa em 01/07).
+  const [energyTaxPending, setEnergyTaxPending] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchTax = async () => {
+      try {
+        const res = await api.get<{ ok?: boolean; active?: boolean; todayPaid?: boolean; todayRewards?: number }>('/energy-tax/summary');
+        if (cancelled) return;
+        const active = res.data?.active !== false;
+        const pending = active && !res.data?.todayPaid && Number(res.data?.todayRewards ?? 0) > 0;
+        setEnergyTaxPending(pending);
+      } catch { /* keep */ }
+    };
+    void fetchTax();
+    const id = window.setInterval(() => void fetchTax(), 5 * 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
+  // Active offer events — drives the LIVE chip on /offers.
+  const [hasActiveOffers, setHasActiveOffers] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOffers = async () => {
+      try {
+        const res = await api.get<{ ok?: boolean; events?: unknown[] }>('/offer-events/active');
+        if (cancelled) return;
+        const events = Array.isArray(res.data?.events) ? res.data.events : [];
+        setHasActiveOffers(events.length > 0);
+      } catch { /* keep previous */ }
+    };
+    void fetchOffers();
+    const id = window.setInterval(() => void fetchOffers(), 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
+  // Reward-inbox pending count — same UX as tournaments, but on /inventario.
+  const [inboxPendingCount, setInboxPendingCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchInbox = async () => {
+      try {
+        const res = await api.get<{ items?: unknown[] }>('/reward-inbox');
+        if (cancelled) return;
+        const items = Array.isArray(res.data?.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []);
+        setInboxPendingCount(items.length);
+      } catch { /* keep previous count */ }
+    };
+    void fetchInbox();
+    // 45s — matches the heartbeat cadence so the badge reflects newly granted rewards quickly
+    const id = window.setInterval(() => void fetchInbox(), 45_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -264,6 +335,39 @@ export default function Sidebar() {
                       >
                         {item.label}
                       </span>
+                      {item.path === '/tournaments' && activeTournamentsCount > 0 && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-slate-950 px-1.5 min-w-[18px] h-[18px] text-[10px] font-black leading-none shadow-md shadow-amber-500/40 animate-pulse"
+                          aria-label={`${activeTournamentsCount} torneios ativos`}
+                        >
+                          {activeTournamentsCount}
+                        </span>
+                      )}
+                      {item.path === '/inventario' && inboxPendingCount > 0 && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-emerald-500 text-slate-950 px-1.5 min-w-[18px] h-[18px] text-[10px] font-black leading-none shadow-md shadow-emerald-500/40 animate-pulse"
+                          aria-label={`${inboxPendingCount} itens para coletar`}
+                        >
+                          {inboxPendingCount}
+                        </span>
+                      )}
+                      {item.path === '/taxes' && energyTaxPending && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded bg-orange-500 text-slate-950 px-1.5 h-[16px] text-[9px] font-black tracking-widest uppercase leading-none shadow-md shadow-orange-500/40 animate-pulse"
+                          aria-label="Pague hoje pra ganhar desconto"
+                        >
+                          -25%
+                        </span>
+                      )}
+                      {item.path === '/offers' && hasActiveOffers && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded bg-red-600 text-white px-1.5 h-[16px] text-[9px] font-black tracking-widest uppercase leading-none shadow-md shadow-red-600/40"
+                          aria-label="Ofertas ao vivo"
+                        >
+                          <span className="h-1 w-1 rounded-full bg-white animate-pulse" />
+                          LIVE
+                        </span>
+                      )}
                     </div>
                     {isActive ? (
                       <div className="w-1 h-4 bg-primary rounded-full shadow-glow" />

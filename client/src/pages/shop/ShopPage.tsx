@@ -7,6 +7,7 @@ import { getShopMiners, postShopPurchase } from './shop.api';
 import type { ShopCatalogMiner } from './shop.api';
 import { useGameStore } from '../../store/game';
 import { DEFAULT_MINER_IMAGE_URL, formatHashrate } from '../../shared/utils/machine';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { isAxiosError } from 'axios';
 
 const MAX_QTY = 25;
@@ -110,6 +111,8 @@ export default function Shop() {
                     <ShoppingCart className="w-4 h-4 text-primary" />
                     <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{miners.length} {t('shop.avail_models')}</span>
                 </div>
+
+                <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="shop-top" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">

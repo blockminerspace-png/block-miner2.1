@@ -10,6 +10,7 @@ import {
   ChevronRight,
   TrendingUp,
 } from 'lucide-react';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { api, useAuthStore } from '../../store/auth';
 
 interface ZeradsLinkResponse {

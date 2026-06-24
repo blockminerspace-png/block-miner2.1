@@ -449,6 +449,13 @@ export default function Landing() {
         </div>
       </header>
 
+      {/* AADS banner — top (below header) */}
+      <div className="relative z-10 py-4 overflow-x-auto">
+        <div className="w-full max-w-[468px] mx-auto">
+          <iframe data-aa="2436936" src="//ad.a-ads.com/2436936/?size=468x60" className="border-0 w-full h-[60px] block mx-auto" style={{ overflow: 'hidden' }} />
+        </div>
+      </div>
+
       <main id="main-content" className="relative z-10">
         {/* ── HERO ── */}
         <section className="relative mx-auto max-w-6xl px-5 sm:px-8 pt-16 pb-20 sm:pt-24 sm:pb-32">
@@ -587,6 +594,13 @@ export default function Landing() {
             ))}
           </div>
         </section>
+
+        {/* AADS banner — mid (after How It Works, before Features) */}
+        <div className="py-4 overflow-x-auto">
+          <div className="w-full max-w-[468px] mx-auto">
+            <iframe data-aa="2436936" src="//ad.a-ads.com/2436936/?size=468x60" className="border-0 w-full h-[60px] block mx-auto" style={{ overflow: 'hidden' }} />
+          </div>
+        </div>
 
         {/* ── FEATURES ── */}
         <section id="features" className="border-y border-white/[0.07] bg-[#040c18]/70 py-20 sm:py-28">
@@ -874,6 +888,13 @@ export default function Landing() {
           </div>
         </section>
       </main>
+
+      {/* AADS banner — bottom (before footer) */}
+      <div className="relative z-10 py-4 overflow-x-auto">
+        <div className="w-full max-w-[468px] mx-auto">
+          <iframe data-aa="2436936" src="//ad.a-ads.com/2436936/?size=468x60" className="border-0 w-full h-[60px] block mx-auto" style={{ overflow: 'hidden' }} />
+        </div>
+      </div>
 
       {/* ── FOOTER ── */}
       <footer className="relative z-10 border-t border-white/[0.07] py-14 px-5 sm:px-8 bg-[#02070f] text-slate-500">

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Flame, Loader2, CheckCircle2, XCircle, Cpu, ChevronLeft, RefreshCw } from 'lucide-react';
 import { api } from '../../store/auth';
 import { toast } from 'sonner';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface RewardMiner {
   id: number;
@@ -313,6 +314,8 @@ export default function BurnEventsPage() {
           {events.map((e) => <EventCard key={e.id} event={e} onOpen={() => setSelected(e)} />)}
         </div>
       )}
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="burn-bottom" />
     </div>
   );
 }

@@ -53,6 +53,7 @@ const AdminFraudSignals = lazy(() => import('../pages/admin/AdminFraudSignals'))
 const AdminFinance = lazy(() => import('../pages/admin/AdminFinance'));
 const AdminBackups = lazy(() => import('../pages/admin/AdminBackups'));
 const AdminLogs = lazy(() => import('../pages/admin/AdminLogs'));
+const AdminClientErrors = lazy(() => import('../pages/admin/AdminClientErrors'));
 const AdminMetrics = lazy(() => import('../pages/admin/AdminMetrics'));
 const AdminOfferEvents = lazy(() => import('../pages/admin/AdminOfferEvents'));
 const AdminOfferEventManage = lazy(() => import('../pages/admin/AdminOfferEventManage'));
@@ -267,6 +268,7 @@ function App() {
             <Route path="/admin/finance" element={<AdminFinance />} />
             <Route path="/admin/backups" element={<AdminBackups />} />
             <Route path="/admin/logs" element={<AdminLogs />} />
+            <Route path="/admin/client-errors" element={<AdminClientErrors />} />
             <Route path="/admin/metrics" element={<AdminMetrics />} />
             <Route path="/admin/offer-events" element={<AdminOfferEvents />} />
             <Route path="/admin/offer-events/:id" element={<AdminOfferEventManage />} />

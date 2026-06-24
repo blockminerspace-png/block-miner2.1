@@ -22,6 +22,7 @@ import {
   formatCheckinNextReset,
   formatCheckinPeriodRange,
 } from './checkinPeriodDisplay';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import {
   getCheckinMilestoneDayLabel,
   getCheckinMilestoneDescription,
@@ -309,6 +310,8 @@ export default function Checkin() {
         <h1 className="text-4xl font-black text-white tracking-tight">{t('checkin.title')}</h1>
         <p className="text-gray-500 font-medium max-w-lg mx-auto">{t('checkin.subtitle')}</p>
       </div>
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="checkin-top" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-10 shadow-xl relative overflow-hidden group">

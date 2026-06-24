@@ -23,7 +23,7 @@ import * as sidebarNavController from "../controllers/sidebarNavController.js";
 import * as adminDailyTasksController from "../controllers/adminDailyTasksController.js";
 import * as adminInternalOfferwallController from "../controllers/adminInternalOfferwallController.js";
 import * as adminWithdrawalTelegramController from "../controllers/adminWithdrawalTelegramController.js";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import prisma from "../src/db/prisma.js";
 import { bulkCreateInventoryWithOwnedMachinesTx } from "../services/userOwnedMachineService.js";
 import { normalizePersistableMinerImageUrl } from "../utils/ownedMachineImage.js";
@@ -263,11 +263,17 @@ adminRouter.get("/analytics", async (req, res) => {
                 orderBy: { _sum: { rewardAmount: 'desc' } },
                 take: 10,
             }),
-            prisma.blockMinerReward.findMany({
-                where: { ...userFilter, createdAt: { gte: since } },
-                select: { rewardAmount: true, createdAt: true },
-                orderBy: { createdAt: 'asc' },
-            }),
+            (async () => {
+                const unit = period === 'year' ? 'month' : 'day';
+                const userClause = userIdNum !== undefined ? Prisma.sql`AND user_id = ${userIdNum}` : Prisma.empty;
+                return prisma.$queryRaw<Array<{ bucket: Date; total: number }>>(Prisma.sql`
+                    SELECT date_trunc(${unit}, created_at) AS bucket,
+                           COALESCE(SUM(reward_amount), 0)::float8 AS total
+                    FROM block_miner_rewards
+                    WHERE created_at >= ${since} ${userClause}
+                    GROUP BY 1
+                `);
+            })(),
             prisma.transaction.aggregate({ _sum: { amount: true }, where: { ...userFilter, type: 'withdrawal', status: 'completed' } }),
             prisma.transaction.aggregate({ _sum: { amount: true }, where: { ...userFilter, type: 'withdrawal', status: 'completed', createdAt: { gte: since } } }),
             userIdNum !== undefined ? Promise.resolve(null) : prisma.blockMinerReward.groupBy({ by: ['userId'], where: { createdAt: { gte: since } } }).then(r => r.length),
@@ -317,14 +323,14 @@ adminRouter.get("/analytics", async (req, res) => {
         // Chart buckets
         const buckets: Record<string, number> = {};
         for (const r of rewardsOverTime) {
-            const d = new Date(r.createdAt);
+            const d = new Date(r.bucket);
             let key;
             if (period === 'year') {
                 key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             } else {
                 key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             }
-            buckets[key] = (buckets[key] || 0) + Number(r.rewardAmount);
+            buckets[key] = (buckets[key] || 0) + Number(r.total);
         }
 
         const chartData = months.map(m => {
@@ -437,41 +443,40 @@ function bucketKey(d: Date, unit: "day" | "month"): string {
     return `${y}-${m}-${day}`;
 }
 
-function percentile(sorted: number[], p: number): number {
-    if (sorted.length === 0) return 0;
-    const idx = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
-    return sorted[idx] ?? 0;
-}
-
 // Inflation: per-bucket POL distributed (mining) vs POL withdrawn, cumulative supply curve
 adminRouter.get("/analytics/inflation", async (req, res) => {
     try {
         const { period, since, buckets, bucketUnit } = resolveAnalyticsPeriod(req.query.period);
         let polPrice = 0.35; try { polPrice = await getPolUsdPrice(); } catch {}
 
-        const [distributedRows, withdrawalRows, totalDistributedAgg, totalWithdrawnAgg] = await Promise.all([
-            prisma.blockMinerReward.findMany({ where: { createdAt: { gte: since } }, select: { rewardAmount: true, createdAt: true } }),
-            prisma.transaction.findMany({ where: { type: "withdrawal", status: "completed", createdAt: { gte: since } }, select: { amount: true, createdAt: true } }),
+        const unit = bucketUnit === "month" ? "month" : "day";
+        const [distributedBuckets, withdrawalBuckets, totalDistributedAgg, totalWithdrawnAgg] = await Promise.all([
+            prisma.$queryRaw<Array<{ bucket: Date; total: number }>>(Prisma.sql`
+                SELECT date_trunc(${unit}, created_at) AS bucket, COALESCE(SUM(reward_amount), 0)::float8 AS total
+                FROM block_miner_rewards WHERE created_at >= ${since} GROUP BY 1
+            `),
+            prisma.$queryRaw<Array<{ bucket: Date; total: number }>>(Prisma.sql`
+                SELECT date_trunc(${unit}, created_at) AS bucket, COALESCE(SUM(amount), 0)::float8 AS total
+                FROM transactions WHERE type = 'withdrawal' AND status = 'completed' AND created_at >= ${since} GROUP BY 1
+            `),
             prisma.blockMinerReward.aggregate({ _sum: { rewardAmount: true } }),
             prisma.transaction.aggregate({ _sum: { amount: true }, where: { type: "withdrawal", status: "completed" } }),
         ]);
 
         const distMap: Record<string, number> = {};
-        for (const r of distributedRows) {
-            const k = bucketKey(new Date(r.createdAt), bucketUnit);
-            distMap[k] = (distMap[k] || 0) + Number(r.rewardAmount || 0);
+        for (const r of distributedBuckets) {
+            distMap[bucketKey(new Date(r.bucket), bucketUnit)] = Number(r.total || 0);
         }
         const wMap: Record<string, number> = {};
-        for (const r of withdrawalRows) {
-            const k = bucketKey(new Date(r.createdAt), bucketUnit);
-            wMap[k] = (wMap[k] || 0) + Number(r.amount || 0);
+        for (const r of withdrawalBuckets) {
+            wMap[bucketKey(new Date(r.bucket), bucketUnit)] = Number(r.total || 0);
         }
 
         const totalDistributedAll = Number(totalDistributedAgg._sum.rewardAmount || 0);
         const totalWithdrawnAll = Number(totalWithdrawnAgg._sum.amount || 0);
         // Cumulative supply at start of window = total - sum(window distributed) + sum(window withdrawn) -- approximate net curve
-        const periodDistributedTotal = distributedRows.reduce((s, r) => s + Number(r.rewardAmount || 0), 0);
-        const periodWithdrawnTotal = withdrawalRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+        const periodDistributedTotal = Object.values(distMap).reduce((s, n) => s + n, 0);
+        const periodWithdrawnTotal = Object.values(wMap).reduce((s, n) => s + n, 0);
         let cumulative = totalDistributedAll - periodDistributedTotal + periodWithdrawnTotal; // net at start of window
 
         const series = buckets.map(b => {
@@ -518,14 +523,15 @@ adminRouter.get("/analytics/projections", async (req, res) => {
         const BLOCK_REWARD = 0.30;
         const BLOCKS_PER_DAY = 144;
 
-        const [netAgg, userAgg, last30Rows] = await Promise.all([
+        const [netAgg, userAgg, last30Agg] = await Promise.all([
             prisma.userMiner.aggregate({ _sum: { hashRate: true }, where: { isActive: true } }),
             userIdNum !== undefined
                 ? prisma.userMiner.aggregate({ _sum: { hashRate: true }, where: { isActive: true, userId: userIdNum } })
                 : Promise.resolve(null),
-            prisma.blockMinerReward.findMany({
+            prisma.blockMinerReward.aggregate({
+                _sum: { rewardAmount: true },
+                _count: { _all: true },
                 where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
-                select: { rewardAmount: true, createdAt: true },
             }),
         ]);
 
@@ -537,8 +543,8 @@ adminRouter.get("/analytics/projections", async (req, res) => {
         const theo = (days: number) => BLOCKS_PER_DAY * BLOCK_REWARD * share * days;
 
         // Empirical projection from last 30d actuals
-        const last30Total = last30Rows.reduce((s, r) => s + Number(r.rewardAmount || 0), 0);
-        const empiricalDaily = last30Rows.length > 0 ? last30Total / 30 : 0;
+        const last30Total = Number(last30Agg._sum.rewardAmount || 0);
+        const empiricalDaily = last30Agg._count._all > 0 ? last30Total / 30 : 0;
         const empirical = (days: number) => empiricalDaily * (userIdNum !== undefined ? share : 1) * days;
 
         res.json({
@@ -569,49 +575,57 @@ adminRouter.get("/analytics/withdrawals", async (req, res) => {
         const userIdNum = queryPositiveInt(req.query.userId);
         let polPrice = 0.35; try { polPrice = await getPolUsdPrice(); } catch {}
 
-        const baseWhere = { type: "withdrawal" as const, ...(userIdNum !== undefined ? { userId: userIdNum } : {}) };
-        const periodWhere = { ...baseWhere, createdAt: { gte: since } };
+        const unit = bucketUnit === "month" ? "month" : "day";
+        const userClause = userIdNum !== undefined ? Prisma.sql`AND user_id = ${userIdNum}` : Prisma.empty;
 
-        const [allCompleted, periodAll] = await Promise.all([
-            prisma.transaction.findMany({ where: { ...baseWhere, status: "completed" }, select: { amount: true, createdAt: true, completedAt: true } }),
-            prisma.transaction.findMany({ where: periodWhere, select: { amount: true, status: true, createdAt: true, completedAt: true } }),
+        const [statsRow, statusRows, seriesRows] = await Promise.all([
+            prisma.$queryRaw<Array<{
+                cnt: bigint; total: number | null; avg: number | null;
+                median: number | null; p90: number | null; p99: number | null;
+                avg_ttc_ms: number | null; median_ttc_ms: number | null;
+            }>>(Prisma.sql`
+                SELECT
+                    COUNT(*) AS cnt,
+                    COALESCE(SUM(amount), 0)::float8 AS total,
+                    COALESCE(AVG(amount), 0)::float8 AS avg,
+                    COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY amount), 0)::float8 AS median,
+                    COALESCE(percentile_cont(0.9) WITHIN GROUP (ORDER BY amount), 0)::float8 AS p90,
+                    COALESCE(percentile_cont(0.99) WITHIN GROUP (ORDER BY amount), 0)::float8 AS p99,
+                    COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) * 1000) FILTER (WHERE completed_at IS NOT NULL AND completed_at >= created_at), 0)::float8 AS avg_ttc_ms,
+                    COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (completed_at - created_at)) * 1000) FILTER (WHERE completed_at IS NOT NULL AND completed_at >= created_at), 0)::float8 AS median_ttc_ms
+                FROM transactions
+                WHERE type = 'withdrawal' AND status = 'completed' ${userClause}
+            `),
+            prisma.$queryRaw<Array<{ status: string; cnt: bigint }>>(Prisma.sql`
+                SELECT LOWER(status) AS status, COUNT(*) AS cnt
+                FROM transactions
+                WHERE type = 'withdrawal' AND created_at >= ${since} ${userClause}
+                GROUP BY 1
+            `),
+            prisma.$queryRaw<Array<{ bucket: Date; cnt: bigint; amount: number }>>(Prisma.sql`
+                SELECT date_trunc(${unit}, created_at) AS bucket,
+                       COUNT(*) AS cnt,
+                       COALESCE(SUM(amount), 0)::float8 AS amount
+                FROM transactions
+                WHERE type = 'withdrawal' AND status = 'completed' AND created_at >= ${since} ${userClause}
+                GROUP BY 1
+            `),
         ]);
 
-        const completedAmts = allCompleted.map(r => Number(r.amount || 0)).sort((a,b) => a - b);
-        const sum = completedAmts.reduce((s,n) => s + n, 0);
-        const avg = completedAmts.length ? sum / completedAmts.length : 0;
-        const median = percentile(completedAmts, 50);
-        const p90 = percentile(completedAmts, 90);
-        const p99 = percentile(completedAmts, 99);
+        const s = statsRow[0] ?? { cnt: 0n, total: 0, avg: 0, median: 0, p90: 0, p99: 0, avg_ttc_ms: 0, median_ttc_ms: 0 };
 
-        // time-to-complete (ms) for those with completedAt
-        const ttcMs = allCompleted
-            .filter(r => r.completedAt)
-            .map(r => new Date(r.completedAt as Date).getTime() - new Date(r.createdAt).getTime())
-            .filter(n => Number.isFinite(n) && n >= 0)
-            .sort((a,b) => a - b);
-        const avgTtcMs = ttcMs.length ? ttcMs.reduce((s,n) => s + n, 0) / ttcMs.length : 0;
-        const medianTtcMs = percentile(ttcMs, 50);
-
-        // status counts in period
         const statusCount = { completed: 0, pending: 0, failed: 0, other: 0 };
-        for (const r of periodAll) {
-            const s = (r.status || "").toLowerCase();
-            if (s === "completed") statusCount.completed++;
-            else if (s === "pending") statusCount.pending++;
-            else if (s === "failed") statusCount.failed++;
-            else statusCount.other++;
+        for (const r of statusRows) {
+            const n = Number(r.cnt);
+            if (r.status === "completed") statusCount.completed += n;
+            else if (r.status === "pending") statusCount.pending += n;
+            else if (r.status === "failed") statusCount.failed += n;
+            else statusCount.other += n;
         }
 
-        // period series (count + amount)
         const bucketMap: Record<string, { count: number; amount: number }> = {};
-        for (const r of periodAll) {
-            if (r.status !== "completed") continue;
-            const k = bucketKey(new Date(r.createdAt), bucketUnit);
-            const cur = bucketMap[k] || { count: 0, amount: 0 };
-            cur.count++;
-            cur.amount += Number(r.amount || 0);
-            bucketMap[k] = cur;
+        for (const r of seriesRows) {
+            bucketMap[bucketKey(new Date(r.bucket), bucketUnit)] = { count: Number(r.cnt), amount: Number(r.amount || 0) };
         }
         const series = buckets.map(b => {
             const k = bucketKey(b.from, bucketUnit);
@@ -624,11 +638,14 @@ adminRouter.get("/analytics/withdrawals", async (req, res) => {
             period,
             polPrice,
             stats: {
-                completedCount: completedAmts.length,
-                totalAmount: sum,
-                avg, median, p90, p99,
-                avgTimeToCompleteMs: avgTtcMs,
-                medianTimeToCompleteMs: medianTtcMs,
+                completedCount: Number(s.cnt),
+                totalAmount: Number(s.total || 0),
+                avg: Number(s.avg || 0),
+                median: Number(s.median || 0),
+                p90: Number(s.p90 || 0),
+                p99: Number(s.p99 || 0),
+                avgTimeToCompleteMs: Number(s.avg_ttc_ms || 0),
+                medianTimeToCompleteMs: Number(s.median_ttc_ms || 0),
             },
             statusBreakdownPeriod: statusCount,
             series,
@@ -696,6 +713,41 @@ adminRouter.get("/analytics/distribution", async (req, res) => {
 });
 
 // Banners
+// Client error reports (captured by ErrorBoundary + window handlers)
+adminRouter.get("/client-errors", async (req, res) => {
+    try {
+        const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+        const rows = await prisma.auditLog.findMany({
+            where: { action: "client_error_report" },
+            orderBy: { createdAt: "desc" },
+            take: limit,
+            select: {
+                id: true,
+                label: true,
+                description: true,
+                ip: true,
+                userAgent: true,
+                metadata: true,
+                createdAt: true,
+            },
+        });
+        res.json({ ok: true, items: rows });
+    } catch (err) {
+        console.error("[admin client-errors error]", adminErrMessage(err));
+        res.status(500).json({ ok: false, message: "Erro ao carregar reports." });
+    }
+});
+
+adminRouter.delete("/client-errors", async (_req, res) => {
+    try {
+        const r = await prisma.auditLog.deleteMany({ where: { action: "client_error_report" } });
+        res.json({ ok: true, deleted: r.count });
+    } catch (err) {
+        console.error("[admin client-errors delete error]", adminErrMessage(err));
+        res.status(500).json({ ok: false, message: "Erro ao limpar reports." });
+    }
+});
+
 adminRouter.get("/banners", bannerController.adminList);
 adminRouter.post("/banners", bannerController.adminCreate);
 adminRouter.put("/banners/:id", bannerController.adminUpdate);
@@ -804,6 +856,90 @@ adminRouter.post("/users/:id/unban", async (req, res) => {
             return res.status(400).json({ ok: false, message: "Unban reason is required." });
         }
         res.status(500).json({ ok: false, message: "Unable to unban user." });
+    }
+});
+
+// Adjust a user's balance for any currency. Body: { currency, mode, amount, reason? }
+//   currency ∈ pol | blk | blkLocked | shib | btc | eth | usdt | usdc | zer
+//   mode     ∈ set (replace) | add (delta — positive credits, negative debits)
+//   amount   numeric string/number, finite, non-NaN
+const CURRENCY_FIELD: Record<string, string> = {
+    pol: "polBalance",
+    blk: "blkBalance",
+    blkLocked: "blkLocked",
+    shib: "shibBalance",
+    btc: "btcBalance",
+    eth: "ethBalance",
+    usdt: "usdtBalance",
+    usdc: "usdcBalance",
+    zer: "zerBalance",
+};
+adminRouter.post("/users/:id/adjust-balance", async (req, res) => {
+    try {
+        const userId = parseStrictPositiveUserId(req.params.id);
+        if (!userId) return res.status(400).json({ ok: false, message: "ID inválido." });
+
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const currency = String(body.currency ?? "").trim();
+        const mode = String(body.mode ?? "set").trim();
+        const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
+
+        const field = CURRENCY_FIELD[currency];
+        if (!field) return res.status(400).json({ ok: false, message: "currency inválido." });
+        if (mode !== "set" && mode !== "add") {
+            return res.status(400).json({ ok: false, message: "mode inválido (set|add)." });
+        }
+        const amount = Number(body.amount);
+        if (!Number.isFinite(amount)) {
+            return res.status(400).json({ ok: false, message: "amount inválido." });
+        }
+
+        const before = (await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, email: true, [field]: true } as never,
+        })) as { id: number; email: string; [k: string]: unknown } | null;
+        if (!before) return res.status(404).json({ ok: false, message: "Usuário não encontrado." });
+
+        const prevValue = Number(before[field] ?? 0);
+        const nextValue = mode === "set" ? amount : prevValue + amount;
+        if (nextValue < 0) {
+            return res.status(400).json({ ok: false, message: "Saldo final não pode ser negativo." });
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { [field]: nextValue } as never,
+            select: { id: true, email: true, [field]: true } as never,
+        });
+
+        await prisma.auditLog.create({
+            data: {
+                userId,
+                action: "admin_balance_adjust",
+                source: "admin",
+                severity: "warn",
+                label: `${currency.toUpperCase()} ${mode} ${amount}`,
+                description: reason || null,
+                metadata: {
+                    currency, field, mode, amount,
+                    prev: prevValue,
+                    next: nextValue,
+                    delta: nextValue - prevValue,
+                    targetEmail: before.email,
+                },
+            },
+        });
+
+        res.json({
+            ok: true,
+            user: updated,
+            prev: prevValue,
+            next: nextValue,
+            delta: nextValue - prevValue,
+        });
+    } catch (err) {
+        console.error("[admin adjust-balance]", adminErrMessage(err));
+        res.status(500).json({ ok: false, message: "Erro ao ajustar saldo." });
     }
 });
 
@@ -1464,6 +1600,23 @@ adminRouter.get("/support/:id", adminSupportController.getMessage);
 adminRouter.post("/support/:id/reply", adminSupportController.replyToMessage);
 
 // ── Broadcast Messages ──────────────────────────────────────────────────────
+import { broadcastImageUpload, buildBroadcastImageUrl } from "../modules/broadcast/broadcast.upload.js";
+
+adminRouter.post("/broadcast/upload-image", (req, res) => {
+  broadcastImageUpload.single("image")(req, res, (err: unknown) => {
+    if (err) {
+      const msg = err instanceof Error ? err.message : "Upload inválido.";
+      res.status(400).json({ ok: false, message: msg });
+      return;
+    }
+    if (!req.file) {
+      res.status(400).json({ ok: false, message: "Nenhum arquivo enviado." });
+      return;
+    }
+    res.json({ ok: true, url: buildBroadcastImageUrl(req.file.filename) });
+  });
+});
+
 adminRouter.get("/broadcast", async (req, res) => {
   try {
     const messages = await prisma.broadcastMessage.findMany({
@@ -1476,16 +1629,52 @@ adminRouter.get("/broadcast", async (req, res) => {
   }
 });
 
+function clampDismissDelay(v: unknown): number | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return undefined;
+  return Math.max(0, Math.min(120, n));
+}
+
+/** Accept relative paths (/foo) or http(s) URLs. Trim + clamp length. Empty/null clears. */
+function normalizeBroadcastLink(v: unknown): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  const s = String(v).trim().slice(0, 1000);
+  if (!s) return null;
+  if (/^\//.test(s) || /^https?:\/\//i.test(s)) return s;
+  return null; // reject anything that's not a relative path or http(s)
+}
+
+function normalizeBroadcastLabel(v: unknown): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  const s = String(v).trim().slice(0, 60);
+  return s || null;
+}
+
 adminRouter.post("/broadcast", async (req, res) => {
   try {
-    const { title, content, imageUrl, isActive } = req.body;
+    const { title, content, imageUrl, isActive, dismissDelaySeconds, linkUrl, linkLabel, linkNewTab } = req.body;
     if (!title) return res.status(400).json({ ok: false, message: "Title required" });
     // If activating this one, deactivate all others first
     if (isActive) {
       await prisma.broadcastMessage.updateMany({ data: { isActive: false } });
     }
+    const delay = clampDismissDelay(dismissDelaySeconds);
+    const link = normalizeBroadcastLink(linkUrl);
+    const label = normalizeBroadcastLabel(linkLabel);
     const msg = await prisma.broadcastMessage.create({
-      data: { title, content: content || null, imageUrl: imageUrl || null, isActive: !!isActive },
+      data: {
+        title,
+        content: content || null,
+        imageUrl: imageUrl || null,
+        isActive: !!isActive,
+        ...(delay !== undefined && { dismissDelaySeconds: delay }),
+        linkUrl: link ?? null,
+        linkLabel: label ?? null,
+        linkNewTab: Boolean(linkNewTab),
+      },
     });
     res.json({ ok: true, message: msg });
   } catch (err: unknown) {
@@ -1496,10 +1685,13 @@ adminRouter.post("/broadcast", async (req, res) => {
 adminRouter.patch("/broadcast/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { title, content, imageUrl, isActive } = req.body;
+    const { title, content, imageUrl, isActive, dismissDelaySeconds, linkUrl, linkLabel, linkNewTab } = req.body;
     if (isActive) {
       await prisma.broadcastMessage.updateMany({ where: { id: { not: id } }, data: { isActive: false } });
     }
+    const delay = clampDismissDelay(dismissDelaySeconds);
+    const link = normalizeBroadcastLink(linkUrl);
+    const label = normalizeBroadcastLabel(linkLabel);
     const msg = await prisma.broadcastMessage.update({
       where: { id },
       data: {
@@ -1507,6 +1699,10 @@ adminRouter.patch("/broadcast/:id", async (req, res) => {
         ...(content !== undefined && { content }),
         ...(imageUrl !== undefined && { imageUrl }),
         ...(isActive !== undefined && { isActive }),
+        ...(delay !== undefined && { dismissDelaySeconds: delay }),
+        ...(link !== undefined && { linkUrl: link }),
+        ...(label !== undefined && { linkLabel: label }),
+        ...(linkNewTab !== undefined && { linkNewTab: Boolean(linkNewTab) }),
       },
     });
     res.json({ ok: true, message: msg });

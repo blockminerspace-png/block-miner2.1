@@ -180,6 +180,9 @@
       "#server/modules/tournaments/index.js": [
         "./src/types/stubs/stub-server-modules-tournaments-index.d.ts"
       ],
+      "#server/modules/energy-tax/index.js": [
+        "./src/types/stubs/stub-server-modules-energy-tax-index.d.ts"
+      ],
       "#server/modules/traffic/index.js": [
         "./src/types/stubs/stub-server-modules-traffic-index.d.ts"
       ],

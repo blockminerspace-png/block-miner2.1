@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { ArrowLeft, ExternalLink, LayoutGrid, Loader2, PlayCircle, Send } from 'lucide-react';
 import { api } from '../../store/auth';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { formatHoursClock, openPartnerWithReferrer, rewardLine } from './internalOfferwallHelpers';
 import { useDecountingSeconds, useElapsedSeconds } from './internalOfferwallHooks';
 import type {

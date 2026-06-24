@@ -12,6 +12,7 @@ import {
     DEFAULT_MINER_IMAGE_URL
 } from '../../shared/utils/machine';
 import { sanitizeMachineImageSrc } from '../../shared/utils/inventoryPageGuards';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface RoomMiner {
     slotIndex?: number;
@@ -311,6 +312,8 @@ export default function PublicRoom() {
                     Modo visitação — somente leitura
                 </p>
             </div>
+
+            <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="public-room-bottom" />
         </div>
     );
 }

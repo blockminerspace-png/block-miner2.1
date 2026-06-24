@@ -124,6 +124,8 @@ type TrackedWalletRow = {
   sortOrder: number;
   includeInTotals: boolean;
   isPublic: boolean;
+  manualUsdValue?: number | null;
+  manualValueNote?: string | null;
 };
 
 type TrackedWalletFormState = {
@@ -136,6 +138,8 @@ type TrackedWalletFormState = {
   isPublic: boolean;
   isActive: boolean;
   sortOrder: number;
+  manualUsdValue: string; // empty string = no override
+  manualValueNote: string;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -249,6 +253,8 @@ export default function AdminTransparency() {
     isPublic: true,
     isActive: true,
     sortOrder: 0,
+    manualUsdValue: '',
+    manualValueNote: '',
   });
 
   const jsonHeaders = () => ({
@@ -383,6 +389,8 @@ export default function AdminTransparency() {
           isPublic: true,
           isActive: true,
           sortOrder: 0,
+          manualUsdValue: '',
+          manualValueNote: '',
         });
         loadTrackedWallets();
         refreshTrackedWalletActivity();
@@ -800,6 +808,32 @@ export default function AdminTransparency() {
           </button>
         </div>
 
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-2">
+          <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Override manual (off-chain)</p>
+          <p className="text-[11px] text-amber-200/70 leading-snug">
+            Preenche o valor USD a ser exibido (ex: ASICs, USD em corretora) — quando setado, o portal NÃO chama DeBank
+            pra essa carteira e mostra esse valor direto. Deixa em branco pra voltar ao rastreio normal.
+          </p>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[160px_minmax(0,1fr)]">
+            <input
+              className={inputCls}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="USD ex: 1682"
+              value={trackedWalletForm.manualUsdValue}
+              onChange={(e) => setTrackedWalletForm((f) => ({ ...f, manualUsdValue: e.target.value }))}
+            />
+            <input
+              className={inputCls}
+              placeholder="Nota opcional (ex: Antminer S19J Pro + USDC em corretora)"
+              maxLength={280}
+              value={trackedWalletForm.manualValueNote}
+              onChange={(e) => setTrackedWalletForm((f) => ({ ...f, manualValueNote: e.target.value }))}
+            />
+          </div>
+        </div>
+
         {trackedWalletActivity?.summary ? (
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -833,18 +867,13 @@ export default function AdminTransparency() {
         {trackedWallets.length > 0 ? (
           <div className="space-y-3">
             {trackedWallets.map((wallet) => (
-              <div key={wallet.id} className="flex flex-col gap-3 rounded-xl border border-white/8 bg-black/20 p-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-white">{wallet.label}</p>
-                  <p className="font-mono text-xs text-slate-400 break-all">{wallet.address}</p>
-                  <p className="text-[11px] text-slate-500 mt-1">{wallet.chain} · {wallet.assetSymbol} · ordem {wallet.sortOrder}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${wallet.includeInTotals ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>Totais</span>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${wallet.isPublic ? 'bg-sky-500/10 text-sky-300' : 'bg-slate-800 text-slate-400'}`}>Público</span>
-                  <button type="button" onClick={() => removeTrackedWallet(wallet.id)} className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-[10px] font-bold uppercase tracking-widest">Remover</button>
-                </div>
-              </div>
+              <TrackedWalletRowItem
+                key={wallet.id}
+                wallet={wallet}
+                onSavedManual={() => { loadTrackedWallets(); refreshTrackedWalletActivity(); }}
+                onRemove={() => removeTrackedWallet(wallet.id)}
+                jsonHeaders={jsonHeaders}
+              />
             ))}
           </div>
         ) : null}
@@ -1325,6 +1354,133 @@ export default function AdminTransparency() {
               ))}
             </tbody>
           </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrackedWalletRowItem({ wallet, onSavedManual, onRemove, jsonHeaders }: {
+  wallet: TrackedWalletRow;
+  onSavedManual: () => void;
+  onRemove: () => void;
+  jsonHeaders: () => Record<string, string>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [manualUsd, setManualUsd] = useState<string>(wallet.manualUsdValue != null ? String(wallet.manualUsdValue) : '');
+  const [note, setNote] = useState<string>(wallet.manualValueNote ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async (clear = false) => {
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/admin/transparency/tracked-wallets/${wallet.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          label: wallet.label,
+          address: wallet.address,
+          chain: wallet.chain,
+          assetSymbol: wallet.assetSymbol,
+          isPublic: wallet.isPublic,
+          includeInTotals: wallet.includeInTotals,
+          sortOrder: wallet.sortOrder,
+          manualUsdValue: clear ? '' : manualUsd,
+          manualValueNote: clear ? '' : note,
+        }),
+      });
+      const d = (await r.json()) as { ok?: boolean; message?: string };
+      if (d.ok) {
+        toast.success(clear ? 'Override removido — voltando ao rastreio on-chain' : 'Valor manual salvo');
+        setEditing(false);
+        onSavedManual();
+      } else {
+        toast.error(d.message ?? 'Falha ao salvar');
+      }
+    } catch {
+      toast.error('Erro de rede');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasOverride = wallet.manualUsdValue != null;
+
+  return (
+    <div className="rounded-xl border border-white/8 bg-black/20 p-4 space-y-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-white">{wallet.label}</p>
+          <p className="font-mono text-xs text-slate-400 break-all">{wallet.address}</p>
+          <p className="text-[11px] text-slate-500 mt-1">{wallet.chain} · {wallet.assetSymbol} · ordem {wallet.sortOrder}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${wallet.includeInTotals ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>Totais</span>
+          <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${wallet.isPublic ? 'bg-sky-500/10 text-sky-300' : 'bg-slate-800 text-slate-400'}`}>Público</span>
+          {hasOverride && (
+            <span className="rounded-full px-2 py-1 text-[10px] font-bold uppercase bg-amber-500/15 text-amber-300">
+              Manual ${Number(wallet.manualUsdValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            className="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-[10px] font-bold uppercase tracking-widest"
+          >
+            {hasOverride ? 'Editar manual' : 'Setar manual'}
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-[10px] font-bold uppercase tracking-widest"
+          >
+            Remover
+          </button>
+        </div>
+      </div>
+
+      {editing && (
+        <div className="border-t border-white/8 pt-3 space-y-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[160px_minmax(0,1fr)]">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="USD ex: 1682"
+              value={manualUsd}
+              onChange={(e) => setManualUsd(e.target.value)}
+              className="rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white"
+            />
+            <input
+              placeholder="Nota opcional (ex: Antminer S19J Pro + USDC corretora)"
+              maxLength={280}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => void save(false)}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl bg-amber-500/30 border border-amber-500/40 hover:bg-amber-500/40 text-amber-100 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+            >
+              {saving ? 'Salvando…' : 'Salvar override'}
+            </button>
+            {hasOverride && (
+              <button
+                type="button"
+                onClick={() => void save(true)}
+                disabled={saving}
+                className="px-4 py-2 rounded-xl bg-slate-700/40 border border-slate-600/40 hover:bg-slate-700/60 text-slate-200 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+              >
+                Limpar override
+              </button>
+            )}
+            <span className="text-[10px] text-slate-500">Vazio = volta pro rastreio on-chain</span>
           </div>
         </div>
       )}

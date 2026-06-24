@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 import MondiadBanner from '../../shared/components/MondiadBanner';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface ShortlinkStatusPayload {
     dailyRuns?: number;
@@ -188,6 +189,8 @@ export default function Shortlinks() {
                     </div>
                 </div>
             </div>
+
+            <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="shortlinks-bottom" />
         </div>
     );
 }

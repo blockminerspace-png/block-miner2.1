@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore, api } from '../../store/auth';
 import { Store, ExternalLink, Info, TrendingUp, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 const OFFERWALLME_API_KEY = 'yyu8i3jt58by9do1fbdr0fyn60yn5u';
 

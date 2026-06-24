@@ -1,15 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
-import FloatingPublicSupport from '../../../components/FloatingPublicSupport/FloatingPublicSupport';
 import { toast } from 'sonner';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../../store/auth';
 import { Mail, User, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, Gift } from 'lucide-react';
-import BrandLogo from '../../../shared/components/BrandLogo';
+import AuthShell from '../../../shared/components/auth/AuthShell';
 import SocialLoginButtons from '../../../shared/components/auth/SocialLoginButtons';
 import TurnstileField, { prefetchTurnstileScript } from '../../../shared/components/auth/TurnstileField';
 import { resolveTurnstileSiteKeyRegister } from '../../../constants/turnstilePublic';
-import SiteFooter from '../../../shared/components/SiteFooter';
 import {
   REGISTER_USERNAME_MIN,
   REGISTER_USERNAME_MAX,
@@ -223,21 +221,18 @@ export default function Register() {
   const displayStoreError = error ? safeInlineMessage(t(error, { defaultValue: error })) : '';
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse delay-700" />
+    <AuthShell hideAuthCta="register">
+      <div className="w-full max-w-[480px] relative z-10">
+        <div className="text-center mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
+          <h1 className="font-black leading-[1.06] text-[clamp(1.75rem,3vw+0.6rem,2.75rem)]">
+            <span className="block text-white">{t('auth.register.title')}</span>
+            <span className="block bg-gradient-to-r from-sky-300 via-cyan-300 to-blue-400 bg-clip-text text-transparent">
+              {t('auth.register.subtitle')}
+            </span>
+          </h1>
+        </div>
 
-        <div className="w-full max-w-[480px] relative z-10">
-          <div className="text-center mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
-            <div className="flex justify-center mb-6">
-              <BrandLogo variant="auth" />
-            </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">{t('auth.register.title')}</h1>
-            <p className="text-gray-500 font-medium mt-1">{t('auth.register.subtitle')}</p>
-          </div>
-
-          <div className="bg-surface/95 border border-gray-800/70 rounded-[2.5rem] p-10 shadow-2xl animate-in fade-in zoom-in-95 duration-700 delay-200">
+          <div className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-[2.5rem] p-10 shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-700 delay-200">
             {error && (
               <div
                 className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3"
@@ -467,15 +462,12 @@ export default function Register() {
             </div>
           </div>
 
-          <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">
-            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.1em] max-w-[300px] mx-auto leading-relaxed">
-              {t('auth.register.privacyDisclosure')}
-            </p>
-          </div>
+        <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">
+          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.1em] max-w-[300px] mx-auto leading-relaxed">
+            {t('auth.register.privacyDisclosure')}
+          </p>
         </div>
       </div>
-      <SiteFooter compact />
-      <FloatingPublicSupport />
-    </div>
+    </AuthShell>
   );
 }

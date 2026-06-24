@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,9 +10,10 @@ import {
   Eye, Server, Wrench, Megaphone, Briefcase, Scale, Package,
   DollarSign, ExternalLink, TrendingUp, TrendingDown,
   CheckCircle2, Clock, Wallet, Copy, Check as CheckIcon, ShieldCheck,
-  BarChart2, Activity, ArrowUpRight, ImageIcon, AlertTriangle,
+  BarChart2, Activity, ArrowUpRight, ImageIcon, AlertTriangle, Cpu,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -149,6 +150,8 @@ export interface TrackedWalletEntry {
   liquidityPools?: LiquidityPoolEntry[];
   chains?: ChainSnapshotEntry[];
   fetchedAt?: string;
+  manualUsdValue?: number | null;
+  manualValueNote?: string | null;
 }
 
 interface TransparencyApiResponse {
@@ -547,8 +550,10 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
   const cfg = DISPLAY_MODE_CONFIG[mode] ?? DISPLAY_MODE_CONFIG.total_received;
   const modeLabel = t(`transparency.wallets.mode_${mode}`, cfg.label);
   const explorerUrl = `${wallet.explorerBaseUrl || 'https://polygonscan.com/address'}/${wallet.address}`;
+  const isManualValue = wallet.manualUsdValue != null;
   const isInvestment = wallet.address.toLowerCase() === INVESTMENT_WALLET_ADDRESS.toLowerCase();
-  const investmentBreakdown = isInvestment ? getInvestmentBreakdown(wallet) : null;
+  // Manual override hides the on-chain breakdown entirely.
+  const investmentBreakdown = isInvestment && !isManualValue ? getInvestmentBreakdown(wallet) : null;
   const isDeprecated =
     wallet.isActive === false ||
     wallet.address.toLowerCase() === OLD_DEPOSIT_WALLET_ADDRESS.toLowerCase();
@@ -611,15 +616,28 @@ function WalletCard({ wallet, loading }: { wallet: TrackedWalletEntry; loading: 
           </a>
         </div>
 
-        <div className={`rounded-xl border ${isDeprecated ? 'border-red-500/15' : 'border-white/8'} bg-black/20 p-4`}>
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">
-            {modeLabel} · {mode === 'current_balance' && wallet.chains && wallet.chains.length > 1 ? t('transparency.wallets.multi_chain') : 'Polygon'}
-            {mode === 'current_balance' && wallet.fetchedAt && (
-              <span className="ml-2 text-gray-700 normal-case tracking-normal font-normal">
+        <div className={`rounded-xl border ${isDeprecated ? 'border-red-500/15' : isManualValue ? 'border-amber-500/25' : 'border-white/8'} bg-black/20 p-4`}>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-2 flex-wrap">
+            <span>
+              {isManualValue ? t('transparency.wallets.manual_value_label', 'Valor declarado') : modeLabel}
+              {' · '}
+              {!isManualValue && mode === 'current_balance' && wallet.chains && wallet.chains.length > 1 ? t('transparency.wallets.multi_chain') : 'Polygon'}
+            </span>
+            {!isManualValue && mode === 'current_balance' && wallet.fetchedAt && (
+              <span className="text-gray-700 normal-case tracking-normal font-normal">
                 · {t('transparency.wallets.updated')} {new Date(wallet.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
+            {isManualValue && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-400 px-2 py-0.5 text-[9px] font-black tracking-wider normal-case">
+                <AlertTriangle className="w-2.5 h-2.5" aria-hidden="true" />
+                {t('transparency.wallets.off_chain_badge', 'Off-chain')}
+              </span>
+            )}
           </p>
+          {isManualValue && wallet.manualValueNote && (
+            <p className="mb-2 text-[11px] text-amber-200/80 leading-snug">{wallet.manualValueNote}</p>
+          )}
           {loading
             ? <div className="h-8 w-40 bg-white/5 rounded-lg animate-pulse" />
             : mode === 'current_balance'
@@ -1315,11 +1333,162 @@ export default function Transparency() {
             </div>
           )}
 
+          <HardwareSection />
+
           <p className="text-[11px] text-gray-600 text-center pb-4">
             {t('transparency.footer_note')}
           </p>
         </>
       )}
     </div>
+  );
+}
+
+// ── Owned hardware ─────────────────────────────────────────────────────────
+// Documents real ASIC mining equipment owned by the operation. The 3D model
+// is lazy-loaded (24 MB GLB) — only fetched after the user opts in.
+
+const MODEL_VIEWER_SCRIPT =
+  'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js';
+let modelViewerScriptPromise: Promise<void> | null = null;
+
+function loadModelViewer(): Promise<void> {
+  if (modelViewerScriptPromise) return modelViewerScriptPromise;
+  modelViewerScriptPromise = new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') return resolve();
+    if (customElements.get('model-viewer')) return resolve();
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = MODEL_VIEWER_SCRIPT;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Falha ao carregar model-viewer.'));
+    document.head.appendChild(s);
+  });
+  return modelViewerScriptPromise;
+}
+
+function HardwareSection() {
+  const { t } = useTranslation();
+  const [loadingScript, setLoadingScript] = useState(true);
+  const [scriptReady, setScriptReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadModelViewer()
+      .then(() => { if (!cancelled) setScriptReady(true); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : t('transparency.hardware.viewer_error')); })
+      .finally(() => { if (!cancelled) setLoadingScript(false); });
+    return () => { cancelled = true; };
+  }, [t]);
+
+  return (
+    <section className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-500/[0.04] overflow-hidden">
+      <header className="px-6 py-5 border-b border-white/5 flex items-center gap-3 flex-wrap">
+        <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+          <Cpu className="w-4 h-4 text-amber-400" aria-hidden="true" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-black text-white uppercase tracking-widest">{t('transparency.hardware.section_title')}</h2>
+          <p className="text-[11px] text-gray-500 mt-0.5">{t('transparency.hardware.section_subtitle')}</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          {t('transparency.hardware.status_running')}
+        </span>
+      </header>
+
+      <div className="grid md:grid-cols-[1fr_auto] gap-6 p-6">
+        <div className="space-y-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-amber-400/80 font-mono mb-1">{t('transparency.hardware.manufacturer')}</p>
+            <h3 className="text-2xl font-black text-white tracking-tight">{t('transparency.hardware.model')}</h3>
+            <p className="text-xs text-gray-400 mt-2 max-w-md leading-relaxed">
+              {t('transparency.hardware.description')}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-4 space-y-3">
+            <p className="text-[10px] uppercase tracking-widest text-amber-400 font-mono">
+              {t('transparency.hardware.purchase_title')}
+            </p>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              {t('transparency.hardware.purchase_body', { weeks: 2 })}
+            </p>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+                <p className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">{t('transparency.hardware.cost_label')}</p>
+                <p className="mt-0.5 text-lg font-black text-amber-300 font-mono">$640</p>
+              </div>
+              <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+                <p className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">{t('transparency.hardware.transit_label')}</p>
+                <p className="mt-0.5 text-lg font-black text-white font-mono">{t('transparency.hardware.weeks', { count: 2 })}</p>
+              </div>
+            </div>
+          </div>
+
+          <dl className="grid grid-cols-2 gap-3 text-xs">
+            {[
+              [t('transparency.hardware.spec_algorithm'), 'SHA-256'],
+              [t('transparency.hardware.spec_hashrate'), '100 TH/s'],
+              [t('transparency.hardware.spec_power'), '~3050 W'],
+              [t('transparency.hardware.spec_efficiency'), '29.5 J/TH'],
+              [t('transparency.hardware.spec_voltage'), '170–300 V'],
+              [t('transparency.hardware.spec_manufacturer'), 'Bitmain'],
+            ].map(([k, v]) => (
+              <div key={k} className="rounded-xl border border-white/8 bg-slate-900/50 px-3 py-2">
+                <dt className="text-[10px] uppercase tracking-widest text-gray-500 font-mono">{k}</dt>
+                <dd className="mt-0.5 text-sm font-black text-white">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="md:w-[280px] space-y-3">
+          <div className="relative aspect-square rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 overflow-hidden">
+            {loadingScript && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10 bg-slate-950/80">
+                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">{t('transparency.hardware.viewer_loading')}</p>
+              </div>
+            )}
+            {error && (
+              <div className="absolute inset-0 flex items-center justify-center p-4 text-center z-10 bg-slate-950/80">
+                <p className="text-xs text-red-400">{error}</p>
+              </div>
+            )}
+            {scriptReady && !error && (
+              // model-viewer is a Web Component; TS doesn't know its JSX tag.
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              React.createElement('model-viewer' as any, {
+                src: '/models/antminer-s19j-pro.glb',
+                alt: 'Antminer S19J Pro 3D',
+                'camera-controls': true,
+                'auto-rotate': true,
+                'rotation-per-second': '20deg',
+                'shadow-intensity': '0.6',
+                'shadow-softness': '0.8',
+                exposure: '0.55',
+                'tone-mapping': 'aces',
+                'interaction-prompt': 'none',
+                loading: 'eager',
+                reveal: 'auto',
+                style: {
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(180deg, #0b1220 0%, #050913 100%)',
+                  ['--poster-color' as string]: 'transparent',
+                },
+              })
+            )}
+          </div>
+          {scriptReady && !error && (
+            <p className="text-[10px] text-gray-600 text-center font-mono">
+              {t('transparency.hardware.viewer_hint')}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

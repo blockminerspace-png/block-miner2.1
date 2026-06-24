@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Activity, RefreshCw, Coins, Radio, Wifi, TrendingUp, Zap } from "lucide-react";
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface LiveServerBlock {
   num: string | number;

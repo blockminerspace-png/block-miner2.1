@@ -25,6 +25,7 @@ partnerGamesRouter.post("/:id/vote", requireAuth, voteRateLimiter, ctrl.votePart
 export const adminPartnerGamesRouter = Router();
 adminPartnerGamesRouter.use(requireAdminAuth);
 adminPartnerGamesRouter.get("/", ctrl.adminListPartnerGames);
+adminPartnerGamesRouter.post("/upload-cover", ctrl.uploadPartnerGameCover);
 adminPartnerGamesRouter.post("/", ctrl.adminCreatePartnerGame);
 adminPartnerGamesRouter.put("/:id", ctrl.adminUpdatePartnerGame);
 adminPartnerGamesRouter.delete("/:id", ctrl.adminDeletePartnerGame);

@@ -38,6 +38,7 @@ import { tournamentsRouter } from "#server/modules/tournaments/index.js";
 import { ptcRouter } from "#server/modules/ptc/ptc.routes.js";
 import { partnerGamesRouter } from "#server/modules/partnerGames/index.js";
 import { burnEventsRouter } from "#server/modules/burnEvents/index.js";
+import { energyTaxRouter } from "#server/modules/energy-tax/index.js";
 
 export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/auth", authRouter);
@@ -79,4 +80,5 @@ export function mountUserApplicationApiRoutes(app: Express): void {
   app.use("/api/ptc", ptcRouter);
   app.use("/api/partner-games", partnerGamesRouter);
   app.use("/api/burn-events", burnEventsRouter);
+  app.use("/api/energy-tax", energyTaxRouter);
 }

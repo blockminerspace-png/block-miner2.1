@@ -10,6 +10,8 @@ import { startOfferEventsExpireCron } from "./offerEventsExpireCron.js";
 import { startSecurityArtifactCleanupCron } from "./securityArtifactCleanupCron.js";
 import { startWalletSnapshotCron } from "./walletSnapshotCron.js";
 import { startTournamentsCron } from "../modules/tournaments/tournaments.cron.js";
+import { startUserCountSnapshotCron } from "./userCountSnapshotCron.js";
+import { startEnergyTaxCron } from "./energyTaxCron.js";
 
 export type StartCronTasksParams = {
   engine: MiningEngineLike;
@@ -46,6 +48,8 @@ export function startCronTasks({
   const securityArtifactTimers = startSecurityArtifactCleanupCron();
   const walletSnapshotTimers   = startWalletSnapshotCron();
   const tournamentTimers       = startTournamentsCron();
+  const userCountSnapshotTimers = startUserCountSnapshotCron();
+  const energyTaxTimers         = startEnergyTaxCron();
 
   // Run full site backup on startup (includes DB + all files)
   // runFullSiteBackupOnStartup();
@@ -63,5 +67,7 @@ export function startCronTasks({
     ...securityArtifactTimers,
     ...walletSnapshotTimers,
     ...tournamentTimers,
+    ...userCountSnapshotTimers,
+    ...energyTaxTimers,
   };
 }

@@ -2,8 +2,8 @@ import React, { type ErrorInfo, type ReactNode } from 'react';
 import {
   clearChunkReloadMarkers,
   forceReloadForNewBuild,
-  handleChunkLoadFailure,
   isChunkLoadError,
+  shouldAutoReloadChunkError,
 } from '../utils/chunkLoadError';
 
 interface ErrorBoundaryProps {
@@ -16,6 +16,53 @@ interface ErrorBoundaryState {
   errorDetail?: string;
   errorStack?: string | null;
   staleChunk?: boolean;
+  reportedKey?: string;
+}
+
+const NOISE_PATTERNS = [
+  /chrome-extension:\/\//i,
+  /moz-extension:\/\//i,
+  /safari-extension:\/\//i,
+  /\bblob:https?:\/\//i,
+  /ss\.mrmnd\.com/i,
+  /googletagmanager\.com/i,
+  /google-analytics\.com/i,
+  /doubleclick\.net/i,
+  /facebook\.net/i,
+];
+
+function isNoise(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return NOISE_PATTERNS.some((re) => re.test(text));
+}
+
+function reportClientError(payload: {
+  message: string;
+  stack?: string | null;
+  componentStack?: string | null;
+}): void {
+  if (isNoise(payload.message) || isNoise(payload.stack) || isNoise(payload.componentStack)) return;
+  try {
+    const body = JSON.stringify({
+      message: payload.message.slice(0, 800),
+      stack: payload.stack?.slice(0, 4000) ?? null,
+      componentStack: payload.componentStack?.slice(0, 4000) ?? null,
+      url: typeof window !== 'undefined' ? window.location.href : null,
+      buildId:
+        typeof document !== 'undefined'
+          ? document.querySelector('meta[name="bm-build"]')?.getAttribute('content') ?? null
+          : null,
+    });
+    // keepalive so the request goes out even if we navigate / reload
+    void fetch('/api/track/client-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* never let reporting throw */
+  }
 }
 
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -32,16 +79,31 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     const msg = String(
       error instanceof Error ? error.message : typeof error === 'string' ? error : (error ?? ''),
     );
+    const stack = error instanceof Error ? (error.stack ?? null) : null;
+    const componentStack = errorInfo?.componentStack ?? null;
+    const staleChunk = isChunkLoadError(msg) || isChunkLoadError(error);
 
-    if (handleChunkLoadFailure(error)) {
+    // Stale chunks (cached old index referencing deleted hashes) are self-healing:
+    // try ONE silent reload per 60s — user never sees the error screen, admin
+    // never gets a report. If reload throttle blocks, fall through to the screen.
+    if (staleChunk && shouldAutoReloadChunkError()) {
+      forceReloadForNewBuild();
       return;
     }
 
-    const staleChunk = isChunkLoadError(msg) || isChunkLoadError(error);
+    // De-dupe + skip reporting noise (chunks + browser extensions).
+    if (!staleChunk) {
+      const key = `${msg}\n${stack ?? ''}`;
+      if (this.state.reportedKey !== key) {
+        reportClientError({ message: msg, stack, componentStack });
+        this.setState({ reportedKey: key });
+      }
+    }
+
     console.error('Critical Render Error caught by Boundary:', error, errorInfo);
     this.setState({
       errorDetail: msg,
-      errorStack: errorInfo?.componentStack,
+      errorStack: componentStack,
       staleChunk,
     });
   }
@@ -80,32 +142,79 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
           >
             Erro de Interface
           </h1>
-          <p style={{ color: '#94a3b8', maxWidth: '420px', marginBottom: '30px', lineHeight: '1.5' }}>
+          <p style={{ color: '#94a3b8', maxWidth: '420px', marginBottom: '12px', lineHeight: '1.5' }}>
             {this.state.staleChunk
               ? 'A plataforma foi atualizada. Recarregue para baixar a versão mais recente.'
-              : 'Ocorreu um erro crítico na renderização. Isso acontece quando alguns dados da conta estão inconsistentes.'}
+              : 'Ocorreu um erro crítico na renderização. O time já foi notificado automaticamente.'}
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              clearChunkReloadMarkers();
-              forceReloadForNewBuild();
-            }}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#3B82F6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '12px',
-              fontWeight: '900',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              fontSize: '12px',
-              letterSpacing: '1px',
-            }}
-          >
-            Recarregar plataforma
-          </button>
+          <p style={{ color: '#64748b', fontSize: '11px', marginBottom: '20px' }}>
+            Reporte enviado para o administrador.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '8px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                clearChunkReloadMarkers();
+                forceReloadForNewBuild();
+              }}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#3B82F6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: '900',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                fontSize: '12px',
+                letterSpacing: '1px',
+              }}
+            >
+              Recarregar plataforma
+            </button>
+            <a
+              href="https://t.me/+KPgyUFtKCZ00Y2Vh"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                backgroundColor: '#229ED9',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: '900',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                fontSize: '12px',
+                letterSpacing: '1px',
+                textDecoration: 'none',
+              }}
+              aria-label="Reportar via Telegram"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.15-3.07-1.99 1.94c-.23.23-.42.42-.83.42z" />
+              </svg>
+              Reportar no Telegram
+            </a>
+          </div>
+          <p style={{ color: '#475569', fontSize: '10px', marginTop: '4px', maxWidth: '420px' }}>
+            Se o erro persistir, abra o nosso grupo do Telegram e envie a mensagem abaixo (ou um print) ao admin.
+          </p>
+          <p style={{ color: '#475569', fontSize: '10px', marginTop: '12px', maxWidth: '460px', lineHeight: '1.5' }}>
+            <strong style={{ color: '#94a3b8' }}>Dica:</strong> se o erro voltar mesmo após
+            recarregar, limpe o cache do seu navegador
+            (<kbd style={{ fontFamily: 'monospace', background: '#1e293b', padding: '1px 5px', borderRadius: '4px' }}>Ctrl+Shift+Del</kbd>
+            {' '}no PC ou <em>Limpar dados de navegação</em> no celular) e abra a página de novo.
+          </p>
           {this.state.errorDetail ? (
             <details style={{ marginTop: '20px', maxWidth: '600px', textAlign: 'left' }}>
               <summary

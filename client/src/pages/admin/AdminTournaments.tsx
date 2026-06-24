@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import {
   Trophy,
@@ -14,9 +15,19 @@ import {
   Repeat,
   ChevronDown,
   ChevronUp,
+  Search,
+  Cpu,
+  Zap,
+  Pencil,
+  X,
 } from 'lucide-react';
 
-const adminApi = axios.create({ baseURL: '/', withCredentials: true });
+const adminApi = axios.create({
+  baseURL: '/',
+  withCredentials: true,
+  xsrfCookieName: 'blockminer_csrf',
+  xsrfHeaderName: 'x-csrf-token',
+});
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,19 +57,188 @@ interface Tournament {
   _count: { entries: number };
 }
 
+interface AdminMinerOption {
+  id: number;
+  name: string;
+  imageUrl?: string | null;
+  hashRate?: string | number | null;
+  baseHashRate?: string | number | null;
+}
+
+function formatHashRate(value: string | number | null | undefined): string {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return '0 H/s';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} MH/s`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(2)} KH/s`;
+  return `${n} H/s`;
+}
+
+function useAdminMinersList(enabled: boolean) {
+  const [miners, setMiners] = useState<AdminMinerOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
+  const { t } = useTranslation();
+  useEffect(() => {
+    if (!enabled || fetchedRef.current) return;
+    fetchedRef.current = true;
+    let cancelled = false;
+    setLoading(true);
+    adminApi
+      .get<{ miners: AdminMinerOption[] }>('/api/admin/miners', { params: { limit: 100, sort: 'name' } })
+      .then((res) => {
+        if (cancelled) return;
+        setMiners(Array.isArray(res.data?.miners) ? res.data.miners : []);
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setError(e?.response?.data?.message ?? t('tournaments.admin.noMachines'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, t]);
+  return { miners, loading, error };
+}
+
+function MachinePicker({
+  value,
+  miners,
+  loading,
+  onSelect,
+}: {
+  value?: number;
+  miners: AdminMinerOption[];
+  loading: boolean;
+  onSelect: (id: number) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const selected = useMemo(() => miners.find((m) => m.id === value) ?? null, [miners, value]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return miners;
+    return miners.filter((m) => m.name.toLowerCase().includes(q) || String(m.id).includes(q));
+  }, [miners, query]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-slate-800 px-2 py-1.5 text-left text-xs text-white hover:border-sky-500/40 focus:outline-none"
+      >
+        {selected ? (
+          <>
+            {selected.imageUrl ? (
+              <img src={selected.imageUrl} alt="" className="h-6 w-6 rounded object-cover bg-slate-900 shrink-0" />
+            ) : (
+              <span className="grid h-6 w-6 place-items-center rounded bg-slate-900 text-slate-500 shrink-0">
+                <Cpu className="h-3 w-3" />
+              </span>
+            )}
+            <span className="min-w-0 flex-1 truncate font-semibold">{selected.name}</span>
+            <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400">
+              <Zap className="h-3 w-3" />
+              {formatHashRate(selected.hashRate ?? selected.baseHashRate)}
+            </span>
+          </>
+        ) : (
+          <span className="flex-1 text-slate-500">{loading ? t('tournaments.admin.loadingMachines') : t('tournaments.admin.selectMachine')}</span>
+        )}
+        <ChevronDown className="h-3 w-3 text-slate-500 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-30 mt-1 w-[min(22rem,90vw)] left-0 rounded-xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/40">
+          <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+            <Search className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('tournaments.admin.searchPlaceholder')}
+              className="w-full bg-transparent text-xs text-white placeholder:text-slate-600 focus:outline-none"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {loading && (
+              <div className="px-3 py-4 text-center text-xs text-slate-500">
+                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+              </div>
+            )}
+            {!loading && filtered.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-slate-500">{t('tournaments.admin.noMachines')}</div>
+            )}
+            {filtered.map((m) => {
+              const isSelected = m.id === value;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(m.id);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-white/5 transition-colors ${isSelected ? 'bg-sky-500/10' : ''}`}
+                >
+                  {m.imageUrl ? (
+                    <img src={m.imageUrl} alt="" className="h-8 w-8 rounded object-cover bg-slate-800 shrink-0" />
+                  ) : (
+                    <span className="grid h-8 w-8 place-items-center rounded bg-slate-800 text-slate-500 shrink-0">
+                      <Cpu className="h-3.5 w-3.5" />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold text-white">{m.name}</div>
+                    <div className="text-[10px] font-mono text-slate-500">#{m.id}</div>
+                  </div>
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400">
+                    <Zap className="h-3 w-3" />
+                    {formatHashRate(m.hashRate ?? m.baseHashRate)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const METRIC_OPTIONS = [
-  { value: 'HASHRATE', label: 'Hashrate total' },
-  { value: 'BLOCKS_MINED', label: 'Blocos minerados' },
-  { value: 'CHECKINS', label: 'Check-ins' },
-  { value: 'TASKS_COMPLETED', label: 'Tarefas completas' },
-  { value: 'DEPOSITS_POL', label: 'POL depositado' },
+  { value: 'HASHRATE', key: 'tournaments.metrics.HASHRATE' },
+  { value: 'BLOCKS_MINED', key: 'tournaments.metrics.BLOCKS_MINED' },
+  { value: 'CHECKINS', key: 'tournaments.metrics.CHECKINS' },
+  { value: 'TASKS_COMPLETED', key: 'tournaments.metrics.TASKS_COMPLETED' },
+  { value: 'DEPOSITS_POL', key: 'tournaments.metrics.DEPOSITS_POL' },
+  { value: 'OFFERS_INTERNAL', key: 'tournaments.metrics.OFFERS_INTERNAL' },
+  { value: 'OFFERS_EXTERNAL', key: 'tournaments.metrics.OFFERS_EXTERNAL' },
+  { value: 'OFFERS_ALL', key: 'tournaments.metrics.OFFERS_ALL' },
 ];
 
 const TYPE_OPTIONS = [
-  { value: 'DAILY', label: 'Diário' },
-  { value: 'WEEKLY', label: 'Semanal' },
-  { value: 'MONTHLY', label: 'Mensal' },
-  { value: 'CUSTOM', label: 'Personalizado' },
+  { value: 'DAILY', key: 'tournaments.types.DAILY' },
+  { value: 'WEEKLY', key: 'tournaments.types.WEEKLY' },
+  { value: 'MONTHLY', key: 'tournaments.types.MONTHLY' },
+  { value: 'CUSTOM', key: 'tournaments.types.CUSTOM' },
 ];
 
 const STATUS_COLOR: Record<string, string> = {
@@ -68,12 +248,11 @@ const STATUS_COLOR: Record<string, string> = {
   CANCELLED: 'text-red-400 bg-red-500/10',
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  SCHEDULED: 'Agendado',
-  ACTIVE: 'Ativo',
-  ENDED: 'Encerrado',
-  CANCELLED: 'Cancelado',
-};
+function typeDurationLabel(type: string, t: (key: string) => string): string {
+  if (type === 'DAILY') return t('tournaments.duration_day');
+  if (type === 'WEEKLY') return t('tournaments.duration_week');
+  return t('tournaments.duration_month');
+}
 
 function toLocalDateTimeInput(iso: string): string {
   const d = new Date(iso);
@@ -87,7 +266,75 @@ function emptyPrize(): Prize {
   return { rankFrom: 1, rankTo: 1, prizeType: 'POL', polAmount: 0 };
 }
 
+function DisplayOrderPanel({ onChanged }: { onChanged: () => void }) {
+  const { t } = useTranslation();
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const r = await adminApi.get<{ ok: boolean; typeOrder: string[] }>('/api/admin/tournaments/display-order');
+        setOrder(r.data.typeOrder);
+      } catch {
+        setOrder(['MONTHLY', 'WEEKLY', 'DAILY', 'CUSTOM']);
+      }
+    })();
+  }, []);
+
+  if (!order) return null;
+
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    setOrder(next);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await adminApi.patch('/api/admin/tournaments/display-order', { typeOrder: order });
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-white/8 bg-slate-900/40 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs uppercase tracking-widest text-slate-400 font-mono">{t('tournaments.admin.displayOrder')}</p>
+        <button
+          type="button"
+          onClick={() => { void save(); }}
+          disabled={saving}
+          className="rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5"
+        >
+          {saving ? t('tournaments.admin.saving') : t('tournaments.admin.saveChanges')}
+        </button>
+      </div>
+      <ul className="space-y-1.5">
+        {order.map((tp, i) => (
+          <li key={tp} className="flex items-center gap-2 rounded-xl border border-white/8 bg-slate-800/40 px-3 py-2">
+            <span className="text-[10px] font-mono text-slate-500 w-5">#{i + 1}</span>
+            <span className="text-sm text-slate-200 flex-1">{t(`tournaments.types.${tp}`)}</span>
+            <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="rounded-md border border-white/10 px-2 py-1 text-slate-300 hover:bg-white/5 disabled:opacity-30">
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" onClick={() => move(i, 1)} disabled={i === order.length - 1} className="rounded-md border border-white/10 px-2 py-1 text-slate-300 hover:bg-white/5 disabled:opacity-30">
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function CreateForm({ onCreated }: { onCreated: () => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -101,6 +348,8 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
   const [recurring, setRecurring] = useState(false);
   const [prizes, setPrizes] = useState<Prize[]>([emptyPrize()]);
 
+  const { miners, loading: minersLoading } = useAdminMinersList(open);
+
   const addPrize = () => setPrizes((p) => [...p, emptyPrize()]);
   const removePrize = (i: number) => setPrizes((p) => p.filter((_, idx) => idx !== i));
   const updatePrize = (i: number, patch: Partial<Prize>) =>
@@ -111,13 +360,18 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
     setErr(null);
     setLoading(true);
     try {
+      const auto = recurring && isAutoSchedulable(type);
+      const effectiveStartsAt = recurring && !startsAt ? new Date() : new Date(startsAt);
+      const effectiveEndsAt = auto
+        ? computeAutoEnd(effectiveStartsAt, type)
+        : new Date(endsAt);
       await adminApi.post('/api/admin/tournaments', {
         name,
         description: description || undefined,
         type,
         metric,
-        startsAt: new Date(startsAt).toISOString(),
-        endsAt: new Date(endsAt).toISOString(),
+        startsAt: effectiveStartsAt.toISOString(),
+        endsAt: effectiveEndsAt.toISOString(),
         recurring,
         prizes,
       });
@@ -128,7 +382,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
       setPrizes([emptyPrize()]);
       onCreated();
     } catch (e: any) {
-      setErr(e?.response?.data?.message ?? 'Erro ao criar torneio');
+      setErr(e?.response?.data?.message ?? t('tournaments.errors.loadList'));
     } finally {
       setLoading(false);
     }
@@ -141,7 +395,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
         className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-white/4 transition-colors"
       >
         <Plus className="h-4 w-4 text-sky-400" />
-        <span className="font-semibold text-white text-sm">Criar novo torneio</span>
+        <span className="font-semibold text-white text-sm">{t('tournaments.admin.createNew')}</span>
         <span className="ml-auto">{open ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}</span>
       </button>
 
@@ -156,21 +410,21 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Nome do torneio *</label>
+              <label className="block text-xs text-slate-400 mb-1.5">{t('tournaments.admin.name')}</label>
               <input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Torneio Semanal de Hashrate"
+                placeholder={t('tournaments.admin.namePlaceholder')}
                 className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-sky-500/50 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Descrição (opcional)</label>
+              <label className="block text-xs text-slate-400 mb-1.5">{t('tournaments.admin.description')}</label>
               <input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Descrição curta"
+                placeholder={t('tournaments.admin.descriptionPlaceholder')}
                 className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-sky-500/50 focus:outline-none"
               />
             </div>
@@ -178,40 +432,55 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Tipo</label>
+              <label className="block text-xs text-slate-400 mb-1.5">{t('tournaments.admin.type')}</label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
               >
-                {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{t(o.key)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Métrica de ranking</label>
+              <label className="block text-xs text-slate-400 mb-1.5">{t('tournaments.admin.metric')}</label>
               <select
                 value={metric}
                 onChange={(e) => setMetric(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
               >
-                {METRIC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {METRIC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{t(o.key)}</option>)}
               </select>
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Início *</label>
-              <input
-                required
-                type="datetime-local"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
-              />
+          {recurring && isAutoSchedulable(type) ? (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs text-emerald-300">
+              <p className="font-bold">{t('tournaments.admin.autoScheduling')}</p>
+              <p className="mt-1 text-emerald-200/80">
+                {t('tournaments.admin.autoSchedulingDesc', {
+                  type: t(`tournaments.types.${type}`),
+                  duration: typeDurationLabel(type, t),
+                })}
+              </p>
             </div>
+          ) : (
+          <div className={`grid gap-4 ${recurring ? '' : 'sm:grid-cols-2'}`}>
+            {!recurring && (
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">{t('tournaments.admin.startDate')}</label>
+                <input
+                  required={!recurring}
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Fim *</label>
+              <label className="block text-xs text-slate-400 mb-1.5">
+                {recurring ? t('tournaments.admin.endOfFirstCycle') : t('tournaments.admin.endDate')}
+              </label>
               <input
                 required
                 type="datetime-local"
@@ -219,8 +488,14 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
                 onChange={(e) => setEndsAt(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
               />
+              {recurring && (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {t('tournaments.admin.autoStart')}
+                </p>
+              )}
             </div>
           </div>
+          )}
 
           <label className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 cursor-pointer hover:bg-amber-500/10 transition-colors">
             <input
@@ -232,11 +507,10 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
             <div className="flex-1">
               <div className="flex items-center gap-2 text-sm font-bold text-amber-300">
                 <Repeat className="h-3.5 w-3.5" />
-                Em loop (reiniciar automaticamente)
+                {t('tournaments.admin.recurring')}
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
-                Quando o torneio terminar e os prêmios forem distribuídos, um novo ciclo é criado automaticamente
-                com a mesma duração, prêmios e métrica — todos voltam a zero.
+                {t('tournaments.admin.recurringDesc')}
               </p>
             </div>
           </label>
@@ -244,21 +518,29 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
           {/* Prizes */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-xs text-slate-400">Prêmios por posição</label>
+              <label className="text-xs text-slate-400">{t('tournaments.admin.prizePerPosition')}</label>
               <button type="button" onClick={addPrize} className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1">
-                <Plus className="h-3 w-3" /> Adicionar faixa
+                <Plus className="h-3 w-3" /> {t('tournaments.admin.addTier')}
               </button>
             </div>
             <div className="space-y-3">
               {prizes.map((prize, i) => (
-                <PrizeRow key={i} index={i} prize={prize} onChange={(p) => updatePrize(i, p)} onRemove={() => removePrize(i)} />
+                <PrizeRow
+                  key={i}
+                  index={i}
+                  prize={prize}
+                  onChange={(p) => updatePrize(i, p)}
+                  onRemove={() => removePrize(i)}
+                  miners={miners}
+                  minersLoading={minersLoading}
+                />
               ))}
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-1">
             <button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5 transition-colors">
-              Cancelar
+              {t('tournaments.admin.cancel')}
             </button>
             <button
               type="submit"
@@ -266,7 +548,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
               className="flex items-center gap-2 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 px-5 py-2 text-sm font-bold text-white transition-colors"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Criar torneio
+              {t('tournaments.admin.createTournament')}
             </button>
           </div>
         </form>
@@ -280,16 +562,21 @@ function PrizeRow({
   prize,
   onChange,
   onRemove,
+  miners,
+  minersLoading,
 }: {
   index: number;
   prize: Prize;
   onChange: (p: Partial<Prize>) => void;
   onRemove: () => void;
+  miners: AdminMinerOption[];
+  minersLoading: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-xl border border-white/8 bg-slate-800/40 p-3 space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Faixa {index + 1}</span>
+        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">{t('tournaments.admin.tier', { index: index + 1 })}</span>
         <div className="flex items-center gap-1.5 ml-auto">
           <label className="text-[10px] text-slate-500">Pos.</label>
           <input
@@ -311,7 +598,7 @@ function PrizeRow({
 
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-1">
-          <label className="block text-[10px] text-slate-500 mb-1">Tipo de prêmio</label>
+          <label className="block text-[10px] text-slate-500 mb-1">{t('tournaments.admin.prizeType')}</label>
           <select
             value={prize.prizeType}
             onChange={(e) => onChange({ prizeType: e.target.value as Prize['prizeType'] })}
@@ -319,14 +606,14 @@ function PrizeRow({
           >
             <option value="POL">POL</option>
             <option value="BLK">BLK</option>
-            <option value="MINING_BOOST">Boost de Mineração</option>
-            <option value="MACHINE">Máquina</option>
+            <option value="MINING_BOOST">{t('tournaments.admin.miningBoost')}</option>
+            <option value="MACHINE">{t('tournaments.admin.machine')}</option>
           </select>
         </div>
 
         {prize.prizeType === 'POL' && (
           <div>
-            <label className="block text-[10px] text-slate-500 mb-1">Quantidade POL</label>
+            <label className="block text-[10px] text-slate-500 mb-1">{t('tournaments.admin.polAmount')}</label>
             <input
               type="number" min={0} step="0.01" value={prize.polAmount ?? 0}
               onChange={(e) => onChange({ polAmount: parseFloat(e.target.value) })}
@@ -337,7 +624,7 @@ function PrizeRow({
 
         {prize.prizeType === 'BLK' && (
           <div>
-            <label className="block text-[10px] text-slate-500 mb-1">Quantidade BLK</label>
+            <label className="block text-[10px] text-slate-500 mb-1">{t('tournaments.admin.blkAmount')}</label>
             <input
               type="number" min={0} step="0.01" value={prize.blkAmount ?? 0}
               onChange={(e) => onChange({ blkAmount: parseFloat(e.target.value) })}
@@ -349,7 +636,7 @@ function PrizeRow({
         {prize.prizeType === 'MINING_BOOST' && (
           <>
             <div>
-              <label className="block text-[10px] text-slate-500 mb-1">H/s boost</label>
+              <label className="block text-[10px] text-slate-500 mb-1">{t('tournaments.admin.boostHashRate')}</label>
               <input
                 type="number" min={0} value={prize.boostHashRate ?? 0}
                 onChange={(e) => onChange({ boostHashRate: parseFloat(e.target.value) })}
@@ -357,7 +644,7 @@ function PrizeRow({
               />
             </div>
             <div>
-              <label className="block text-[10px] text-slate-500 mb-1">Duração (h)</label>
+              <label className="block text-[10px] text-slate-500 mb-1">{t('tournaments.admin.boostDuration')}</label>
               <input
                 type="number" min={1} value={prize.boostHours ?? 24}
                 onChange={(e) => onChange({ boostHours: parseInt(e.target.value) })}
@@ -369,17 +656,17 @@ function PrizeRow({
 
         {prize.prizeType === 'MACHINE' && (
           <>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1">ID da máquina</label>
-              <input
-                type="number" min={1} value={prize.minerId ?? ''}
-                onChange={(e) => onChange({ minerId: parseInt(e.target.value) })}
-                placeholder="ID"
-                className="w-full rounded-lg border border-white/10 bg-slate-800 px-2 py-1.5 text-xs text-white focus:outline-none"
+            <div className="col-span-2">
+              <label className="block text-[10px] text-slate-500 mb-1">{t('tournaments.admin.machine')}</label>
+              <MachinePicker
+                value={prize.minerId}
+                miners={miners}
+                loading={minersLoading}
+                onSelect={(id) => onChange({ minerId: id })}
               />
             </div>
             <div>
-              <label className="block text-[10px] text-slate-500 mb-1">Quantidade</label>
+              <label className="block text-[10px] text-slate-500 mb-1">{t('tournaments.admin.quantity')}</label>
               <input
                 type="number" min={1} value={prize.minerCount ?? 1}
                 onChange={(e) => onChange({ minerCount: parseInt(e.target.value) })}
@@ -395,6 +682,256 @@ function PrizeRow({
 
 // ─── Tournament row ───────────────────────────────────────────────────────────
 
+function computeAutoEnd(start: Date, type: string): Date {
+  const d = new Date(start);
+  if (type === 'DAILY') d.setDate(d.getDate() + 1);
+  else if (type === 'WEEKLY') d.setDate(d.getDate() + 7);
+  else if (type === 'MONTHLY') d.setMonth(d.getMonth() + 1);
+  return d;
+}
+
+function isAutoSchedulable(type: string): boolean {
+  return type === 'DAILY' || type === 'WEEKLY' || type === 'MONTHLY';
+}
+
+function toDateTimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function EditTournamentModal({
+  tournament: t,
+  onClose,
+  onSaved,
+}: {
+  tournament: Tournament;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t: i18t } = useTranslation();
+  const [name, setName] = useState(t.name);
+  const [description, setDescription] = useState(t.description ?? '');
+  const [type, setType] = useState(t.type);
+  const [metric, setMetric] = useState(t.metric);
+  const [startsAt, setStartsAt] = useState(toDateTimeLocalValue(t.startsAt));
+  const [endsAt, setEndsAt] = useState(toDateTimeLocalValue(t.endsAt));
+  const [recurring, setRecurring] = useState(t.recurring);
+  const [prizes, setPrizes] = useState<Prize[]>(
+    t.prizes.map((p) => ({
+      rankFrom: p.rankFrom,
+      rankTo: p.rankTo,
+      prizeType: p.prizeType,
+      polAmount: p.polAmount ?? undefined,
+      blkAmount: p.blkAmount ?? undefined,
+      boostHashRate: p.boostHashRate ?? undefined,
+      boostHours: p.boostHours ?? undefined,
+      minerId: p.minerId ?? undefined,
+      minerCount: p.minerCount ?? 1,
+    })),
+  );
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const { miners, loading: minersLoading } = useAdminMinersList(true);
+
+  const addPrize = () => setPrizes((p) => [...p, emptyPrize()]);
+  const removePrize = (i: number) => setPrizes((p) => p.filter((_, idx) => idx !== i));
+  const updatePrize = (i: number, patch: Partial<Prize>) =>
+    setPrizes((p) => p.map((item, idx) => (idx === i ? { ...item, ...patch } : item)));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    setLoading(true);
+    try {
+      const auto = recurring && isAutoSchedulable(type);
+      const effStart = new Date(startsAt);
+      const effEnd = auto ? computeAutoEnd(effStart, type) : new Date(endsAt);
+      await adminApi.patch(`/api/admin/tournaments/${t.id}`, {
+        name,
+        description: description || null,
+        type,
+        metric,
+        startsAt: effStart.toISOString(),
+        endsAt: effEnd.toISOString(),
+        recurring,
+        prizes,
+      });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      setErr(e?.response?.data?.message ?? i18t('tournaments.admin.saveChanges'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-sky-400" />
+            {i18t('tournaments.admin.editTournament')}
+          </h2>
+          <button type="button" onClick={onClose} className="text-slate-500 hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <form onSubmit={(e) => { void submit(e); }} className="overflow-y-auto p-5 space-y-4">
+          {err && (
+            <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2.5 text-sm text-red-400">
+              <XCircle className="h-4 w-4 shrink-0" />
+              {err}
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">{i18t('tournaments.admin.name')}</label>
+              <input
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">{i18t('tournaments.admin.description')}</label>
+              <input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">{i18t('tournaments.admin.type')}</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white"
+              >
+                {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{i18t(o.key)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">{i18t('tournaments.admin.metric')}</label>
+              <select
+                value={metric}
+                onChange={(e) => setMetric(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white"
+              >
+                {METRIC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{i18t(o.key)}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {recurring && isAutoSchedulable(type) ? (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs text-emerald-300">
+              <p className="font-bold">{i18t('tournaments.admin.autoScheduling')}</p>
+              <p className="mt-1 text-emerald-200/80">
+                {i18t('tournaments.admin.autoSchedulingDesc', {
+                  type: i18t(`tournaments.types.${type}`),
+                  duration: typeDurationLabel(type, i18t),
+                })}
+              </p>
+            </div>
+          ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">{i18t('tournaments.admin.startDate')}</label>
+              <input
+                required
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">{i18t('tournaments.admin.endDate')}</label>
+              <input
+                required
+                type="datetime-local"
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white"
+              />
+            </div>
+          </div>
+          )}
+
+          <label className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded accent-amber-500"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-sm font-bold text-amber-300">
+                <Repeat className="h-3.5 w-3.5" />
+                {i18t('tournaments.admin.recurring')}
+              </div>
+            </div>
+          </label>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs text-slate-400">{i18t('tournaments.admin.prizePerPosition')}</label>
+              <button type="button" onClick={addPrize} className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1">
+                <Plus className="h-3 w-3" /> {i18t('tournaments.admin.addTier')}
+              </button>
+            </div>
+            <div className="space-y-3">
+              {prizes.map((prize, i) => (
+                <PrizeRow
+                  key={i}
+                  index={i}
+                  prize={prize}
+                  onChange={(p) => updatePrize(i, p)}
+                  onRemove={() => removePrize(i)}
+                  miners={miners}
+                  minersLoading={minersLoading}
+                />
+              ))}
+              {prizes.length === 0 && (
+                <p className="text-xs text-slate-600 italic">{i18t('tournaments.admin.noPrizesYet')}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 sticky bottom-0 bg-slate-900 -mx-5 px-5 py-3 border-t border-white/10">
+            <button type="button" onClick={onClose} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">
+              {i18t('tournaments.admin.cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center gap-2 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 px-5 py-2 text-sm font-bold text-white"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {i18t('tournaments.admin.saveChanges')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function TournamentRow({
   tournament: t,
   onRefresh,
@@ -402,34 +939,36 @@ function TournamentRow({
   tournament: Tournament;
   onRefresh: () => void;
 }) {
+  const { t: i18t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [loadingCancel, setLoadingCancel] = useState(false);
   const [loadingFinalize, setLoadingFinalize] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const cancel = async () => {
-    if (!confirm(`Cancelar "${t.name}"?`)) return;
+    if (!confirm(i18t('tournaments.admin.cancelConfirm', { name: t.name }))) return;
     setLoadingCancel(true);
     try {
       await adminApi.post(`/api/admin/tournaments/${t.id}/cancel`);
-      setMsg({ ok: true, text: 'Cancelado.' });
+      setMsg({ ok: true, text: i18t('tournaments.status.CANCELLED') });
       onRefresh();
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.response?.data?.message ?? 'Erro' });
+      setMsg({ ok: false, text: e?.response?.data?.message ?? 'Error' });
     } finally {
       setLoadingCancel(false);
     }
   };
 
   const finalize = async () => {
-    if (!confirm(`Finalizar "${t.name}" agora e distribuir recompensas?`)) return;
+    if (!confirm(i18t('tournaments.admin.finalizeConfirm', { name: t.name }))) return;
     setLoadingFinalize(true);
     try {
       const res = await adminApi.post<{ ranked: number; rewarded: number }>(`/api/admin/tournaments/${t.id}/finalize`);
-      setMsg({ ok: true, text: `${res.data.ranked} rankeados, ${res.data.rewarded} recompensados.` });
+      setMsg({ ok: true, text: i18t('tournaments.admin.rankedRewarded', { ranked: res.data.ranked, rewarded: res.data.rewarded }) });
       onRefresh();
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.response?.data?.message ?? 'Erro' });
+      setMsg({ ok: false, text: e?.response?.data?.message ?? 'Error' });
     } finally {
       setLoadingFinalize(false);
     }
@@ -442,14 +981,14 @@ function TournamentRow({
         onClick={() => setExpanded((e) => !e)}
       >
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${STATUS_COLOR[t.status] ?? ''}`}>
-          {STATUS_LABEL[t.status] ?? t.status}
+          {i18t(`tournaments.status.${t.status}`)}
         </span>
         <span className="font-semibold text-white text-sm">{t.name}</span>
         <span className="text-[10px] text-slate-500 font-mono">{t.type} · {t.metric}</span>
         {t.recurring && (
           <span className="flex items-center gap-1 rounded-full bg-amber-500/10 text-amber-300 px-2 py-0.5 text-[10px] font-bold">
             <Repeat className="h-2.5 w-2.5" />
-            LOOP
+            {i18t('tournaments.admin.loopBadge')}
           </span>
         )}
         <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
@@ -463,19 +1002,19 @@ function TournamentRow({
         <div className="border-t border-white/8 px-5 py-4 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2 text-xs text-slate-400">
             <div>
-              <span className="text-slate-600 mr-2">Início:</span>
-              {new Date(t.startsAt).toLocaleString('pt-BR')}
+              <span className="text-slate-600 mr-2">{i18t('tournaments.admin.startDate')}:</span>
+              {new Date(t.startsAt).toLocaleString()}
             </div>
             <div>
-              <span className="text-slate-600 mr-2">Fim:</span>
-              {new Date(t.endsAt).toLocaleString('pt-BR')}
+              <span className="text-slate-600 mr-2">{i18t('tournaments.admin.endDate')}:</span>
+              {new Date(t.endsAt).toLocaleString()}
             </div>
-            {t.description && <div className="sm:col-span-2"><span className="text-slate-600 mr-2">Descrição:</span>{t.description}</div>}
+            {t.description && <div className="sm:col-span-2"><span className="text-slate-600 mr-2">{i18t('tournaments.admin.description')}:</span>{t.description}</div>}
           </div>
 
           {t.prizes.length > 0 && (
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-slate-600 mb-2">Prêmios</p>
+              <p className="text-[10px] uppercase tracking-wider text-slate-600 mb-2">{i18t('tournaments.prizes')}</p>
               <div className="space-y-1">
                 {t.prizes.map((p) => (
                   <div key={p.id} className="flex items-center gap-2 text-xs text-slate-400">
@@ -485,8 +1024,8 @@ function TournamentRow({
                     <span>
                       {p.prizeType === 'POL' && `${p.polAmount} POL`}
                       {p.prizeType === 'BLK' && `${p.blkAmount} BLK`}
-                      {p.prizeType === 'MINING_BOOST' && `${p.boostHashRate} H/s por ${p.boostHours}h`}
-                      {p.prizeType === 'MACHINE' && `${p.minerCount}x Máquina ID#${p.minerId}`}
+                      {p.prizeType === 'MINING_BOOST' && `${p.boostHashRate} H/s / ${p.boostHours}h`}
+                      {p.prizeType === 'MACHINE' && `${p.minerCount}x ${i18t('tournaments.admin.machine')} ID#${p.minerId}`}
                     </span>
                   </div>
                 ))}
@@ -504,12 +1043,21 @@ function TournamentRow({
           <div className="flex flex-wrap gap-2 pt-1">
             {(t.status === 'SCHEDULED' || t.status === 'ACTIVE') && (
               <button
+                onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+                className="flex items-center gap-1.5 rounded-xl border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-400 hover:bg-sky-500/20 transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                {i18t('tournaments.admin.editTournament')}
+              </button>
+            )}
+            {(t.status === 'SCHEDULED' || t.status === 'ACTIVE') && (
+              <button
                 onClick={(e) => { e.stopPropagation(); void cancel(); }}
                 disabled={loadingCancel}
                 className="flex items-center gap-1.5 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-60"
               >
                 {loadingCancel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
-                Cancelar
+                {i18t('tournaments.admin.cancel')}
               </button>
             )}
             {t.status === 'ACTIVE' && (
@@ -519,11 +1067,19 @@ function TournamentRow({
                 className="flex items-center gap-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-60"
               >
                 {loadingFinalize ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                Finalizar agora
+                {i18t('tournaments.admin.finalizeNow')}
               </button>
             )}
           </div>
         </div>
+      )}
+
+      {editing && (
+        <EditTournamentModal
+          tournament={t}
+          onClose={() => setEditing(false)}
+          onSaved={onRefresh}
+        />
       )}
     </div>
   );
@@ -532,6 +1088,7 @@ function TournamentRow({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminTournaments() {
+  const { t } = useTranslation();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -543,11 +1100,11 @@ export default function AdminTournaments() {
       const res = await adminApi.get<{ ok: boolean; tournaments: Tournament[] }>('/api/admin/tournaments');
       setTournaments(res.data.tournaments);
     } catch {
-      setErr('Erro ao carregar torneios.');
+      setErr(t('tournaments.errors.loadList'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -560,14 +1117,14 @@ export default function AdminTournaments() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Trophy className="h-6 w-6 text-amber-400" />
-          <h1 className="text-xl font-black text-white">Torneios</h1>
+          <h1 className="text-xl font-black text-white">{t('tournaments.admin.title')}</h1>
         </div>
         <button
           onClick={() => { void load(); }}
           className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/60 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700/60 transition-colors"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar
+          {t('tournaments.header.refresh')}
         </button>
       </div>
 
@@ -576,6 +1133,8 @@ export default function AdminTournaments() {
           <XCircle className="h-4 w-4" />{err}
         </div>
       )}
+
+      <DisplayOrderPanel onChanged={() => { void load(); }} />
 
       <CreateForm onCreated={() => { void load(); }} />
 
@@ -589,7 +1148,7 @@ export default function AdminTournaments() {
             <section>
               <p className="text-xs uppercase tracking-widest text-emerald-400 font-mono mb-3 flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Ativos ({active.length})
+                {t('tournaments.admin.activeCount', { count: active.length })}
               </p>
               <div className="space-y-2">
                 {active.map((t) => <TournamentRow key={t.id} tournament={t} onRefresh={() => { void load(); }} />)}
@@ -599,7 +1158,7 @@ export default function AdminTournaments() {
 
           {scheduled.length > 0 && (
             <section>
-              <p className="text-xs uppercase tracking-widest text-sky-400 font-mono mb-3">Agendados ({scheduled.length})</p>
+              <p className="text-xs uppercase tracking-widest text-sky-400 font-mono mb-3">{t('tournaments.admin.scheduledCount', { count: scheduled.length })}</p>
               <div className="space-y-2">
                 {scheduled.map((t) => <TournamentRow key={t.id} tournament={t} onRefresh={() => { void load(); }} />)}
               </div>
@@ -608,7 +1167,7 @@ export default function AdminTournaments() {
 
           {past.length > 0 && (
             <section>
-              <p className="text-xs uppercase tracking-widest text-slate-600 font-mono mb-3">Histórico ({past.length})</p>
+              <p className="text-xs uppercase tracking-widest text-slate-600 font-mono mb-3">{t('tournaments.admin.historyCount', { count: past.length })}</p>
               <div className="space-y-2">
                 {past.map((t) => <TournamentRow key={t.id} tournament={t} onRefresh={() => { void load(); }} />)}
               </div>
@@ -618,7 +1177,7 @@ export default function AdminTournaments() {
           {tournaments.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Trophy className="h-10 w-10 text-slate-700 mb-3" />
-              <p className="text-slate-500">Nenhum torneio criado ainda.</p>
+              <p className="text-slate-500">{t('tournaments.admin.noTournamentsYet')}</p>
             </div>
           )}
         </>

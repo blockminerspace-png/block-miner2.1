@@ -8,6 +8,7 @@ import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
 import { formatHashrate } from '../../shared/utils/machine';
 import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { validateTrustedEvent, generateSecurityPayload } from '../../shared/utils/security';
 
 interface YoutubeStatusPayload {

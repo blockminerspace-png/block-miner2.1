@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import DashboardBanners from './components/DashboardBanners';
 import type { DashboardBlockRow, DashboardGameStats, DashboardMinerStats } from '../../types/dashboardStats';
 import { safeDashboardNumber, sanitizeDashboardReferralCode } from '../../shared/utils/dashboardInputGuards';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 type CardColor = 'blue' | 'cyan' | 'purple' | 'amber' | 'emerald';
 
@@ -164,8 +165,20 @@ export default function Dashboard(): ReactElement {
       }
     };
     void syncBalance();
-    const interval = window.setInterval(() => void syncBalance(), 60000);
-    return () => window.clearInterval(interval);
+    // 15s polling (was 60s — engine simulates rewards locally between syncs,
+    // so post-spend the dashboard can show stale credit for up to a minute).
+    const interval = window.setInterval(() => void syncBalance(), 15000);
+    // Re-sync whenever the tab regains focus or becomes visible — covers the
+    // common case of coming back from /shop or /wallet after a purchase.
+    const onVisible = () => { if (!document.hidden) void syncBalance(); };
+    const onFocus = () => void syncBalance();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const miner: DashboardMinerStats | undefined = stats?.miner ?? undefined;
@@ -276,6 +289,9 @@ export default function Dashboard(): ReactElement {
         </div>
       </div>
       <DashboardBanners />
+
+      {/* Slot A: Ad after banners */}
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="dashboard-top" />
 
       <div className="bg-surface border border-gray-800/50 rounded-2xl p-5 md:p-6 shadow-lg">
         <div className="flex flex-col gap-4">
@@ -566,7 +582,7 @@ export default function Dashboard(): ReactElement {
                           <TrendingUp className="w-4 h-4 text-emerald-400 mt-0.5" />
                           <div className="flex flex-col leading-tight">
                             <span className="text-emerald-400 font-black">
-                              +{safeDashboardNumber(block.userReward, 4)}{' '}
+                              +{safeDashboardNumber(block.userReward, 8)}{' '}
                               <span className="text-[10px] font-normal">{stats?.tokenSymbol}</span>
                             </span>
                             {Number(block.userRewardShib ?? 0) > 0 && (
@@ -581,7 +597,7 @@ export default function Dashboard(): ReactElement {
                       <td className="px-8 py-5 text-gray-300 font-bold">
                         <div className="flex flex-col leading-tight">
                           <span className="inline-flex items-center gap-2">
-                            {safeDashboardNumber(block.totalReward, 4)} {stats?.tokenSymbol}
+                            {safeDashboardNumber(block.totalReward, 8)} {stats?.tokenSymbol}
                             {block.persistFailed ? (
                               <span
                                 className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90"
@@ -742,6 +758,9 @@ export default function Dashboard(): ReactElement {
           </div>
         </div>
       </div>
+
+      {/* Slot B: Ad at bottom of dashboard */}
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="dashboard-bottom" />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { AxiosError } from 'axios';
 import type { Address, EIP1193Provider, Hex } from 'viem';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import {
     Wallet as WalletIcon,
     ArrowUpCircle,
@@ -1850,6 +1851,8 @@ export default function Wallet() {
                     </div>
                 </div>
             </div>
+
+            <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="wallet-bottom" />
         </div>
     );
 }

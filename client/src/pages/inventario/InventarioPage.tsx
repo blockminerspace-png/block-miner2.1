@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import { useGameStore } from "../../store/game";
 import { getMachineDisplayImageUrl } from "../machines/machineDisplayImage";
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { MachineImage } from "../machines/components/MachineImage";
 import { formatHashrate } from "../../shared/utils/machine";
 import {
@@ -329,6 +330,8 @@ export default function InventarioPage() {
           ))}
         </div>
       )}
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="inventario-bottom" />
     </div>
   );
 }

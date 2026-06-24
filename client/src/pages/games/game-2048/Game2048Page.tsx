@@ -8,6 +8,7 @@ import type { Transition } from "framer-motion";
 import { ArrowLeft, Clock, Coins, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../../store/auth";
+import AdRotator, { POWER_STATS_ADS } from '../../../shared/components/AdRotator';
 import { moveBoard, parseBoard, type Board2048, type Direction2048 } from "@game2048/engine";
 import { CRYPTO_ICONS, COIN_COLORS, cryptoSlugFor2048Tile } from "../../../games/cryptoGameIcons";
 
@@ -814,6 +815,9 @@ export default function Game2048Page() {
               )}
             </div>
         </div>
+
+        <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="game-2048-bottom" />
+
       </>
     </div>
   );

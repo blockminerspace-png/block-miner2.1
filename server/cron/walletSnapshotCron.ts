@@ -114,7 +114,8 @@ async function runSnapshot(): Promise<void> {
 
   try {
     const wallets = await prisma.transparencyTrackedWallet.findMany({
-      where: { isPublic: true },
+      // Skip wallets with a manual USD override — no need to hit DeBank.
+      where: { isPublic: true, manualUsdValue: null },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 

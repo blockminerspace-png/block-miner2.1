@@ -1,0 +1,1064 @@
+App	API Key	Secret Key	Today Earnings	Lifetime Earnings	Status	
+1409	BlockMiner	yyu8i3jt58by9do1fbdr0fyn60yn5u	53ef7ec6bf3dac68f4c5528e057059e5	0 leads = $0.000000	55 leads = $0.013610	Approved 
+
+Getting Started
+Welcome to the Offerwall.me documentation. Bellow you will find all required informations to integrate our offerwall into your website in just few minutes.
+
+Before integrating our offerwall, make sure you're registered on our website, account is required to use any of our tools.
+
+Add Your Website
+To be able to integrate our offerwall, first you have to add your website. Once you have added your website you will have an API KEY and a SECRET KEY, that you will need to integrate our offerwall.
+
+To register your website into our service, please follow these steps:
+
+Login to your Offerwall.me account.
+You should now see the Add New App button at sidebar. Click this button to add your first website or app.
+Set your App Name, URL and application type (platform) and proceed to next step.
+Set your Currency Name in plural form (e.g. Points, Tokens, Coins...), Currency Round (the number of decimals your currency can have, up to 2 decimals) and Exchange Rate (how many of your website currency units will a user earn for every 1 USD that we will pay you).
+Set your Postback URL. Whenever a user completes an offer, we will make a call to this URL by sending all the information needed to help you to credit the virtual currency to your users.
+Done! You have add your website, one of our team members will review it and once it is approved you will receive an email in the meantime you can continue with the integration process. You will find more informatons about postback integration in next chapters of this documentation.
+Integrate Offerwall
+Our Offerwall enables users to benefit from incentives and rewards thanks to segmented, automatically translated ads. Our offerwall will adapt to any screen and will show offers to your users.
+
+Before being able to integrate our offerwall, you must register your website first. Once you have registered your website you will have an API KEY and a SECRET KEY, that you will need in the following steps.
+
+Click on My Apps button on sidebar.
+From your websites list, you can get your API and Secret keys, anyway if you click Edit button on any of your apps you will be able to get your full integration code of the offerwall.
+Website Integration
+If you are looking to integrate the offerwall into your website, either open the offerwall in a new tab (for example using the JavaScript command below) or show the offerwall in an iFrame.
+
+JavaScript Integration
+window.open("https://offerwall.me/offerwall/[API_KEY]/[USER_ID]")
+iFrame Integration
+<iframe scrolling="yes"frameborder="0" src="https://offerwall.me//offerwall/[API_KEY]/[USER_ID]"></iframe>
+
+
+Replace [API_KEY] with your website api key and [USER_ID] by the unique identifier code of the user of your site who is viewing the wall.
+
+Android Integration
+If you are looking to integrate the offerwall into your Android app, either open the offerwall in Google Chrome or use a web view to show the offerwall inside your app.
+
+URL
+https://offerwall.me/offerwall/[API_KEY]/[USER_ID]
+WebView Example
+WebView myWebView = new WebView(activityContext);
+setContentView(myWebView);
+
+WebSettings webSettings = myWebView.getSettings();
+webSettings.setJavaScriptEnabled(true);
+
+myWebView.loadUrl("https://offerwall.me/offerwall/[API_KEY]/[USER_ID]");
+
+
+Replace [API_KEY] with your website api key and [USER_ID] by the unique identifier code of the user of your site who is viewing the wall.
+
+iOS Integration
+If you are looking to integrate the offerwall into your iOS app, either open the offerwall in Safari or use a web view to show the offerwall inside your app.
+
+URL
+https://offerwall.me/offerwall/[API_KEY]/[USER_ID]
+WebView Example
+import UIKit
+import WebKit
+class ViewController: UIViewController, WKUIDelegate {
+
+   var webView: WKWebView!
+
+   override func loadView() {
+       let webConfiguration = WKWebViewConfiguration()
+       webView = WKWebView(frame: .zero, configuration: webConfiguration)
+       webView.uiDelegate = self
+       view = webView
+   }
+   override func viewDidLoad() {
+       super.viewDidLoad()
+       let myURL = URL(string:"https://offerwall.me/offerwall/[API_KEY]/[USER_ID]")
+       let myRequest = URLRequest(url: myURL!)
+       webView.load(myRequest)
+   }}
+
+
+Replace [API_KEY] with your website api key and [USER_ID] by the unique identifier code of the user of your site who is viewing the wall.
+
+React Native Integration
+If you are looking to integrate the offerwall into your React Native app, either open the offerwall in the default browser of the user with the Linking-API or use react-native-webview to show the offerwall inside your app.
+
+Linking
+import { Linking } from 'react-native';
+Linking.openURL('https://offerwall.me/offerwall/[API_KEY]/[USER_ID]');
+React Native WebView
+/*
+  Add react-native-webview to your dependencies. Using Yarn:
+	yarn add react-native-webview
+  Using npm:
+	npm install --save react-native-webview
+  Using Expo:
+	npx expo install react-native-webview
+*/
+import { WebView } from 'react-native-webview';
+return <WebView source={{ uri: 'https://offerwall.me/offerwall/[API_KEY]/[USER_ID]' }} />;
+
+
+Replace [API_KEY] with your website api key and [USER_ID] by the unique identifier code of the user of your site who is viewing the wall.
+
+Offerwall Parameters
+Bellow you can see parameters supported by our offerwall. Make sure you properly replace them during your offerwall integration.
+
+Parameter	Description	Value
+[API_KEY]	Unique API Code provided when you registered your website	varchar(32)
+[USER_ID]	Unique identifier code of the user of your site	varchar(32)
+S2S Postback
+Whenever a user complete an offer, we will make a call to the Postback URL that you indicated in your app attaching all the information that you will need to credit your users.
+
+Our server will make a HTTP POST request to your server including all of the following parameters.
+
+Parameter	Description	Example
+subId	This is the unique identifier code of the user who completed action on your platform.	user123
+transId	Unique identification code of the transaction made by your user.	XX-12345678
+offer_name	Name of the completed offer.	Offerwall.me - Register and Earn
+offer_type	Type of the offer completed by user (ptc, offer, task, shortlink).	ptc
+reward	The amount of your virtual currency to be credited to your user.	1.25
+reward_name	The name of your currency set when you registered your website.	Points
+reward_value	Amount of your virtual currency credited for $1 worth of payout (Exchange Rate).	1000.00
+payout	The offer payout in USD	0.100000
+userIp	The user's IP address who completed the action.	192.168.1.0
+country	Country (ISO2 form) from the lead comes.	US
+status	Determines whether to add or subtract the amount of the reward. "1" is when the virtual currency should be added to the user and "2" when it should be subtracted. This may be because the advertiser has canceled the user's transaction, either because he/she committed fraud or because it has been a mistake entering the data needed to complete the campaign.	1 (valid) / 2 (chargeback)
+debug	Check if is a test or a live postback call.	1 (test) / 0 (live)
+signature	MD5 hash that can be used to verify that the call has been made from our servers.	17b4e2a70d6efe9796dd4c5507a9f9ab
+
+
+"reward" and "payout" parameters are always absolute values, you will need to check status parameter to see if you need to add or subtract that amount from your users.
+
+Postback Security
+You should verify the signature received in the postback to ensure that the call comes from our servers.
+Signature parameter should match MD5 of subId.transactionId.reward.secretkey. You can find your Secret Key of your website in My Websites section.
+
+The formula to be checked is as follows:
+
+<?php
+  $secret = ""; // Get your secret key from 
+
+  $subId = isset($_REQUEST['subId']) ? $_REQUEST['subId'] : null;
+  $transId = isset($_REQUEST['transId']) ? $_REQUEST['transId'] : null;
+  $reward = isset($_REQUEST['reward']) ? $_REQUEST['reward'] : null;
+  $signature = isset($_REQUEST['signature']) ? $_REQUEST['signature'] : null;
+
+  // Validate Signature
+  if(md5($subId.$transId.$reward.$secret) != $signature)
+  {
+   echo "ERROR: Signature doesn't match";
+   return;
+  }
+?>
+
+
+Our servers wait for a response for a maximum time of 60 seconds before the timeout. In this case, postback will be marked as failed. Please, check if the transaction ID sent to you was already entered in your database, this will prevent to give twice the same amount of virtual currency to the user.
+
+
+IPs to whitelist
+We will be sending the postbacks from any of the following IP addresses. Please make sure they are whitelisted if needed to be in your server.
+
+95.216.65.163 2a01:4f9:2b:1dc::2
+Respond to Postback
+Our servers will expect your website to respond with "ok". If your postback doesn't return "ok" as response, postback will be marked as failed (even if postback was successfully called) and you will be able to resend it manually from our website.
+
+Postback Example
+The following PHP example is not a working one but should be enough to understand how you should implement your postback in your website.
+
+<?php
+  $secret = ""; // Get your secret key from https://offerwall.me
+
+  // Proceess only requests from https://offerwall.me IP addresses
+  $allowed_ips = array(95.216.65.163,2a01:4f9:2b:1dc::2);
+  if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
+  {
+   $IP = $_SERVER['HTTP_X_FORWARDED_FOR']; 
+  }
+  else 
+  { 
+   $IP = $_SERVER['REMOTE_ADDR'];
+  }
+
+  if(!in_array($IP, $allowed_ips)) 
+  {
+   echo "ERROR: Invalid source";
+   return;
+  }
+
+  // Get postback variables
+  $userId = isset($_REQUEST['subId']) ? $_REQUEST['subId'] : null;
+  $transId = isset($_REQUEST['transId']) ? $_REQUEST['transId'] : null;
+  $reward = isset($_REQUEST['reward']) ? $_REQUEST['reward'] : null;
+  $reward_name = isset($_REQUEST['reward_name']) ? $_REQUEST['reward_name'] : null;
+  $reward_value = isset($_REQUEST['reward_value']) ? $_REQUEST['reward_value'] : null;
+  $offer_name = isset($_REQUEST['offer_name']) ? $_REQUEST['offer_name'] : null;
+  $offer_type = isset($_REQUEST['offer_type']) ? $_REQUEST['offer_type'] : null;
+  $payout = isset($_REQUEST['payout']) ? $_REQUEST['payout'] : null;
+  $ipuser = isset($_REQUEST['userIp']) ? $_REQUEST['userIp'] : "0.0.0.0";
+  $country = isset($_REQUEST['country']) ? $_REQUEST['country'] : null;
+  $status = isset($_REQUEST['status']) ? $_REQUEST['status'] : null;
+  $debug = isset($_REQUEST['debug']) ? $_REQUEST['debug'] : null;
+  $signature = isset($_REQUEST['signature']) ? $_REQUEST['signature'] : null;
+
+  // Validate signature
+  if(md5($userId.$transId.$reward.$secret) != $signature)
+  {
+    echo "ERROR: Signature doesn't match";
+    return;
+  }
+
+  // Add or substract the reward
+  if($status == 2)
+  {
+    //  2 = Chargeback, substract reward from user
+    $reward = -abs($reward);
+  }
+
+   // Check if the transaction is new, use $transId to valiate it
+  if(isNewTransaction($transId))
+  { 
+    // Transaction is new, reward your user
+    processTransaction($userId, $reward, $transId);
+  }
+  else
+  {
+    // This transaction already exist
+  }
+
+  echo "ok"; // Important!
+?>
+Intregrate Offerwall.me on the Best Faucet Scripts
+We have provide you some Best Faucet scripts intregartion method here, with this tutorial any faucet owner can easily intregrate Offerwall.me on there script
+
+Vie Faucet 4.3 Integration
+It takes only three steps to integrate Offerwall.me offerwall into your VieFaucet script.Please find below steps.
+
+First open file - application/controllers/wh.php and enter the following code before last closing bracket (}).
+
+Do not forget to enter your secret key under variable $secret from the offerwall.me's dashboard. Otherwise,your users will not be credited properly since postback will not work.
+
+
+public function offerwallme()
+{
+    $secret = ""; // UPDATE YOUR SECRET KEY
+    $hold = 3;  // UPDATE HOLD DAYS IF YOU USE HOLD
+    $minHold = 0.5; // Reward Lower than this amount will not be hold
+    
+    $userId = isset($_REQUEST['subId']) ? $this->db->escape_str($_REQUEST['subId']) : null;
+    $transactionId = isset($_REQUEST['transId']) ? $this->db->escape_str($_REQUEST['transId']) : null;
+    $reward = isset($_REQUEST['reward']) ? $this->db->escape_str($_REQUEST['reward']) : null;
+    $action = isset($_REQUEST['status']) ? $this->db->escape_str($_REQUEST['status']) : null;
+    $userIp = isset($_REQUEST['userIp']) ? $this->db->escape_str($_REQUEST['userIp']) : "0.0.0.0";
+    $signature = isset($_REQUEST['signature']) ? $this->db->escape_str($_REQUEST['signature']) : null;
+    
+    if (md5($userId . $transactionId . $reward . $secret) != $signature) {
+        echo "ERROR: Signature doesn't match";
+        return;
+    }
+    
+    $reward = $reward * $this->data['settings']['currency_rate'];
+    
+    $trans = $this->m_offerwall->getTransaction($transactionId, 'offerwall.me');
+    if ($action == 2) {
+        $this->m_offerwall->reduceUserBalance($userId, abs($reward));
+        $this->m_offerwall->insertTransaction($userId, 'offerwall.me', $userIp, $reward, $transactionId, 1, time());
+        echo "ok";
+    } else {
+        if (!$trans) {
+            $hold = 0;
+            if ($reward > $minHold) {
+                $hold = 3; // UPDATE HOLD DAYS Which you Use for hold
+            }
+            
+            if ($hold == 0) {
+                $offerId = $this->m_offerwall->insertTransaction($userId, 'offerwall.me', $userIp, $reward, $transactionId, 2, time());
+                $this->m_offerwall->updateUserBalance($userId, $reward);
+                $this->m_core->addNotification($userId, currency($reward, $this->data['settings']['currency_rate']) . " from offerwall.me Offer #" . $offerId . " was credited to your balance.", 1);
+                
+                $user = $this->m_core->get_user_from_id($userId);
+                $this->m_core->addExp($user['id'], $this->data['settings']['offerwall_exp_reward']);
+                if (($user['exp'] + $this->data['settings']['offerwall_exp_reward']) >= ($user['level'] + 1) * 100) {
+                    $this->m_core->levelUp($user['id']);
+                }
+            } else {
+                $availableAt = time() + $hold * 86400;
+                $offerId = $this->m_offerwall->insertTransaction($userId, 'offerwall.me', $userIp, $reward, $transactionId, 0, $availableAt);
+                $this->m_core->addNotification($userId, "Your offerwall.me Offer #" . $offerId . " is pending approval.", 0);
+            }
+            echo "ok";
+        } else {
+            echo "DUP";
+        }
+    }
+}
+        
+        
+
+
+Second step is to add our offerwall in the UI. Inside application/controllers/offerwall.php file, add this code before last closing bracket (}).
+
+Don't forget to place on proper place your API key from the dashboard under $api_key variable.
+
+
+            public function offerwallme()
+	  {
+		  $api_key=""; // UPDATE YOUR API KEY HERE
+		 $this->data['page'] = 'offerwall.me Offerwall';
+		 $this->data['iframe'] = '<iframe style="width:100%;height:800px;border:0;padding:0;margin:0;" scrolling="yes" frameborder="0" src="https://offerwall.me/offerwall/' . $api_key . '/' . $this->data['user']['id'] . '"></iframe>';
+		 $this->data['wait'] = 3; // UPDATE YOUR HOLD TIME
+		 $this->render('offerwall', $this->data);
+	 }
+          
+          
+
+
+Third step is to add offerwall.me's offerwall inside your sidebar/ UserPanel Menu on Vie Faucet.
+
+Go to this file application/views/user_template/template.php, and place this code above or under some of the existing offerwalls list.
+
+
+    <li><a href="<?= site_url('offerwall/offerwallme') ?>" key="t-offerwall.me">offerwall.me</a></li>
+          
+          
+
+
+Final Step You must Add below code on your config files
+
+Open Application/Config/config.php
+
+Goto $config['csrf_exclude_uris'] this line
+
+Add this code 'wh/offerwallme', on that line.
+
+How to set site on offerwall.me?
+PostBack URL Should be : https://yourdomain.com/wh/offerwallme
+
+Vie Faucet 4.4 Integration
+It takes only three steps to integrate offerwall.me offerwall into your VieFaucet script.Please find below steps.
+
+First open file - application/controllers/wh.php and enter the following code before last closing bracket (}).
+
+Do not forget to enter your secret key under variable $secret from the offerwall.me's dashboard. Otherwise,your users will not be credited properly since postback will not work.
+
+
+         public function offerwallme()
+	  {
+             $secret = ""; // UPDATE YOUR SECRET KEY
+             $hold = 3;  // UPDATE HOLD DAYS IF YOU USE HOLD
+             $minHold= 0.5; // Reward Lower than this amount will not be hold
+            
+             $userId = isset($_REQUEST['subId']) ? $this->db->escape_str($_REQUEST['subId']) : null;
+             $transactionId = isset($_REQUEST['transId']) ? $this->db->escape_str($_REQUEST['transId']) : null;
+             $reward = isset($_REQUEST['reward']) ? $this->db->escape_str($_REQUEST['reward']) : null;
+             $action = isset($_REQUEST['status']) ? $this->db->escape_str($_REQUEST['status']) : null;
+             $userIp = isset($_REQUEST['userIp']) ? $this->db->escape_str($_REQUEST['userIp']) : "0.0.0.0";
+             $signature = isset($_REQUEST['signature']) ? $this->db->escape_str($_REQUEST['signature']) : null;
+             if (md5($userId . $transactionId . $reward . $secret) != $signature) {
+             echo "ERROR: Signature doesn't match";
+             return;
+             }
+            
+             $reward = $reward * $this->data['settings']['currency_rate'];
+            
+             $trans = $this->m_offerwall->getTransaction($transactionId, 'offerwall.me');
+             if ($action == 2) {
+             $this->m_offerwall->reduceUserBalance($userId, abs($reward));
+             $this->m_offerwall->insertTransaction($userId, 'offerwall.me', $userIp, $reward, $transactionId, 1, time());
+             echo "ok";
+             } else {
+		     if (!$trans) {
+		     $hold = 0;
+		     if ($reward > $minHold) {
+		         $hold = 3; // UPDATE HOLD DAYS Which you Use for hold
+		     	}
+		    
+		     if ($hold == 0) {
+		     $offerId = $this->m_offerwall->insertTransaction($userId, 'offerwall.me', $userIp, $reward, $transactionId, 2, time());
+		     $this->m_offerwall->updateUserBalance($userId, $reward);
+		     $this->m_core->addNotification($userId, currencyDisplay($reward, $this->data['settings']) . " from offerwall.me Offer #" . $offerId . " was credited to your balance.", 1);
+            
+		     $user = $this->m_core->getUserFromId($userId);
+		     $this->m_core->addExp($user['id'], $this->data['settings']['offerwall_exp_reward']);
+		     if (($user['exp'] + $this->data['settings']['offerwall_exp_reward']) >= ($user['level'] + 1) * 100) {
+		     $this->m_core->levelUp($user['id']);
+		     }
+		     } else {
+		     $availableAt = time() + $hold * 86400;
+		     $offerId = $this->m_offerwall->insertTransaction($userId, 'offerwall.me', $userIp, $reward, $transactionId, 0, $availableAt);
+		     $this->m_core->addNotification($userId, "Your offerwall.me Offer #" . $offerId . " is pending approval.", 0);
+		     }
+		     echo "ok";
+		     } else {
+		     echo "DUP";
+		     }
+	       }
+        }	
+        
+        
+        
+
+
+Second step is to add our offerwall in the UI. Inside application/controllers/offerwall.php file, add this code before last closing bracket (}).
+
+Don't forget to place on proper place your API key from the dashboard under $api_key variable.
+
+
+            public function offerwallme()
+	  {
+		  $api_key=""; // UPDATE YOUR API KEY HERE
+		 $this->data['page'] = 'offerwall.me Offerwall';
+		 $this->data['iframe'] = '<iframe style="width:100%;height:800px;border:0;padding:0;margin:0;" scrolling="yes" frameborder="0" src="https://offerwall.me/offerwall/' . $api_key . '/' . $this->data['user']['id'] . '"></iframe>';
+		 $this->data['wait'] = 3; // UPDATE YOUR HOLD TIME
+		 $this->render('offerwall', $this->data);
+	 }
+          
+          
+
+
+Third step is to add offerwall.me's offerwall inside your sidebar/ UserPanel Menu on Vie Faucet.
+
+Go to this file application/views/user_template/template.php, and place this code above or under some of the existing offerwalls list.
+
+
+    <li><a href="<?= site_url('offerwall/offerwallme') ?>" key="t-offerwall.me">offerwall.me</a></li>
+          
+
+
+Final Step You must Add below code on your config files
+
+Open Application/Config/config.php
+
+Goto $config['csrf_exclude_uris'] this line
+
+Add this code 'wh/offerwallme', on that line.
+
+How to set site on offerwall.me?
+PostBack URL Should be : https://yourdomain.com/wh/offerwallme
+
+CryptoFaucet/ClaimBits Integration
+ClaimBits/CryptoFaucet is a Very populer of Crypto Faucet which brings plenty of different features together into a complete system.
+
+offerwall.me integration is very easy in this script - Just need to create 1 file, Modify 2 line of code, and that's it! Less than 5 minutes and you can bring offerwall.me offerwall to your users.
+
+To create Postback file - open system/gateways/ and create file offerwallme.php, put following code in this file:
+
+                  
+       <?php
+        define('BASEPATH', true);
+        require('../init.php');
+        $secret = "YOUR SECRET KEY"; //Enter Your offerwall.me SECRET KEY
+        
+        $userId = isset($_REQUEST['subId']) ? $db->EscapeString($_REQUEST['subId']) : null;
+        $survey = isset($_REQUEST['transId']) ? $db->EscapeString($_REQUEST['transId']) : null;
+        $reward = isset($_REQUEST['reward']) ? $db->EscapeString($_REQUEST['reward']) : null;
+        $payout = isset($_REQUEST['payout']) ? $db->EscapeString($_REQUEST['payout']) : null;
+        $action = isset($_REQUEST['status']) ? $db->EscapeString($_REQUEST['status']) : null;
+        $userIP = isset($_REQUEST['userIp']) ? $db->EscapeString($_REQUEST['userIp']) : '0.0.0.0';
+        $country = isset($_REQUEST['country']) ? $db->EscapeString($_REQUEST['country']) : null;
+        
+        if (md5($userId.$survey.$reward.$secret) != $_REQUEST['signature']){
+        echo "ERROR: Signature doesn't match";
+        return;
+        }
+        if(!empty($userId) && $db->QueryGetNumRows("SELECT * FROM `completed_offers` WHERE `survey_id`='".$survey."' LIMIT 1") == 0)
+        {
+        $user = $db->QueryFetchArray("SELECT `id` FROM `users` WHERE `id`='".$userId."'");
+        if(!empty($user['id'])) {
+        $tc_points = (0.10*($payout*100));
+        $tc_points = ($tc_points < 1 ? 1 : number_format($tc_points, 0));
+        $db->Query("UPDATE `users` SET `ow_credits`=`ow_credits`+'".$reward."', `tasks_contest`=`tasks_contest`+'".$tc_points."' WHERE `id`='".$user['id']."'"); 
+        $db->Query("INSERT INTO `users_offers` (`uid`,`total_offers`,`total_revenue`,`last_offer`) VALUES ('".$user['id']."','1','".$reward."','".time()."') ON DUPLICATE KEY UPDATE `total_offers`=`total_offers`+'1', `total_revenue`=`total_revenue`+'".$reward."', `last_offer`='".time()."'");
+        $db->Query("INSERT INTO `completed_offers` (`user_id`,`survey_id`,`user_country`,`user_ip`,`revenue`,`reward`,`method`,`timestamp`) VALUES ('".$user['id']."','".$survey."','".$country."','".ip2long($userIP)."','".$payout."','".$reward."','offerwall.me','".time()."')");
+        }
+     }  
+        echo 'ok';
+       
+       ?>
+      
+    
+
+
+HOLA...Your, postback created Suceesfully! Now is time for iframe integration
+
+Just Open template/default/pages/offers.php, and add the following code after some of the existing offerwalls. break; code.
+
+    
+           case 'offerwallme' :
+           $title = 'offerwall.me';
+           $offer_wall = '<iframe src="https://offerwall.me/offerwall/YOUR API KEY/'.$data['id'].'" style="width:100%;height:690px;border:0;border-radius:5px;"></iframe>';
+            break;
+    
+    
+
+
+.Replace YOUR API KEY by your offerwall.me API key from offerwall.me Website setting.
+
+Scroll down and insert link to offerwall.me offerwall:
+
+            
+                 <a href="<?php echo GenerateURL('offers&x=offerwallme'); ?>" class="btn btn-secondary mb-1<?php echo ($method == 'offerwall.me' ? ' active' : ''); ?>">offerwall.me</a>
+                
+                
+
+
+And save, that is all!
+
+How to set site on offerwall.me?
+Note: Currency should be set in credits
+
+Postback URL should be : http://yourdomain.com/system/gateways/offerwallme.php
+
+AutoFaucetScript - Ultimate Auto Faucet By NGB Solutions Integration
+AutoFaucetScript is a Very populer of New Mordern AutoFaucet Script which brings plenty of different features together into a complete system.
+
+offerwall.me integration is very easy in this script - Just need to create 1 file, Modify 2 line of code, and thatÃ¢â ¬â ¢s it! Less than 5 minutes and you can bring offerwall.me offerwall to your users.
+
+To create Postback file - open system/gateways/ and create file offerwallme.php, put following code in this file:
+
+                  
+       <?php
+        define('BASEPATH', true);
+        require('../init.php');
+        $secret = "YOUR SECRET KEY"; //Enter Your offerwall.me SECRET KEY
+        
+        $userId = isset($_REQUEST['subId']) ? $db->EscapeString($_REQUEST['subId']) : null;
+        $survey = isset($_REQUEST['transId']) ? $db->EscapeString($_REQUEST['transId']) : null;
+        $reward = isset($_REQUEST['reward']) ? $db->EscapeString($_REQUEST['reward']) : null;
+        $payout = isset($_REQUEST['payout']) ? $db->EscapeString($_REQUEST['payout']) : null;
+        $action = isset($_REQUEST['status']) ? $db->EscapeString($_REQUEST['status']) : null;
+        $userIP = isset($_REQUEST['userIp']) ? $db->EscapeString($_REQUEST['userIp']) : '0.0.0.0';
+        $country = isset($_REQUEST['country']) ? $db->EscapeString($_REQUEST['country']) : null;
+        
+        if (md5($userId.$survey.$reward.$secret) != $_REQUEST['signature']){
+        echo "ERROR: Signature doesn't match";
+        return;
+        }
+        if(!empty($userId) && $db->QueryGetNumRows("SELECT * FROM `completed_offers` WHERE `survey_id`='".$survey."' LIMIT 1") == 0)
+        {
+        $user = $db->QueryFetchArray("SELECT `id` FROM `users` WHERE `id`='".$userId."'");
+        if(!empty($user['id'])) {
+        $currentPrice = $db->QueryFetchArray("SELECT `value` FROM `bitcoin_price` ORDER BY `time` DESC LIMIT 1");
+        $usdPayout = $currentPrice['value']*$payout;
+        $tc_points = (0.10*$usdPayout);
+        $tc_points = ($tc_points < 1 ? 1 : number_format($tc_points, 0));
+        $db->Query("UPDATE `users` SET `ow_credits`=`ow_credits`+'".$reward."', `tasks_contest`=`tasks_contest`+'".$tc_points."' WHERE `id`='".$user['id']."'"); 
+        $db->Query("INSERT INTO `users_offers` (`uid`,`total_offers`,`total_revenue`,`last_offer`) VALUES ('".$user['id']."','1','".$reward."','".time()."') ON DUPLICATE KEY UPDATE `total_offers`=`total_offers`+'1', `total_revenue`=`total_revenue`+'".$reward."', `last_offer`='".time()."'");
+        $db->Query("INSERT INTO `completed_offers` (`user_id`,`survey_id`,`user_country`,`user_ip`,`revenue`,`reward`,`method`,`timestamp`) VALUES ('".$user['id']."','".$survey."','".$country."','".ip2long($userIP)."','".$usdPayout."','".$reward."','offerwall.me','".time()."')");
+        }
+     }  
+        echo 'ok';
+       
+       ?>
+      
+    
+
+
+HOLA...Your, postback created Suceesfully! Now is time for iframe integration
+
+Just Open template/default/pages/offers.php, and add the following code after some of the existing offerwalls. break; code.
+
+    
+           case 'offerwallme' :
+           $title = 'offerwall.me';
+           $offer_wall = '<iframe src="https://offerwall.me/offerwall/YOUR API KEY/'.$data['id'].'" style="width:100%;height:690px;border:0;border-radius:5px;"></iframe>';
+            break;
+    
+    
+
+
+Replace YOUR API KEY by your offerwall.me API key from offerwall.me Website setting.
+
+Scroll down and insert link to offerwall.me offerwall:
+
+            
+                 <a href="<?php echo GenerateURL('offers&x=offerwallme'); ?>" class="btn btn-secondary mb-1<?php echo ($method == 'offerwall.me' ? ' active' : ''); ?>">offerwall.me</a>
+                
+                
+
+
+And save, that is all!
+
+How to set site on offerwall.me?
+Note: Currency should be set in credits
+
+Postback URL should be : http://yourdomain.com/system/gateways/offerwallme.php
+
+API Integration For PTC Ads
+Integrating the PTC API with PHP is simple, secure, and user-friendly.
+
+First, create a new file in the application/controllers folder called Offerwallme_ptc.php and paste this code:
+
+
+<?php
+defined('BASEPATH') or exit('No direct script access allowed');
+
+class Offerwallme_ptc extends Member_Controller
+{
+    public function __construct()
+    {
+        parent::__construct();
+        
+        $this->load->helper('string');
+    }
+    public function index()
+    {
+        $this->data['page'] = 'Offerwall.me PTC';
+
+        $this->render('offerwallme_ptc', $this->data);
+    }
+}
+?>
+      
+    
+
+
+Next, create a new file in the application/views/user_template folder called offerwallme_ptc.php and paste this code:
+
+
+<?php 
+
+// Function to get the user's IP address
+function getUserIP() {
+    if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        return $_SERVER['HTTP_CF_CONNECTING_IP'];
+    } elseif (isset($_SERVER['REMOTE_ADDR'])) {
+        return $_SERVER['REMOTE_ADDR'];
+    }
+    return 'Unknown IP';
+}
+
+// Function to detect user's country ISO code
+function getUserCountry($ip = null) {
+    // 1. Use Cloudflare country header (best accuracy)
+    if (isset($_SERVER['HTTP_CF_IPCOUNTRY']) && $_SERVER['HTTP_CF_IPCOUNTRY'] !== 'XX') {
+        return strtoupper($_SERVER['HTTP_CF_IPCOUNTRY']);
+    }
+
+    // 2. Use the passed IP or detected IP
+    if (empty($ip)) {
+        $ip = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? $_SERVER['HTTP_CF_CONNECTING_IP'] :
+              ($_SERVER['REMOTE_ADDR'] ?? null);
+    }
+
+    // 3. Fallback: Use a simple external lookup API
+    if (!empty($ip)) {
+        $apiUrl = "https://ipapi.co/{$ip}/country/";
+        $country = @file_get_contents($apiUrl);
+        if ($country && preg_match('/^[A-Z]{2}$/', trim($country))) {
+            return trim($country);
+        }
+    }
+
+    // 4. Default fallback
+    return 'US';
+}
+
+// Get user IP
+$IP = getUserIP();
+$country = getUserCountry($IP);
+
+// Function to make the request using cURL
+function requestWithCurl($url) {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+    $response = curl_exec($ch);
+    if (curl_errno($ch)) {
+        return false;
+    }
+    curl_close($ch);
+    return $response;
+}
+
+// Example variables
+$id = $user['id'];
+$api = 'YOUR_API_KEY';
+$token = 'YOUR_API_TOKEN';
+$url = "https://offerwall.me/api.php?api=$api&id=$id&ip=$IP&token=$token&country=$country";
+
+// Attempt to retrieve the response using cURL
+$response = requestWithCurl($url);
+
+// Process the response
+if ($response) {
+    $responseArray = json_decode($response, true);
+    if (isset($responseArray['status']) && $responseArray['status'] == 200) {
+        
+        // Count and display the number of ads
+        $adCount = count($responseArray['data']);
+        // Correct rewards by rounding or formatting
+        $totalRewards = array_sum(array_map(function($campaign) {
+            return round($campaign['reward'], 2); // Round to 2 decimal places
+        }, $responseArray['data']));
+        
+        // Sort campaigns by 'reward' in descending order
+        usort($responseArray['data'], function($a, $b) {
+            return $b['reward'] <=> $a['reward'];
+        });
+        ?>
+<div class="ads">
+    <?= $settings['ptc_top_ad'] ?>
+</div>
+<div class="row">
+    <div class="col-md-6 col-xl-6 mb-1 mb-xl-6">
+        <div class="card mini-stats-wid">
+            <div class="card-body">
+                <div class="media">
+                    <div class="media-body">
+                        <p class="lh-1 mb-1 font-weight-bold"><?= $adCount ?></p>
+                        <p class="mb-0">ads available</p>
+                    </div>
+
+                    <div class="mini-stat-icon avatar-sm rounded-circle bg-primary align-self-center">
+                        <span class="avatar-title">
+                            <i class="fas fa-mouse text-white fa-2x"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-6 mb-2 mb-xl-6">
+        <div class="card mini-stats-wid">
+            <div class="card-body">
+                <div class="media">
+                    <div class="media-body">
+                        <p class="lh-1 mb-1 font-weight-bold"><?= number_format($totalRewards, 2) ?> <?= currencyUnit($totalRewards, $settings) ?></p>
+                        <p class="mb-0"><?= currencyUnit($totalRewards, $settings) ?></p>
+                    </div>
+
+                    <div class="mini-stat-icon avatar-sm rounded-circle bg-primary align-self-center">
+                        <span class="avatar-title">
+                            <i class="fas fa-gifts text-white fa-2x"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<?php 
+
+        // Display each campaign in a card
+        echo '<div class="row" id="card-container">';
+        foreach ($responseArray['data'] as $campaign) {
+            // Extract the token from the URL
+            $url = $campaign['url'];
+            $urlParts = explode('/', $url);
+            $token = end($urlParts);
+            $_SESSION['LeadTokenKey'] = $token; 
+
+                if ($campaign['max'] == 0) {
+        $maxDisplay = "ONE TIME";
+    } else {
+        $hours = $campaign['max'];
+        if ($hours < 25) {
+            $maxDisplay = "$hours HOUR" . ($hours > 1 ? "S" : "");
+        } else {
+            $days = floor($hours / 48);
+            $maxDisplay = "$days DAY" . ($days > 2 ? "S" : "");
+        }
+    }
+            echo '
+<div class="col-sm-4" style="margin-bottom: 5px;">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">' . htmlspecialchars(mb_substr($campaign['title'], 0, 50)) . '</h5>
+            <p class="card-text">' . htmlspecialchars($campaign['description']) . '</p>
+            <div class="row text-center">
+                <div class="col-md-6">
+                    <span><i class="fas fa-gift"></i>: ' . htmlspecialchars($campaign['reward']) . ' ' . htmlspecialchars($settings['currency_name_plural']) . '</span>
+                </div>
+                <div class="col-md-6">
+                    <span><i class="fas fa-stopwatch"></i>: ' . htmlspecialchars($campaign['duration']) . ' seconds</span>
+                </div>
+            </div>
+            <div class="row text-center">
+                <div class="col-md-6">
+                    <span><i class="' . ($campaign['type'] == 1 ? 'far fa-window-restore' : 'far fa-window-maximize') . '"></i>: ' . ($campaign['type'] == 1 ? 'Window' : 'Iframe') . '</span>
+                </div>
+                <div class="col-md-6">
+                    <span><i class="far fa-calendar-alt"></i>: ' . htmlspecialchars($maxDisplay) . '</span>
+                </div>
+            </div>
+            <a href="' . htmlspecialchars($url) . '" target="_blank" class="btn btn-primary waves-effect waves-light">Go</a>
+        </div>
+    </div>
+</div>';
+        }
+        echo '</div>';
+    } elseif (isset($responseArray['status']) && $responseArray['status'] != 200) {
+        echo $responseArray['message'];
+    }
+} else {
+    echo "Request Failed";
+}
+?>
+      
+    
+
+
+This should be everything you need to run our ads on your site. Just add a link in your menu to FAUCETURL/offerwallme_ptc
+
+API Integration For Shortlink Ads
+Integrating the Shortlink API with PHP is simple, secure, and user-friendly.
+
+First, create a new file in the application/controllers folder called Offerwallme_links.php and paste this code:
+
+
+<?php
+defined('BASEPATH') or exit('No direct script access allowed');
+
+class Offerwallme_links extends Member_Controller
+{
+    public function __construct()
+    {
+        parent::__construct();
+        
+        $this->load->helper('string');
+    }
+    public function index()
+    {
+        $this->data['page'] = 'Offerwall.me Shortlinks';
+
+        $this->render('offerwallme_links', $this->data);
+    }
+}
+?>
+      
+    
+
+
+Next, create a new file in the application/views/user_template folder called offerwallme_links.php and paste this code:
+
+
+<?php 
+
+// Function to get the user's IP address
+function getUserIP() {
+    if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        return $_SERVER['HTTP_CF_CONNECTING_IP'];
+    } elseif (isset($_SERVER['REMOTE_ADDR'])) {
+        return $_SERVER['REMOTE_ADDR'];
+    }
+    return 'Unknown IP';
+}
+
+// Function to detect user's country ISO code
+function getUserCountry($ip = null) {
+    // 1. Use Cloudflare country header (best accuracy)
+    if (isset($_SERVER['HTTP_CF_IPCOUNTRY']) && $_SERVER['HTTP_CF_IPCOUNTRY'] !== 'XX') {
+        return strtoupper($_SERVER['HTTP_CF_IPCOUNTRY']);
+    }
+
+    // 2. Use the passed IP or detected IP
+    if (empty($ip)) {
+        $ip = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? $_SERVER['HTTP_CF_CONNECTING_IP'] :
+              ($_SERVER['REMOTE_ADDR'] ?? null);
+    }
+
+    // 3. Fallback: Use a simple external lookup API
+    if (!empty($ip)) {
+        $apiUrl = "https://ipapi.co/{$ip}/country/";
+        $country = @file_get_contents($apiUrl);
+        if ($country && preg_match('/^[A-Z]{2}$/', trim($country))) {
+            return trim($country);
+        }
+    }
+
+    // 4. Default fallback
+    return 'US';
+}
+
+// Get user IP
+$IP = getUserIP();
+$country = getUserCountry($IP);
+
+// Function to make the request using cURL
+function requestWithCurl($url) {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+    $response = curl_exec($ch);
+    if (curl_errno($ch)) {
+        return false;
+    }
+    curl_close($ch);
+    return $response;
+}
+
+// Example variables
+$id = $user['id'];
+$api = 'YOUR_API_KEY';
+$token = 'YOUR_API_TOKEN';
+$url = "https://offerwall.me/slapi.php?api=$api&id=$id&ip=$IP&token=$token&country=$country";
+
+// Attempt to retrieve the response using cURL
+$response = requestWithCurl($url);
+
+// Process the response
+if ($response) {
+    $responseArray = json_decode($response, true);
+    if (isset($responseArray['status']) && $responseArray['status'] == 200) {
+        // Initialize counters
+        $adCount = 0;
+        $totalRewards = 0.0;
+
+        // Loop through each campaign
+        foreach ($responseArray['data'] as $campaign) {
+            $remainingViews = $campaign['remaining_views'];
+            $adCount += $remainingViews; // Count each view as an ad
+            $totalRewards += $campaign['reward'] * $remainingViews; // Multiply reward by remaining views
+        }
+        // Sort campaigns by 'reward' in descending order
+        usort($responseArray['data'], function($a, $b) {
+            return $b['reward'] <=> $a['reward'];
+        });
+        ?>
+                <style>
+.fa-solid, .fas {
+    color: #A6B0CF;
+}
+.fa-solid, .far {
+    color: #A6B0CF;
+}
+</style>
+<div class="ads">
+    <?= $settings['ptc_top_ad'] ?>
+</div>
+<div class="row">
+    <div class="col-md-6 col-xl-6 mb-1 mb-xl-6">
+        <div class="card mini-stats-wid">
+            <div class="card-body">
+                <div class="media">
+                    <div class="media-body">
+                        <p class="lh-1 mb-1 font-weight-bold"><?= $adCount ?></p>
+                        <p class="mb-0">ads available</p>
+                    </div>
+
+                    <div class="mini-stat-icon avatar-sm rounded-circle bg-primary align-self-center">
+                        <span class="avatar-title">
+                            <i class="fas fa-mouse text-white fa-2x"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-6 mb-2 mb-xl-6">
+        <div class="card mini-stats-wid">
+            <div class="card-body">
+                <div class="media">
+                    <div class="media-body">
+                        <p class="lh-1 mb-1 font-weight-bold"><?= number_format($totalRewards, 2) ?> <?= currencyUnit($totalRewards, $settings) ?></p>
+                        <p class="mb-0"><?= currencyUnit($totalRewards, $settings) ?></p>
+                    </div>
+
+                    <div class="mini-stat-icon avatar-sm rounded-circle bg-primary align-self-center">
+                        <span class="avatar-title">
+                            <i class="fas fa-gifts text-white fa-2x"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>       
+        
+        
+
+<?php 
+// Display each campaign in a card
+        echo '<div class="row" id="card-container">';
+        foreach ($responseArray['data'] as $campaign) {
+            // Extract the token from the URL
+            $url = $campaign['url'];
+            $urlParts = explode('/', $url);
+            $token = end($urlParts);
+            $_SESSION['LeadTokenKey'] = $token; 
+
+echo '
+<div class="col-lg-3" style="margin-bottom: 5px;">
+    <a href="' . htmlspecialchars($url) . '" target="_blank">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">' . htmlspecialchars(mb_substr($campaign['name'], 0, 36)) . '</h5>
+                <div class="row text-center">
+                    <div class="col-md-6">
+                <span><i class="fas fa-gift"></i>: ' . htmlspecialchars($campaign['reward']) . ' ' . htmlspecialchars($settings['currency_name_plural']) . ' </span>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-block">Claim <span class="badge badge-info">' . htmlspecialchars($campaign['remaining_views']) . ' / ' . htmlspecialchars($campaign['daily_limit']) . '</span></button>
+            </div>
+        </div>
+    </a>
+</div>';
+        }
+        echo '</div>';
+    } elseif (isset($responseArray['status']) && $responseArray['status'] != 200) {
+        echo $responseArray['message'];
+    }
+} else {
+    echo "Request Failed";
+}
+?>
+      
+    
+
+
+This should be everything you need to run our ads on your site. Just add a link in your menu to FAUCETURL/offerwallme_links
+
+API KEY
+yyu8i3jt58by9do1fbdr0fyn60yn5u
+SECRET KEY
+53ef7ec6bf3dac68f4c5528e057059e5
+API TOKEN (Used for PTC and Shortlink API)
+war14zss50bmdbxv9r5kqlqii2ojcy0kk5mniaict0ejihpvvm6s9zoxqy1r
+Website Integration
+Our Offerwall can be integrated into your website and displayed in any web browser using the following code.
+
+<iframe style="width:100%;height:800px;" scrolling="yes" frameborder="0" src="https://offerwall.me/offerwall/yyu8i3jt58by9do1fbdr0fyn60yn5u/[USER_ID]"></iframe>
+        
+
+Replace [USER_ID] with the ID of the user in your app (eg. user123).
+
+S2S Postback
+Our server will make POST request with following parameters:
+
+Parameter	Description	Example
+subId	User’s unique ID on your platform.	user123
+transId	Unique transaction ID.	XX-12345678
+offer_name	Name of the completed offer.	Offerwall.me - Register and Earn
+offer_type	Type of offer completed (ptc, offer, task, shortlink).	ptc
+reward	Reward in your virtual currency.	1.25
+reward_name	Your currency name.	Points
+reward_value	Exchange rate for $1 payout.	7.29
+payout	Payout in USD.	0.100000
+userIp	User’s IP address.	192.168.1.0
+country	Country (ISO2).	US
+status	1 = credit, 2 = revoke.	1 / 2
+debug	Test or live postback.	1 / 0
+signature	MD5 hash to verify authenticity.	17b4e2a70d6efe9796dd4c5507a9f9ab
+Click here to read our full documentation.
+Offerwall Preview
+Offerwall Integration
+Test Postback
+To test your postback, you have to complete SubID with some random user ID and Payout with your desired amount!
+user123
+SUBID
+Enter some random userID.
+0,50
+PAYOUT
+Enter some random payout amount.
+Postback Result
+FAILED
+Postback Response
+HTTP 403 - {"ok":false,"code":"INVALID_CSRF_TOKEN","messageKey":"errors.security.INVALID_CSRF_TOKEN","message":"This action was blocked for security (CSRF). Please reload the page and try again."}
+System was unable to call your postback!
+

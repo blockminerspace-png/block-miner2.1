@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Trophy, Zap, Cpu, Gamepad2, RefreshCw, ExternalLink, Crown, Medal, Loader2, ChevronRight, Youtube, Star } from 'lucide-react';
 import { api } from '../../store/auth';
 import SocialTab, { CredentialTab } from './SocialTab';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import {
   formatHashrate,
   getGlobalSlotIndex,
@@ -435,6 +436,8 @@ export default function Ranking() {
         </div>
       </div>
       </>}
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="ranking-bottom" />
     </div>
   );
 }

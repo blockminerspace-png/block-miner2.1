@@ -24,6 +24,7 @@ import {
 } from "../../games/minerGamesSocketMessages";
 import { createMinerGamesSocketGuard } from "../../games/minerGamesSocketGuards";
 import { CRYPTO_ICONS, COIN_COLORS, ICON_IMAGES } from "../../games/cryptoGameIcons";
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 type CryptoIconKey = keyof typeof CRYPTO_ICONS;
 

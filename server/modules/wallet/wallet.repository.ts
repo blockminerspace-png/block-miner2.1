@@ -153,20 +153,25 @@ export const WITHDRAWAL_FEE_PERCENT = 2.5;
 export const WITHDRAWAL_FEE_WAIVER_REQUIRED = 10;
 
 /** Counts all offerwall/ad completions today (UTC) — used for withdrawal fee waiver.
- *  Includes: offerwall.me credits + zerads PTC callbacks + internal offerwall (iframe) completions. */
+ *  Includes: offerwall.me credits + zerads PTC ads viewed + internal offerwall (iframe) completions.
+ *
+ *  Zerads batches multiple ad clicks per callback (1 row can represent 1..N ads viewed),
+ *  so we SUM the `clicks` column instead of counting rows. Other providers are 1:1. */
 export async function countTodayOfferwallCompletions(userId: number): Promise<number> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
-  const [offerwallMe, internalOw, zerads] = await Promise.all([
+  const [offerwallMe, internalOw, zeradsAgg] = await Promise.all([
     (prisma as any).offerwallMeCallback.count({
       where: { userId, status: 1, createdAt: { gte: startOfDay } },
     }),
     prisma.internalOfferwallAttempt.count({
       where: { userId, status: "COMPLETED", completedAt: { gte: startOfDay } },
     }),
-    prisma.zeradsCallback.count({
+    prisma.zeradsCallback.aggregate({
       where: { userId, callbackAt: { gte: startOfDay } },
+      _sum: { clicks: true },
     }),
   ]);
-  return (offerwallMe as number) + internalOw + zerads;
+  const zeradsClicks = Number(zeradsAgg._sum?.clicks ?? 0);
+  return (offerwallMe as number) + internalOw + zeradsClicks;
 }

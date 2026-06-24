@@ -48,6 +48,37 @@ export default function AdminPartnerGames() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<PartnerGameForm>(EMPTY);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
+  const handleCoverUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so same file can be picked again
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Imagem maior que 5 MB.');
+      return;
+    }
+    setUploadingCover(true);
+    try {
+      const fd = new FormData();
+      fd.append('cover', file);
+      const res = await api.post<{ ok: boolean; url?: string; message?: string }>(
+        '/admin/partner-games/upload-cover',
+        fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      if (res.data?.ok && res.data.url) {
+        setForm((f) => ({ ...f, coverImageUrl: res.data.url! }));
+        toast.success('Capa enviada.');
+      } else {
+        toast.error(res.data?.message ?? 'Falha no upload.');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Falha no upload.');
+    } finally {
+      setUploadingCover(false);
+    }
+  };
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -220,14 +251,45 @@ export default function AdminPartnerGames() {
             maxLength={1000}
             placeholder="Texto curto exibido no card"
           />
-          <Field
-            label="URL da imagem de capa"
-            name="coverImageUrl"
-            value={form.coverImageUrl}
-            onChange={handleChange}
-            type="url"
-            placeholder="https://…/cover.jpg"
-          />
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+              Capa
+            </label>
+            <div className="flex items-center gap-3">
+              {form.coverImageUrl ? (
+                <img
+                  src={form.coverImageUrl}
+                  alt=""
+                  className="h-16 w-28 object-cover rounded-lg border border-white/10 bg-slate-800"
+                />
+              ) : (
+                <div className="h-16 w-28 grid place-items-center rounded-lg border border-dashed border-white/10 bg-slate-800/40 text-slate-600">
+                  <ImageIcon className="h-4 w-4" />
+                </div>
+              )}
+              <div className="flex-1 space-y-2">
+                <label className="flex items-center justify-center gap-2 cursor-pointer rounded-xl border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 text-xs font-bold text-sky-300 transition-colors">
+                  {uploadingCover ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                  {uploadingCover ? 'Enviando…' : (form.coverImageUrl ? 'Trocar imagem' : 'Enviar imagem do PC')}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => void handleCoverUpload(e)}
+                    disabled={uploadingCover}
+                  />
+                </label>
+                <input
+                  type="url"
+                  value={form.coverImageUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, coverImageUrl: e.target.value }))}
+                  placeholder="…ou cole uma URL: https://…/cover.jpg"
+                  className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-sky-500/50 focus:outline-none"
+                />
+              </div>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-500">JPG, PNG, WebP ou GIF. Máx. 5 MB.</p>
+          </div>
           <Field
             label="URL do iframe *"
             name="iframeUrl"

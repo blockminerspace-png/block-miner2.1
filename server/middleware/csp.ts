@@ -79,6 +79,8 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
       "https://www.tradingview.com",
       "https://s.tradingview.com",
       "https://widget.tradingview.com",
+      "https://ad.a-ads.com",
+      "http://ad.a-ads.com",
       ...internalOfferwallFrameHosts,
     ],
     objectSrc: ["'none'"],

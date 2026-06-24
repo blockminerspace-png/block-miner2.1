@@ -128,6 +128,7 @@ const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     icon: Settings,
     items: [
       { icon: FileText, labelKey: 'adminSidebar.nav.logs', path: '/admin/logs' },
+      { icon: FileText, labelKey: 'adminSidebar.nav.client_errors', path: '/admin/client-errors' },
     ],
   },
 ];

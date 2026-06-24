@@ -1,4 +1,5 @@
 ﻿import { useState } from 'react';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import {
   CheckCircle2,
   Clock,
@@ -355,6 +356,8 @@ export default function Roadmap() {
           </div>
         </div>
       </div>
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="roadmap-bottom" />
     </div>
   );
 }

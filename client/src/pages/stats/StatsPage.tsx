@@ -21,6 +21,7 @@ import { useUserPowerStats } from '../../shared/hooks/useUserPowerStats';
 import { formatHashrate } from '../../shared/utils/machine';
 import type { UserPowerStatsPayload } from './stats.api';
 import CalculatorPage from '../calculator/CalculatorPage';
+import AdRotator, { POWER_STATS_ADS, POWER_STATS_ADS_300 } from '../../shared/components/AdRotator';
 
 /** Recharts is heavy (~hundreds of KB); load it in a separate chunk so `/power-stats` shell paints quickly. */
 const PowerChartsPanel = lazy(() => import('./components/PowerChartsPanel'));
@@ -174,6 +175,9 @@ export default function PowerStatistics() {
             ))}
           </div>
 
+          {/* Slot A: Ad after tab bar */}
+          <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="power-stats-top" />
+
           {tab === 'overview' && (
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -248,6 +252,9 @@ export default function PowerStatistics() {
               </div>
             </div>
           )}
+
+          {/* Slot B: Ad after overview section */}
+          {tab === 'overview' && <AdRotator ads={POWER_STATS_ADS_300} size="300x250" slotId="power-stats-mid" />}
 
           {tab === 'machines' && (
             <div className="space-y-4">
@@ -486,6 +493,9 @@ export default function PowerStatistics() {
               </Suspense>
             </div>
           )}
+
+          {/* Slot C: Ad at bottom of page */}
+          <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="power-stats-bottom" />
         </>
       ) : null}
     </div>

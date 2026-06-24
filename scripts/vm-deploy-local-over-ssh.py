@@ -225,7 +225,28 @@ if [[ "${BLOCKMINER_DOCKER_BUILD_NO_CACHE:-0}" == "1" ]]; then
 else
   compose build app worker
 fi
+
+# Preserve previously-shipped /assets/* so stale tabs (cached old index.html
+# referencing previous chunk hashes) keep loading instead of 404→ErrorBoundary.
+LEGACY_ASSETS_DIR="$APP_ROOT/.legacy-assets"
+mkdir -p "$LEGACY_ASSETS_DIR"
+if docker ps -a --format '{{.Names}}' | grep -qx block-miner-app; then
+  docker cp block-miner-app:/app/client/dist/assets/. "$LEGACY_ASSETS_DIR/" 2>/dev/null || true
+fi
+# Prune assets older than 14 days so legacy dir doesn't grow forever.
+find "$LEGACY_ASSETS_DIR" -type f -mtime +14 -delete 2>/dev/null || true
+
 compose up -d --remove-orphans db redis app worker telegram-worker nginx
+
+# After containers are up, merge legacy assets into the new container's dist.
+# Same-name files (current build) win because we use a tar pipe that skips conflicts.
+sleep 2
+if [[ -d "$LEGACY_ASSETS_DIR" ]] && [[ "$(ls -A "$LEGACY_ASSETS_DIR" 2>/dev/null)" ]]; then
+  docker exec block-miner-app sh -c 'mkdir -p /tmp/legacy && rm -rf /tmp/legacy/*' 2>/dev/null || true
+  docker cp "$LEGACY_ASSETS_DIR/." block-miner-app:/tmp/legacy/ 2>/dev/null || true
+  docker exec block-miner-app sh -c 'cd /tmp/legacy && for f in *; do [ -e "/app/client/dist/assets/$f" ] || cp -r "$f" /app/client/dist/assets/; done' 2>/dev/null || true
+  echo "[vm] merged legacy assets so stale tabs keep working"
+fi
 if ! ss -tlnp 2>/dev/null | grep -qF ':80 '; then
   compose up -d --force-recreate --no-deps nginx || true
 fi

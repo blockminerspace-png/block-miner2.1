@@ -13,6 +13,7 @@ import { Shield, AlertCircle, Pickaxe } from "lucide-react";
 import { isAxiosError } from "axios";
 import { useVault } from "../../shared/hooks/useVault";
 import { useGameStore } from "../../store/game";
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import MachineCard from "../../shared/components/MachineCard";
 import MachineQuantityModal from "../../shared/components/MachineQuantityModal";
 import { MachinePlacementStatus } from "../../constants/machinePlacement";
@@ -283,6 +284,7 @@ export default function Vault() {
           </div>
         </>
       )}
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="vault-bottom" />
     </VaultPageShell>
   );
 }

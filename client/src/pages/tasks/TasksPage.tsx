@@ -1,4 +1,5 @@
 import { CalendarClock, CheckCircle2, CircleDashed, Gift, Loader2, PlayCircle } from 'lucide-react';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { CADENCE_SECTIONS } from './dailyTasksCadence';
 import {
   cadenceLabel,
@@ -183,6 +184,8 @@ export default function TasksPage() {
           })}
         </div>
       )}
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="tasks-bottom" />
     </div>
   );
 }

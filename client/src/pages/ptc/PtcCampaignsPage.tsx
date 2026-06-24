@@ -6,6 +6,7 @@ import {
     XCircle, AlertCircle, Layers
 } from 'lucide-react';
 import { api } from '../../store/auth';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface Campaign {
     id: number;

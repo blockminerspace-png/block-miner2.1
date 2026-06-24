@@ -1,5 +1,4 @@
 import { useState, useEffect, useLayoutEffect, useRef, type FormEvent } from 'react';
-import FloatingPublicSupport from '../../../components/FloatingPublicSupport/FloatingPublicSupport';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../../../store/auth';
@@ -20,7 +19,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import BrandLogo from '../../../shared/components/BrandLogo';
+import AuthShell from '../../../shared/components/auth/AuthShell';
 import SocialLoginButtons from '../../../shared/components/auth/SocialLoginButtons';
 import TurnstileField, { prefetchTurnstileScript } from '../../../shared/components/auth/TurnstileField';
 import { resolveTurnstileSiteKeyLogin } from '../../../constants/turnstilePublic';
@@ -293,10 +292,7 @@ export default function Login() {
   const displayError = safeInlineMessage(localError || error || '', 500);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse delay-700" />
-
+    <AuthShell hideAuthCta="login">
       {showLegacyReset && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-surface border border-primary/30 rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl shadow-primary/10">
@@ -372,14 +368,15 @@ export default function Login() {
 
       <div className="w-full max-w-[440px] relative z-10">
         <div className="text-center mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
-          <div className="flex justify-center mb-6">
-            <BrandLogo variant="auth" />
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">{t('auth.login.title')}</h1>
-          <p className="text-gray-500 font-medium mt-1">{t('auth.login.subtitle')}</p>
+          <h1 className="font-black leading-[1.06] text-[clamp(1.75rem,3vw+0.6rem,2.75rem)]">
+            <span className="block text-white">{t('auth.login.title')}</span>
+            <span className="block bg-gradient-to-r from-sky-300 via-cyan-300 to-blue-400 bg-clip-text text-transparent">
+              {t('auth.login.subtitle')}
+            </span>
+          </h1>
         </div>
 
-        <div className="bg-surface/95 border border-gray-800/70 rounded-[2.5rem] p-10 shadow-2xl animate-in fade-in zoom-in-95 duration-700 delay-200">
+        <div className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-[2.5rem] p-10 shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-700 delay-200">
           {(error || localError) && (
             <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3 animate-in shake duration-500">
               <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
@@ -554,7 +551,6 @@ export default function Login() {
           </Link>
         </div>
       </div>
-      <FloatingPublicSupport />
-    </div>
+    </AuthShell>
   );
 }

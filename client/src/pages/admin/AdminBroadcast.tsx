@@ -1,5 +1,5 @@
 import { useState, useEffect, type ChangeEvent, type SyntheticEvent } from "react";
-import { Plus, Trash2, Edit2, Check, X, Eye, EyeOff, Megaphone } from "lucide-react";
+import { Plus, Trash2, Edit2, Check, X, Eye, EyeOff, Megaphone, Image as ImageIcon, Loader2 } from "lucide-react";
 import { api } from "../../store/auth";
 import { toast } from "sonner";
 
@@ -8,9 +8,22 @@ type AdminBroadcastForm = {
   content: string;
   imageUrl: string;
   isActive: boolean;
+  dismissDelaySeconds: number;
+  linkUrl: string;
+  linkLabel: string;
+  linkNewTab: boolean;
 };
 
-const EMPTY: AdminBroadcastForm = { title: "", content: "", imageUrl: "", isActive: false };
+const EMPTY: AdminBroadcastForm = {
+  title: "",
+  content: "",
+  imageUrl: "",
+  isActive: false,
+  dismissDelaySeconds: 10,
+  linkUrl: "",
+  linkLabel: "",
+  linkNewTab: false,
+};
 
 type AdminBroadcastMessage = {
   id: number;
@@ -18,6 +31,10 @@ type AdminBroadcastMessage = {
   content?: string | null;
   imageUrl?: string | null;
   isActive: boolean;
+  dismissDelaySeconds?: number;
+  linkUrl?: string | null;
+  linkLabel?: string | null;
+  linkNewTab?: boolean;
   createdAt: string | Date;
   _count?: { views?: number };
 };
@@ -31,6 +48,37 @@ export default function AdminBroadcast() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<AdminBroadcastForm>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Imagem maior que 5 MB.");
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await api.post<{ ok: boolean; url?: string; message?: string }>(
+        "/admin/broadcast/upload-image",
+        fd,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      if (res.data?.ok && res.data.url) {
+        setForm((f) => ({ ...f, imageUrl: res.data.url! }));
+        toast.success("Imagem enviada.");
+      } else {
+        toast.error(res.data?.message ?? "Falha no upload.");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Falha no upload.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const load = async () => {
     try {
@@ -59,7 +107,11 @@ export default function AdminBroadcast() {
       title: m.title,
       content: m.content || "",
       imageUrl: m.imageUrl || "",
-      isActive: m.isActive
+      isActive: m.isActive,
+      dismissDelaySeconds: typeof m.dismissDelaySeconds === "number" ? m.dismissDelaySeconds : 10,
+      linkUrl: m.linkUrl ?? "",
+      linkLabel: m.linkLabel ?? "",
+      linkNewTab: Boolean(m.linkNewTab),
     });
     setShowForm(true);
   };
@@ -159,25 +211,45 @@ export default function AdminBroadcast() {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                URL da Imagem (opcional)
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
+                Imagem (opcional)
               </label>
-              <input
-                value={form.imageUrl}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-                placeholder="https://exemplo.com/imagem.png"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500/50 transition-all"
-              />
-              {form.imageUrl ? (
-                <img
-                  src={form.imageUrl}
-                  alt="preview"
-                  className="mt-2 max-h-32 rounded-xl object-cover border border-slate-700"
-                  onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : null}
+              <div className="flex items-start gap-3">
+                {form.imageUrl ? (
+                  <img
+                    src={form.imageUrl}
+                    alt="preview"
+                    className="h-20 w-28 object-cover rounded-xl border border-slate-700 bg-slate-900 shrink-0"
+                    onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <div className="h-20 w-28 grid place-items-center rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-slate-600 shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="flex-1 space-y-2">
+                  <label className="flex items-center justify-center gap-2 cursor-pointer rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 px-4 py-2.5 text-xs font-black text-amber-300 uppercase tracking-widest transition-colors">
+                    {uploadingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                    {uploadingImage ? "Enviando..." : (form.imageUrl ? "Trocar imagem" : "Enviar imagem do PC")}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => void handleImageUpload(e)}
+                      disabled={uploadingImage}
+                    />
+                  </label>
+                  <input
+                    value={form.imageUrl}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+                    placeholder="…ou cole uma URL: https://exemplo.com/imagem.png"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500/50 transition-all"
+                  />
+                </div>
+              </div>
+              <p className="mt-1 text-[10px] text-slate-600">JPG, PNG, WebP ou GIF. Máx. 5 MB.</p>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -193,6 +265,66 @@ export default function AdminBroadcast() {
                 {form.isActive ? "Ativo" : "Inativo"}
               </button>
               <span className="text-[10px] text-slate-600">Ativar desativa todos os outros</span>
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                Bloqueio de dismiss (segundos)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                value={form.dismissDelaySeconds}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const n = Math.max(0, Math.min(120, Math.floor(Number(e.target.value) || 0)));
+                  setForm((f) => ({ ...f, dismissDelaySeconds: n }));
+                }}
+                className="w-32 bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500/50 transition-all"
+              />
+              <p className="mt-1 text-[10px] text-slate-600">0 = sem delay. Máx 120s.</p>
+            </div>
+
+            <div className="md:col-span-2 rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-4 space-y-3">
+              <p className="text-[10px] font-black text-sky-300 uppercase tracking-widest">
+                Call-to-action (opcional)
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_200px] gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                    URL do botão
+                  </label>
+                  <input
+                    value={form.linkUrl}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, linkUrl: e.target.value }))}
+                    placeholder="/shop ou https://parceiro.com"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-sky-500/50 transition-all"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-600">
+                    Use <code>/rota</code> para abas internas (ex: /shop, /faucet) ou <code>https://…</code> pra externos
+                  </p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                    Texto do botão
+                  </label>
+                  <input
+                    value={form.linkLabel}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, linkLabel: e.target.value }))}
+                    placeholder="Ir agora"
+                    maxLength={60}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-sky-500/50 transition-all"
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.linkNewTab}
+                  onChange={(e) => setForm((f) => ({ ...f, linkNewTab: e.target.checked }))}
+                  className="accent-sky-500"
+                />
+                <span className="text-xs text-slate-300">Abrir em nova aba</span>
+              </label>
             </div>
           </div>
 

@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 
-const adminApi = axios.create({ baseURL: '/', withCredentials: true });
+const adminApi = axios.create({
+  baseURL: '/',
+  withCredentials: true,
+  xsrfCookieName: 'blockminer_csrf',
+  xsrfHeaderName: 'x-csrf-token',
+});
 
 type Summary = {
   totalHits: number; periodHits: number;

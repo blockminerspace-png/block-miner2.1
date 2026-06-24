@@ -159,6 +159,23 @@ function normalizeTrackedWalletPayload(
     throw new Error("Display mode inválido.");
   }
 
+  // Manual USD override — when set, frontend uses this value and hides on-chain snapshot.
+  // Empty string / null clears the override (falls back to on-chain detection).
+  const rawManualUsd = body.manualUsdValue;
+  let manualUsdValue: number | null;
+  if (rawManualUsd === "" || rawManualUsd === null) {
+    manualUsdValue = null;
+  } else if (rawManualUsd === undefined) {
+    manualUsdValue = current?.manualUsdValue ?? null;
+  } else {
+    const n = Number(rawManualUsd);
+    manualUsdValue = Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  const manualValueNote = normalizeString(
+    body.manualValueNote ?? current?.manualValueNote ?? "",
+    280,
+  ) || null;
+
   return {
     label,
     address,
@@ -169,7 +186,9 @@ function normalizeTrackedWalletPayload(
     isPublic: normalizeBool(body.isPublic ?? current?.isPublic, true),
     includeInTotals: normalizeBool(body.includeInTotals ?? current?.includeInTotals, true),
     displayMode,
-    sortOrder: Math.max(0, parseInt(String(body.sortOrder ?? current?.sortOrder ?? 0), 10) || 0)
+    sortOrder: Math.max(0, parseInt(String(body.sortOrder ?? current?.sortOrder ?? 0), 10) || 0),
+    manualUsdValue,
+    manualValueNote
   };
 }
 
@@ -628,9 +647,10 @@ async function buildResponseFromDb(): Promise<unknown | null> {
 
   if (!wallets.length) return { ok: true, polUsdPrice: null, wallets: [] };
 
-  const activeWallets = wallets.filter(w => w.isActive);
+  // Manually-overridden wallets don't need a snapshot.
+  const activeWallets = wallets.filter(w => w.isActive && w.manualUsdValue == null);
 
-  // If any active wallet has no snapshot yet, treat as warming
+  // If any active on-chain wallet has no snapshot yet, treat as warming
   const anyMissing = activeWallets.some(w => !w.snapshot);
   if (anyMissing) return null;
 
@@ -640,6 +660,7 @@ async function buildResponseFromDb(): Promise<unknown | null> {
 
   const mapped = wallets.map(w => {
     const snap = w.snapshot;
+    const manual = w.manualUsdValue != null;
     return {
       id:             w.id,
       label:          w.label,
@@ -649,13 +670,16 @@ async function buildResponseFromDb(): Promise<unknown | null> {
       explorerBaseUrl: w.explorerBaseUrl ?? "https://polygonscan.com/address",
       isActive:       w.isActive,
       displayMode:    w.displayMode,
-      valuePol:       snap?.valuePol ?? null,
-      valueUsd:       snap?.totalUsd ?? null,
-      tokens:         snap?.tokens ?? [],
-      nfts:           snap?.nfts ?? [],
-      liquidityPools: w.liquidityPools ?? [],
-      chains:         snap?.chains ?? [],   // multi-chain breakdown
-      fetchedAt:      snap?.fetchedAt ?? null,
+      // Manual override: hide on-chain breakdown, surface only the declared USD.
+      valuePol:       manual ? null : (snap?.valuePol ?? null),
+      valueUsd:       manual ? w.manualUsdValue : (snap?.totalUsd ?? null),
+      tokens:         manual ? [] : (snap?.tokens ?? []),
+      nfts:           manual ? [] : (snap?.nfts ?? []),
+      liquidityPools: manual ? [] : (w.liquidityPools ?? []),
+      chains:         manual ? [] : (snap?.chains ?? []),
+      fetchedAt:      manual ? null : (snap?.fetchedAt ?? null),
+      manualUsdValue: w.manualUsdValue,
+      manualValueNote: w.manualValueNote,
     };
   });
 

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Gift, Loader2, Lock, Sparkles, Trophy, X } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface MiniPassSeasonSummary {
   id: number;

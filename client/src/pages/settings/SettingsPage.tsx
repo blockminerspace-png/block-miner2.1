@@ -18,6 +18,7 @@ import {
 import { api, useAuthStore } from '../../store/auth';
 import { Edit2 } from 'lucide-react';
 import { useGameStore } from '../../store/game';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 export default function Settings() {
     const { t } = useTranslation();
@@ -484,6 +485,8 @@ export default function Settings() {
                     </div>
                 </div>
             </div>
+
+            <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="settings-bottom" />
         </div>
     );
 }

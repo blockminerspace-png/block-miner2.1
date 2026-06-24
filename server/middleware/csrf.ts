@@ -71,6 +71,13 @@ export function createCsrfMiddleware(): RequestHandler {
       return;
     }
 
+    // Best-effort telemetry endpoints (rate-limited, no side effects).
+    // CSRF protection here would just silence error reports / page-hit metrics.
+    if (url.startsWith("/api/track/")) {
+      next();
+      return;
+    }
+
     if (["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
       const headerToken = req.headers["x-csrf-token"];
       const headerStr = Array.isArray(headerToken) ? headerToken[0] : headerToken;

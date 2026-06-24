@@ -79,6 +79,14 @@ type AdminDossierUser = {
   email?: string | null;
   isBanned?: boolean;
   polBalance?: number | string | null;
+  blkBalance?: number | string | null;
+  blkLocked?: number | string | null;
+  shibBalance?: number | string | null;
+  btcBalance?: number | string | null;
+  ethBalance?: number | string | null;
+  usdtBalance?: number | string | null;
+  usdcBalance?: number | string | null;
+  zerBalance?: number | string | null;
   oldBaseHashRate?: number | string | null;
   walletAddress?: string | null;
   polygonHdAddress?: PolygonHd | null;
@@ -738,7 +746,7 @@ export default function AdminUsers() {
                     ))}
                   </div>
                   <div className="space-y-8 p-6 pb-20">
-                    {detailsTab === 'perfil' ? <ProfileTab selectedUser={selectedUser} onBan={() => void handleBanToggle(selectedUser.user)} onResetPassword={() => void handleResetPassword()} onUnlock={() => void handleUnlock()} /> : null}
+                    {detailsTab === 'perfil' ? <ProfileTab selectedUser={selectedUser} onBan={() => void handleBanToggle(selectedUser.user)} onResetPassword={() => void handleResetPassword()} onUnlock={() => void handleUnlock()} onReload={() => void loadUserDetails(selectedUser.user.id)} /> : null}
                     {detailsTab === 'transações' ? <TransactionsTab state={tabState['transações']} onLoad={(o) => void loadTab('transações', o)} /> : null}
                     {detailsTab === 'logs' ? <LogsTab state={tabState.logs} onLoad={(o) => void loadTab('logs', o)} /> : null}
                     {detailsTab === 'tickets' ? <TicketsTab state={tabState.tickets} onLoad={(o) => void loadTab('tickets', o)} /> : null}
@@ -891,7 +899,104 @@ function DetailCard({
   );
 }
 
-function ProfileTab({ selectedUser, onBan, onResetPassword, onUnlock }: { selectedUser: AdminUserDetailsPayload; onBan: () => void; onResetPassword: () => void; onUnlock: () => void }) {
+const BALANCE_FIELDS: Array<{ key: string; label: string; field: keyof AdminDossierUser; decimals: number }> = [
+  { key: 'pol',       label: 'POL',         field: 'polBalance',  decimals: 6 },
+  { key: 'blk',       label: 'BLK',         field: 'blkBalance',  decimals: 4 },
+  { key: 'blkLocked', label: 'BLK (locked)',field: 'blkLocked',   decimals: 4 },
+  { key: 'shib',      label: 'SHIB',        field: 'shibBalance', decimals: 4 },
+  { key: 'btc',       label: 'BTC',         field: 'btcBalance',  decimals: 8 },
+  { key: 'eth',       label: 'ETH',         field: 'ethBalance',  decimals: 8 },
+  { key: 'usdt',      label: 'USDT',        field: 'usdtBalance', decimals: 4 },
+  { key: 'usdc',      label: 'USDC',        field: 'usdcBalance', decimals: 4 },
+  { key: 'zer',       label: 'ZER',         field: 'zerBalance',  decimals: 4 },
+];
+
+function AdjustBalanceModal({ userId, user, onClose, onSaved }: {
+  userId: number;
+  user: AdminDossierUser;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [currency, setCurrency] = useState('pol');
+  const [mode, setMode] = useState<'set' | 'add'>('set');
+  const [amount, setAmount] = useState('0');
+  const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const current = BALANCE_FIELDS.find((b) => b.key === currency);
+  const currentValue = current ? Number(user[current.field] ?? 0) : 0;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = Number(amount);
+    if (!Number.isFinite(n)) { setErr('Valor inválido.'); return; }
+    setLoading(true); setErr(null);
+    try {
+      await api.post(`/admin/users/${userId}/adjust-balance`, {
+        currency, mode, amount: n, reason,
+      });
+      toast.success('Saldo atualizado.');
+      onSaved();
+      onClose();
+    } catch (ex: unknown) {
+      setErr(readAxiosResponseMessage(ex) || 'Falha ao ajustar saldo.');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <header>
+          <h3 className="text-sm font-black text-white uppercase tracking-wider">Ajustar saldo</h3>
+          <p className="text-xs text-slate-500 mt-1">User #{userId} · {user.email ?? user.username}</p>
+        </header>
+        <form onSubmit={(e) => void submit(e)} className="space-y-3 text-sm">
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">Moeda</label>
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-white">
+              {BALANCE_FIELDS.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Atual: <span className="font-mono text-amber-300">{currentValue.toFixed(current?.decimals ?? 4)}</span>
+            </p>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">Modo</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setMode('set')} className={`rounded-xl border px-3 py-2 text-xs font-bold ${mode === 'set' ? 'border-sky-500/60 bg-sky-500/10 text-white' : 'border-white/10 bg-slate-800 text-slate-400'}`}>
+                Definir (substituir)
+              </button>
+              <button type="button" onClick={() => setMode('add')} className={`rounded-xl border px-3 py-2 text-xs font-bold ${mode === 'add' ? 'border-emerald-500/60 bg-emerald-500/10 text-white' : 'border-white/10 bg-slate-800 text-slate-400'}`}>
+                Somar (+/-)
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">
+              {mode === 'set' ? 'Novo valor' : 'Delta (use negativo para debitar)'}
+            </label>
+            <input type="number" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} required className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-white font-mono" />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">Motivo (opcional)</label>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-white" />
+          </div>
+          {err && <p className="text-xs text-red-400">{err}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="rounded-xl border border-white/10 px-4 py-2 text-xs text-slate-300 hover:bg-white/5">Cancelar</button>
+            <button type="submit" disabled={loading} className="rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 px-5 py-2 text-xs font-black uppercase tracking-wider text-white">
+              {loading ? 'Aplicando…' : 'Aplicar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ProfileTab({ selectedUser, onBan, onResetPassword, onUnlock, onReload }: { selectedUser: AdminUserDetailsPayload; onBan: () => void; onResetPassword: () => void; onUnlock: () => void; onReload: () => void }) {
+  const [adjustOpen, setAdjustOpen] = useState(false);
   const { user, metrics } = selectedUser;
   const intel = user.lastIpIntelligence;
   return (
@@ -981,7 +1086,22 @@ function ProfileTab({ selectedUser, onBan, onResetPassword, onUnlock }: { select
         >
           Redefinir senha
         </button>
+        <button
+          type="button"
+          onClick={() => setAdjustOpen(true)}
+          className="flex-1 rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
+        >
+          Ajustar saldo
+        </button>
       </div>
+      {adjustOpen && (
+        <AdjustBalanceModal
+          userId={user.id}
+          user={user}
+          onClose={() => setAdjustOpen(false)}
+          onSaved={onReload}
+        />
+      )}
     </div>
   );
 }

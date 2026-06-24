@@ -8,6 +8,7 @@ import {
     Star, AlertCircle, Info, CheckCircle2, Lock, Layers, Bolt,
     Crosshair, ListChecks, Globe, Sparkles, Receipt,
 } from 'lucide-react';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 /* ── helpers ──────────────────────────────────────────────── */
 interface SectionProps {
@@ -746,6 +747,8 @@ export default function Manual() {
                             BlockMiner v2.1 — Protocolo de Mineração Descentralizada
                         </p>
                     </div>
+
+                    <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="manual-bottom" />
                 </div>
             </div>
         </div>

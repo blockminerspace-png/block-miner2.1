@@ -20,6 +20,7 @@ import { api } from '../../store/auth';
 import type { AxiosError } from 'axios';
 import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 import MondiadBanner from '../../shared/components/MondiadBanner';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface FaucetReward {
     imageUrl?: string | null;
@@ -519,6 +520,8 @@ export default function Faucet() {
                             </p>
                         </div>
                     </div>
+
+                    <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="faucet-bottom" />
                 </div>
             </div>
         </div>

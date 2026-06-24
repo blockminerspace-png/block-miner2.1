@@ -17,6 +17,7 @@ import { api } from "../../store/auth";
 import { getRooms, getInventory } from "./machines.api";
 import { useGameStore } from "../../store/game";
 import i18n from "../../i18n/config";
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { formatHashrate, getMachineDescriptor } from "../../shared/utils/machine";
 import { getMachineDisplayImageUrl } from "./machineDisplayImage";
 import { MachineImage } from "./components/MachineImage";
@@ -1434,6 +1435,8 @@ export default function Inventory() {
           }}
         />
       )}
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="machines-bottom" />
     </div>
   );
 }

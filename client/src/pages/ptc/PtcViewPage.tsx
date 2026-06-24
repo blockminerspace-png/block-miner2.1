@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Eye, Timer, CheckCircle2, Gift, Loader2, ExternalLink, Info, Megaphone } from 'lucide-react';
 import { api } from '../../store/auth';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface PtcAd {
     id: number;
@@ -242,6 +243,8 @@ export default function PtcViewPage() {
 
                 </div>
             )}
+
+            <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="ptc-view-bottom" />
         </div>
     );
 }

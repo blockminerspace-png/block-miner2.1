@@ -12,6 +12,7 @@ import {
   PartyPopper
 } from 'lucide-react';
 import { api } from '../../store/auth';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import type { TFunction } from 'i18next';
 import { isAxiosError } from 'axios';
 
@@ -164,6 +165,8 @@ export default function ReadEarn() {
           </p>
         </div>
       </div>
+
+      <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="read-earn-top" />
 
       {loading ? (
         <div className="flex justify-center py-20">

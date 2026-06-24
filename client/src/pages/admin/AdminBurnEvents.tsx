@@ -14,7 +14,12 @@ import {
   Power,
 } from 'lucide-react';
 
-const api = axios.create({ baseURL: '/', withCredentials: true });
+const api = axios.create({
+  baseURL: '/',
+  withCredentials: true,
+  xsrfCookieName: 'blockminer_csrf',
+  xsrfHeaderName: 'x-csrf-token',
+});
 
 interface Miner {
   id: number;

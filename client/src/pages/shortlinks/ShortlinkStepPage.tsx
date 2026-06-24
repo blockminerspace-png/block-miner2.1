@@ -8,6 +8,7 @@ import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
 import AdBanner from '../../shared/components/AdBanner';
 import MondiadBanner from '../../shared/components/MondiadBanner';
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface ShortlinkSessionStored {
   token: string;

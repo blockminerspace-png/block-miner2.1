@@ -2,10 +2,51 @@ import type { Request, Response } from "express";
 import {
   adminListTournaments,
   adminCreateTournament,
+  adminUpdateTournament,
   adminCancelTournament,
   adminGetEntries,
   finalizeTournament,
+  getTypeDisplayOrder,
+  setTypeDisplayOrder,
 } from "./tournaments.service.js";
+
+const MAX_TOURNAMENT_DURATION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+const MAX_TYPE_ORDER_LENGTH = 20;
+const MAX_PRIZE_NUMERIC = 1_000_000_000;
+
+function validatePrizeAmount(value: unknown, label: string): string | null {
+  if (value == null) return null;
+  if (typeof value !== "number") return `${label} must be a number`;
+  if (!Number.isFinite(value)) return `${label} is not a valid number`;
+  if (value < 0) return `${label} must not be negative`;
+  if (value > MAX_PRIZE_NUMERIC) return `${label} exceeds maximum`;
+  return null;
+}
+
+function validatePrizes(prizes: unknown): string | null {
+  if (!Array.isArray(prizes)) return null;
+  for (const p of prizes) {
+    if (typeof p !== "object" || p === null) return "Invalid prize entry";
+    const r = p as Record<string, unknown>;
+    if (typeof r.rankFrom !== "number" || typeof r.rankTo !== "number") return "Invalid prize rank range";
+    if (r.rankFrom < 1 || r.rankTo < r.rankFrom) return "Invalid prize rank range";
+
+    const err =
+      validatePrizeAmount(r.polAmount, "polAmount") ??
+      validatePrizeAmount(r.blkAmount, "blkAmount") ??
+      validatePrizeAmount(r.boostHashRate, "boostHashRate") ??
+      validatePrizeAmount(r.boostHours, "boostHours") ??
+      validatePrizeAmount(r.minerCount, "minerCount");
+    if (err) return err;
+
+    if (r.minerId != null && r.minerId !== undefined) {
+      if (typeof r.minerId !== "number" || !Number.isFinite(r.minerId) || r.minerId < 1) {
+        return "Invalid minerId";
+      }
+    }
+  }
+  return null;
+}
 
 export async function listAll(req: Request, res: Response): Promise<void> {
   try {
@@ -21,7 +62,7 @@ export async function create(req: Request, res: Response): Promise<void> {
     name: string;
     description?: string;
     type: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
-    metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL";
+    metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
     startsAt: string;
     endsAt: string;
     recurring?: boolean;
@@ -34,7 +75,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   }
 
   const VALID_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
-  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL"];
+  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
   if (!VALID_TYPES.includes(type) || !VALID_METRICS.includes(metric)) {
     res.status(400).json({ ok: false, message: "Invalid type or metric" });
     return;
@@ -47,21 +88,20 @@ export async function create(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  if (end.getTime() - start.getTime() > MAX_TOURNAMENT_DURATION_MS) {
+    res.status(400).json({ ok: false, message: "Tournament duration exceeds 90 days maximum" });
+    return;
+  }
+
   if (!Array.isArray(prizes)) {
     res.status(400).json({ ok: false, message: "prizes must be an array" });
     return;
   }
 
-  for (const p of prizes) {
-    if (
-      typeof p.rankFrom !== "number" ||
-      typeof p.rankTo !== "number" ||
-      p.rankFrom < 1 ||
-      p.rankTo < p.rankFrom
-    ) {
-      res.status(400).json({ ok: false, message: "Invalid prize rank range" });
-      return;
-    }
+  const prizeError = validatePrizes(prizes);
+  if (prizeError) {
+    res.status(400).json({ ok: false, message: prizeError });
+    return;
   }
 
   try {
@@ -78,6 +118,65 @@ export async function create(req: Request, res: Response): Promise<void> {
     res.json({ ok: true, tournament });
   } catch (err) {
     res.status(500).json({ ok: false, message: String(err) });
+  }
+}
+
+export async function update(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (!id) { res.status(400).json({ ok: false, message: "Invalid id" }); return; }
+
+  const body = req.body as Record<string, unknown>;
+  const VALID_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
+  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
+
+  const patch: Parameters<typeof adminUpdateTournament>[1] = {};
+  if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  if (typeof body.description === "string" || body.description === null) patch.description = body.description as string | null;
+  if (typeof body.type === "string") {
+    if (!VALID_TYPES.includes(body.type)) { res.status(400).json({ ok: false, message: "Invalid type" }); return; }
+    patch.type = body.type as never;
+  }
+  if (typeof body.metric === "string") {
+    if (!VALID_METRICS.includes(body.metric)) { res.status(400).json({ ok: false, message: "Invalid metric" }); return; }
+    patch.metric = body.metric as never;
+  }
+  if (typeof body.recurring === "boolean") patch.recurring = body.recurring;
+  if (typeof body.startsAt === "string") {
+    const d = new Date(body.startsAt);
+    if (isNaN(d.getTime())) { res.status(400).json({ ok: false, message: "Invalid startsAt" }); return; }
+    patch.startsAt = d;
+  }
+  if (typeof body.endsAt === "string") {
+    const d = new Date(body.endsAt);
+    if (isNaN(d.getTime())) { res.status(400).json({ ok: false, message: "Invalid endsAt" }); return; }
+    patch.endsAt = d;
+  }
+  if (patch.startsAt && patch.endsAt && patch.endsAt <= patch.startsAt) {
+    res.status(400).json({ ok: false, message: "endsAt must be after startsAt" });
+    return;
+  }
+  if (Array.isArray(body.prizes)) {
+    const prizeError = validatePrizes(body.prizes);
+    if (prizeError) {
+      res.status(400).json({ ok: false, message: prizeError });
+      return;
+    }
+    patch.prizes = body.prizes as never;
+  }
+
+  // Duration cap check
+  const finalStart = patch.startsAt ?? (body.startsAt ? new Date(body.startsAt as string) : null);
+  const finalEnd = patch.endsAt ?? (body.endsAt ? new Date(body.endsAt as string) : null);
+  if (finalStart && finalEnd && finalEnd.getTime() - finalStart.getTime() > MAX_TOURNAMENT_DURATION_MS) {
+    res.status(400).json({ ok: false, message: "Tournament duration exceeds 90 days maximum" });
+    return;
+  }
+
+  try {
+    const tournament = await adminUpdateTournament(id, patch);
+    res.json({ ok: true, tournament });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -100,6 +199,29 @@ export async function finalize(req: Request, res: Response): Promise<void> {
     res.json({ ok: true, ...result });
   } catch (err) {
     res.status(400).json({ ok: false, message: String(err) });
+  }
+}
+
+export async function getDisplayOrder(_req: Request, res: Response): Promise<void> {
+  try {
+    const typeOrder = await getTypeDisplayOrder();
+    res.json({ ok: true, typeOrder });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: String(err) });
+  }
+}
+
+export async function updateDisplayOrder(req: Request, res: Response): Promise<void> {
+  const body = req.body as { typeOrder?: unknown };
+  if (!Array.isArray(body.typeOrder) || body.typeOrder.length > MAX_TYPE_ORDER_LENGTH || !body.typeOrder.every((t) => typeof t === "string")) {
+    res.status(400).json({ ok: false, message: "typeOrder must be string[] with at most 20 entries" });
+    return;
+  }
+  try {
+    const typeOrder = await setTypeDisplayOrder(body.typeOrder);
+    res.json({ ok: true, typeOrder });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: String(err) });
   }
 }
 

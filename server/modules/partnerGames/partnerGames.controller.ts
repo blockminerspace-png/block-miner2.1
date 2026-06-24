@@ -322,3 +322,20 @@ export async function adminDeletePartnerGame(req: Request, res: Response): Promi
   refreshFrameAllowlistBestEffort();
   res.json({ ok: true });
 }
+
+import { partnerGameCoverUpload, buildPartnerGameCoverUrl } from "./partnerGames.upload.js";
+
+export function uploadPartnerGameCover(req: Request, res: Response): void {
+  partnerGameCoverUpload.single("cover")(req, res, (err: unknown) => {
+    if (err) {
+      const msg = err instanceof Error ? err.message : "Upload inválido.";
+      res.status(400).json({ ok: false, message: msg });
+      return;
+    }
+    if (!req.file) {
+      res.status(400).json({ ok: false, message: "Nenhum arquivo enviado." });
+      return;
+    }
+    res.json({ ok: true, url: buildPartnerGameCoverUrl(req.file.filename) });
+  });
+}

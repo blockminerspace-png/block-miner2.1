@@ -12,6 +12,7 @@ import AutoMiningModeSelector from "../../shared/components/autoMining/AutoMinin
 import AutoMiningCycleTimer from "../../shared/components/autoMining/AutoMiningCycleTimer";
 import TurboPartnerBanner from "../../shared/components/autoMining/TurboPartnerBanner";
 import MondiadBanner from "../../shared/components/MondiadBanner";
+import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 type MiningMode = "NORMAL" | "TURBO";
 

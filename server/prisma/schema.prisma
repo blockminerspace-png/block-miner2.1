@@ -92,6 +92,7 @@ model User {
   oldBaseHashRate   Float?   @default(0) @map("old_base_hash_rate")
   
   blockMinerRewards BlockMinerReward[]
+  energyTaxCharges  EnergyTaxCharge[]
   notifications     Notification[]
   eventPurchases    EventPurchase[]
   supportMessages   SupportMessage[]
@@ -333,12 +334,18 @@ model Notification {
 }
 
 model BroadcastMessage {
-  id        Int      @id @default(autoincrement())
-  title     String
-  content   String?
-  imageUrl  String?  @map("image_url")
-  isActive  Boolean  @default(false) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
+  id                  Int      @id @default(autoincrement())
+  title               String
+  content             String?
+  imageUrl            String?  @map("image_url")
+  isActive            Boolean  @default(false) @map("is_active")
+  dismissDelaySeconds Int      @default(10) @map("dismiss_delay_seconds")
+  /// Optional CTA: when set, the popup renders a primary action button.
+  /// linkUrl can be internal ("/shop") or external ("https://…").
+  linkUrl             String?  @map("link_url")
+  linkLabel           String?  @map("link_label")
+  linkNewTab          Boolean  @default(false) @map("link_new_tab")
+  createdAt           DateTime @default(now()) @map("created_at")
 
   views BroadcastMessageView[]
 
@@ -581,7 +588,8 @@ model Transaction {
   updatedAt       DateTime? @updatedAt @map("updated_at")
   completedAt     DateTime? @map("completed_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  energyTaxCharge  EnergyTaxCharge?
 
   @@index([userId])
   @@index([status])
@@ -1980,6 +1988,11 @@ model TransparencyTrackedWallet {
   displayMode     String   @default("total_received") @map("display_mode")
   sortOrder       Int      @default(0) @map("sort_order")
   liquidityPoolsBackfilledAt DateTime? @map("liquidity_pools_backfilled_at")
+  /// When set, frontend shows this fixed USD value instead of the on-chain snapshot
+  /// (DeBank/multi-chain detection is hidden). Used for off-chain investments
+  /// (e.g. ASIC hardware, USD on exchange) that can't be auto-detected.
+  manualUsdValue  Float?   @map("manual_usd_value")
+  manualValueNote String?  @map("manual_value_note")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -2050,6 +2063,16 @@ model SidebarNavConfig {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("sidebar_nav_config")
+}
+
+/// Singleton (id = 1): ordem em que os tipos de torneio aparecem no público/admin.
+/// `typeOrder` é uma lista tipo ["MONTHLY","WEEKLY","DAILY","CUSTOM"]; tipos não listados vão pro fim.
+model TournamentDisplayConfig {
+  id        Int      @id @default(1)
+  typeOrder Json     @map("type_order")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("tournament_display_config")
 }
 
 /// Singleton (id = 1): Telegram bots/chats/topics for withdrawal alerts and proof posts.
@@ -2233,6 +2256,9 @@ enum TournamentMetric {
   CHECKINS
   TASKS_COMPLETED
   DEPOSITS_POL
+  OFFERS_INTERNAL
+  OFFERS_EXTERNAL
+  OFFERS_ALL
 }
 
 enum TournamentStatus {
@@ -2350,4 +2376,28 @@ model BurnClaim {
   @@index([eventId, userId])
   @@index([userId])
   @@map("burn_claims")
+}
+
+model EnergyTaxCharge {
+  id                Int      @id @default(autoincrement())
+  userId            Int      @map("user_id")
+  /// 00:00 BRT (America/Sao_Paulo) do dia coberto por essa cobrança.
+  periodDayStartsAt DateTime @map("period_day_starts_at")
+  /// "daily" = pagamento manual (7.5%/7 = 1.0714%) | "auto" = cobrança do cron de segunda 21h BRT (10%/7 = 1.4286%)
+  mode              String
+  rewardsBase       Decimal  @db.Decimal(20, 8) @map("rewards_base")
+  ratePercent       Decimal  @db.Decimal(6, 4) @map("rate_percent")
+  amount            Decimal  @db.Decimal(20, 8)
+  /// paid (debitado integral) | partial (debitou o que tinha) | skipped (saldo zero)
+  status            String   @default("paid")
+  notes             String?
+  transactionId     Int?     @unique @map("transaction_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@unique([userId, periodDayStartsAt])
+  @@index([userId, createdAt])
+  @@map("energy_tax_charges")
 }
