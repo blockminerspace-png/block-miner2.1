@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -9,6 +9,7 @@ export interface AdConfig {
   provider: AdProvider;
   size: AdSize;
   src?: string;       // iframe src for zerads/aads
+  dataAa?: string;    // aads unit id (data-aa attr)
   bannerId?: string;  // mondiad banner id
 }
 
@@ -59,17 +60,27 @@ const SIZE_MAP: Record<AdSize, { width: number; height: number }> = {
 
 function IframeAd({ ad, size }: { ad: AdConfig; size: AdSize }) {
   const { width, height } = SIZE_MAP[size];
+  const dataAa = ad.dataAa;
+  const html = useMemo(() => {
+    const attrs = [
+      `src="${ad.src}"`,
+      `width="${width}"`,
+      `height="${height}"`,
+      'marginwidth="0"',
+      'marginheight="0"',
+      'scrolling="no"',
+      'frameborder="0"',
+      'style="border:none;max-width:100%;display:block"',
+      `title="Ad ${ad.provider} ${size}"`,
+    ];
+    if (dataAa) attrs.push(`data-aa="${dataAa}"`);
+    return `<iframe ${attrs.join(' ')}></iframe>`;
+  }, [ad.src, ad.provider, size, width, height, dataAa]);
+
   return (
-    <iframe
-      src={ad.src}
-      width={width}
-      height={height}
-      marginWidth={0}
-      marginHeight={0}
-      scrolling="no"
-      frameBorder={0}
-      style={{ border: 'none', maxWidth: '100%', display: 'block' }}
-      title={`Ad ${ad.provider} ${size}`}
+    <div
+      className="flex justify-center"
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
 }
@@ -102,15 +113,31 @@ function MondiadAd({ ad }: { ad: AdConfig }) {
   );
 }
 
+// ─── Rotation interval ─────────────────────────────────────────────────────
+
+const ROTATION_INTERVAL_MS = 15_000;
+
 // ─── Main component ───────────────────────────────────────────────────────
 
 export default function AdRotator({ ads, size, slotId, className }: AdRotatorProps) {
   const [selected, setSelected] = useState<AdConfig | null>(null);
+  const [renderKey, setRenderKey] = useState(0);
 
   useEffect(() => {
     if (ads.length === 0) return;
-    const idx = Math.floor(Math.random() * ads.length);
-    setSelected(ads[idx]);
+
+    const pickRandom = () => {
+      const idx = Math.floor(Math.random() * ads.length);
+      setSelected(ads[idx]);
+      setRenderKey((k) => k + 1);
+    };
+
+    pickRandom();
+
+    if (ads.length > 1) {
+      const id = setInterval(pickRandom, ROTATION_INTERVAL_MS);
+      return () => clearInterval(id);
+    }
   }, [ads]);
 
   if (!selected) return null;
@@ -122,7 +149,7 @@ export default function AdRotator({ ads, size, slotId, className }: AdRotatorPro
       {selected.provider === 'mondiad' ? (
         <MondiadAd ad={selected} />
       ) : (
-        <IframeAd ad={selected} size={adSize} />
+        <IframeAd key={`${selected.provider}-${renderKey}`} ad={selected} size={adSize} />
       )}
       <span className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">
         Sponsored
@@ -135,15 +162,15 @@ export default function AdRotator({ ads, size, slotId, className }: AdRotatorPro
 
 export const POWER_STATS_ADS: AdConfig[] = [
   { provider: 'zerads', size: '468x60', src: 'https://zerads.com/ad/ad.php?width=468&ref=10776' },
-  { provider: 'aads', size: '468x60', src: '//ad.a-ads.com/2436936/?size=468x60' },
+  { provider: 'aads', size: '468x60', src: '//ad.a-ads.com/2436936/?size=468x60', dataAa: '2436936' },
 ];
 
 export const POWER_STATS_ADS_300: AdConfig[] = [
   { provider: 'zerads', size: '300x250', src: 'https://zerads.com/ad/ad.php?width=300&ref=10776' },
-  { provider: 'aads', size: '300x250', src: '//ad.a-ads.com/2436936/?size=300x250' },
+  { provider: 'aads', size: '300x250', src: '//ad.a-ads.com/2436936/?size=300x250', dataAa: '2436936' },
 ];
 
 export const LEADERBOARD_ADS: AdConfig[] = [
   { provider: 'zerads', size: '728x90', src: 'https://zerads.com/ad/ad.php?width=728&ref=10776' },
-  { provider: 'aads', size: '728x90', src: '//ad.a-ads.com/2436936/?size=728x90' },
+  { provider: 'aads', size: '728x90', src: '//ad.a-ads.com/2436936/?size=728x90', dataAa: '2436936' },
 ];
