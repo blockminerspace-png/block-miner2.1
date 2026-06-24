@@ -113,32 +113,14 @@ function MondiadAd({ ad }: { ad: AdConfig }) {
   );
 }
 
-// ─── Rotation interval ─────────────────────────────────────────────────────
-
-const ROTATION_INTERVAL_MS = 15_000;
-
 // ─── Main component ───────────────────────────────────────────────────────
 
 export default function AdRotator({ ads, size, slotId, className }: AdRotatorProps) {
-  const [selected, setSelected] = useState<AdConfig | null>(null);
-  const [renderKey, setRenderKey] = useState(0);
-
-  useEffect(() => {
-    if (ads.length === 0) return;
-
-    const pickRandom = () => {
-      const idx = Math.floor(Math.random() * ads.length);
-      setSelected(ads[idx]);
-      setRenderKey((k) => k + 1);
-    };
-
-    pickRandom();
-
-    if (ads.length > 1) {
-      const id = setInterval(pickRandom, ROTATION_INTERVAL_MS);
-      return () => clearInterval(id);
-    }
-  }, [ads]);
+  const [selected] = useState<AdConfig | null>(() => {
+    if (ads.length === 0) return null;
+    const idx = Math.floor(Math.random() * ads.length);
+    return ads[idx];
+  });
 
   if (!selected) return null;
 
@@ -149,7 +131,7 @@ export default function AdRotator({ ads, size, slotId, className }: AdRotatorPro
       {selected.provider === 'mondiad' ? (
         <MondiadAd ad={selected} />
       ) : (
-        <IframeAd key={`${selected.provider}-${renderKey}`} ad={selected} size={adSize} />
+        <IframeAd ad={selected} size={adSize} />
       )}
       <span className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">
         Sponsored
