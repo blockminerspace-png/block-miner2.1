@@ -372,7 +372,7 @@
       "bill_auto_charge": "Cobro automático",
       "bill_rewards7d": "Recompensas de los últimos 7 días: {{amount}} POL",
       "pay_card_title": "Pagar la parte de hoy",
-      "pay_card_subtitle": "Debita 1/7 de la factura semanal con tasa reducida de 7.5%",
+      "pay_card_subtitle": "Cubre solo la parte de hoy con tasa reducida (1,0714% de las recompensas de hoy)",
       "pay_card_next_auto": "Próximo cobro automático en {{countdown}}",
       "pay_button_paid": "Pagado hoy ✓",
       "pay_button_no_rewards": "Sin minería hoy — nada que cobrar",
@@ -400,7 +400,15 @@
       "toast_paid_success": "¡Impuesto de hoy pagado con éxito!",
       "toast_load_error": "Error al cargar el Impuesto de Energía.",
       "toast_pay_error_default": "Error al pagar.",
-      "loading": "Cargando impuesto de energía…"
+      "loading": "Cargando impuesto de energía…",
+      "how_title": "Cómo funciona",
+      "how_step1_title": "Base de cálculo",
+      "how_step1_desc": "Calculamos el 10% de todas tus recompensas POL de minería de los últimos 7 días (lunes a domingo, hora de Brasilia).",
+      "how_step2_title": "Elige tu tasa",
+      "how_step2_desc": "Paga cada día y paga solo 7.5% (ahorro del 25%). Si no pagas, se cobra la tasa completa del 10% automáticamente el lunes.",
+      "how_step3_title": "Cobro automático",
+      "how_step3_desc": "Cada lunes a las 21h BRT, los días sin pago manual se cobran a la tasa completa (10% ÷ 7 por día).",
+      "bill_rate_note": "{{rate}}% del total de recompensas — {{label}}"
     },
     "recovery": {
       "title": "Recuperar Racha",

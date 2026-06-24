@@ -737,7 +737,7 @@
       "bill_auto_charge": "Cobrança automática",
       "bill_rewards7d": "Recompensas dos últimos 7 dias: {{amount}} POL",
       "pay_card_title": "Pagar a parte de hoje",
-      "pay_card_subtitle": "Debita 1/7 da fatura semanal com a taxa reduzida de 7.5%",
+      "pay_card_subtitle": "Cobre apenas o dia de hoje com a taxa reduzida (1,0714% das recompensas de hoje)",
       "pay_card_next_auto": "Próxima cobrança automática em {{countdown}}",
       "pay_button_paid": "Pago hoje ✓",
       "pay_button_no_rewards": "Sem mineração hoje — nada pra pagar",
@@ -765,7 +765,15 @@
       "toast_paid_success": "Taxa de hoje paga com sucesso!",
       "toast_load_error": "Erro ao carregar Taxa de Energia.",
       "toast_pay_error_default": "Erro ao pagar.",
-      "loading": "Carregando taxa de energia…"
+      "loading": "Carregando taxa de energia…",
+      "how_title": "Como funciona",
+      "how_step1_title": "Base de cálculo",
+      "how_step1_desc": "Calculamos 10% sobre todas as suas recompensas POL mineradas nos últimos 7 dias (segunda a domingo, horário de Brasília).",
+      "how_step2_title": "Escolha sua taxa",
+      "how_step2_desc": "Pague todo dia e pague apenas 7,5% (economia de 25%). Se não pagar, o valor integral de 10% é cobrado automaticamente na segunda-feira.",
+      "how_step3_title": "Cobrança automática",
+      "how_step3_desc": "Toda segunda-feira às 21h BRT, os dias sem pagamento manual são cobrados automaticamente com a taxa integral (10% ÷ 7 por dia).",
+      "bill_rate_note": "{{rate}}% do total das recompensas — {{label}}"
     },
     "recovery": {
       "title": "Recuperar Sequência",

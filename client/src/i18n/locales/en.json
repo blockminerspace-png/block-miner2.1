@@ -736,7 +736,7 @@
       "bill_auto_charge": "Automatic charge",
       "bill_rewards7d": "Mining rewards (last 7 days): {{amount}} POL",
       "pay_card_title": "Pay today's portion",
-      "pay_card_subtitle": "Debits 1/7 of the weekly bill at the reduced 7.5% rate",
+      "pay_card_subtitle": "Covers only today's portion at the reduced rate (1.0714% of today's rewards)",
       "pay_card_next_auto": "Next automatic charge in {{countdown}}",
       "pay_button_paid": "Paid today ✓",
       "pay_button_no_rewards": "No mining today — nothing to charge",
@@ -764,7 +764,15 @@
       "toast_paid_success": "Today's tax paid successfully!",
       "toast_load_error": "Failed to load Energy Tax.",
       "toast_pay_error_default": "Failed to pay.",
-      "loading": "Loading energy tax…"
+      "loading": "Loading energy tax…",
+      "how_title": "How it works",
+      "how_step1_title": "Base calculation",
+      "how_step1_desc": "We calculate 10% of all your POL mining rewards from the last 7 days (Monday to Sunday, Brasília time).",
+      "how_step2_title": "Choose your rate",
+      "how_step2_desc": "Pay every day and pay only 7.5% (25% savings). If you don't pay, the full 10% rate is charged automatically on Monday.",
+      "how_step3_title": "Automatic charge",
+      "how_step3_desc": "Every Monday at 9 PM BRT, days without manual payment are charged at the full rate (10% ÷ 7 per day).",
+      "bill_rate_note": "{{rate}}% of total rewards — {{label}}"
     },
     "recovery": {
       "title": "Streak Recovery",

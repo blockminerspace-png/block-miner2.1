@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Zap, Calendar, CheckCircle2, AlertCircle, Loader2, History, Sparkles } from 'lucide-react';
+import { Zap, Calendar, CheckCircle2, AlertCircle, Loader2, History, Sparkles, BookOpen, CreditCard, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../store/auth';
 
@@ -171,6 +171,30 @@ export default function EnergyTaxSection() {
           </div>
         </div>
       )}
+
+      <div className="rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-500/5 via-slate-900/80 to-slate-900 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <BookOpen className="w-3.5 h-3.5 text-orange-400" />
+          <p className="text-[10px] uppercase tracking-widest text-orange-400 font-mono font-black">{t('taxes.energy_tax.how_title')}</p>
+        </div>
+        <div className="space-y-3">
+          {([
+            { Icon: BookOpen, titleKey: 'taxes.energy_tax.how_step1_title', descKey: 'taxes.energy_tax.how_step1_desc' },
+            { Icon: CreditCard, titleKey: 'taxes.energy_tax.how_step2_title', descKey: 'taxes.energy_tax.how_step2_desc' },
+            { Icon: Clock, titleKey: 'taxes.energy_tax.how_step3_title', descKey: 'taxes.energy_tax.how_step3_desc' },
+          ] as const).map(({ Icon, titleKey, descKey }, i) => (
+            <div key={i} className="flex items-start gap-3 rounded-xl border border-white/5 bg-slate-900/40 p-3">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <Icon className="w-4 h-4 text-orange-400" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-white uppercase tracking-widest">{t(titleKey)}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{t(descKey)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-orange-500/25 bg-gradient-to-br from-orange-500/10 via-slate-900/80 to-slate-900 p-6">
         <div className="flex items-center gap-2 mb-4">
