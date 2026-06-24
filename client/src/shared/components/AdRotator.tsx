@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -8,9 +8,9 @@ export type AdSize = '728x90' | '468x60' | '300x250';
 export interface AdConfig {
   provider: AdProvider;
   size: AdSize;
-  src?: string;       // iframe src for zerads/aads
-  dataAa?: string;    // aads unit id (data-aa attr)
-  bannerId?: string;  // mondiad banner id
+  src?: string;
+  dataAa?: string;
+  bannerId?: string;
 }
 
 interface AdRotatorProps {
@@ -20,7 +20,7 @@ interface AdRotatorProps {
   className?: string;
 }
 
-// ─── Mondiad script loader (reused from MondiadBanner.tsx) ────────────────
+// ─── Mondiad script loader ───────────────────────────────────────────────
 
 const MND_SCRIPT_SRC = 'https://ss.mrmnd.com/banner.js';
 
@@ -117,9 +117,9 @@ function MondiadAd({ ad }: { ad: AdConfig }) {
 
 const ROTATION_INTERVAL_MS = 60_000;
 
-// ─── Main component ───────────────────────────────────────────────────────
+// ─── Main component (memoized to prevent parent re-renders from blinking) ─
 
-export default function AdRotator({ ads, size, slotId, className }: AdRotatorProps) {
+const AdRotator = React.memo(function AdRotator({ ads, size, slotId, className }: AdRotatorProps) {
   const [selected, setSelected] = useState<AdConfig | null>(() => {
     if (ads.length === 0) return null;
     const idx = Math.floor(Math.random() * ads.length);
@@ -140,7 +140,7 @@ export default function AdRotator({ ads, size, slotId, className }: AdRotatorPro
   const adSize = size ?? selected.size;
 
   return (
-    <div className={`flex flex-col items-center justify-center gap-1 my-8 animate-in fade-in duration-700 w-full overflow-hidden ${className ?? ''}`}>
+    <div className={`flex flex-col items-center justify-center gap-1 my-8 w-full overflow-hidden ${className ?? ''}`}>
       {selected.provider === 'mondiad' ? (
         <MondiadAd ad={selected} />
       ) : (
@@ -151,7 +151,9 @@ export default function AdRotator({ ads, size, slotId, className }: AdRotatorPro
       </span>
     </div>
   );
-}
+});
+
+export default AdRotator;
 
 // ─── Presets ──────────────────────────────────────────────────────────────
 
