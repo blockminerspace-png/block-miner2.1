@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -59,29 +59,34 @@ const SIZE_MAP: Record<AdSize, { width: number; height: number }> = {
 // ─── Ad renderers ─────────────────────────────────────────────────────────
 
 function IframeAd({ ad, size }: { ad: AdConfig; size: AdSize }) {
-  const { width, height } = SIZE_MAP[size];
-  const dataAa = ad.dataAa;
-  const html = useMemo(() => {
-    const attrs = [
-      `src="${ad.src}"`,
-      `width="${width}"`,
-      `height="${height}"`,
-      'marginwidth="0"',
-      'marginheight="0"',
-      'scrolling="no"',
-      'frameborder="0"',
-      'style="border:none;max-width:100%;display:block"',
-      `title="Ad ${ad.provider} ${size}"`,
-    ];
-    if (dataAa) attrs.push(`data-aa="${dataAa}"`);
-    return `<iframe ${attrs.join(' ')}></iframe>`;
-  }, [ad.src, ad.provider, size, width, height, dataAa]);
+  if (ad.provider === 'aads') {
+    return (
+      <div style={{ width: '100%', margin: 'auto', position: 'relative', zIndex: 99998 }}>
+        <iframe
+          data-aa="2436936"
+          src="//acceptable.a-ads.com/2436936/?size=Adaptive"
+          style={{ border: 0, padding: 0, width: '70%', height: 'auto', overflow: 'hidden', display: 'block', margin: 'auto' }}
+          title="AADS Ad"
+        />
+      </div>
+    );
+  }
 
+  const { width, height } = SIZE_MAP[size];
   return (
-    <div
-      className="flex justify-center"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <div className="flex justify-center">
+      <iframe
+        src={ad.src}
+        width={width}
+        height={height}
+        marginWidth={0}
+        marginHeight={0}
+        scrolling="no"
+        frameBorder={0}
+        style={{ border: 'none', maxWidth: '100%', display: 'block' }}
+        title={`Ad ${ad.provider} ${size}`}
+      />
+    </div>
   );
 }
 
@@ -159,15 +164,15 @@ export default AdRotator;
 
 export const POWER_STATS_ADS: AdConfig[] = [
   { provider: 'zerads', size: '468x60', src: 'https://zerads.com/ad/ad.php?width=468&ref=10776' },
-  { provider: 'aads', size: '468x60', src: '//ad.a-ads.com/2436936/?size=468x60', dataAa: '2436936' },
+  { provider: 'aads', size: '468x60', dataAa: '2436936' },
 ];
 
 export const POWER_STATS_ADS_300: AdConfig[] = [
   { provider: 'zerads', size: '300x250', src: 'https://zerads.com/ad/ad.php?width=300&ref=10776' },
-  { provider: 'aads', size: '300x250', src: '//ad.a-ads.com/2436936/?size=300x250', dataAa: '2436936' },
+  { provider: 'aads', size: '300x250', dataAa: '2436936' },
 ];
 
 export const LEADERBOARD_ADS: AdConfig[] = [
   { provider: 'zerads', size: '728x90', src: 'https://zerads.com/ad/ad.php?width=728&ref=10776' },
-  { provider: 'aads', size: '728x90', src: '//ad.a-ads.com/2436936/?size=728x90', dataAa: '2436936' },
+  { provider: 'aads', size: '728x90', dataAa: '2436936' },
 ];
