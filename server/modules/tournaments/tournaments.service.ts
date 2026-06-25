@@ -104,16 +104,21 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
       );
       return;
     }
-    // OFFERS_ALL: also pull external offerwall below and merge.
-    // NB: zerads_ptc_callbacks is PTC (pay-to-click), not offerwall — excluded.
+    // OFFERS_ALL: pull OfferwallMe + Zerads PTC and merge all.
     const ome = await prisma.offerwallMeCallback.groupBy({
       by: ["userId"],
       where: { createdAt: { gte: startsAt, lte: upperBound }, status: 1 },
       _count: { id: true },
     });
+    const zerads = await prisma.zeradsCallback.groupBy({
+      by: ["userId"],
+      where: { callbackAt: { gte: startsAt, lte: upperBound } },
+      _count: { id: true },
+    });
     const merged = new Map<number, number>();
     for (const r of internal) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
     for (const r of ome) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
+    for (const r of zerads) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
     await batchUpsertEntries(
       tournament.id,
       Array.from(merged.entries()).map(([userId, score]) => ({ userId, score })),
@@ -122,15 +127,22 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
   }
 
   if (metric === "OFFERS_EXTERNAL") {
-    // NB: zerads_ptc_callbacks é PTC (pay-to-click), não offerwall — excluído.
     const ome = await prisma.offerwallMeCallback.groupBy({
       by: ["userId"],
       where: { createdAt: { gte: startsAt, lte: upperBound }, status: 1 },
       _count: { id: true },
     });
+    const zerads = await prisma.zeradsCallback.groupBy({
+      by: ["userId"],
+      where: { callbackAt: { gte: startsAt, lte: upperBound } },
+      _count: { id: true },
+    });
+    const merged = new Map<number, number>();
+    for (const r of ome) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
+    for (const r of zerads) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
     await batchUpsertEntries(
       tournament.id,
-      ome.map((r: { userId: number; _count: { id: number } }) => ({ userId: r.userId, score: r._count.id })),
+      Array.from(merged.entries()).map(([userId, score]) => ({ userId, score })),
     );
     return;
   }
@@ -220,7 +232,7 @@ function nextCycleWindow(
 
   // snap contém prevEnd; queremos o ciclo *seguinte*.
   let { start, end } = snap;
-  if (start <= prevEnd) {
+  if (start < prevEnd) {
     const next = snapWindowForType(type, end);
     if (next) ({ start, end } = next);
     else return { newStart: prevEnd, newEnd: new Date(prevEnd.getTime() + duration) };
@@ -381,6 +393,7 @@ async function grantPrize(
   }
 
   if (prize.prizeType === "MACHINE" && prize.miner) {
+    const hashRate = Number(prize.miner.baseHashRate ?? 0);
     for (let k = 0; k < (prize.minerCount ?? 1); k++) {
       await tx.userRewardInbox.create({
         data: {
@@ -388,7 +401,7 @@ async function grantPrize(
           source,
           status: "pending",
           rewardType: "machine",
-          rewardValue: 0,
+          rewardValue: hashRate,
           minerId: prize.miner.id,
           minerName: prize.miner.name,
           minerImageUrl: prize.miner.imageUrl ?? null,

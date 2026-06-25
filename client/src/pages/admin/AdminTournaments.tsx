@@ -266,6 +266,17 @@ function emptyPrize(): Prize {
   return { rankFrom: 1, rankTo: 1, prizeType: 'POL', polAmount: 0 };
 }
 
+function sanitizePrizes(prizes: Prize[]) {
+  return prizes.map((p) => {
+    const base = { rankFrom: p.rankFrom, rankTo: p.rankTo, prizeType: p.prizeType };
+    if (p.prizeType === 'POL') return { ...base, polAmount: p.polAmount ?? 0 };
+    if (p.prizeType === 'BLK') return { ...base, blkAmount: p.blkAmount ?? 0 };
+    if (p.prizeType === 'MINING_BOOST') return { ...base, boostHashRate: p.boostHashRate ?? 0, boostHours: p.boostHours ?? 0 };
+    // MACHINE
+    return { ...base, minerId: p.minerId ?? null, minerCount: p.minerCount ?? 1 };
+  });
+}
+
 function DisplayOrderPanel({ onChanged }: { onChanged: () => void }) {
   const { t } = useTranslation();
   const [order, setOrder] = useState<string[] | null>(null);
@@ -373,7 +384,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
         startsAt: effectiveStartsAt.toISOString(),
         endsAt: effectiveEndsAt.toISOString(),
         recurring,
-        prizes,
+        prizes: sanitizePrizes(prizes),
       });
       setOpen(false);
       setName('');
@@ -757,7 +768,7 @@ function EditTournamentModal({
         startsAt: effStart.toISOString(),
         endsAt: effEnd.toISOString(),
         recurring,
-        prizes,
+        prizes: sanitizePrizes(prizes),
       });
       onSaved();
       onClose();

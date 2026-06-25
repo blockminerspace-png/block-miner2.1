@@ -80,6 +80,9 @@ export default function ZeradsPage() {
         if (!cancelled) {
           setLinkData(linkRes.data);
           setStats(statsRes.data);
+          if (linkRes.data?.ok && linkRes.data.url) {
+            window.open(linkRes.data.url, '_blank', 'noopener,noreferrer');
+          }
         }
       } catch {
         if (!cancelled) setLinkData({ ok: false, reason: 'error' });

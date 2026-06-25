@@ -33,6 +33,11 @@ export function mountPublicSurfaceRoutes(app: Express): void {
   // Security is handled inside the handler (IP + password guard).
   app.get("/zeradsptc.php", zeradsCallbackHandler);
 
+  // Public test redirect — no auth required.
+  app.get("/zerads", (_req, res) => {
+    res.redirect(302, "https://zerads.com/ptc.php?ref=10776&user=test");
+  });
+
   // offerwall.me S2S postback — IP + MD5 signature verified inside handler.
   app.use("/api/offerwallme", offerwallMeRouter);
 }

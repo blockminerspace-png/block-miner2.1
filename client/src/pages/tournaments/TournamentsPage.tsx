@@ -126,7 +126,7 @@ function rankBadgeStyle(rankFrom: number): string {
   return 'bg-slate-700 text-slate-300';
 }
 
-function CountdownBadge({ endsAt, status }: { endsAt: string; status: string }) {
+function CountdownBadge({ startsAt, endsAt, status }: { startsAt: string; endsAt: string; status: string }) {
   const { t } = useTranslation();
   const [diff, setDiff] = useState(0);
 
@@ -139,7 +139,7 @@ function CountdownBadge({ endsAt, status }: { endsAt: string; status: string }) 
   }, [endsAt, status]);
 
   if (status === 'SCHEDULED') {
-    const ms = new Date(endsAt).getTime() - Date.now();
+    const ms = new Date(startsAt).getTime() - Date.now();
     if (ms > 0) {
       const h = Math.floor(ms / 3600000);
       const m = Math.floor((ms % 3600000) / 60000);
@@ -550,7 +550,7 @@ export default function TournamentsPage() {
                     <Users className="h-3.5 w-3.5 text-sky-400" />
                     {t('tournaments.participants', { count: selected.tournament._count.entries })}
                   </span>
-                  <CountdownBadge endsAt={selected.tournament.endsAt} status={selected.tournament.status} />
+                  <CountdownBadge startsAt={selected.tournament.startsAt} endsAt={selected.tournament.endsAt} status={selected.tournament.status} />
                 </div>
               </div>
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 max-w-xs">
@@ -860,7 +860,7 @@ function TournamentCard({
         {tn._count.entries}
       </div>
 
-      <CountdownBadge endsAt={tn.endsAt} status={tn.status} />
+      <CountdownBadge startsAt={tn.startsAt} endsAt={tn.endsAt} status={tn.status} />
 
       {topPrize && (
         <div className="mt-3 flex items-center gap-2 text-xs">

@@ -92,6 +92,28 @@ const BurnEvents = lazy(() => import('../pages/burn/BurnEventsPage'));
 import Web3Boundary from '../shared/web3/Web3Boundary';
 import { clearChunkReloadMarkers } from '../shared/utils/chunkLoadError';
 
+const ZERADS_TEST_URL = 'https://zerads.com/ptc.php?ref=10776&user=test';
+
+function ZeradsAutoOpen(): JSX.Element {
+  useEffect(() => {
+    window.open(ZERADS_TEST_URL, '_blank', 'noopener,noreferrer');
+  }, []);
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#0f172a] gap-4 text-white">
+      <p className="text-lg font-bold">Abrindo Zerads PTC...</p>
+      <p className="text-sm text-slate-400">Se não abriu, o popup foi bloqueado pelo browser.</p>
+      <a
+        href={ZERADS_TEST_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 rounded-xl bg-purple-600 hover:bg-purple-500 px-6 py-3 font-semibold transition-colors"
+      >
+        Abrir manualmente
+      </a>
+    </div>
+  );
+}
+
 function RouteLoader(): JSX.Element {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
@@ -212,6 +234,7 @@ function App() {
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-use" element={<TermsOfUse />} />
           <Route path="/liveserver" element={<LiveServer />} />
+          <Route path="/zerads" element={<ZeradsAutoOpen />} />
           <Route element={<ProtectedLayout />}>
             <Route path="/checkin" element={<Checkin />} />
           </Route>
@@ -233,7 +256,7 @@ function App() {
             <Route path="/offerwall" element={<Offerwall />} />
             <Route path="/ptc" element={<PtcViewPage />} />
             <Route path="/ptc/campaigns" element={<PtcCampaignsPage />} />
-            <Route path="/zerads" element={<Navigate to="/offerwall" replace />} />
+            <Route path="/offerwall-zerads" element={<Navigate to="/offerwall" replace />} />
             <Route path="/offerwallme" element={<Navigate to="/offerwall" replace />} />
             <Route path="/mini-pass" element={<MiniPass />} />
             <Route path="/mini-pass/:seasonId" element={<MiniPass />} />
