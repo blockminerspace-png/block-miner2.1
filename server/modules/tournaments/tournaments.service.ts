@@ -3,7 +3,7 @@ import { rankingUserSelect, aggregateUserHashrates } from "../../services/networ
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 
-type Tournament = { id: number; name: string; metric: string; startsAt: Date; status: string; prizes?: any[] };
+type Tournament = { id: number; name: string; metric: string; startsAt: Date; endsAt: Date; status: string; prizes?: any[] };
 type TournamentEntry = { id: number; tournamentId: number; userId: number; score: number; rank: number | null; rewardGranted: boolean; rewardGrantedAt: Date | null; createdAt: Date; updatedAt: Date };
 type TournamentPrize = { id: number; tournamentId: number; rankFrom: number; rankTo: number; prizeType: string; polAmount: number | null; blkAmount: number | null; boostHashRate: number | null; boostHours: number | null; minerId: number | null; minerCount: number | null };
 
@@ -13,6 +13,8 @@ export const LEADERBOARD_LIMIT = 100;
 
 export async function computeScoresForTournament(tournament: Tournament): Promise<void> {
   const now = new Date();
+  // Never count events beyond the tournament's end — cap at min(now, endsAt).
+  const upperBound = tournament.endsAt < now ? tournament.endsAt : now;
   const { metric, startsAt } = tournament;
 
   if (metric === "HASHRATE") {
@@ -29,7 +31,7 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
   if (metric === "BLOCKS_MINED") {
     const rows = await prisma.blockMinerReward.groupBy({
       by: ["userId"],
-      where: { createdAt: { gte: startsAt, lte: now } },
+      where: { createdAt: { gte: startsAt, lte: upperBound} },
       _count: { id: true },
     });
     await batchUpsertEntries(
@@ -44,8 +46,8 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
       by: ["userId"],
       where: {
         OR: [
-          { confirmedAt: { gte: startsAt, lte: now } },
-          { createdAt: { gte: startsAt, lte: now }, status: "confirmed" },
+          { confirmedAt: { gte: startsAt, lte: upperBound} },
+          { createdAt: { gte: startsAt, lte: upperBound}, status: "confirmed" },
         ],
       },
       _count: { id: true },
@@ -60,7 +62,7 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
   if (metric === "TASKS_COMPLETED") {
     const rows = await prisma.userDailyTaskProgress.groupBy({
       by: ["userId"],
-      where: { completedAt: { gte: startsAt, lte: now } },
+      where: { completedAt: { gte: startsAt, lte: upperBound} },
       _count: { id: true },
     });
     await batchUpsertEntries(
@@ -76,7 +78,7 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
       where: {
         type: "deposit",
         status: "completed",
-        createdAt: { gte: startsAt, lte: now },
+        createdAt: { gte: startsAt, lte: upperBound},
       },
       _sum: { amount: true },
     });
@@ -92,7 +94,7 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
   if (metric === "OFFERS_INTERNAL" || metric === "OFFERS_ALL") {
     const internal = await prisma.internalOfferwallAttempt.groupBy({
       by: ["userId"],
-      where: { completedAt: { gte: startsAt, lte: now } },
+      where: { completedAt: { gte: startsAt, lte: upperBound} },
       _count: { id: true },
     });
     if (metric === "OFFERS_INTERNAL") {
@@ -106,7 +108,7 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
     // NB: zerads_ptc_callbacks is PTC (pay-to-click), not offerwall — excluded.
     const ome = await prisma.offerwallMeCallback.groupBy({
       by: ["userId"],
-      where: { createdAt: { gte: startsAt, lte: now } },
+      where: { createdAt: { gte: startsAt, lte: upperBound }, status: 1 },
       _count: { id: true },
     });
     const merged = new Map<number, number>();
@@ -123,7 +125,7 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
     // NB: zerads_ptc_callbacks é PTC (pay-to-click), não offerwall — excluído.
     const ome = await prisma.offerwallMeCallback.groupBy({
       by: ["userId"],
-      where: { createdAt: { gte: startsAt, lte: now } },
+      where: { createdAt: { gte: startsAt, lte: upperBound }, status: 1 },
       _count: { id: true },
     });
     await batchUpsertEntries(
