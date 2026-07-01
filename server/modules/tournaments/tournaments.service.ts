@@ -137,26 +137,6 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
     const rows = Array.from(merged.entries())
       .map(([userId, score]) => ({ userId, score }))
       .filter((r) => r.score > 0);
-  // #region agent log
-  fetch("http://127.0.0.1:7302/ingest/aa95698d-f2ba-4f90-9481-c66442ef8e02", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "64b401" },
-    body: JSON.stringify({
-      sessionId: "64b401",
-      runId: "post-fix",
-      hypothesisId: "H-zerads-clicks",
-      location: "tournaments.service.ts:computeScoresForTournament",
-      message: "OFFERS_ALL score merge",
-      data: {
-        tournamentId: tournament.id,
-        window: { startsAt, upperBound },
-        participants: rows.length,
-        top: rows.sort((a, b) => b.score - a.score).slice(0, 3),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
     await batchUpsertEntries(tournament.id, rows);
     return;
   }
