@@ -332,31 +332,6 @@ export async function computeWeekSummary(userId: number, now: Date = new Date())
     addDaysToBrazilDateKey(currentEndKey, i - 6),
   );
 
-  // #region agent log
-  fetch("http://127.0.0.1:7302/ingest/aa95698d-f2ba-4f90-9481-c66442ef8e02", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "64b401" },
-    body: JSON.stringify({
-      sessionId: "64b401",
-      runId: "pre-fix",
-      hypothesisId: "H1-H3",
-      location: "energyTax.service.ts:computeWeekSummary",
-      message: "mining period boundaries",
-      data: {
-        now: now.toISOString(),
-        resetHour: getCheckinResetHour(),
-        currentEndKey,
-        closedEndKey,
-        closedStart: closedStart.toISOString(),
-        todayPaid: !!closedCharge,
-        closedRewards,
-        todayRewards,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   // Histórico maior — últimas 50
   const history = await prisma.energyTaxCharge.findMany({
     where: { userId },

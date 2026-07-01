@@ -120,28 +120,6 @@ export default function EnergyTaxSection() {
     try {
       const r = await api.get<EnergyTaxSummary>('/energy-tax/summary');
       setSummary(r.data);
-      // #region agent log
-      fetch('http://127.0.0.1:7302/ingest/aa95698d-f2ba-4f90-9481-c66442ef8e02', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '64b401' },
-        body: JSON.stringify({
-          sessionId: '64b401',
-          runId: 'pre-fix',
-          hypothesisId: 'H4-H5',
-          location: 'EnergyTaxSection.tsx:load',
-          message: 'summary loaded',
-          data: {
-            todayPaid: r.data.todayPaid,
-            yesterdayRewards: r.data.yesterdayRewards,
-            resetHour: r.data.resetHour,
-            lastClosed: r.data.lastClosedPeriodEndKey,
-            current: r.data.currentPeriodEndKey,
-            grid: r.data.days?.map((d) => ({ k: d.periodEndKey, r: d.rewards, c: d.charge?.mode })),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
     } catch {
       toast.error(t('taxes.energy_tax.toast_load_error'));
     } finally {
