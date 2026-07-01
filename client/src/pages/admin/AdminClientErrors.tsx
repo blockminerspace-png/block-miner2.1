@@ -11,12 +11,30 @@ const adminApi = axios.create({
 
 interface ClientErrorRow {
   id: number;
+  action: string | null;
+  severity: string | null;
   label: string;
   description: string | null;
   ip: string | null;
   userAgent: string | null;
-  metadata: { url?: string; stack?: string; componentStack?: string; buildId?: string } | null;
+  metadata: {
+    category?: string;
+    url?: string;
+    stack?: string;
+    componentStack?: string;
+    buildId?: string;
+    statusCode?: number | null;
+    code?: string | null;
+    operation?: string | null;
+    requestId?: string | null;
+  } | null;
   createdAt: string;
+}
+
+function categoryOf(r: ClientErrorRow): 'crash' | 'api_failure' {
+  const m = r.metadata;
+  if (m?.category === 'api_failure' || r.action === 'client_api_failure') return 'api_failure';
+  return 'crash';
 }
 
 function formatTime(iso: string): string {
@@ -30,8 +48,12 @@ function formatTime(iso: string): string {
 function buildClipboardText(r: ClientErrorRow): string {
   const meta = r.metadata ?? {};
   return [
-    `# ${r.label}`,
+    `# [${categoryOf(r)}] ${r.label}`,
     `When: ${formatTime(r.createdAt)}`,
+    `Category: ${categoryOf(r)}`,
+    meta.operation ? `Operation: ${meta.operation}` : null,
+    meta.statusCode != null ? `StatusCode: ${meta.statusCode}` : null,
+    meta.code ? `Code: ${meta.code}` : null,
     `URL: ${meta.url ?? '(unknown)'}`,
     `IP: ${r.ip ?? '(unknown)'}`,
     `User-Agent: ${r.userAgent ?? '(unknown)'}`,
@@ -42,7 +64,7 @@ function buildClipboardText(r: ClientErrorRow): string {
     '',
     '## Component stack',
     meta.componentStack || '(none)',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 export default function AdminClientErrors() {
@@ -105,7 +127,8 @@ export default function AdminClientErrors() {
               Erros de cliente
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              Reports automáticos do ErrorBoundary + handlers globais. {rows.length} eventos.
+              Reports automáticos: <span className="text-red-300">crashes</span> (ErrorBoundary/handlers globais) +{' '}
+              <span className="text-amber-300">falhas de API</span> (claims, faucet, etc.). {rows.length} eventos.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -148,11 +171,52 @@ export default function AdminClientErrors() {
                   className="rounded-2xl border border-white/10 bg-slate-900/50 overflow-hidden"
                 >
                   <header className="flex items-start gap-3 px-5 py-4 border-b border-white/5">
-                    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-400">
-                      <AlertTriangle className="h-4 w-4" />
-                    </span>
+                    {(() => {
+                      const cat = categoryOf(r);
+                      const isCrash = cat === 'crash';
+                      return (
+                        <span
+                          className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                            isCrash ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400'
+                          }`}
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </span>
+                      );
+                    })()}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-white break-words">{r.label}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {(() => {
+                          const cat = categoryOf(r);
+                          return (
+                            <span
+                              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                                cat === 'crash'
+                                  ? 'bg-red-500/15 text-red-300'
+                                  : 'bg-amber-500/15 text-amber-300'
+                              }`}
+                            >
+                              {cat === 'crash' ? 'crash' : 'api failure'}
+                            </span>
+                          );
+                        })()}
+                        {meta.operation && (
+                          <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[9px] font-mono text-slate-300">
+                            {meta.operation}
+                          </span>
+                        )}
+                        {meta.statusCode != null && (
+                          <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[9px] font-mono text-slate-300">
+                            HTTP {meta.statusCode}
+                          </span>
+                        )}
+                        {meta.code && (
+                          <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[9px] font-mono text-slate-300">
+                            {meta.code}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm font-bold text-white break-words">{r.label}</p>
                       <p className="mt-0.5 text-[11px] text-slate-500 font-mono">
                         #{r.id} · {formatTime(r.createdAt)} · {r.ip ?? '—'}
                       </p>

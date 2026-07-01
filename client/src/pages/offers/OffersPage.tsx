@@ -7,6 +7,7 @@ import { getActiveOfferEvents, postOfferEventPurchase } from './offers.api';
 import type { OfferEventDTO, OfferEventMinerDTO } from './offers.api';
 import { useGameStore } from '../../store/game';
 import { formatHashrate } from '../../shared/utils/machine';
+import { formatPrice } from '../../shared/utils/formatPrice';
 import AdBanner from '../../shared/components/AdBanner';
 import { isAxiosError } from 'axios';
 
@@ -266,7 +267,7 @@ export default function PopularOffers() {
                                                     <span className="text-lg font-black text-green-400 italic">{t('offers.free')}</span>
                                                 ) : (
                                                     <span className="text-lg font-black text-white italic">
-                                                        {Number(m.price).toFixed(6)}{' '}
+                                                        {formatPrice(m.price)}{' '}
                                                         <span className="text-xs font-bold text-gray-500 not-italic uppercase">{m.currency}</span>
                                                     </span>
                                                 )}
@@ -395,10 +396,10 @@ export default function PopularOffers() {
                                         ) : (
                                             <>
                                                 <span className="text-xl font-black text-white italic">
-                                                    {(Number(modal.miner.price) * quantity).toFixed(6)}{' '}
+                                                    {formatPrice(Number(modal.miner.price) * quantity)}{' '}
                                                     <span className="text-xs font-bold text-gray-500 not-italic uppercase">{modal.miner.currency}</span>
                                                 </span>
-                                                {quantity > 1 && <p className="text-[10px] text-gray-600 mt-0.5">{Number(modal.miner.price).toFixed(6)} x {quantity}</p>}
+                                                {quantity > 1 && <p className="text-[10px] text-gray-600 mt-0.5">{formatPrice(modal.miner.price)} x {quantity}</p>}
                                             </>
                                         )}
                                     </div>

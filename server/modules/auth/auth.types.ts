@@ -8,4 +8,6 @@ export type AuthPublicUserDto = {
   username: string | null;
   email: string;
   hasReferral?: boolean;
+  energyBlocked?: boolean;
+  energyUnpaidDays?: number;
 };

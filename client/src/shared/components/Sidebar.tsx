@@ -79,17 +79,16 @@ export default function Sidebar() {
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
 
-  // Energy tax — badge âmbar no /taxes quando há mineração hoje sem pagar.
-  // Não mostra antes do `startsAt` (feature começa em 01/07).
+  // Energy tax — badge no /taxes quando há mineração ontem sem quitar.
   const [energyTaxPending, setEnergyTaxPending] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const fetchTax = async () => {
       try {
-        const res = await api.get<{ ok?: boolean; active?: boolean; todayPaid?: boolean; todayRewards?: number }>('/energy-tax/summary');
+        const res = await api.get<{ ok?: boolean; active?: boolean; todayPaid?: boolean; yesterdayRewards?: number }>('/energy-tax/summary');
         if (cancelled) return;
         const active = res.data?.active !== false;
-        const pending = active && !res.data?.todayPaid && Number(res.data?.todayRewards ?? 0) > 0;
+        const pending = active && !res.data?.todayPaid && Number(res.data?.yesterdayRewards ?? 0) > 0;
         setEnergyTaxPending(pending);
       } catch { /* keep */ }
     };

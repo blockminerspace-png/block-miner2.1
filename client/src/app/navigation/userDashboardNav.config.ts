@@ -45,6 +45,7 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
           { itemId: 'read_earn', labelKey: 'sidebar.read_earn', icon: 'Sparkles', path: '/read-earn' },
           { itemId: 'youtube', labelKey: 'sidebar.youtube', icon: 'Youtube', path: '/youtube' },
           { itemId: 'auto_mining', labelKey: 'sidebar.auto_mining', icon: 'Zap', path: '/auto-mining' },
+          { itemId: 'zpool', labelKey: 'sidebar.zpool', icon: 'Pickaxe', path: '/zpool' },
         ],
       },
     ],

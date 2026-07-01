@@ -84,6 +84,10 @@ model User {
   emailTwoFactorEnabled Boolean @default(false) @map("email_two_factor_enabled")
   youtubeUrl    String?  @map("youtube_url")
 
+  // Energy Tax Block
+  energyBlocked     Boolean  @default(false) @map("energy_blocked")
+  energyBlockedAt   DateTime? @map("energy_blocked_at")
+
   // Migration Meta & Historical Data
   oldId             Int?     @unique @map("old_id")
   oldLifetimeMined  Decimal? @default(0) @map("old_lifetime_mined") @db.Decimal(20, 8)
@@ -2383,7 +2387,7 @@ model EnergyTaxCharge {
   userId            Int      @map("user_id")
   /// 00:00 BRT (America/Sao_Paulo) do dia coberto por essa cobrança.
   periodDayStartsAt DateTime @map("period_day_starts_at")
-  /// "daily" = pagamento manual (7.5%/7 = 1.0714%) | "auto" = cobrança do cron de segunda 21h BRT (10%/7 = 1.4286%)
+  /// "daily" = pagamento manual (5%/7 = 0.7143%) | "auto" = cobrança do cron de segunda 21h BRT (15%/7 = 2.1429%)
   mode              String
   rewardsBase       Decimal  @db.Decimal(20, 8) @map("rewards_base")
   ratePercent       Decimal  @db.Decimal(6, 4) @map("rate_percent")

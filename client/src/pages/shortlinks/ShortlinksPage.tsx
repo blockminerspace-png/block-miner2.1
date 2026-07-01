@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 import MondiadBanner from '../../shared/components/MondiadBanner';
+import { reportApiFailure } from '../../shared/utils/reportApiFailure';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface ShortlinkStatusPayload {
@@ -87,6 +88,11 @@ export default function Shortlinks() {
                     ? (err.response.data as { message: string }).message
                     : t('common.error');
             toast.error(msg);
+            reportApiFailure({
+                operation: 'shortlink_start',
+                message: typeof msg === 'string' && msg !== t('common.error') ? msg : 'shortlink_start_failed',
+                statusCode: isAxiosError(err) ? err.response?.status : undefined,
+            });
         } finally {
             setIsStarting(false);
         }

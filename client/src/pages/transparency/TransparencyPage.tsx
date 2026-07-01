@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -1349,7 +1349,8 @@ export default function Transparency() {
 // is lazy-loaded (24 MB GLB) — only fetched after the user opts in.
 
 const MODEL_VIEWER_SCRIPT =
-  'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js';
+  'https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js';
+const MINER_MODEL_SRC = '/models/antminer-s19j-pro.glb';
 let modelViewerScriptPromise: Promise<void> | null = null;
 
 function loadModelViewer(): Promise<void> {
@@ -1367,6 +1368,51 @@ function loadModelViewer(): Promise<void> {
   return modelViewerScriptPromise;
 }
 
+/** Imperative model-viewer mount — avoids React 19 property/attribute mismatches on the web component. */
+function AntminerModelViewer({ onError }: { onError: () => void }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    const mv = document.createElement('model-viewer');
+    const attrs: Record<string, string> = {
+      src: MINER_MODEL_SRC,
+      alt: 'Antminer S19J Pro 3D',
+      'camera-controls': '',
+      'auto-rotate': '',
+      'rotation-per-second': '20deg',
+      'shadow-intensity': '0.6',
+      'shadow-softness': '0.8',
+      exposure: '1',
+      'tone-mapping': 'commerce',
+      'environment-image': 'neutral',
+      'interaction-prompt': 'none',
+      loading: 'eager',
+      reveal: 'auto',
+    };
+    for (const [key, value] of Object.entries(attrs)) {
+      mv.setAttribute(key, value);
+    }
+    mv.style.width = '100%';
+    mv.style.height = '100%';
+    mv.style.background = 'linear-gradient(180deg, #0b1220 0%, #050913 100%)';
+    mv.style.setProperty('--poster-color', 'transparent');
+
+    const handleError = () => onError();
+    mv.addEventListener('error', handleError);
+    host.appendChild(mv);
+
+    return () => {
+      mv.removeEventListener('error', handleError);
+      mv.remove();
+    };
+  }, [onError]);
+
+  return <div ref={hostRef} className="w-full h-full" data-testid="antminer-model-viewer" />;
+}
+
 function HardwareSection() {
   const { t } = useTranslation();
   const [loadingScript, setLoadingScript] = useState(true);
@@ -1380,6 +1426,10 @@ function HardwareSection() {
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : t('transparency.hardware.viewer_error')); })
       .finally(() => { if (!cancelled) setLoadingScript(false); });
     return () => { cancelled = true; };
+  }, [t]);
+
+  const handleViewerError = useCallback(() => {
+    setError(t('transparency.hardware.viewer_error'));
   }, [t]);
 
   return (
@@ -1458,28 +1508,7 @@ function HardwareSection() {
               </div>
             )}
             {scriptReady && !error && (
-              // model-viewer is a Web Component; TS doesn't know its JSX tag.
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              React.createElement('model-viewer' as any, {
-                src: '/models/antminer-s19j-pro.glb',
-                alt: 'Antminer S19J Pro 3D',
-                'camera-controls': true,
-                'auto-rotate': true,
-                'rotation-per-second': '20deg',
-                'shadow-intensity': '0.6',
-                'shadow-softness': '0.8',
-                exposure: '0.55',
-                'tone-mapping': 'aces',
-                'interaction-prompt': 'none',
-                loading: 'eager',
-                reveal: 'auto',
-                style: {
-                  width: '100%',
-                  height: '100%',
-                  background: 'linear-gradient(180deg, #0b1220 0%, #050913 100%)',
-                  ['--poster-color' as string]: 'transparent',
-                },
-              })
+              <AntminerModelViewer onError={handleViewerError} />
             )}
           </div>
           {scriptReady && !error && (

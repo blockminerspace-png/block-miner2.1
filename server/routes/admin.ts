@@ -713,16 +713,18 @@ adminRouter.get("/analytics/distribution", async (req, res) => {
 });
 
 // Banners
-// Client error reports (captured by ErrorBoundary + window handlers)
+// Client error reports (captured by ErrorBoundary + window handlers + API failures)
 adminRouter.get("/client-errors", async (req, res) => {
     try {
         const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
         const rows = await prisma.auditLog.findMany({
-            where: { action: "client_error_report" },
+            where: { action: { in: ["client_error_report", "client_api_failure"] } },
             orderBy: { createdAt: "desc" },
             take: limit,
             select: {
                 id: true,
+                action: true,
+                severity: true,
                 label: true,
                 description: true,
                 ip: true,
@@ -740,7 +742,9 @@ adminRouter.get("/client-errors", async (req, res) => {
 
 adminRouter.delete("/client-errors", async (_req, res) => {
     try {
-        const r = await prisma.auditLog.deleteMany({ where: { action: "client_error_report" } });
+        const r = await prisma.auditLog.deleteMany({
+            where: { action: { in: ["client_error_report", "client_api_failure"] } },
+        });
         res.json({ ok: true, deleted: r.count });
     } catch (err) {
         console.error("[admin client-errors delete error]", adminErrMessage(err));

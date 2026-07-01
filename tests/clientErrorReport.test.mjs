@@ -35,22 +35,28 @@ describe("client error report pipeline", () => {
 
   it("traffic router persists the report into AuditLog", () => {
     assert.match(trafficRoutes, /prisma\.auditLog\.create/);
-    assert.match(trafficRoutes, /action:\s*["']client_error_report["']/);
+    // default (crash) still maps to client_error_report; api_failure maps to client_api_failure
+    assert.match(trafficRoutes, /client_error_report/);
+    assert.match(trafficRoutes, /client_api_failure/);
     assert.match(trafficRoutes, /source:\s*["']client["']/);
   });
 
   it("traffic router still emits a structured console.error so docker logs catch it", () => {
-    assert.match(trafficRoutes, /\[client_error_report\]/);
+    // log prefix now interpolates the action so both categories show in docker logs
+    assert.match(trafficRoutes, /console\.error/);
+    assert.match(trafficRoutes, /\[" \+ action \+ "\]/);
   });
 
   it("CSRF middleware exempts /api/track/* so the reporter is never blocked", () => {
     assert.match(csrfMiddleware, /url\.startsWith\(["']\/api\/track\/["']\)/);
   });
 
-  it("admin router exposes GET and DELETE for /client-errors", () => {
+  it("admin router exposes GET and DELETE for /client-errors (both categories)", () => {
     assert.match(adminRoutes, /adminRouter\.get\(["']\/client-errors["']/);
     assert.match(adminRoutes, /adminRouter\.delete\(["']\/client-errors["']/);
-    assert.match(adminRoutes, /action:\s*["']client_error_report["']/);
+    // admin now fetches both crash and api_failure reports
+    assert.match(adminRoutes, /client_error_report/);
+    assert.match(adminRoutes, /client_api_failure/);
   });
 
   it("ErrorBoundary self-heals stale chunks via throttled reload (1× per 60s)", () => {

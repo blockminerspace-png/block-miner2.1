@@ -5,29 +5,10 @@ import './i18n/config' // Import i18n config
 import App from './app/App'
 import ErrorBoundary from './shared/components/ErrorBoundary'
 import { isChunkLoadError, shouldAutoReloadChunkError, forceReloadForNewBuild } from './shared/utils/chunkLoadError'
-
-// Reports that are 100% noise (browser extensions, third-party trackers blocked
-// by adblock, anonymous blob URLs) — not our code, not actionable.
-const NOISE_PATTERNS = [
-  /chrome-extension:\/\//i,
-  /moz-extension:\/\//i,
-  /safari-extension:\/\//i,
-  /\bblob:https?:\/\//i,
-  /ss\.mrmnd\.com/i,
-  /googletagmanager\.com/i,
-  /google-analytics\.com/i,
-  /doubleclick\.net/i,
-  /facebook\.net/i,
-  /metapixel/i,
-];
-
-function isNoise(message: string): boolean {
-  if (!message) return false;
-  return NOISE_PATTERNS.some((re) => re.test(message));
-}
+import { isThirdPartyScriptNoise } from './shared/utils/clientErrorNoise'
 
 function reportClientError(payload: { message: string; stack?: string | null; source?: string }) {
-  if (isNoise(payload.message) || isNoise(payload.stack ?? '')) return;
+  if (isThirdPartyScriptNoise(payload.message, payload.stack)) return;
   try {
     void fetch('/api/track/client-error', {
       method: 'POST',

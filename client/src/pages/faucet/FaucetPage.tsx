@@ -21,6 +21,7 @@ import type { AxiosError } from 'axios';
 import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 import MondiadBanner from '../../shared/components/MondiadBanner';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
+import { reportApiFailure } from '../../shared/utils/reportApiFailure';
 
 interface FaucetReward {
     imageUrl?: string | null;
@@ -43,8 +44,6 @@ const FAUCET_MND_SCRIPT = 'https://ss.mrmnd.com/banner.js';
 const FAUCET_MND_BANNER_ID = '5674e300-8e33-44ee-ba4c-1f67f2934df2';
 const FAUCET_ZERADS_FALLBACK = 'https://zerads.com/ad/ad.php?width=300&ref=10776';
 
-/** Survives React Strict Mode remounts (refs reset per instance). */
-let faucetStatusBootstrapped = false;
 /** Survives remounts while partner countdown is driven locally (not from API). */
 let faucetLocalPartnerFlowLock = false;
 
@@ -77,7 +76,6 @@ function clearPartnerSession() {
 
 /** @internal Vitest only */
 export function __resetFaucetStatusBootstrapForTests() {
-    faucetStatusBootstrapped = false;
     faucetLocalPartnerFlowLock = false;
     clearPartnerSession();
 }
@@ -136,6 +134,8 @@ export default function Faucet() {
     const partnerWaitMsRef = useRef(0);
     const isAdClickedRef = useRef(false);
     const statusFetchSeqRef = useRef(0);
+    /** Per-instance guard so Strict Mode double-mount doesn't fire fetchStatus twice. */
+    const bootstrappedRef = useRef(false);
 
     const applyPartnerStateFromStatus = useCallback((data: FaucetStatus) => {
         const remaining = data.remainingMs || 0;
@@ -205,15 +205,17 @@ export default function Faucet() {
         } catch (err: unknown) {
             console.error("Faucet status fetch failed", err);
         } finally {
-            if (fetchId === statusFetchSeqRef.current) {
-                setIsLoading(false);
-            }
+            // Always clear loading on the very first fetch: previously this was guarded
+            // by `fetchId === statusFetchSeqRef.current`, which could be skipped if the
+            // sequence ref was bumped mid-flight, leaving the page stuck on the spinner
+            // forever (the classic "faucet never loads, reload fixes it" bug).
+            setIsLoading(false);
         }
     }, [applyPartnerStateFromStatus]);
 
     useEffect(() => {
-        if (faucetStatusBootstrapped) return;
-        faucetStatusBootstrapped = true;
+        if (bootstrappedRef.current) return;
+        bootstrappedRef.current = true;
         void fetchStatus();
     }, [fetchStatus]);
 
@@ -299,6 +301,11 @@ export default function Faucet() {
             isAdClickedRef.current = false;
             setIsAdClicked(false);
             toast.error(t('common.error'));
+            reportApiFailure({
+                operation: 'faucet_partner_start',
+                message: err instanceof Error ? err.message : 'partner_start_failed',
+                statusCode: (err as AxiosError)?.response?.status,
+            });
         }
     };
 
@@ -332,6 +339,11 @@ export default function Faucet() {
         } catch (err: unknown) {
             const ax = err as AxiosError<{ message?: string }>;
             toast.error(ax.response?.data?.message || t('common.error'));
+            reportApiFailure({
+                operation: 'faucet_claim',
+                message: ax.response?.data?.message || (err instanceof Error ? err.message : 'faucet_claim_failed'),
+                statusCode: ax.response?.status,
+            });
         } finally {
             setIsClaiming(false);
         }

@@ -48,6 +48,19 @@ export async function createTicket(req: Request, res: Response) {
     include: { messages: true },
   });
 
+  try {
+    const { notifyNewPublicSupportTicket } = await import("../../services/videoTelegramNotifier.js");
+    notifyNewPublicSupportTicket({
+      id: ticket.id,
+      guestName: name,
+      guestEmail: email,
+      subject,
+      message,
+    });
+  } catch (notifyErr) {
+    console.warn("[PublicSupport] Telegram notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+  }
+
   res.status(201).json({ ok: true, ticket });
 }
 
@@ -118,6 +131,19 @@ export async function addGuestMessage(req: Request, res: Response) {
     where: { id },
     data: { updatedAt: new Date(), status: "open" },
   });
+
+  try {
+    const { notifyNewPublicSupportTicket } = await import("../../services/videoTelegramNotifier.js");
+    notifyNewPublicSupportTicket({
+      id,
+      guestName: email,
+      guestEmail: email,
+      subject: `(nova mensagem) ticket #${id}`,
+      message: content,
+    });
+  } catch (notifyErr) {
+    console.warn("[PublicSupport] Telegram guest-message notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+  }
 
   res.status(201).json({ ok: true, message: msg });
 }

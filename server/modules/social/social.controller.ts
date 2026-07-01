@@ -214,6 +214,26 @@ export async function submitVideo(req: Request, res: Response): Promise<void> {
   });
 
   logger.info("social.video_submitted", { userId, videoId, submissionId: submission.id });
+
+  try {
+    const { notifyNewVideoSubmission } = await import("../../services/videoTelegramNotifier.js");
+    let username: string | null = null;
+    const u = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } });
+    username = u?.username ?? null;
+    notifyNewVideoSubmission({
+      id: submission.id,
+      userId,
+      username,
+      videoId,
+      videoUrl: videoUrl.trim(),
+      title: submission.title,
+    });
+  } catch (notifyErr) {
+    logger.warn("social.video_telegram_notify_failed", {
+      error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+    });
+  }
+
   res.json({ ok: true, submission });
 }
 

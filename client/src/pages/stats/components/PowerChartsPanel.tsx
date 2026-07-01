@@ -78,7 +78,8 @@ export default function PowerChartsPanel({
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" role="region" aria-label={t('powerStats.charts.region')}>
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-h-[280px]">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">{t('powerStats.charts.share_by_source')}</h3>
+        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1">{t('powerStats.charts.share_by_source')}</h3>
+        <p className="text-[10px] text-slate-600 mb-2">{t('powerStats.charts.share_by_source_note')}</p>
         <p className="sr-only">{pieSummary}</p>
         {pieData.length === 0 ? (
           <p className="text-sm text-slate-600 py-12 text-center">{t('powerStats.charts.no_data')}</p>
@@ -110,7 +111,8 @@ export default function PowerChartsPanel({
       </div>
 
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-h-[280px]">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">{t('powerStats.charts.permanent_vs_temporary')}</h3>
+        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1">{t('powerStats.charts.permanent_vs_temporary')}</h3>
+        <p className="text-[10px] text-slate-600 mb-2">{t('powerStats.charts.permanent_vs_temporary_note')}</p>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart
             data={[

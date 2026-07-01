@@ -61,7 +61,7 @@ const SIZE_MAP: Record<AdSize, { width: number; height: number }> = {
 function IframeAd({ ad, size }: { ad: AdConfig; size: AdSize }) {
   if (ad.provider === 'aads') {
     return (
-      <div style={{ width: '100%', margin: 'auto', position: 'relative', zIndex: 99998 }}>
+      <div style={{ width: '100%', margin: 'auto', position: 'relative', zIndex: 10 }}>
         <iframe
           data-aa="2436936"
           src="//acceptable.a-ads.com/2436936/?size=Adaptive"

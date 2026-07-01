@@ -8,6 +8,7 @@ import loggerLib, { logUserActivity } from "../../../utils/logger.js";
 import { clearAuthCookies, unknownErrorMessage } from "../shared/auth.security.js";
 import { toAuthPublicUserDto } from "../auth.dto.js";
 import { AUTH_LOGIN_MESSAGES, buildAuthFailureJson } from "../auth.errors.js";
+import { computeWeekSummary, isEnergyTaxActive } from "../../energy-tax/energyTax.service.js";
 import { respondAuthPrismaError } from "../shared/auth.prisma.js";
 
 const logger = loggerLib.child("AuthSessionController");
@@ -52,9 +53,16 @@ export async function getSession(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const hasReferral = !!(await prisma.referral.findUnique({ where: { referredId: user.id } }));
+    const [hasReferral, energyInfo] = await Promise.all([
+      prisma.referral.findUnique({ where: { referredId: user.id } }).then(Boolean),
+      isEnergyTaxActive()
+        ? computeWeekSummary(user.id)
+            .then((s) => ({ energyBlocked: (user as Record<string, unknown>).energyBlocked === true, energyUnpaidDays: s.unpaidDays }))
+            .catch(() => ({ energyBlocked: false, energyUnpaidDays: 0 }))
+        : Promise.resolve({ energyBlocked: false, energyUnpaidDays: 0 }),
+    ]);
 
-    res.json({ ok: true, user: toAuthPublicUserDto(user, { hasReferral }) });
+    res.json({ ok: true, user: toAuthPublicUserDto(user, { hasReferral, ...energyInfo }) });
   } catch (error: unknown) {
     if (
       respondAuthPrismaError(

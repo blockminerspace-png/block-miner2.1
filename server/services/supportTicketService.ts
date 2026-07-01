@@ -36,6 +36,24 @@ export async function addUserReply(params) {
     }
   });
   emitSupportReply(supportMessageId, newReply);
+
+  try {
+    const { notifySupportReply } = await import("../services/videoTelegramNotifier.js");
+    const [fullTicket, user] = await Promise.all([
+      prisma.supportMessage.findUnique({ where: { id: supportMessageId }, select: { subject: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { username: true } }),
+    ]);
+    notifySupportReply({
+      ticketId: supportMessageId,
+      subject: fullTicket?.subject ?? null,
+      username: user?.username ?? null,
+      userId,
+      message: typeof body === "string" ? body : "",
+    });
+  } catch (notifyErr) {
+    console.warn("[SupportTicket] Telegram reply notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+  }
+
   return newReply;
 }
 

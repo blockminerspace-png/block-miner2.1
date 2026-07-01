@@ -7,6 +7,7 @@ import {
   Gamepad2,
   Globe,
   History,
+  Info,
   Loader2,
   RefreshCw,
   Timer,
@@ -68,6 +69,21 @@ function ExpiryBadge({ expiresAt, t }: { expiresAt?: string | null; t: TFunction
     <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
       <Timer className="w-3 h-3" />
       {left <= 0 ? t('powerStats.expired') : formatDurationMs(left)}
+    </span>
+  );
+}
+
+/** Small inline help: an ℹ️ icon with a native title tooltip. Lightweight, no popover lib. */
+function HelpHint({ text }: { text: string }) {
+  if (!text) return null;
+  return (
+    <span
+      className="inline-flex items-center text-slate-600 hover:text-slate-400 cursor-help align-middle ml-1"
+      title={text}
+      aria-label={text}
+      role="img"
+    >
+      <Info className="w-3.5 h-3.5" />
     </span>
   );
 }
@@ -182,25 +198,44 @@ export default function PowerStatistics() {
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('powerStats.total_power')}</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center">
+                    {t('powerStats.total_power')}
+                    <HelpHint text={t('powerStats.total_tooltip')} />
+                  </p>
                   <p className="text-2xl font-black text-white">{formatHashrate(overview?.totalHashrate)}</p>
-                  <p className="text-[10px] text-slate-600">{t('powerStats.total_tooltip')}</p>
                 </div>
                 <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6 space-y-2">
-                  <p className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest">{t('powerStats.permanent')}</p>
+                  <p className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest flex items-center">
+                    {t('powerStats.permanent')}
+                    <HelpHint text={t('powerStats.permanent_tooltip')} />
+                  </p>
                   <p className="text-2xl font-black text-emerald-400">{formatHashrate(overview?.permanentHashrate)}</p>
-                  <p className="text-[10px] text-slate-600">{t('powerStats.permanent_tooltip')}</p>
                 </div>
                 <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 space-y-2">
-                  <p className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest">{t('powerStats.temporary')}</p>
+                  <p className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest flex items-center">
+                    {t('powerStats.temporary')}
+                    <HelpHint text={t('powerStats.temporary_tooltip')} />
+                  </p>
                   <p className="text-2xl font-black text-amber-400">{formatHashrate(overview?.temporaryHashrate)}</p>
-                  <p className="text-[10px] text-slate-600">{t('powerStats.temporary_tooltip')}</p>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-3">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('powerStats.mix')}</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center">
+                    {t('powerStats.mix')}
+                    <HelpHint text={t('powerStats.mix_tooltip')} />
+                  </p>
                   <div className="h-3 rounded-full bg-slate-800 overflow-hidden flex" title={t('powerStats.mix_tooltip')}>
                     <div className="h-full bg-emerald-500 transition-all" style={{ width: `${ratioBar.p}%` }} />
                     <div className="h-full bg-amber-500 transition-all" style={{ width: `${ratioBar.tmp}%` }} />
+                  </div>
+                  <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
+                    <span className="flex items-center gap-1.5 text-emerald-400">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                      {t('powerStats.charts.legend_permanent')}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-amber-400">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+                      {t('powerStats.charts.legend_temporary')}
+                    </span>
                   </div>
                   <p className="text-xs text-slate-400">
                     {overview?.permanentPercent ?? 0}% {t('powerStats.permanent_short')} · {overview?.temporaryPercent ?? 0}% {t('powerStats.temporary_short')}
@@ -209,10 +244,12 @@ export default function PowerStatistics() {
               </div>
 
               <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6">
-                <h2 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-4">
+                <h2 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-1">
                   <Timer className="w-4 h-4 text-amber-400" />
                   {t('powerStats.next_expirations')}
+                  <HelpHint text={t('powerStats.next_expirations_help')} />
                 </h2>
+                <p className="text-[11px] text-slate-600 mb-4">{t('powerStats.next_expirations_help')}</p>
                 {(overview?.nextExpirations || []).length === 0 ? (
                   <p className="text-sm text-slate-600">{t('powerStats.no_active_temporary')}</p>
                 ) : (
@@ -241,7 +278,10 @@ export default function PowerStatistics() {
               </Suspense>
 
               <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-2">
-                <h2 className="text-sm font-black text-white uppercase tracking-widest">{t('powerStats.projections_title')}</h2>
+                <h2 className="text-sm font-black text-white uppercase tracking-widest flex items-center">
+                  {t('powerStats.projections_title')}
+                  <HelpHint text={t('powerStats.projections_help')} />
+                </h2>
                 <p className="text-sm text-slate-400">{t('powerStats.projection_permanent', { hr: (overview?.permanentHashrate ?? 0).toFixed(2) })}</p>
                 <p className="text-sm text-slate-400">{t('powerStats.projection_temporary', { hr: (overview?.temporaryHashrate ?? 0).toFixed(2) })}</p>
                 <ul className="list-disc list-inside text-xs text-slate-500 space-y-1 mt-2">
@@ -269,6 +309,7 @@ export default function PowerStatistics() {
                     active: data.machines?.activeCount ?? 0,
                     inactive: data.machines?.inactiveCount ?? 0
                   })}
+                  <HelpHint text={t('powerStats.machines.summary_help')} />
                 </span>
                 {openMachine ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
               </button>
@@ -319,12 +360,16 @@ export default function PowerStatistics() {
                 {openTemp ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </button>
               {openTemp && (
+                <p className="text-xs text-slate-500 px-1 pb-1">{t('powerStats.temporary_detail_help')}</p>
+              )}
+              {openTemp && (
                 <div className="grid gap-6">
                   <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-3">
                     <h3 className="text-xs font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
                       <Youtube className="w-4 h-4" />
                       {t('powerStats.youtube.title')} — {formatHashrate(data.youtube?.activeTotal)}
                     </h3>
+                    <p className="text-[11px] text-slate-500">{t('powerStats.youtube.note')}</p>
                     <ul className="space-y-2">
                       {(data.youtube?.activeItems || []).map((y) => (
                         <li key={y.id} className="flex justify-between items-center text-sm border-b border-slate-800/60 pb-2">
@@ -352,6 +397,7 @@ export default function PowerStatistics() {
                       <Gamepad2 className="w-4 h-4" />
                       {t('powerStats.games.title')}
                     </h3>
+                    <p className="text-[11px] text-slate-500">{t('powerStats.games.note')}</p>
                     <p className="text-xs text-slate-500">
                       {t('powerStats.games.minigames')}: {formatHashrate(data.games?.minigameTotal)} · {t('powerStats.games.checkin')}:{' '}
                       {formatHashrate(data.games?.checkinBonusTotal)}
@@ -374,6 +420,7 @@ export default function PowerStatistics() {
 
                   <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-3">
                     <h3 className="text-xs font-black text-violet-400 uppercase tracking-widest">{t('powerStats.auto_mining.title')}</h3>
+                    <p className="text-[11px] text-slate-500">{t('powerStats.auto_mining.note')}</p>
                     <p className="text-sm text-white">{formatHashrate(data.autoMining?.total)}</p>
                     <ul className="space-y-2">
                       {(data.autoMining?.items || []).map((p) => (

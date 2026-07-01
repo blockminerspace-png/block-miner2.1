@@ -25,7 +25,9 @@ import {
   LayoutGrid,
   Crosshair,
   Receipt,
-  Globe
+  Globe,
+  MousePointerClick,
+  Pickaxe
 } from 'lucide-react';
 import type { PublicNavCategory, PublicNavItem } from './sidebarNavPublicSchema';
 
@@ -56,7 +58,9 @@ export const SIDEBAR_ICON_MAP: Record<string, LucideIcon> = {
   LayoutGrid,
   Crosshair,
   Receipt,
-  Globe
+  Globe,
+  MousePointerClick,
+  Pickaxe
 };
 
 export function resolveSidebarIcon(iconName: unknown): LucideIcon {

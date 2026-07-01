@@ -5,6 +5,7 @@ import {
   isChunkLoadError,
   shouldAutoReloadChunkError,
 } from '../utils/chunkLoadError';
+import { isClientErrorNoise } from '../utils/clientErrorNoise';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -19,29 +20,12 @@ interface ErrorBoundaryState {
   reportedKey?: string;
 }
 
-const NOISE_PATTERNS = [
-  /chrome-extension:\/\//i,
-  /moz-extension:\/\//i,
-  /safari-extension:\/\//i,
-  /\bblob:https?:\/\//i,
-  /ss\.mrmnd\.com/i,
-  /googletagmanager\.com/i,
-  /google-analytics\.com/i,
-  /doubleclick\.net/i,
-  /facebook\.net/i,
-];
-
-function isNoise(text: string | null | undefined): boolean {
-  if (!text) return false;
-  return NOISE_PATTERNS.some((re) => re.test(text));
-}
-
 function reportClientError(payload: {
   message: string;
   stack?: string | null;
   componentStack?: string | null;
 }): void {
-  if (isNoise(payload.message) || isNoise(payload.stack) || isNoise(payload.componentStack)) return;
+  if (isClientErrorNoise(payload.message, payload.stack, payload.componentStack)) return;
   try {
     const body = JSON.stringify({
       message: payload.message.slice(0, 800),

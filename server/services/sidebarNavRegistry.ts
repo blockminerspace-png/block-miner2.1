@@ -134,6 +134,13 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "earn",
     defaultParentItemId: "rewards_group"
   },
+  zpool: {
+    path: "/zpool",
+    labelKey: "sidebar.zpool",
+    icon: "Pickaxe",
+    section: "earn",
+    defaultParentItemId: "rewards_group"
+  },
   youtube: {
     path: "/youtube",
     labelKey: "sidebar.youtube",
@@ -399,7 +406,7 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     //  1) Rotina diária (baixa fricção): tournaments → checkin → daily_tasks → mini_pass
     //  2) Engajamento ativo (jogar pra ganhar): games
     //  3) Grupo de Recompensas (fontes secundárias, do mais rápido pro mais lento):
-    //     faucet → internal_offerwall → offerwall → ptc → shortlinks → read_earn → youtube → auto_mining
+    //     faucet → internal_offerwall → offerwall → ptc → shortlinks → read_earn → youtube → auto_mining → zpool
     { itemId: "tournaments", visible: true, sortOrder: 105, section: "earn", parentItemId: null },
     { itemId: "checkin", visible: true, sortOrder: 110, section: "earn", parentItemId: null },
     { itemId: "daily_tasks", visible: true, sortOrder: 115, section: "earn", parentItemId: null },
@@ -415,6 +422,7 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "read_earn", visible: true, sortOrder: 150, section: "earn", parentItemId: "rewards_group" },
     { itemId: "youtube", visible: true, sortOrder: 160, section: "earn", parentItemId: "rewards_group" },
     { itemId: "auto_mining", visible: true, sortOrder: 170, section: "earn", parentItemId: "rewards_group" },
+    { itemId: "zpool", visible: true, sortOrder: 180, section: "earn", parentItemId: "rewards_group" },
 
     { itemId: "ranking", visible: true, sortOrder: 220, section: "social", parentItemId: null },
     { itemId: "transparency", visible: true, sortOrder: 230, section: "social", parentItemId: null },

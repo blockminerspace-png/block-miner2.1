@@ -8,6 +8,7 @@ import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
 import AdBanner from '../../shared/components/AdBanner';
 import MondiadBanner from '../../shared/components/MondiadBanner';
+import { reportApiFailure } from '../../shared/utils/reportApiFailure';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 interface ShortlinkSessionStored {
@@ -132,6 +133,12 @@ export default function ShortlinkStep() {
                     ? (err.response.data as { message: string }).message
                     : t('common.error');
             toast.error(msg);
+            reportApiFailure({
+                operation: 'shortlink_complete_step',
+                message: typeof msg === 'string' && msg !== t('common.error') ? msg : 'complete_step_failed',
+                statusCode: isAxiosError(err) ? err.response?.status : undefined,
+                code: isAxiosError(err) ? (err.response?.data as { code?: string } | null)?.code : undefined,
+            });
             if (
                 isAxiosError(err) &&
                 (Boolean((err.response?.data as { kick?: boolean } | undefined)?.kick) || err.response?.status === 403)

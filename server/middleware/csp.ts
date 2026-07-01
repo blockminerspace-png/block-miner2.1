@@ -49,6 +49,8 @@ const WALLETCONNECT_CONNECT = [
   "https://keys.reown.com",
 ] as const;
 
+const ZPOOL_CONNECT = ["https://www.zpool.ca"] as const;
+
 type CspDirectives = NonNullable<Exclude<HelmetOptions["contentSecurityPolicy"], boolean | undefined>["directives"]>;
 
 function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
@@ -81,6 +83,8 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
       "https://widget.tradingview.com",
       "https://ad.a-ads.com",
       "http://ad.a-ads.com",
+      "https://acceptable.a-ads.com",
+      "https://*.a-ads.com",
       ...internalOfferwallFrameHosts,
     ],
     objectSrc: ["'none'"],
@@ -136,7 +140,7 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
             "https://*.mrmnd.com",
           ],
     styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com"],
-    connectSrc: [...connectBase, ...WALLETCONNECT_CONNECT],
+    connectSrc: [...connectBase, ...WALLETCONNECT_CONNECT, ...ZPOOL_CONNECT],
     workerSrc: ["'self'", "blob:", "https:"],
   };
 }

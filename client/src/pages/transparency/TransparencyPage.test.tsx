@@ -56,7 +56,7 @@ vi.mock('lucide-react', async () => {
     'Eye','Server','Wrench','Megaphone','Briefcase','Scale','Package',
     'DollarSign','RefreshCw','ExternalLink','TrendingUp','TrendingDown',
     'CheckCircle2','Clock','Wallet','Copy','Check','ShieldCheck',
-    'BarChart2','Activity','ArrowUpRight','ImageIcon','AlertTriangle',
+    'BarChart2','Activity','ArrowUpRight','ImageIcon','AlertTriangle','Cpu',
   ];
   return Object.fromEntries(
     iconNames.map((n: string) => [

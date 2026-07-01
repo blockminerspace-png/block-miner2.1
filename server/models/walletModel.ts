@@ -336,6 +336,18 @@ async function getApprovedWithdrawalsForAutoSend() {
   });
 }
 
+/** Saques em processing enviados via CoinEx aguardando confirmação do txHash. */
+async function getProcessingCoinExWithdrawals() {
+  return prisma.transaction.findMany({
+    where: {
+      type: 'withdrawal',
+      status: 'processing',
+      txHash: { startsWith: 'coinex:' }
+    },
+    orderBy: { createdAt: 'asc' }
+  });
+}
+
 async function failAllPendingWithdrawals() {
   // Safety guard: pending withdrawals must never be auto-cancelled on restart.
   // This function is kept for backward compatibility but intentionally does nothing.
@@ -352,6 +364,7 @@ const walletModel = {
   updateTransactionStatus,
   getPendingWithdrawals,
   getApprovedWithdrawalsForAutoSend,
+  getProcessingCoinExWithdrawals,
   failAllPendingWithdrawals
 };
 
@@ -366,5 +379,6 @@ export {
   updateTransactionStatus,
   getPendingWithdrawals,
   getApprovedWithdrawalsForAutoSend,
+  getProcessingCoinExWithdrawals,
   failAllPendingWithdrawals
 };

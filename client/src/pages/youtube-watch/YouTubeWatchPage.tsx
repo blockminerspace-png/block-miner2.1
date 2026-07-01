@@ -10,6 +10,7 @@ import { formatHashrate } from '../../shared/utils/machine';
 import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { validateTrustedEvent, generateSecurityPayload } from '../../shared/utils/security';
+import { reportApiFailure } from '../../shared/utils/reportApiFailure';
 
 interface YoutubeStatusPayload {
     ok?: boolean;
@@ -330,7 +331,29 @@ export default function YouTubeWatch() {
                     if (isDaily) setPlayerState('paused');
                 }
             } else {
+                // Falha inesperada (5xx, 401 sessão expirada, rede) — reporta p/ o admin ver.
+                const status = isAxiosError(err) ? err.response?.status : undefined;
+                const code = isAxiosError(err)
+                    ? (err.response?.data as { code?: string } | null)?.code
+                    : undefined;
+                const serverMsg = isAxiosError(err)
+                    ? (err.response?.data as { message?: string } | null)?.message
+                    : undefined;
                 toast.error(t('youtube.claim_failed'));
+                reportApiFailure({
+                    operation: 'youtube_claim',
+                    message: serverMsg || (err instanceof Error ? err.message : 'claim_failed'),
+                    statusCode: status,
+                    code,
+                    context: { videoId, hasResponse: isAxiosError(err) ? !!err.response : false },
+                });
+                // Evita rajada de erros: reinicia o ciclo de 60s antes de tentar de novo.
+                // Sem isso, o timer de 500ms dispararia o claim novamente a cada tick.
+                cycleStartRef.current = Date.now();
+                if (status === 401) {
+                    // Sessão expirada — não adianta continuar assistindo; pausa o ciclo.
+                    setPlayerState('paused');
+                }
             }
         } finally {
             isClaimingRef.current = false;
