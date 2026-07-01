@@ -48,9 +48,34 @@ type EnergyTaxSummary = {
   history: Array<ChargeRow & { rewardsBase: number; periodDayStartsAt: string }>;
 };
 
+const BRT = 'America/Sao_Paulo';
+
 function fmtPol(n: number, decimals = 6): string {
   if (!Number.isFinite(n)) return '0';
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+/** 00:00 BRT do dia em que a taxa passou a valer (primeiro dia minerado cobrável). */
+function firstTaxableDayStartMs(startsAtIso: string): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BRT,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(startsAtIso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return new Date(`${get('year')}-${get('month')}-${get('day')}T03:00:00.000Z`).getTime();
+}
+
+function fmtBrtNow(locale: string): string {
+  return new Date().toLocaleString(locale, {
+    timeZone: BRT,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function nextMondayBrtCountdown(now = new Date()): string {
@@ -80,7 +105,13 @@ export default function EnergyTaxSection() {
   const [, tick] = useState(0);
 
   const locale = i18n.language || 'pt-BR';
-  const fmtDayLabel = (iso: string) => new Date(iso).toLocaleDateString(locale, { weekday: 'short', day: '2-digit', month: '2-digit' });
+  const fmtDayLabel = (iso: string) =>
+    new Date(iso).toLocaleDateString(locale, {
+      timeZone: BRT,
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+    });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +163,11 @@ export default function EnergyTaxSection() {
   const todayExempt = summary.todayExempt;
   const todayBlocked = notYetActive || summary.todayPaid || (!todayExempt && summary.yesterdayRewards <= 0);
   const ctdown = nextMondayBrtCountdown();
+  const firstTaxableMs = firstTaxableDayStartMs(summary.startsAt);
+  const todayDayStartIso = summary.days[6]?.dayStart ?? '';
+  const yesterdayDayLabel = summary.days[5]
+    ? fmtDayLabel(summary.days[5].dayStart).split(',')[1]?.trim() ?? fmtDayLabel(summary.days[5].dayStart)
+    : '';
 
   const startsAtDate = new Date(summary.startsAt);
   const msUntilStart = startsAtDate.getTime() - Date.now();
@@ -315,10 +351,15 @@ export default function EnergyTaxSection() {
               {t('taxes.energy_tax.pay_card_subtitle')}
             </p>
           </div>
-          <span className="text-xs text-slate-500 font-mono flex items-center gap-1 shrink-0">
-            <Calendar className="w-3.5 h-3.5" />
-            {t('taxes.energy_tax.pay_card_next_auto', { countdown: ctdown })}
-          </span>
+          <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+            <span className="text-[10px] text-slate-500 font-mono">
+              {t('taxes.energy_tax.server_clock', { datetime: fmtBrtNow(locale) })}
+            </span>
+            <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" />
+              {t('taxes.energy_tax.pay_card_next_auto', { countdown: ctdown })}
+            </span>
+          </div>
         </div>
 
         <button
@@ -353,6 +394,19 @@ export default function EnergyTaxSection() {
             })}
           </p>
         )}
+        {!notYetActive && summary.todayPaid && (
+          <p className="mt-3 text-xs sm:text-sm text-emerald-400/90">
+            {t('taxes.energy_tax.pay_already_settled', { day: yesterdayDayLabel })}
+          </p>
+        )}
+        {!notYetActive && summary.todayPaid && summary.todayRewards > 0 && (
+          <p className="mt-1 text-xs sm:text-sm text-slate-500">
+            {t('taxes.energy_tax.pay_tomorrow_hint', {
+              rewards: fmtPol(summary.todayRewards, 6),
+              charge: fmtPol(Number((summary.todayRewards * (0.05 / 7)).toFixed(8)), 6),
+            })}
+          </p>
+        )}
       </div>
 
       {/* Week status */}
@@ -376,22 +430,31 @@ export default function EnergyTaxSection() {
         <div className="grid grid-cols-7 gap-2 sm:gap-3">
           {/* Hoje à esquerda → 6 dias atrás à direita (ordem natural de leitura) */}
           {[...summary.days].reverse().map((d) => {
-            const status: 'exempt' | 'daily' | 'auto' | 'pending' | 'no-reward' =
+            const dayMs = new Date(d.dayStart).getTime();
+            const isPreLaunch = dayMs < firstTaxableMs;
+            const isTodayCell = d.dayStart === todayDayStartIso;
+            const status: 'exempt' | 'daily' | 'auto' | 'pending' | 'no-reward' | 'pre-launch' | 'today' =
               d.charge?.mode === 'exempt' ? 'exempt'
               : d.charge?.mode === 'daily' ? 'daily'
               : d.charge?.mode === 'auto' ? 'auto'
+              : isPreLaunch ? 'pre-launch'
+              : isTodayCell && !d.charge ? 'today'
               : d.rewards <= 0 ? 'no-reward'
               : 'pending';
             const cls =
               status === 'exempt' ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200'
               : status === 'daily' ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
               : status === 'auto' ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+              : status === 'pre-launch' ? 'border-slate-800/80 bg-slate-950/80 text-slate-600'
+              : status === 'today' ? 'border-sky-500/30 bg-sky-500/8 text-sky-300/80'
               : status === 'no-reward' ? 'border-slate-800 bg-slate-900 text-slate-700'
               : 'border-slate-700 bg-slate-800/60 text-slate-400';
             const icon =
               status === 'exempt' ? <Gift className="w-4 h-4 sm:w-5 sm:h-5" />
               : status === 'daily' ? <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
               : status === 'auto' ? <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+              : status === 'pre-launch' ? <span className="text-[9px] font-black uppercase tracking-tighter">N/A</span>
+              : status === 'today' ? <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
               : status === 'no-reward' ? <span className="text-base sm:text-lg">—</span>
               : <span className="text-xs font-black">?</span>;
             return (
@@ -413,6 +476,8 @@ export default function EnergyTaxSection() {
           <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> {t('taxes.energy_tax.legend_daily')}</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500" /> {t('taxes.energy_tax.legend_auto')}</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-700" /> {t('taxes.energy_tax.legend_pending')}</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-sky-500/60" /> {t('taxes.energy_tax.legend_today')}</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-900 border border-slate-700" /> {t('taxes.energy_tax.legend_pre_launch')}</span>
         </div>
       </div>
 
