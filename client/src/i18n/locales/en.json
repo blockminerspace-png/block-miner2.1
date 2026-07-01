@@ -750,6 +750,7 @@
       "pay_tomorrow_hint": "Today's mining ({{rewards}} POL) can be paid from tomorrow 00:00 BRT (~{{charge}} POL).",
       "server_clock": "Server (BRT): {{datetime}}",
       "week_status_header": "Last 7 days status",
+      "week_status_order_hint": "← older · today →",
       "week_status_paid_count": "{{paid}}/7 days paid",
       "week_status_manual_count": "{{manual}}/7 on daily plan (5%)",
       "week_status_auto_count": "{{auto}} auto (15%)",

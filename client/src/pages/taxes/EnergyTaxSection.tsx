@@ -427,9 +427,10 @@ export default function EnergyTaxSection() {
             )}
           </p>
         </div>
+        <p className="text-[10px] text-slate-600 font-mono mb-3">{t('taxes.energy_tax.week_status_order_hint')}</p>
         <div className="grid grid-cols-7 gap-2 sm:gap-3">
-          {/* Hoje à esquerda → 6 dias atrás à direita (ordem natural de leitura) */}
-          {[...summary.days].reverse().map((d) => {
+          {/* Esquerda = mais antigo · direita = hoje (ordem cronológica ascendente) */}
+          {summary.days.map((d) => {
             const dayMs = new Date(d.dayStart).getTime();
             const isPreLaunch = dayMs < firstTaxableMs;
             const isTodayCell = d.dayStart === todayDayStartIso;

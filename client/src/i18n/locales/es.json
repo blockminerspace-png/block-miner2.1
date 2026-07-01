@@ -386,6 +386,7 @@
       "pay_tomorrow_hint": "La minería de hoy ({{rewards}} POL) se puede pagar desde mañana 00:00 BRT (~{{charge}} POL).",
       "server_clock": "Servidor (BRT): {{datetime}}",
       "week_status_header": "Estado de los últimos 7 días",
+      "week_status_order_hint": "← más antiguo · hoy →",
       "week_status_paid_count": "{{paid}}/7 días pagados",
       "week_status_manual_count": "{{manual}}/7 en plan diario (5%)",
       "week_status_auto_count": "{{auto}} auto (15%)",
