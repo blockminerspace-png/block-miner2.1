@@ -40,8 +40,12 @@ type EnergyTaxSummary = {
   youtubeToday: number;
   gamesToday: number;
   totalActivitiesToday: number;
+  resetHour?: number;
+  lastClosedPeriodEndKey?: string;
+  currentPeriodEndKey?: string;
   days: Array<{
     dayStart: string;
+    periodEndKey?: string;
     rewards: number;
     charge: ChargeRow | null;
   }>;
@@ -55,16 +59,14 @@ function fmtPol(n: number, decimals = 6): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-/** 00:00 BRT do dia em que a taxa passou a valer (primeiro dia minerado cobrável). */
+/** Início do primeiro período taxável (21h BRT = startsAt ISO). */
 function firstTaxableDayStartMs(startsAtIso: string): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: BRT,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(startsAtIso));
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
-  return new Date(`${get('year')}-${get('month')}-${get('day')}T03:00:00.000Z`).getTime();
+  return new Date(startsAtIso).getTime();
+}
+
+function fmtPeriodEndKey(endKey: string): string {
+  const [, m, d] = endKey.split('-');
+  return `${d}/${m}`;
 }
 
 function fmtBrtNow(locale: string): string {
@@ -118,6 +120,28 @@ export default function EnergyTaxSection() {
     try {
       const r = await api.get<EnergyTaxSummary>('/energy-tax/summary');
       setSummary(r.data);
+      // #region agent log
+      fetch('http://127.0.0.1:7302/ingest/aa95698d-f2ba-4f90-9481-c66442ef8e02', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '64b401' },
+        body: JSON.stringify({
+          sessionId: '64b401',
+          runId: 'pre-fix',
+          hypothesisId: 'H4-H5',
+          location: 'EnergyTaxSection.tsx:load',
+          message: 'summary loaded',
+          data: {
+            todayPaid: r.data.todayPaid,
+            yesterdayRewards: r.data.yesterdayRewards,
+            resetHour: r.data.resetHour,
+            lastClosed: r.data.lastClosedPeriodEndKey,
+            current: r.data.currentPeriodEndKey,
+            grid: r.data.days?.map((d) => ({ k: d.periodEndKey, r: d.rewards, c: d.charge?.mode })),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
     } catch {
       toast.error(t('taxes.energy_tax.toast_load_error'));
     } finally {
@@ -164,10 +188,11 @@ export default function EnergyTaxSection() {
   const todayBlocked = notYetActive || summary.todayPaid || (!todayExempt && summary.yesterdayRewards <= 0);
   const ctdown = nextMondayBrtCountdown();
   const firstTaxableMs = firstTaxableDayStartMs(summary.startsAt);
-  const todayDayStartIso = summary.days[6]?.dayStart ?? '';
-  const yesterdayDayLabel = summary.days[5]
-    ? fmtDayLabel(summary.days[5].dayStart).split(',')[1]?.trim() ?? fmtDayLabel(summary.days[5].dayStart)
+  const currentPeriodEndKey = summary.currentPeriodEndKey ?? '';
+  const closedPeriodLabel = summary.lastClosedPeriodEndKey
+    ? fmtPeriodEndKey(summary.lastClosedPeriodEndKey)
     : '';
+  const resetHour = summary.resetHour ?? 21;
 
   const startsAtDate = new Date(summary.startsAt);
   const msUntilStart = startsAtDate.getTime() - Date.now();
@@ -396,7 +421,7 @@ export default function EnergyTaxSection() {
         )}
         {!notYetActive && summary.todayPaid && (
           <p className="mt-3 text-xs sm:text-sm text-emerald-400/90">
-            {t('taxes.energy_tax.pay_already_settled', { day: yesterdayDayLabel })}
+            {t('taxes.energy_tax.pay_already_settled', { day: closedPeriodLabel })}
           </p>
         )}
         {!notYetActive && summary.todayPaid && summary.todayRewards > 0 && (
@@ -404,6 +429,7 @@ export default function EnergyTaxSection() {
             {t('taxes.energy_tax.pay_tomorrow_hint', {
               rewards: fmtPol(summary.todayRewards, 6),
               charge: fmtPol(Number((summary.todayRewards * (0.05 / 7)).toFixed(8)), 6),
+              hour: resetHour,
             })}
           </p>
         )}
@@ -433,7 +459,7 @@ export default function EnergyTaxSection() {
           {summary.days.map((d) => {
             const dayMs = new Date(d.dayStart).getTime();
             const isPreLaunch = dayMs < firstTaxableMs;
-            const isTodayCell = d.dayStart === todayDayStartIso;
+            const isTodayCell = (d.periodEndKey ?? '') === currentPeriodEndKey;
             const status: 'exempt' | 'daily' | 'auto' | 'pending' | 'no-reward' | 'pre-launch' | 'today' =
               d.charge?.mode === 'exempt' ? 'exempt'
               : d.charge?.mode === 'daily' ? 'daily'
@@ -460,7 +486,9 @@ export default function EnergyTaxSection() {
               : <span className="text-xs font-black">?</span>;
             return (
               <div key={d.dayStart} className={`relative rounded-xl border-2 ${cls} aspect-square p-1.5 sm:p-2 flex flex-col items-center justify-center text-center`}>
-                <span className="text-[9px] sm:text-[10px] font-mono uppercase opacity-60 leading-none mb-1">{fmtDayLabel(d.dayStart).split(',')[1]?.trim() ?? fmtDayLabel(d.dayStart)}</span>
+                <span className="text-[9px] sm:text-[10px] font-mono uppercase opacity-60 leading-none mb-1">
+                  {d.periodEndKey ? fmtPeriodEndKey(d.periodEndKey) : fmtDayLabel(d.dayStart).split(',')[1]?.trim()}
+                </span>
                 {icon}
                 {d.rewards > 0 && (
                   <span className="text-[7px] sm:text-[8px] font-mono opacity-50 leading-none">{fmtPol(d.rewards, 4)}</span>

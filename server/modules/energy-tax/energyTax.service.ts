@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
-import { getBrazilCheckinDateKey } from "../../utils/checkinDate.js";
+import { addDaysToBrazilDateKey, normalizeBrazilDateKey } from "../../utils/checkinDate.js";
+import { getCheckinPeriodEndKey, getPeriodStartAt, getCheckinPeriodLookupKeys } from "../checkin/checkin.calendar.js";
+import { getCheckinResetHour } from "../checkin/checkin.config.js";
 
 /**
  * Taxa de Energia — regras de negócio em docs/rules/ENERGY_TAX.md.
@@ -42,48 +44,65 @@ export function isEnergyTaxActive(now: Date = new Date()): boolean {
   return now.getTime() >= ENERGY_TAX_STARTS_AT.getTime();
 }
 
-/** Primeiro dia BRT (00:00) em que a mineração pode ser taxada. */
+function energyTaxPeriodConfig() {
+  return {
+    timezone: TZ,
+    resetHour: getCheckinResetHour(),
+    graceHours: 0,
+  };
+}
+
+/** Period end dateKey (site day label) — rolls at resetHour BRT (default 21h). */
+export function miningPeriodEndKey(date: Date = new Date()): string {
+  return getCheckinPeriodEndKey(date, energyTaxPeriodConfig());
+}
+
+/** Start instant of a mining period (21h BRT), by period end dateKey. */
+export function miningPeriodStartFromEndKey(endKey: string): Date {
+  return getPeriodStartAt(normalizeBrazilDateKey(endKey), energyTaxPeriodConfig());
+}
+
+/** Start of the mining period that contains `date`. */
+export function miningPeriodStart(date: Date = new Date()): Date {
+  return miningPeriodStartFromEndKey(miningPeriodEndKey(date));
+}
+
+/** Start of the last fully closed mining period — target of "Pagar hoje". */
+export function lastClosedMiningPeriodStart(now: Date = new Date()): Date {
+  const closedEndKey = addDaysToBrazilDateKey(miningPeriodEndKey(now), -1);
+  return miningPeriodStartFromEndKey(closedEndKey);
+}
+
+/** Primeiro período minerado taxável (início às 21h BRT do dia de lançamento). */
 export function firstTaxableBrtDayStart(): Date {
-  return brtDayStart(ENERGY_TAX_STARTS_AT);
+  return miningPeriodStart(ENERGY_TAX_STARTS_AT);
 }
 
 export function isTaxableBrtDay(dayStart: Date): boolean {
   return dayStart.getTime() >= firstTaxableBrtDayStart().getTime();
 }
 
-/**
- * 00:00 BRT do dia da `date` informada. Resultado é um Date UTC apontando para
- * o exato instante de meia-noite em São Paulo. Independente de DST/horário de verão.
- */
+function nextMiningPeriodStart(dayStart: Date): Date {
+  const endKey = miningPeriodEndKey(new Date(dayStart.getTime() + 12 * 3600000));
+  return miningPeriodStartFromEndKey(addDaysToBrazilDateKey(endKey, 1));
+}
+
+/** @deprecated Use miningPeriodStart — kept for tests/imports. */
 export function brtDayStart(date: Date = new Date()): Date {
-  // Format "YYYY-MM-DD" como BRT a partir do instante UTC.
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  const ymd = `${get("year")}-${get("month")}-${get("day")}`;
-
-  // Descobre o offset BRT atual com o truque "do reverso":
-  // pega meia-noite UTC e descobre que horas é em SP, ajusta.
-  // Mais simples: BRT é UTC-3 (sem DST atualmente no Brasil desde 2019).
-  // Se um dia voltar DST, dá pra usar a lib `luxon`. Por ora hardcoded.
-  return new Date(`${ymd}T03:00:00.000Z`); // 00:00 BRT = 03:00 UTC
+  return miningPeriodStart(date);
 }
 
-/** Próximo "dia BRT" depois de `dayStart` (24h adiante). */
-function nextBrtDay(dayStart: Date): Date {
-  return new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-}
-
-/** Lista os 7 dias BRT que precedem `now` (incluindo o dia atual). Ordem: mais antigo → mais novo. */
+/** Últimos 7 períodos de mineração (21h BRT). Ordem: mais antigo → mais novo. */
 export function lastSevenBrtDays(now: Date = new Date()): Date[] {
-  const today = brtDayStart(now);
+  return lastSevenMiningPeriodStarts(now);
+}
+
+export function lastSevenMiningPeriodStarts(now: Date = new Date()): Date[] {
+  const currentEndKey = miningPeriodEndKey(now);
   const days: Date[] = [];
   for (let i = 6; i >= 0; i--) {
-    days.push(new Date(today.getTime() - i * 24 * 60 * 60 * 1000));
+    const endKey = addDaysToBrazilDateKey(currentEndKey, -i);
+    days.push(miningPeriodStartFromEndKey(endKey));
   }
   return days;
 }
@@ -104,10 +123,11 @@ export type TodayActivities = {
 /** Conta atividades de múltiplas fontes para o dia BRT informado. */
 export async function countTodayActivities(
   userId: number,
-  dayStart: Date,
+  periodStart: Date,
 ): Promise<TodayActivities> {
-  const dayEnd = nextBrtDay(dayStart);
-  const todayKey = getBrazilCheckinDateKey(dayStart);
+  const dayEnd = nextMiningPeriodStart(periodStart);
+  const periodEndKey = miningPeriodEndKey(new Date(periodStart.getTime() + 3600000));
+  const periodKeyAliases = new Set(getCheckinPeriodLookupKeys(periodEndKey));
 
   const [
     offerwallExtCount,
@@ -118,25 +138,28 @@ export async function countTodayActivities(
     faucetRecord,
   ] = await Promise.all([
     prisma.offerwallMeCallback.count({
-      where: { userId, status: 1, createdAt: { gte: dayStart, lt: dayEnd } },
+      where: { userId, status: 1, createdAt: { gte: periodStart, lt: dayEnd } },
     }),
     prisma.internalOfferwallAttempt.count({
       // O enum interno grava "COMPLETED" em maiúsculas (ver internalOfferwallConstants.ts).
-      where: { userId, status: "COMPLETED", completedAt: { gte: dayStart, lt: dayEnd } },
+      where: { userId, status: "COMPLETED", completedAt: { gte: periodStart, lt: dayEnd } },
     }),
     prisma.shortlinkPower.count({
-      where: { userId, claimedAt: { gte: dayStart, lt: dayEnd } },
+      where: { userId, claimedAt: { gte: periodStart, lt: dayEnd } },
     }),
     prisma.youtubeWatchPower.count({
-      where: { userId, claimedAt: { gte: dayStart, lt: dayEnd } },
+      where: { userId, claimedAt: { gte: periodStart, lt: dayEnd } },
     }),
     prisma.userPowerGame.count({
-      where: { userId, playedAt: { gte: dayStart, lt: dayEnd } },
+      where: { userId, playedAt: { gte: periodStart, lt: dayEnd } },
     }),
     prisma.faucetClaim.findUnique({ where: { userId }, select: { dayKey: true, totalClaims: true } }),
   ]);
 
-  const faucetCount = faucetRecord?.dayKey === todayKey ? faucetRecord.totalClaims : 0;
+  const faucetCount =
+    faucetRecord && periodKeyAliases.has(normalizeBrazilDateKey(faucetRecord.dayKey))
+      ? faucetRecord.totalClaims
+      : 0;
   const totalActivities = offerwallExtCount + offerwallIntCount + shortlinkCount + youtubeCount + gamesCount + faucetCount;
 
   return {
@@ -181,7 +204,7 @@ export async function computeConsecutiveUnpaidMiningDays(
   const days = lastSevenBrtDays(now);
 
   const charges = await prisma.energyTaxCharge.findMany({
-    where: { userId, periodDayStartsAt: { gte: days[0], lt: nextBrtDay(days[6]) } },
+    where: { userId, periodDayStartsAt: { gte: days[0], lt: nextMiningPeriodStart(days[6]) } },
     select: { periodDayStartsAt: true },
   });
   const paidKeys = new Set(charges.map((c) => c.periodDayStartsAt.getTime()));
@@ -189,7 +212,7 @@ export async function computeConsecutiveUnpaidMiningDays(
   let consecutiveUnpaid = 0;
   for (let i = days.length - 1; i >= 0; i--) {
     const dayStart = days[i];
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const dayEnd = nextMiningPeriodStart(dayStart);
 
     const rewards = await prisma.blockMinerReward.aggregate({
       where: { userId, createdAt: { gte: dayStart, lt: dayEnd } },
@@ -213,7 +236,7 @@ export async function computeConsecutiveUnpaidMiningDays(
 }
 
 export async function rewardsForBrtDay(userId: number, dayStart: Date): Promise<number> {
-  return sumRewardsBetween(userId, dayStart, nextBrtDay(dayStart));
+  return sumRewardsBetween(userId, dayStart, nextMiningPeriodStart(dayStart));
 }
 
 export type EnergyTaxSummary = {
@@ -242,8 +265,12 @@ export type EnergyTaxSummary = {
   youtubeToday: number;
   gamesToday: number;
   totalActivitiesToday: number;
+  resetHour: number;
+  lastClosedPeriodEndKey: string;
+  currentPeriodEndKey: string;
   days: Array<{
     dayStart: string;
+    periodEndKey: string;
     rewards: number;
     charge: { id: number; mode: string; amount: number; ratePercent: number; status: string; createdAt: string } | null;
   }>;
@@ -251,9 +278,13 @@ export type EnergyTaxSummary = {
 };
 
 export async function computeWeekSummary(userId: number, now: Date = new Date()): Promise<EnergyTaxSummary> {
-  const days = lastSevenBrtDays(now);
+  const days = lastSevenMiningPeriodStarts(now);
   const weekStart = days[0];
-  const weekEnd = nextBrtDay(days[6]);
+  const weekEnd = nextMiningPeriodStart(days[6]);
+  const currentEndKey = miningPeriodEndKey(now);
+  const closedEndKey = addDaysToBrazilDateKey(currentEndKey, -1);
+  const closedStart = lastClosedMiningPeriodStart(now);
+  const currentStart = miningPeriodStart(now);
 
   // Charges existentes nessa janela
   const existingCharges = await prisma.energyTaxCharge.findMany({
@@ -282,21 +313,49 @@ export async function computeWeekSummary(userId: number, now: Date = new Date())
       else if (c.mode === "exempt") paidDaysExempt += 1;
     }
   }
-  const today = days[6];
-  const yesterday = days[5];
-  const yesterdayCharge = chargeByDay.get(yesterday.getTime()) ?? null;
+  const closedCharge = chargeByDay.get(closedStart.getTime()) ?? null;
+  const closedRewards = await rewardsForBrtDay(userId, closedStart);
   const todayRewards = rewardsByDay[6];
-  // "Pagar hoje" quita a taxa do dia minerado de ontem (periodDayStartsAt = ontem).
-  const yesterdayRewards = rewardsByDay[5] ?? 0;
-  const todayDailyCharge = Number((yesterdayRewards * DAILY_PER_DAY_RATE).toFixed(8));
+  // "Pagar hoje" quita o último período fechado (21h BRT), não o período aberto.
+  const yesterdayRewards = closedRewards;
+  const todayDailyCharge = Number((closedRewards * DAILY_PER_DAY_RATE).toFixed(8));
 
-  const todayAct = await countTodayActivities(userId, today);
+  const todayAct = await countTodayActivities(userId, currentStart);
 
   // unpaidDays alinhado à regra real de bloqueio (bug B2): conta apenas dias
   // consecutivos minerados sem quitação (pago OU isento por atividade).
   // Antes era `7 - paidDays`, que inflava o aviso de corte e apavorava quem
   // escolheu o regime semanal ou tinha dias sem minerar.
   const { consecutiveUnpaid: unpaidDays } = await computeConsecutiveUnpaidMiningDays(userId, now);
+
+  const periodEndKeys = Array.from({ length: 7 }, (_, i) =>
+    addDaysToBrazilDateKey(currentEndKey, i - 6),
+  );
+
+  // #region agent log
+  fetch("http://127.0.0.1:7302/ingest/aa95698d-f2ba-4f90-9481-c66442ef8e02", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "64b401" },
+    body: JSON.stringify({
+      sessionId: "64b401",
+      runId: "pre-fix",
+      hypothesisId: "H1-H3",
+      location: "energyTax.service.ts:computeWeekSummary",
+      message: "mining period boundaries",
+      data: {
+        now: now.toISOString(),
+        resetHour: getCheckinResetHour(),
+        currentEndKey,
+        closedEndKey,
+        closedStart: closedStart.toISOString(),
+        todayPaid: !!closedCharge,
+        closedRewards,
+        todayRewards,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   // Histórico maior — últimas 50
   const history = await prisma.energyTaxCharge.findMany({
@@ -319,7 +378,7 @@ export async function computeWeekSummary(userId: number, now: Date = new Date())
     paidDaysAuto,
     paidDaysExempt,
     unpaidDays,
-    todayPaid: !!yesterdayCharge,
+    todayPaid: !!closedCharge,
     todayRewards,
     yesterdayRewards,
     todayDailyCharge,
@@ -331,10 +390,14 @@ export async function computeWeekSummary(userId: number, now: Date = new Date())
     youtubeToday: todayAct.youtubeCount,
     gamesToday: todayAct.gamesCount,
     totalActivitiesToday: todayAct.totalActivities,
+    resetHour: getCheckinResetHour(),
+    lastClosedPeriodEndKey: closedEndKey,
+    currentPeriodEndKey: currentEndKey,
     days: days.map((d, i) => {
       const c = chargeByDay.get(d.getTime());
       return {
         dayStart: d.toISOString(),
+        periodEndKey: periodEndKeys[i],
         rewards: rewardsByDay[i],
         charge: c
           ? {
@@ -386,8 +449,8 @@ export class EnergyTaxInsufficientBalance extends Error {
  */
 export async function payDailyTax(userId: number, now: Date = new Date()) {
   if (!isEnergyTaxActive(now)) throw new EnergyTaxNotStarted(ENERGY_TAX_STARTS_AT);
-  const paymentDay = brtDayStart(now);
-  const taxedDay = new Date(paymentDay.getTime() - 24 * 60 * 60 * 1000);
+  const taxedDay = lastClosedMiningPeriodStart(now);
+  const currentPeriodStart = miningPeriodStart(now);
 
   if (!isTaxableBrtDay(taxedDay)) throw new EnergyTaxNoRewards();
 
@@ -399,7 +462,7 @@ export async function payDailyTax(userId: number, now: Date = new Date()) {
   const rewards = await rewardsForBrtDay(userId, taxedDay);
   if (rewards <= 0) throw new EnergyTaxNoRewards();
 
-  const { exempt } = await countTodayActivities(userId, paymentDay);
+  const { exempt } = await countTodayActivities(userId, currentPeriodStart);
 
   if (exempt) {
     const charge = await prisma.energyTaxCharge.create({
@@ -506,8 +569,8 @@ export async function runWeeklySweep(now: Date = new Date()) {
   }
   const days = lastSevenBrtDays(now);
   const windowStart = days[0];
-  const windowEnd = nextBrtDay(days[6]);
-  const todayBrt = brtDayStart(now);
+  const windowEnd = nextMiningPeriodStart(days[6]);
+  const todayStart = miningPeriodStart(now);
   const firstTaxable = firstTaxableBrtDayStart();
 
   // Quem minerou nos últimos 7d
@@ -531,7 +594,7 @@ export async function runWeeklySweep(now: Date = new Date()) {
 
     for (const dayStart of days) {
       if (dayStart.getTime() < firstTaxable.getTime()) continue;
-      if (dayStart.getTime() >= todayBrt.getTime()) continue;
+      if (dayStart.getTime() >= todayStart.getTime()) continue;
       if (paidDayKeys.has(dayStart.getTime())) continue;
       const dayRewards = await rewardsForBrtDay(userId, dayStart);
       if (dayRewards <= 0) continue;

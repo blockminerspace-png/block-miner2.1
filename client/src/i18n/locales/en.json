@@ -747,7 +747,7 @@
       "pay_button_pay": "Pay {{amount}} POL now",
       "pay_button_formula": "Base: {{rewards}} POL mined yesterday × 0.7143% = {{charge}} POL",
       "pay_already_settled": "Energy tax for mined day {{day}} is already settled.",
-      "pay_tomorrow_hint": "Today's mining ({{rewards}} POL) can be paid from tomorrow 00:00 BRT (~{{charge}} POL).",
+      "pay_tomorrow_hint": "Current period mining ({{rewards}} POL) can be paid after {{hour}}:00 BRT (~{{charge}} POL).",
       "server_clock": "Server (BRT): {{datetime}}",
       "week_status_header": "Last 7 days status",
       "week_status_order_hint": "← older · today →",

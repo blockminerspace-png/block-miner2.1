@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   brtDayStart,
+  miningPeriodStart,
+  miningPeriodEndKey,
+  lastClosedMiningPeriodStart,
   lastSevenBrtDays,
+  lastSevenMiningPeriodStarts,
   firstTaxableBrtDayStart,
   isTaxableBrtDay,
   isEnergyTaxActive,
@@ -13,18 +17,31 @@ import {
   DAILY_WEEK_RATE,
 } from "#server/modules/energy-tax/energyTax.service.js";
 
-describe("energyTax.service — BRT helpers", () => {
-  it("brtDayStart maps UTC instant to 00:00 BRT", () => {
-    const d = brtDayStart(new Date("2026-06-30T12:00:00.000Z"));
-    assert.equal(d.toISOString(), "2026-06-30T03:00:00.000Z");
+describe("energyTax.service — 21h mining period helpers", () => {
+  it("mining period rolls at 21h BRT (same as check-in)", () => {
+    // 30/06 23:44 BRT = 2026-07-01T02:44:00Z → período corrente termina 01/07
+    const late = new Date("2026-07-01T02:44:00.000Z");
+    assert.equal(miningPeriodEndKey(late), "2026-07-01");
+    assert.equal(miningPeriodStart(late).toISOString(), "2026-07-01T00:00:00.000Z");
+
+    // 30/06 20:00 BRT = 2026-06-30T23:00:00Z → ainda no período que termina 30/06
+    const beforeReset = new Date("2026-06-30T23:00:00.000Z");
+    assert.equal(miningPeriodEndKey(beforeReset), "2026-06-30");
+    assert.equal(miningPeriodStart(beforeReset).toISOString(), "2026-06-30T00:00:00.000Z");
   });
 
-  it("lastSevenBrtDays returns 7 days ending today", () => {
-    const now = new Date("2026-06-30T15:00:00.000Z");
-    const days = lastSevenBrtDays(now);
+  it("last closed period after 21h is the civil day that just ended", () => {
+    const afterReset = new Date("2026-07-01T02:44:00.000Z"); // 30/06 23:44 BRT
+    assert.equal(lastClosedMiningPeriodStart(afterReset).toISOString(), "2026-06-30T00:00:00.000Z");
+  });
+
+  it("lastSevenMiningPeriodStarts returns 7 period starts ending in current period", () => {
+    const now = new Date("2026-07-01T02:44:00.000Z");
+    const days = lastSevenMiningPeriodStarts(now);
     assert.equal(days.length, 7);
-    assert.equal(days[0].toISOString(), "2026-06-24T03:00:00.000Z");
-    assert.equal(days[6].toISOString(), "2026-06-30T03:00:00.000Z");
+    assert.equal(days[0].toISOString(), "2026-06-25T00:00:00.000Z");
+    assert.equal(days[6].toISOString(), "2026-07-01T00:00:00.000Z");
+    assert.deepEqual(days, lastSevenBrtDays(now));
   });
 
   it("feature starts at 29/06/2026 21:00 BRT", () => {
@@ -33,11 +50,16 @@ describe("energyTax.service — BRT helpers", () => {
     assert.equal(isEnergyTaxActive(new Date("2026-06-30T00:00:00.000Z")), true);
   });
 
-  it("first taxable BRT day is 29/06 calendar day", () => {
+  it("first taxable period is launch period (end 30/06)", () => {
     const first = firstTaxableBrtDayStart();
-    assert.equal(first.toISOString(), "2026-06-29T03:00:00.000Z");
+    assert.equal(first.toISOString(), "2026-06-30T00:00:00.000Z");
     assert.equal(isTaxableBrtDay(first), true);
-    assert.equal(isTaxableBrtDay(new Date("2026-06-28T03:00:00.000Z")), false);
+    assert.equal(isTaxableBrtDay(new Date("2026-06-29T00:00:00.000Z")), false);
+  });
+
+  it("brtDayStart is alias for miningPeriodStart", () => {
+    const now = new Date("2026-07-01T02:44:00.000Z");
+    assert.equal(brtDayStart(now).toISOString(), miningPeriodStart(now).toISOString());
   });
 });
 
@@ -51,24 +73,23 @@ describe("energyTax.service — rate constants", () => {
 });
 
 describe("energyTax.service — pay vs sweep day alignment (spec)", () => {
-  it("manual pay on Tuesday targets Monday period (yesterday index)", () => {
-    const now = new Date("2026-07-01T15:00:00.000Z"); // terça BRT
-    const days = lastSevenBrtDays(now);
-    const paymentDay = brtDayStart(now);
-    const taxedDay = new Date(paymentDay.getTime() - 24 * 60 * 60 * 1000);
+  it("manual pay after 21h targets last closed period", () => {
+    const now = new Date("2026-07-01T02:44:00.000Z"); // 30/06 23:44 BRT
+    const taxedDay = lastClosedMiningPeriodStart(now);
+    assert.equal(taxedDay.toISOString(), "2026-06-30T00:00:00.000Z");
+    const days = lastSevenMiningPeriodStarts(now);
     assert.equal(taxedDay.toISOString(), days[5].toISOString());
-    assert.equal(paymentDay.toISOString(), days[6].toISOString());
   });
 
-  it("sweep skips today and pre-launch days", () => {
-    const now = new Date("2026-06-30T15:00:00.000Z");
-    const days = lastSevenBrtDays(now);
-    const todayBrt = brtDayStart(now);
+  it("sweep skips current open period and pre-launch", () => {
+    const now = new Date("2026-07-01T02:44:00.000Z");
+    const days = lastSevenMiningPeriodStarts(now);
+    const openStart = miningPeriodStart(now);
     const firstTaxable = firstTaxableBrtDayStart();
     const sweepable = days.filter(
-      (d) => d.getTime() >= firstTaxable.getTime() && d.getTime() < todayBrt.getTime(),
+      (d) => d.getTime() >= firstTaxable.getTime() && d.getTime() < openStart.getTime(),
     );
     assert.equal(sweepable.length, 1);
-    assert.equal(sweepable[0].toISOString(), "2026-06-29T03:00:00.000Z");
+    assert.equal(sweepable[0].toISOString(), "2026-06-30T00:00:00.000Z");
   });
 });

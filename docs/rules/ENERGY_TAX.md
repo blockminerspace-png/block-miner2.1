@@ -28,9 +28,15 @@ Antes desse instante: nenhuma cobrança (manual ou cron) é permitida.
 
 ## 3. Quitação de um dia (fonte única de verdade)
 
-Um dia BRT é considerado **quitado** quando existe um `EnergyTaxCharge` com
-`periodDayStartsAt = início do dia` (qualquer `status`) **OU** quando o jogador atingiu
-10+ atividades naquele dia (isenção por atividade).
+Um período de mineração segue o **mesmo corte do site** (`CHECKIN_RESET_HOUR`, default **21h BRT**):
+janela de 21:00 até 20:59:59 do dia civil seguinte. `periodDayStartsAt` grava o instante
+de início desse período (21h BRT = 00:00 UTC no dia civil do fim do período − 1).
+
+"Pagar hoje" quita o **último período já fechado** (após as 21h), não o período aberto.
+
+Um dia é considerado **quitado** quando existe um `EnergyTaxCharge` com
+`periodDayStartsAt = início do período` (qualquer `status`) **OU** quando o jogador atingiu
+10+ atividades no período corrente ao pagar (isenção por atividade).
 
 ## 4. Corte de energia (bloqueio)
 

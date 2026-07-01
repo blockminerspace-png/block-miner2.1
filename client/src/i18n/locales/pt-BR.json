@@ -748,7 +748,7 @@
       "pay_button_pay": "Pagar {{amount}} POL agora",
       "pay_button_formula": "Base: {{rewards}} POL minerados ontem × 0,7143% = {{charge}} POL",
       "pay_already_settled": "Taxa do dia minerado {{day}} já quitada.",
-      "pay_tomorrow_hint": "Mineração de hoje ({{rewards}} POL) só pode ser paga a partir de amanhã 00h BRT (~{{charge}} POL).",
+      "pay_tomorrow_hint": "Mineração do período atual ({{rewards}} POL) pode ser paga após as {{hour}}h BRT (~{{charge}} POL).",
       "server_clock": "Servidor (BRT): {{datetime}}",
       "week_status_header": "Status dos últimos 7 dias",
       "week_status_order_hint": "← mais antigo · hoje →",
