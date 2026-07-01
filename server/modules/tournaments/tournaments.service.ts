@@ -9,6 +9,18 @@ type TournamentPrize = { id: number; tournamentId: number; rankFrom: number; ran
 
 export const LEADERBOARD_LIMIT = 100;
 
+const INTERNAL_OFFER_COMPLETED = "COMPLETED";
+
+function mergeZeradsClicks(
+  merged: Map<number, number>,
+  zeradsRows: Array<{ userId: number; _sum: { clicks: number | null } }>,
+): void {
+  for (const r of zeradsRows) {
+    const clicks = Number(r._sum.clicks ?? 0);
+    if (clicks > 0) merged.set(r.userId, (merged.get(r.userId) ?? 0) + clicks);
+  }
+}
+
 // ─── Score computation ──────────────────────────────────────────────────────
 
 export async function computeScoresForTournament(tournament: Tournament): Promise<void> {
@@ -94,7 +106,10 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
   if (metric === "OFFERS_INTERNAL" || metric === "OFFERS_ALL") {
     const internal = await prisma.internalOfferwallAttempt.groupBy({
       by: ["userId"],
-      where: { completedAt: { gte: startsAt, lte: upperBound} },
+      where: {
+        status: INTERNAL_OFFER_COMPLETED,
+        completedAt: { gte: startsAt, lte: upperBound },
+      },
       _count: { id: true },
     });
     if (metric === "OFFERS_INTERNAL") {
@@ -104,7 +119,7 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
       );
       return;
     }
-    // OFFERS_ALL: pull OfferwallMe + Zerads PTC and merge all.
+    // OFFERS_ALL: internal + OfferwallMe (status=1) + Zerads PTC clicks.
     const ome = await prisma.offerwallMeCallback.groupBy({
       by: ["userId"],
       where: { createdAt: { gte: startsAt, lte: upperBound }, status: 1 },
@@ -113,16 +128,36 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
     const zerads = await prisma.zeradsCallback.groupBy({
       by: ["userId"],
       where: { callbackAt: { gte: startsAt, lte: upperBound } },
-      _count: { id: true },
+      _sum: { clicks: true },
     });
     const merged = new Map<number, number>();
     for (const r of internal) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
     for (const r of ome) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
-    for (const r of zerads) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
-    await batchUpsertEntries(
-      tournament.id,
-      Array.from(merged.entries()).map(([userId, score]) => ({ userId, score })),
-    );
+    mergeZeradsClicks(merged, zerads);
+    const rows = Array.from(merged.entries())
+      .map(([userId, score]) => ({ userId, score }))
+      .filter((r) => r.score > 0);
+  // #region agent log
+  fetch("http://127.0.0.1:7302/ingest/aa95698d-f2ba-4f90-9481-c66442ef8e02", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "64b401" },
+    body: JSON.stringify({
+      sessionId: "64b401",
+      runId: "post-fix",
+      hypothesisId: "H-zerads-clicks",
+      location: "tournaments.service.ts:computeScoresForTournament",
+      message: "OFFERS_ALL score merge",
+      data: {
+        tournamentId: tournament.id,
+        window: { startsAt, upperBound },
+        participants: rows.length,
+        top: rows.sort((a, b) => b.score - a.score).slice(0, 3),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+    await batchUpsertEntries(tournament.id, rows);
     return;
   }
 
@@ -135,14 +170,16 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
     const zerads = await prisma.zeradsCallback.groupBy({
       by: ["userId"],
       where: { callbackAt: { gte: startsAt, lte: upperBound } },
-      _count: { id: true },
+      _sum: { clicks: true },
     });
     const merged = new Map<number, number>();
     for (const r of ome) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
-    for (const r of zerads) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
+    mergeZeradsClicks(merged, zerads);
     await batchUpsertEntries(
       tournament.id,
-      Array.from(merged.entries()).map(([userId, score]) => ({ userId, score })),
+      Array.from(merged.entries())
+        .map(([userId, score]) => ({ userId, score }))
+        .filter((r) => r.score > 0),
     );
     return;
   }
@@ -152,10 +189,20 @@ async function batchUpsertEntries(
   tournamentId: number,
   rows: { userId: number; score: number }[],
 ): Promise<void> {
-  if (rows.length === 0) return;
-  // Use chunks of 100 to avoid overwhelming Prisma
-  for (let i = 0; i < rows.length; i += 100) {
-    const chunk = rows.slice(i, i + 100);
+  const active = rows.filter((r) => r.score > 0);
+  const activeIds = active.map((r) => r.userId);
+
+  if (activeIds.length === 0) {
+    await prisma.tournamentEntry.deleteMany({ where: { tournamentId } });
+    return;
+  }
+
+  await prisma.tournamentEntry.deleteMany({
+    where: { tournamentId, userId: { notIn: activeIds } },
+  });
+
+  for (let i = 0; i < active.length; i += 100) {
+    const chunk = active.slice(i, i + 100);
     await Promise.all(
       chunk.map(({ userId, score }) =>
         prisma.tournamentEntry.upsert({
@@ -464,7 +511,7 @@ export async function listActiveTournaments() {
 }
 
 export async function getTournamentWithLeaderboard(tournamentId: number, userId?: number) {
-  const tournament = await prisma.tournament.findUnique({
+  let tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
     include: {
       prizes: { orderBy: { rankFrom: "asc" }, include: { miner: { select: { id: true, name: true, imageUrl: true, baseHashRate: true } } } },
@@ -472,6 +519,20 @@ export async function getTournamentWithLeaderboard(tournamentId: number, userId?
     },
   });
   if (!tournament) return null;
+
+  let scoresComputedAt: string | null = null;
+  if (tournament.status === "ACTIVE") {
+    await computeScoresForTournament(tournament);
+    scoresComputedAt = new Date().toISOString();
+    tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        prizes: { orderBy: { rankFrom: "asc" }, include: { miner: { select: { id: true, name: true, imageUrl: true, baseHashRate: true } } } },
+        _count: { select: { entries: true } },
+      },
+    });
+    if (!tournament) return null;
+  }
 
   const top = await prisma.tournamentEntry.findMany({
     where: { tournamentId },
@@ -498,7 +559,7 @@ export async function getTournamentWithLeaderboard(tournamentId: number, userId?
     }
   }
 
-  return { tournament, top, myEntry, myRankLive };
+  return { tournament, top, myEntry, myRankLive, scoresComputedAt };
 }
 
 export async function getUserTournamentHistory(userId: number) {

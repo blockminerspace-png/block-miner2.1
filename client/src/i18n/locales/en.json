@@ -3338,8 +3338,9 @@
       "DEPOSITS_POL": "POL Deposited",
       "OFFERS_INTERNAL": "Internal Offers",
       "OFFERS_EXTERNAL": "External Offers",
-      "OFFERS_ALL": "Total Offers"
+      "OFFERS_ALL": "Total Offers (internal + external + PTC clicks)"
     },
+    "scores_live_hint": "Scores recalculated on open/refresh · period ends at 9pm BRT",
     "status": {
       "SCHEDULED": "Scheduled",
       "ACTIVE": "Active",

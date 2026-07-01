@@ -3343,8 +3343,9 @@
       "DEPOSITS_POL": "POL Depositado",
       "OFFERS_INTERNAL": "Ofertas Internas",
       "OFFERS_EXTERNAL": "Ofertas Externas",
-      "OFFERS_ALL": "Ofertas Totais"
+      "OFFERS_ALL": "Ofertas Totais (internas + externas + cliques PTC)"
     },
+    "scores_live_hint": "Pontuação recalculada ao abrir/atualizar · período fecha às 21h BRT",
     "status": {
       "SCHEDULED": "Agendado",
       "ACTIVE": "Ativo",

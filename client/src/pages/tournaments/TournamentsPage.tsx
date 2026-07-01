@@ -72,6 +72,7 @@ interface TournamentDetail {
   top: LeaderboardEntry[];
   myEntry?: { score: number; rank?: number; rewardGranted: boolean } | null;
   myRankLive?: number | null;
+  scoresComputedAt?: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -552,6 +553,11 @@ export default function TournamentsPage() {
                   </span>
                   <CountdownBadge startsAt={selected.tournament.startsAt} endsAt={selected.tournament.endsAt} status={selected.tournament.status} />
                 </div>
+                {selected.scoresComputedAt && (
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    {t('tournaments.scores_live_hint')}
+                  </p>
+                )}
               </div>
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 max-w-xs">
                 <p className="text-[10px] uppercase tracking-widest text-amber-400 font-mono mb-2">{t('tournaments.prizes')}</p>
