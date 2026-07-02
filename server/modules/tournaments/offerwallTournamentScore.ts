@@ -71,7 +71,7 @@ function mergeBreakdown(
 
 /**
  * @deprecated Legacy batch scoring — use TournamentAction + Engine V2 (offerwall.scorer.ts).
- * Retained for admin offerwall analytics only.
+ * Ranking generation disabled; retained for admin analytics and shadow validation only.
  */
 export async function computeOfferwallScores(
   startsAt: Date,

@@ -13,6 +13,10 @@ import {
 } from "./tournaments.service.js";
 import { getEngineStats } from "./application/tournament-engine-metrics.service.js";
 import { listRecentDriftAlerts } from "./application/offerwall-drift.service.js";
+import { listShadowValidationAlerts } from "./application/offerwall-shadow-validation.service.js";
+import _prisma from "../../src/db/prisma.js";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const adminPrisma = _prisma as any;
 
 const MAX_TOURNAMENT_DURATION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const MAX_TYPE_ORDER_LENGTH = 20;
@@ -284,6 +288,32 @@ export async function driftAlerts(req: Request, res: Response): Promise<void> {
   const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
   try {
     const alerts = await listRecentDriftAlerts(id, limit);
+    res.json({ ok: true, alerts });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+export async function offerwallMigration(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (!id) { res.status(400).json({ ok: false, message: "Invalid id" }); return; }
+  try {
+    const [migration, globalState] = await Promise.all([
+      adminPrisma.tournamentOfferwallMigration.findUnique({ where: { tournamentId: id } }),
+      adminPrisma.tournamentOfferwallMigrationGlobal.findUnique({ where: { id: 1 } }),
+    ]);
+    res.json({ ok: true, migration, globalBackfill: globalState });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+export async function shadowAlerts(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (!id) { res.status(400).json({ ok: false, message: "Invalid id" }); return; }
+  const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+  try {
+    const alerts = await listShadowValidationAlerts(id, limit);
     res.json({ ok: true, alerts });
   } catch (err) {
     res.status(500).json({ ok: false, message: err instanceof Error ? err.message : String(err) });

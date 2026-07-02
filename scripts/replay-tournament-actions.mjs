@@ -1,6 +1,5 @@
 /**
- * Replay tournament_actions into Engine V2 (outbox → contributions → entries).
- * Run after backfill-tournament-actions.mjs on production.
+ * @deprecated Unsafe for migration — increments entries. Use migrate-offerwall-run.mjs project instead.
  */
 import _prisma from "../dist/server/src/db/prisma.js";
 import { publishTournamentActionOutbox } from "../dist/server/modules/tournaments/infrastructure/repositories/tournament-action.repository.js";

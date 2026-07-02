@@ -18,3 +18,5 @@ adminTournamentsRouter.get("/:id/score-audit", ctrl.scoreAudit);
 adminTournamentsRouter.get("/:id/score-audit/:userId", ctrl.scoreAuditUser);
 adminTournamentsRouter.get("/:id/engine-stats", ctrl.engineStats);
 adminTournamentsRouter.get("/:id/drift-alerts", ctrl.driftAlerts);
+adminTournamentsRouter.get("/:id/migration", ctrl.offerwallMigration);
+adminTournamentsRouter.get("/:id/shadow-alerts", ctrl.shadowAlerts);

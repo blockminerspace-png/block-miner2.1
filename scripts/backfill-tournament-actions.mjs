@@ -1,8 +1,7 @@
 /**
- * Backfill tournament_actions from provider tables for active offerwall tournament windows.
- * Run once after deploying Engine V2 offerwall refactor.
+ * @deprecated Use migrate-offerwall-run.mjs (global backfill, not per-tournament).
  *
- *   node scripts/backfill-tournament-actions.mjs
+ *   node scripts/migrate-offerwall-run.mjs backfill
  */
 import _prisma from "../dist/server/src/db/prisma.js";
 

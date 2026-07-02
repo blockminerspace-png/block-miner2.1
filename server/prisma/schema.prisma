@@ -2324,6 +2324,8 @@ model Tournament {
   entries            TournamentEntry[]
   scoreContributions TournamentScoreContribution[]
   scoreDrifts        TournamentScoreDrift[]
+  offerwallMigration TournamentOfferwallMigration?
+  shadowValidationAlerts TournamentShadowValidationAlert[]
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt     @map("updated_at")
 
@@ -2407,6 +2409,49 @@ model TournamentScoreDrift {
 
   @@index([tournamentId, detectedAt])
   @@map("tournament_score_drifts")
+}
+
+/// Global offerwall Engine V2 migration state (not tournament metric_config).
+model TournamentOfferwallMigrationGlobal {
+  id                    Int       @id @default(1)
+  globalBackfillAt      DateTime? @map("global_backfill_at")
+  globalBackfillActions Int       @default(0) @map("global_backfill_actions")
+  globalBackfillSkipped Int       @default(0) @map("global_backfill_skipped")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("tournament_offerwall_migration_global")
+}
+
+/// Per-tournament offerwall migration / seal / shadow validation control.
+model TournamentOfferwallMigration {
+  tournamentId           Int        @id @map("tournament_id")
+  tournament             Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  status                 String     @default("pending")
+  baselineChecksum       String?    @map("baseline_checksum")
+  verifiedParticipants   Int?       @map("verified_participants")
+  verifiedLeaderScore    Float?     @map("verified_leader_score")
+  sealedAt               DateTime?  @map("sealed_at")
+  shadowValidationEndsAt DateTime?  @map("shadow_validation_ends_at")
+  lastShadowCheckAt      DateTime?  @map("last_shadow_check_at")
+  createdAt              DateTime   @default(now()) @map("created_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
+
+  @@map("tournament_offerwall_migrations")
+}
+
+/// Shadow validation: legacy batch vs ledger (detect-only, never mutates rankings).
+model TournamentShadowValidationAlert {
+  id           BigInt     @id @default(autoincrement())
+  tournamentId Int        @map("tournament_id")
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       Int        @map("user_id")
+  legacyScore  Float      @map("legacy_score")
+  ledgerScore  Float      @map("ledger_score")
+  delta        Float
+  detectedAt   DateTime   @default(now()) @map("detected_at")
+
+  @@index([tournamentId, detectedAt])
+  @@map("tournament_shadow_validation_alerts")
 }
 
 /// Append-only ledger of score deltas per tournament (audit + idempotent projection).

@@ -7,11 +7,13 @@ import { reconcileAllActive, reconcileLegacyBatchTournament } from "./applicatio
 import { OFFERS_INCREMENTAL_METRICS } from "./domain/tournament-action.providers.js";
 import { processTournamentOutboxBatch } from "./infrastructure/outbox/tournament-outbox.processor.js";
 import { registerTournamentMetricScorers } from "./domain/metrics/register-scorers.js";
+import { runOfferwallShadowValidation } from "./application/offerwall-shadow-validation.service.js";
 
 let scoreIntervalId: ReturnType<typeof setInterval> | null = null;
 let lifecycleIntervalId: ReturnType<typeof setInterval> | null = null;
 let outboxIntervalId: ReturnType<typeof setInterval> | null = null;
 let reconcileIntervalId: ReturnType<typeof setInterval> | null = null;
+let shadowValidationIntervalId: ReturnType<typeof setInterval> | null = null;
 
 const INCREMENTAL_METRICS = new Set<string>([
   "DEPOSITS_USD",
@@ -29,6 +31,7 @@ export function startTournamentsCron(): Record<string, unknown> {
   if (isTournamentIncrementalScoringEnabled()) {
     reconcileIntervalId = setInterval(() => { void runReconcile(); }, 15 * 60 * 1000);
     outboxIntervalId = setInterval(() => { void processTournamentOutboxBatch().catch(() => {}); }, 30_000);
+    shadowValidationIntervalId = setInterval(() => { void runShadowValidation(); }, 60 * 60 * 1000);
   }
 
   // Lifecycle manager: every 60 seconds (SCHEDULED → ACTIVE, ACTIVE → finalize)
@@ -42,6 +45,7 @@ export function startTournamentsCron(): Record<string, unknown> {
   if (isTournamentIncrementalScoringEnabled()) {
     void runReconcile();
     void processTournamentOutboxBatch().catch(() => {});
+    void runShadowValidation();
   }
 
   return {
@@ -49,6 +53,7 @@ export function startTournamentsCron(): Record<string, unknown> {
     tournamentLifecycle: lifecycleIntervalId,
     tournamentOutbox: outboxIntervalId,
     tournamentReconcile: reconcileIntervalId,
+    tournamentShadowValidation: shadowValidationIntervalId,
   };
 }
 
@@ -69,6 +74,20 @@ async function runScoreUpdater(): Promise<void> {
     }
   } catch (err) {
     console.error("[tournaments] score updater error:", err);
+  }
+}
+
+async function runShadowValidation(): Promise<void> {
+  try {
+    const reports = await runOfferwallShadowValidation();
+    const drift = reports.filter((r) => r.driftCount > 0);
+    if (drift.length > 0) {
+      console.warn(
+        `[tournaments] shadow validation drift in ${drift.length} offerwall tournament(s) (no auto-fix)`,
+      );
+    }
+  } catch (err) {
+    console.error("[tournaments] shadow validation error:", err);
   }
 }
 

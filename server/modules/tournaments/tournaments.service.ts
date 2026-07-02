@@ -10,6 +10,7 @@ import {
 } from "./depositTournamentScore.js";
 import { snapWindowForType, snapWindowForActiveTournament } from "./tournamentWindow.js";
 import { isTournamentSkipGetRecomputeEnabled, isTournamentIncrementalScoringEnabled } from "./config/feature-flags.js";
+import { OFFERS_INCREMENTAL_METRICS } from "./domain/tournament-action.providers.js";
 import { registerTournamentMetricScorers } from "./domain/metrics/register-scorers.js";
 import { getMetricScorer } from "./domain/metrics/metric-scorer.registry.js";
 import { getCachedLeaderboard, setCachedLeaderboard, invalidateLeaderboardCache } from "./infrastructure/cache/leaderboard.cache.js";
@@ -138,10 +139,8 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
     metric === "OFFERS_EXTERNAL" ||
     metric === "OFFERS_ALL"
   ) {
-    if (isTournamentIncrementalScoringEnabled()) {
-      // Engine V2: scores come only from incremental contributions — no batch recompute.
-      return;
-    }
+    // Engine V2 offerwall: rankings come only from incremental contributions.
+    return;
   }
 }
 
@@ -200,7 +199,10 @@ export async function alignActiveTournamentWindows(): Promise<number> {
       where: { id: t.id },
       data: { startsAt: snap.start, endsAt: snap.end },
     });
-    await computeScoresForTournament({ ...t, startsAt: snap.start, endsAt: snap.end });
+    const isOfferwall = (OFFERS_INCREMENTAL_METRICS as readonly string[]).includes(t.metric);
+    if (!isOfferwall || !isTournamentIncrementalScoringEnabled()) {
+      await computeScoresForTournament({ ...t, startsAt: snap.start, endsAt: snap.end });
+    }
     fixed++;
     console.info(
       `[tournaments] aligned #${t.id} "${t.name}" → UTC ${snap.start.toISOString()} .. ${snap.end.toISOString()}`,
