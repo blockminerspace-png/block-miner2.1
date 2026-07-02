@@ -303,6 +303,12 @@ const renderSpaIndex: SpaIndexRenderer = (html, { nonce }) => {
     out = out.replace("<!--__BM_RUNTIME_CONFIG__-->", "");
   }
 
+  const entryMatch = out.match(/\/assets\/index-[^"']+\.js/);
+  const buildId = entryMatch ? entryMatch[0].replace(/^\//, "") : "";
+  if (buildId && !out.includes('name="bm-build"')) {
+    out = out.replace("<head>", `<head>\n    <meta name="bm-build" content="${buildId}" />`);
+  }
+
   return out.replace(/__CSP_NONCE__/g, nonce);
 };
 

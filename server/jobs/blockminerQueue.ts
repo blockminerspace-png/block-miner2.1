@@ -69,6 +69,98 @@ export type WelcomeEmailEnqueuePayload = {
   displayName: string;
 };
 
+export type TournamentDepositProjectionJobData = {
+  transactionId?: unknown;
+  userId?: unknown;
+  polAmount?: unknown;
+  usdValue?: unknown;
+  usdRate?: unknown;
+  eventAt?: unknown;
+  source?: unknown;
+  countsForTournament?: unknown;
+  txHash?: unknown;
+};
+
+export type TournamentActionProjectionJobData = {
+  actionId?: unknown;
+  userId?: unknown;
+  provider?: unknown;
+  actionCount?: unknown;
+  executedAtUTC?: unknown;
+  sourceId?: unknown;
+  tournamentEligible?: unknown;
+  metadata?: unknown;
+};
+
+export async function enqueueTournamentActionProjection(
+  payload: TournamentActionProjectionJobData,
+): Promise<boolean> {
+  const q = getBlockminerQueue();
+  if (!q) return false;
+  const provider = String(payload.provider || "").trim();
+  const sourceId = String(payload.sourceId || "").trim();
+  if (!provider || !sourceId) return false;
+  try {
+    await q.add(
+      "tournament-action-projection",
+      payload,
+      {
+        attempts: 5,
+        backoff: { type: "exponential", delay: 2000 },
+        jobId: `tournament-action-${provider}-${sourceId}`,
+      },
+    );
+    return true;
+  } catch (e: unknown) {
+    logger.warn("enqueueTournamentActionProjection failed", { message: errMsg(e) });
+    return false;
+  }
+}
+
+export async function enqueueTournamentDepositProjection(
+  payload: TournamentDepositProjectionJobData,
+): Promise<boolean> {
+  const q = getBlockminerQueue();
+  if (!q) return false;
+  const transactionId = Number(payload.transactionId);
+  if (!Number.isFinite(transactionId) || transactionId <= 0) return false;
+  try {
+    await q.add(
+      "tournament-deposit-projection",
+      payload,
+      {
+        attempts: 5,
+        backoff: { type: "exponential", delay: 2000 },
+        jobId: `tournament-deposit-${transactionId}`,
+      },
+    );
+    return true;
+  } catch (e: unknown) {
+    logger.warn("enqueueTournamentDepositProjection failed", { message: errMsg(e) });
+    return false;
+  }
+}
+
+export async function enqueueTournamentOutboxDrain(): Promise<boolean> {
+  const q = getBlockminerQueue();
+  if (!q) return false;
+  try {
+    await q.add(
+      "tournament-outbox-drain",
+      {},
+      {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 1500 },
+        jobId: `tournament-outbox-drain-${Date.now()}`,
+      },
+    );
+    return true;
+  } catch (e: unknown) {
+    logger.warn("enqueueTournamentOutboxDrain failed", { message: errMsg(e) });
+    return false;
+  }
+}
+
 export async function enqueueWelcomeEmail(data: WelcomeEmailEnqueuePayload): Promise<boolean> {
   const q = getBlockminerQueue();
   if (!q) return false;

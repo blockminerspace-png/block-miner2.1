@@ -4,11 +4,11 @@ import './index.css'
 import './i18n/config' // Import i18n config
 import App from './app/App'
 import ErrorBoundary from './shared/components/ErrorBoundary'
-import { isChunkLoadError, shouldAutoReloadChunkError, forceReloadForNewBuild } from './shared/utils/chunkLoadError'
-import { isThirdPartyScriptNoise } from './shared/utils/clientErrorNoise'
+import { isChunkLoadError, shouldAutoReloadChunkError, forceReloadForNewBuild, ensureCurrentBuild } from './shared/utils/chunkLoadError'
+import { isClientErrorNoise } from './shared/utils/clientErrorNoise'
 
 function reportClientError(payload: { message: string; stack?: string | null; source?: string }) {
-  if (isThirdPartyScriptNoise(payload.message, payload.stack)) return;
+  if (isClientErrorNoise(payload.message, payload.stack, payload.source)) return;
   try {
     void fetch('/api/track/client-error', {
       method: 'POST',
@@ -41,7 +41,12 @@ window.addEventListener(
         forceReloadForNewBuild()
         return
       }
-      // Throttled out — don't spam admin, don't break user.
+      return
+    }
+    if (msg && isClientErrorNoise(msg, event?.error instanceof Error ? event.error.stack ?? null : null)) {
+      if (shouldAutoReloadChunkError()) {
+        forceReloadForNewBuild()
+      }
       return
     }
     if (tagFailed) {
@@ -66,7 +71,9 @@ window.addEventListener('unhandledrejection', (event) => {
       code === '4001' ||
       /wallet must has at least one account/i.test(msg) ||
       /user rejected the request/i.test(msg) ||
-      /connection cancelled by user/i.test(msg)
+      /connection cancelled by user/i.test(msg) ||
+      /global Ethereum provider/i.test(msg) ||
+      /which has only a getter/i.test(msg)
     ) {
       event.preventDefault()
       return
@@ -87,7 +94,7 @@ window.addEventListener('unhandledrejection', (event) => {
 const el = document.getElementById('root')
 if (!el) {
   document.body.innerHTML = '<p style="font-family:sans-serif;padding:2rem;color:#fff;background:#020617">Missing #root</p>'
-} else {
+} else if (ensureCurrentBuild()) {
   createRoot(el).render(
     <StrictMode>
       <ErrorBoundary>

@@ -6,6 +6,10 @@ import { TASK_INTERNAL_OFFERWALL } from "../dailyTasks/dailyTaskConstants.js";
 import { buildUserAuditSnapshotJson } from "./buildUserAuditSnapshot.js";
 import { grantInternalOfferwallRewardInTx } from "./grantInternalOfferwallReward.js";
 import {
+  recordTournamentAction,
+  TOURNAMENT_ACTION_PROVIDER,
+} from "../../modules/tournaments/application/tournament-action-dispatch.js";
+import {
   ATTEMPT_STATUS_COMPLETED,
   ATTEMPT_STATUS_PENDING_REVIEW,
   ATTEMPT_STATUS_REJECTED,
@@ -850,6 +854,15 @@ export async function userSubmitAttempt(userId, attemptId) {
     completedAtIso: now.toISOString()
   });
 
+  void recordTournamentAction({
+    userId,
+    provider: TOURNAMENT_ACTION_PROVIDER.INTERNAL,
+    actionCount: 1,
+    executedAtUTC: now,
+    providerEventId: String(attemptId),
+    metadata: { offerId: attempt.offerId, timestampSource: "completed_at" },
+  });
+
   return {
     ok: true,
     status: "COMPLETED",
@@ -946,6 +959,15 @@ export async function adminApproveAttempt(attemptId) {
     offerId: attempt.offerId,
     offerKind: attempt.offer.kind,
     completedAtIso: now.toISOString()
+  });
+
+  void recordTournamentAction({
+    userId: attempt.userId,
+    provider: TOURNAMENT_ACTION_PROVIDER.INTERNAL,
+    actionCount: 1,
+    executedAtUTC: now,
+    providerEventId: String(attemptId),
+    metadata: { offerId: attempt.offerId, approvedByAdmin: true, timestampSource: "completed_at" },
   });
 
   return { ok: true };

@@ -5,7 +5,7 @@ type UserPublicFields = Pick<User, "id" | "name" | "username" | "email">;
 
 export function toAuthPublicUserDto(
   user: UserPublicFields,
-  options?: { usernameOverride?: string; hasReferral?: boolean; energyBlocked?: boolean; energyUnpaidDays?: number },
+  options?: { usernameOverride?: string; hasReferral?: boolean; energyHasPendingTax?: boolean },
 ): AuthPublicUserDto {
   const dto: AuthPublicUserDto = {
     id: user.id,
@@ -14,7 +14,6 @@ export function toAuthPublicUserDto(
     email: user.email,
   };
   if (options?.hasReferral !== undefined) dto.hasReferral = options.hasReferral;
-  if (options?.energyBlocked !== undefined) dto.energyBlocked = options.energyBlocked;
-  if (options?.energyUnpaidDays !== undefined) dto.energyUnpaidDays = options.energyUnpaidDays;
+  if (options?.energyHasPendingTax !== undefined) dto.energyHasPendingTax = options.energyHasPendingTax;
   return dto;
 }

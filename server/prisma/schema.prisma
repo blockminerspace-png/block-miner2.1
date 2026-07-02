@@ -122,6 +122,8 @@ model User {
   polygonHdAddress               PolygonHdAddress?
   rewardInbox                    UserRewardInbox[]
   tournamentEntries              TournamentEntry[]
+  tournamentScoreContributions   TournamentScoreContribution[]
+  tournamentActions              TournamentAction[]
   burnClaims                     BurnClaim[]
   checkinStreakRecoveries         CheckinStreakRecovery[]
   zeradsCallbacks                ZeradsCallback[]
@@ -591,9 +593,15 @@ model Transaction {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime? @updatedAt @map("updated_at")
   completedAt     DateTime? @map("completed_at")
+  confirmedEventAt       DateTime?  @map("confirmed_event_at")
+  usdRateAtConfirmation  Decimal?   @map("usd_rate_at_confirmation") @db.Decimal(20, 8)
+  usdValueAtConfirmation Decimal?   @map("usd_value_at_confirmation") @db.Decimal(20, 8)
+  countsForTournament    Boolean?   @map("counts_for_tournament")
+  priceSnapshotId        Int?       @map("price_snapshot_id")
 
   user             User              @relation(fields: [userId], references: [id])
   energyTaxCharge  EnergyTaxCharge?
+  priceSnapshot    AssetPriceSnapshot? @relation(fields: [priceSnapshotId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([status])
@@ -602,7 +610,26 @@ model Transaction {
   @@index([createdAt])
   @@index([address])
   @@index([fromAddress])
+  @@index([type, status, confirmedEventAt])
+  @@index([userId, confirmedEventAt])
   @@map("transactions")
+}
+
+/// Immutable POL/USD (and future assets) price at a specific on-chain event time.
+model AssetPriceSnapshot {
+  id        Int      @id @default(autoincrement())
+  asset     String
+  eventAt   DateTime @map("event_at")
+  priceUsd  Decimal  @map("price_usd") @db.Decimal(20, 8)
+  source    String
+  sourceRef String?  @map("source_ref")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  transactions Transaction[]
+
+  @@unique([asset, eventAt])
+  @@index([asset, eventAt])
+  @@map("asset_price_snapshots")
 }
 
 /// Custodial Polygon deposit address derived from the platform HD tree (BIP-44 / coin type 60).
@@ -2260,6 +2287,7 @@ enum TournamentMetric {
   CHECKINS
   TASKS_COMPLETED
   DEPOSITS_POL
+  DEPOSITS_USD
   OFFERS_INTERNAL
   OFFERS_EXTERNAL
   OFFERS_ALL
@@ -2280,22 +2308,28 @@ enum TournamentPrizeType {
 }
 
 model Tournament {
-  id          Int                @id @default(autoincrement())
-  name        String
-  description String?
-  type        TournamentType
-  metric      TournamentMetric
-  startsAt    DateTime           @map("starts_at")
-  endsAt      DateTime           @map("ends_at")
-  status      TournamentStatus   @default(SCHEDULED)
-  recurring   Boolean            @default(false)
-  prizes      TournamentPrize[]
-  entries     TournamentEntry[]
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt     @map("updated_at")
+  id                 Int                @id @default(autoincrement())
+  name               String
+  description        String?
+  type               TournamentType
+  metric             TournamentMetric
+  metricConfig       Json?              @map("metric_config")
+  startsAt           DateTime           @map("starts_at")
+  endsAt             DateTime           @map("ends_at")
+  status             TournamentStatus   @default(SCHEDULED)
+  recurring          Boolean            @default(false)
+  scoresReconciledAt DateTime?          @map("scores_reconciled_at")
+  version            Int                @default(0)
+  prizes             TournamentPrize[]
+  entries            TournamentEntry[]
+  scoreContributions TournamentScoreContribution[]
+  scoreDrifts        TournamentScoreDrift[]
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt     @map("updated_at")
 
   @@index([status, startsAt])
   @@index([status, endsAt])
+  @@index([status, metric])
   @@map("tournaments")
 }
 
@@ -2320,22 +2354,97 @@ model TournamentPrize {
 }
 
 model TournamentEntry {
-  id              Int        @id @default(autoincrement())
-  tournamentId    Int        @map("tournament_id")
-  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  userId          Int        @map("user_id")
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  score           Float      @default(0)
-  rank            Int?
-  rewardGranted   Boolean    @default(false) @map("reward_granted")
-  rewardGrantedAt DateTime?  @map("reward_granted_at")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt      @map("updated_at")
+  id                  Int        @id @default(autoincrement())
+  tournamentId        Int        @map("tournament_id")
+  tournament          Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId              Int        @map("user_id")
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score               Float      @default(0)
+  rank                Int?
+  firstContributionAt DateTime?  @map("first_contribution_at")
+  rewardGranted       Boolean    @default(false) @map("reward_granted")
+  rewardGrantedAt     DateTime?  @map("reward_granted_at")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt      @map("updated_at")
 
   @@unique([tournamentId, userId])
   @@index([tournamentId, score(sort: Desc)])
   @@index([userId])
   @@map("tournament_entries")
+}
+
+/// Normalized offerwall/PTC actions — single source for incremental tournament scoring.
+model TournamentAction {
+  id                 BigInt   @id @default(autoincrement())
+  userId             Int      @map("user_id")
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider           String
+  actionCount        Int      @map("action_count")
+  executedAtUTC      DateTime @map("executed_at_utc")
+  sourceId           String   @map("source_id")
+  tournamentEligible Boolean  @default(true) @map("tournament_eligible")
+  metadata           Json?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, sourceId])
+  @@index([userId, executedAtUTC])
+  @@index([executedAtUTC])
+  @@map("tournament_actions")
+}
+
+/// Detect-only drift records (offerwall Engine V2). Never used for auto-correction.
+model TournamentScoreDrift {
+  id                      BigInt     @id @default(autoincrement())
+  tournamentId            Int        @map("tournament_id")
+  tournament              Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId                  Int?       @map("user_id")
+  actionTotal             Float?     @map("action_total")
+  contributionTotal       Float?     @map("contribution_total")
+  entryScore              Float?     @map("entry_score")
+  deltaActionsContributions Float?   @map("delta_actions_contributions")
+  deltaContributionsEntry   Float?     @map("delta_contributions_entry")
+  detectedAt              DateTime   @default(now()) @map("detected_at")
+
+  @@index([tournamentId, detectedAt])
+  @@map("tournament_score_drifts")
+}
+
+/// Append-only ledger of score deltas per tournament (audit + idempotent projection).
+model TournamentScoreContribution {
+  id           BigInt     @id @default(autoincrement())
+  tournamentId Int        @map("tournament_id")
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       Int        @map("user_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceType   String     @map("source_type")
+  sourceId     String     @map("source_id")
+  metricValue  Decimal    @map("metric_value") @db.Decimal(20, 8)
+  eventAt      DateTime   @map("event_at")
+  metadata     Json?
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@unique([tournamentId, sourceType, sourceId])
+  @@index([tournamentId, userId])
+  @@index([tournamentId, eventAt])
+  @@map("tournament_score_contributions")
+}
+
+/// Transactional outbox for tournament domain events (deposit confirmed → score projection).
+model TournamentDomainOutbox {
+  id          Int       @id @default(autoincrement())
+  eventType   String    @map("event_type")
+  payload     Json
+  status      String    @default("pending")
+  retryCount  Int       @default(0) @map("retry_count")
+  nextRunAt   DateTime  @default(now()) @map("next_run_at")
+  lastError   String?   @map("last_error")
+  idempotencyKey String @unique @map("idempotency_key")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, nextRunAt])
+  @@index([eventType])
+  @@map("tournament_domain_outbox")
 }
 
 // ─── Burn events ─────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/auth';
 import Landing from '../pages/landing';
 import Login from '../pages/auth/login/LoginPage';
 import Register from '../pages/auth/register/RegisterPage';
+import Dashboard from '../pages/dashboard';
 
 import Sidebar from '../shared/components/Sidebar';
 import Header from '../shared/components/Header';
@@ -19,7 +20,6 @@ import TransparencyErrorBoundary from '../shared/components/TransparencyErrorBou
 import { prefetchProtectedBootstrap } from '../shared/utils/routePrefetch';
 
 const ForgotPassword = lazy(() => import('../pages/auth/forgot-password/ForgotPasswordPage'));
-const Dashboard = lazy(() => import('../pages/dashboard'));
 const Shop = lazy(() => import('../pages/shop'));
 const Inventory = lazy(() => import('../pages/machines'));
 const Inventario = lazy(() => import('../pages/inventario'));
@@ -72,6 +72,7 @@ const AdminInternalOfferwall = lazy(() => import('../pages/admin/AdminInternalOf
 const AdminMiniPass = lazy(() => import('../pages/admin/AdminMiniPass'));
 const AdminMiniPassSeason = lazy(() => import('../pages/admin/AdminMiniPassSeason'));
 const AdminTournaments = lazy(() => import('../pages/admin/AdminTournaments'));
+const AdminOfferwallAnalytics = lazy(() => import('../pages/admin/AdminOfferwallAnalytics'));
 const AdminTrafficStats = lazy(() => import('../pages/admin/AdminTrafficStats'));
 const AdminPtc = lazy(() => import('../pages/admin/AdminPtc'));
 const AdminPartnerGames = lazy(() => import('../pages/admin/AdminPartnerGames'));
@@ -90,7 +91,6 @@ const TermsOfUse = lazy(() => import('../pages/legal/terms-of-use'));
 const Tournaments = lazy(() => import('../pages/tournaments'));
 const BurnEvents = lazy(() => import('../pages/burn/BurnEventsPage'));
 import Web3Boundary from '../shared/web3/Web3Boundary';
-import { clearChunkReloadMarkers } from '../shared/utils/chunkLoadError';
 
 const ZERADS_TEST_URL = 'https://zerads.com/ptc.php?ref=10776&user=test';
 
@@ -195,7 +195,6 @@ function App() {
   const { checkSession } = useAuthStore();
 
   useEffect(() => {
-    clearChunkReloadMarkers();
     void checkSession();
   }, [checkSession]);
 
@@ -301,6 +300,7 @@ function App() {
             <Route path="/admin/creators" element={<AdminCreatorsSocial />} />
             <Route path="/admin/transparency" element={<AdminTransparency />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/offerwall-analytics" element={<AdminOfferwallAnalytics />} />
             <Route path="/admin/broadcast" element={<AdminBroadcast />} />
             <Route path="/admin/checkin-milestones" element={<AdminCheckinMilestones />} />
             <Route path="/admin/tasks" element={<AdminDailyTasks />} />

@@ -57,9 +57,9 @@ export async function getSession(req: Request, res: Response): Promise<void> {
       prisma.referral.findUnique({ where: { referredId: user.id } }).then(Boolean),
       isEnergyTaxActive()
         ? computeWeekSummary(user.id)
-            .then((s) => ({ energyBlocked: (user as Record<string, unknown>).energyBlocked === true, energyUnpaidDays: s.unpaidDays }))
-            .catch(() => ({ energyBlocked: false, energyUnpaidDays: 0 }))
-        : Promise.resolve({ energyBlocked: false, energyUnpaidDays: 0 }),
+            .then((s) => ({ energyHasPendingTax: s.unpaidDays > 0 }))
+            .catch(() => ({ energyHasPendingTax: false }))
+        : Promise.resolve({ energyHasPendingTax: false }),
     ]);
 
     res.json({ ok: true, user: toAuthPublicUserDto(user, { hasReferral, ...energyInfo }) });

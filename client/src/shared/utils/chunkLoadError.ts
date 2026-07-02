@@ -1,6 +1,10 @@
 const CHUNK_RELOAD_KEY = 'blockminer:chunk-reload-at';
+const BUILD_ID_KEY = 'blockminer:bm-build';
+const BUILD_RELOADED_KEY = 'blockminer:bm-build-reloaded';
 const LEGACY_CHUNK_KEY = 'bm_chunk_reload_v1';
 const LEGACY_ASSET_KEY = 'bm_asset_reload_v1';
+const CHUNK_RELOAD_MAX = 3;
+const CHUNK_RELOAD_WINDOW_MS = 120_000;
 
 export function isChunkLoadError(error: unknown): boolean {
   const message =
@@ -25,13 +29,27 @@ export function isChunkLoadError(error: unknown): boolean {
 export function shouldAutoReloadChunkError(now = Date.now()): boolean {
   try {
     const raw = window.sessionStorage.getItem(CHUNK_RELOAD_KEY);
+    let stamps: number[] = [];
     if (raw) {
-      const previous = Number(raw);
-      if (Number.isFinite(previous) && now - previous < 60_000) {
-        return false;
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          stamps = parsed.filter((n) => typeof n === 'number' && Number.isFinite(n));
+        } else {
+          const previous = Number(raw);
+          if (Number.isFinite(previous)) stamps = [previous];
+        }
+      } catch {
+        const previous = Number(raw);
+        if (Number.isFinite(previous)) stamps = [previous];
       }
     }
-    window.sessionStorage.setItem(CHUNK_RELOAD_KEY, String(now));
+    const recent = stamps.filter((t) => now - t < CHUNK_RELOAD_WINDOW_MS);
+    if (recent.length >= CHUNK_RELOAD_MAX) {
+      return false;
+    }
+    recent.push(now);
+    window.sessionStorage.setItem(CHUNK_RELOAD_KEY, JSON.stringify(recent));
     return true;
   } catch {
     return false;
@@ -58,6 +76,36 @@ export function clearChunkReloadMarkers(): void {
   } catch {
     // ignore storage failure
   }
+}
+
+/**
+ * After deploy, index.html carries a new bm-build id (entry bundle hash).
+ * If the user still runs an old JS bundle, reload once before React mounts.
+ * @returns false when a reload was triggered (caller should abort boot).
+ */
+export function ensureCurrentBuild(): boolean {
+  if (typeof document === 'undefined') return true;
+  const meta = document.querySelector('meta[name="bm-build"]')?.getAttribute('content');
+  if (!meta) return true;
+  try {
+    const prev = window.localStorage.getItem(BUILD_ID_KEY);
+    if (prev && prev !== meta) {
+      const alreadyReloaded = window.sessionStorage.getItem(BUILD_RELOADED_KEY);
+      if (alreadyReloaded === meta) {
+        window.localStorage.setItem(BUILD_ID_KEY, meta);
+        return true;
+      }
+      window.localStorage.setItem(BUILD_ID_KEY, meta);
+      window.sessionStorage.setItem(BUILD_RELOADED_KEY, meta);
+      forceReloadForNewBuild();
+      return false;
+    }
+    window.localStorage.setItem(BUILD_ID_KEY, meta);
+    window.sessionStorage.removeItem(BUILD_RELOADED_KEY);
+  } catch {
+    return true;
+  }
+  return true;
 }
 
 export function handleChunkLoadFailure(error: unknown): boolean {

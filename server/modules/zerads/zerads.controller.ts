@@ -4,6 +4,15 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../models/db.js";
 import loggerLib from "../../utils/logger.js";
 import { createAuditLogBestEffort } from "../../models/auditLogModel.js";
+import {
+  ZERADS_MAX_CLICKS_PER_UTC_DAY,
+  utcDayBounds,
+  utcDayKey,
+} from "./zeradsClickLimits.js";
+import {
+  recordTournamentAction,
+  TOURNAMENT_ACTION_PROVIDER,
+} from "../tournaments/application/tournament-action-dispatch.js";
 
 const logger = loggerLib.child("ZeradsController");
 
@@ -99,9 +108,11 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
   }
 
   const clicks = parseInt(rawClicks ?? "0", 10) || 0;
-  const callbackHash = buildCallbackHash(username.trim(), cappedZer, clicks);
-  const polToCredit = new Prisma.Decimal(String(cappedZer * EXCHANGE_RATE * PAYOUT_MULTIPLIER));
-  const now = new Date();
+  if (clicks <= 0) {
+    logger.warn("zerads.callback.no_clicks", { username, rawClicks });
+    res.status(400).send("0");
+    return;
+  }
 
   const user = await prisma.user.findUnique({
     where: { username: username.trim() },
@@ -120,16 +131,52 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
     return;
   }
 
+  const callbackHash = buildCallbackHash(username.trim(), cappedZer, clicks);
+  const now = new Date();
+  const { start: utcDayStartBound, end: utcDayEndBound } = utcDayBounds(utcDayKey(now));
+
+  const dayAgg = await prisma.zeradsCallback.aggregate({
+    where: { userId: user.id, callbackAt: { gte: utcDayStartBound, lt: utcDayEndBound } },
+    _sum: { clicks: true },
+  });
+  const clicksToday = Number(dayAgg._sum.clicks ?? 0);
+  const remaining = Math.max(0, ZERADS_MAX_CLICKS_PER_UTC_DAY - clicksToday);
+  if (remaining <= 0) {
+    logger.warn("zerads.callback.daily_click_cap", {
+      username,
+      userId: user.id,
+      clicksToday,
+      max: ZERADS_MAX_CLICKS_PER_UTC_DAY,
+    });
+    res.send("1");
+    return;
+  }
+
+  const creditedClicks = Math.min(clicks, remaining);
+  const clickRatio = creditedClicks / clicks;
+  const polToCredit = new Prisma.Decimal(String(cappedZer * EXCHANGE_RATE * PAYOUT_MULTIPLIER * clickRatio));
+  const creditedZer = cappedZer * clickRatio;
+
+  if (creditedClicks < clicks) {
+    logger.warn("zerads.callback.clicks_trimmed", {
+      username,
+      userId: user.id,
+      requested: clicks,
+      credited: creditedClicks,
+      clicksToday,
+    });
+  }
+
   try {
     await prisma.$transaction([
       prisma.zeradsCallback.create({
         data: {
           userId: user.id,
           username: user.username!,
-          amountZer: cappedZer,
+          amountZer: creditedZer,
           exchangeRate: EXCHANGE_RATE,
           payoutAmount: Number(polToCredit),
-          clicks,
+          clicks: creditedClicks,
           requestIp: clientIp,
           callbackHash,
           callbackAt: now,
@@ -160,9 +207,10 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
     severity: "info",
     ip: clientIp,
     details: {
-      amountZer: cappedZer,
+      amountZer: creditedZer,
       polCredited: polToCredit.toFixed(8),
-      clicks,
+      clicks: creditedClicks,
+      clicksRequested: clicks,
       exchangeRate: EXCHANGE_RATE,
     },
   });
@@ -170,9 +218,22 @@ export async function zeradsCallbackHandler(req: Request, res: Response): Promis
   logger.info("zerads.callback.credited", {
     userId: user.id,
     username,
-    amountZer: cappedZer,
+    amountZer: creditedZer,
     polCredited: polToCredit.toFixed(8),
-    clicks,
+    clicks: creditedClicks,
+    clicksRequested: clicks,
+  });
+
+  void recordTournamentAction({
+    userId: user.id,
+    provider: TOURNAMENT_ACTION_PROVIDER.ZERADS,
+    actionCount: creditedClicks,
+    executedAtUTC: now,
+    providerEventId: callbackHash,
+    metadata: {
+      clicksRequested: clicks,
+      timestampSource: "callback_at",
+    },
   });
 
   res.send("1");

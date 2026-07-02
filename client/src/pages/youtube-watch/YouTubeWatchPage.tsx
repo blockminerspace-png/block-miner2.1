@@ -40,6 +40,11 @@ interface YoutubeClaimResponse {
 type TrackerColor = 'primary' | 'amber' | 'blue' | 'emerald';
 
 const CLAIM_INTERVAL_SEC = 60;
+const YOUTUBE_VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
+
+function isValidYoutubeVideoId(id: string | null | undefined): id is string {
+    return typeof id === 'string' && YOUTUBE_VIDEO_ID_RE.test(id);
+}
 
 type PlayerUiState = 'idle' | 'cued' | 'playing' | 'buffering' | 'paused' | 'ended';
 
@@ -143,32 +148,40 @@ export default function YouTubeWatch() {
         };
     }, []);
 
+    const normalizeVideoId = (candidate: string | null | undefined): string | null => {
+        const id = String(candidate ?? '').trim();
+        return isValidYoutubeVideoId(id) ? id : null;
+    };
+
     const extractVideoId = (input: unknown): string | null => {
         const raw = String(input || "").trim();
-        
+
         // 1. Check if it's already an 11-char ID
-        const idPattern = /^[a-zA-Z0-9_-]{11}$/;
-        if (idPattern.test(raw)) return raw;
+        const direct = normalizeVideoId(raw);
+        if (direct) return direct;
 
         // 2. Try to parse as URL
         try {
             const urlObj = new URL(raw);
             const hostname = urlObj.hostname.replace(/^www\./, "").toLowerCase();
-            
+
             // youtu.be/ID
             if (hostname === "youtu.be") {
-                return urlObj.pathname.slice(1).split(/[?#&]/)[0];
+                const fromPath = normalizeVideoId(urlObj.pathname.slice(1).split(/[?#&]/)[0]);
+                if (fromPath) return fromPath;
             }
-            
+
             if (hostname === "youtube.com" || hostname === "m.youtube.com") {
                 // /watch?v=ID
                 if (urlObj.pathname === "/watch") {
-                    return urlObj.searchParams.get("v");
+                    const fromQuery = normalizeVideoId(urlObj.searchParams.get("v"));
+                    if (fromQuery) return fromQuery;
                 }
                 // /embed/ID, /v/ID, /shorts/ID, /live/ID
                 const parts = urlObj.pathname.split("/");
                 if (["embed", "v", "shorts", "live"].includes(parts[1])) {
-                    return parts[2];
+                    const fromPath = normalizeVideoId(parts[2]);
+                    if (fromPath) return fromPath;
                 }
             }
         } catch (e) {
@@ -178,7 +191,7 @@ export default function YouTubeWatch() {
         // 3. Robust Regex Fallback (handles most common formats including timestamps and feature params)
         const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts|live)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
         const match = raw.match(regex);
-        if (match && match[1]) return match[1];
+        if (match?.[1]) return normalizeVideoId(match[1]);
 
         return null;
     };
@@ -238,48 +251,62 @@ export default function YouTubeWatch() {
 
         const initPlayer = () => {
             if (!playerDivRef.current) return;
-            playerRef.current = new window.YT.Player(playerDivRef.current, {
-                videoId,
-                width: '100%',
-                height: '100%',
-                playerVars: { autoplay: 1, rel: 0, modestbranding: 1 },
-                events: {
-                    onReady: () => {
-                        setPlayerState((prev) => {
-                            if (prev === 'idle') {
-                                toast.info(t('youtube.click_to_play'), { duration: 4000 });
-                                return 'cued';
+            if (!isValidYoutubeVideoId(videoId)) {
+                toast.error(t('youtube.invalid_url'));
+                setVideoId(null);
+                setPlayerState('idle');
+                resetWatchCycle();
+                return;
+            }
+            try {
+                playerRef.current = new window.YT.Player(playerDivRef.current, {
+                    videoId,
+                    width: '100%',
+                    height: '100%',
+                    playerVars: { autoplay: 1, rel: 0, modestbranding: 1 },
+                    events: {
+                        onReady: () => {
+                            setPlayerState((prev) => {
+                                if (prev === 'idle') {
+                                    toast.info(t('youtube.click_to_play'), { duration: 4000 });
+                                    return 'cued';
+                                }
+                                return prev;
+                            });
+                        },
+                        onError: (event: { data: number }) => {
+                            if (event.data === 101 || event.data === 150) {
+                                toast.error(t('youtube.video_error_embed'), { duration: 8000 });
+                            } else {
+                                toast.error(t('youtube.video_error'), { duration: 5000 });
                             }
-                            return prev;
-                        });
-                    },
-                    onError: (event: { data: number }) => {
-                        if (event.data === 101 || event.data === 150) {
-                            toast.error(t('youtube.video_error_embed'), { duration: 8000 });
-                        } else {
-                            toast.error(t('youtube.video_error'), { duration: 5000 });
-                        }
-                        setPlayerState('idle');
-                        resetWatchCycle();
-                    },
-                    onStateChange: (event: { data: number }) => {
-                        const YTState = window.YT!.PlayerState;
-                        if (event.data === YTState.PLAYING) {
-                            setPlayerState('playing');
-                        } else if (event.data === YTState.BUFFERING) {
-                            setPlayerState('buffering');
-                        } else if (event.data === YTState.PAUSED) {
-                            setPlayerState('paused');
-                        } else if (event.data === YTState.ENDED) {
-                            setPlayerState('ended');
-                        } else if (event.data === YTState.CUED) {
-                            setPlayerState('cued');
-                        } else {
                             setPlayerState('idle');
-                        }
+                            resetWatchCycle();
+                        },
+                        onStateChange: (event: { data: number }) => {
+                            const YTState = window.YT!.PlayerState;
+                            if (event.data === YTState.PLAYING) {
+                                setPlayerState('playing');
+                            } else if (event.data === YTState.BUFFERING) {
+                                setPlayerState('buffering');
+                            } else if (event.data === YTState.PAUSED) {
+                                setPlayerState('paused');
+                            } else if (event.data === YTState.ENDED) {
+                                setPlayerState('ended');
+                            } else if (event.data === YTState.CUED) {
+                                setPlayerState('cued');
+                            } else {
+                                setPlayerState('idle');
+                            }
+                        },
                     },
-                },
-            });
+                });
+            } catch {
+                toast.error(t('youtube.invalid_url'));
+                setVideoId(null);
+                setPlayerState('idle');
+                resetWatchCycle();
+            }
         };
 
         if (ytReadyRef.current && window.YT?.Player) {

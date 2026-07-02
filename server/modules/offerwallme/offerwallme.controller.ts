@@ -7,6 +7,10 @@ import { getPolUsdPrice } from "../../utils/cryptoPrice.js";
 import { createAuditLogBestEffort } from "../../models/auditLogModel.js";
 import loggerLib from "../../utils/logger.js";
 import { applyUserBalanceDelta } from "../../src/runtime/miningRuntime.js";
+import {
+  recordTournamentAction,
+  TOURNAMENT_ACTION_PROVIDER,
+} from "../tournaments/application/tournament-action-dispatch.js";
 
 const logger = loggerLib.child("OfferwallMeController");
 
@@ -135,6 +139,8 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
   const polDecimal = new Prisma.Decimal(String(Math.max(0, polToCredit).toFixed(8)));
   const polDebit   = new Prisma.Decimal(String(Math.abs(polToCredit).toFixed(8)));
 
+  let creditedAt = new Date();
+
   try {
     if (status === 2) {
       // Chargeback: deduct but don't go negative
@@ -159,8 +165,8 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
         `,
       ]);
     } else {
-      await prisma.$transaction([
-        prisma.offerwallMeCallback.create({
+      const row = await prisma.$transaction(async (tx) => {
+        const created = await tx.offerwallMeCallback.create({
           data: {
             userId,
             transId,
@@ -172,12 +178,14 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
             status,
             requestIp: clientIp,
           },
-        }),
-        prisma.user.update({
+        });
+        await tx.user.update({
           where: { id: userId },
           data: { polBalance: { increment: polDecimal } },
-        }),
-      ]);
+        });
+        return created;
+      });
+      creditedAt = row.createdAt;
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -204,6 +212,22 @@ export async function offerwallMePostback(req: Request, res: Response): Promise<
   });
 
   logger.info("offerwallme.postback.credited", { userId, transId, payoutUsd, polCredited: polToCredit.toFixed(8), status });
+
+  if (status === 1) {
+    void recordTournamentAction({
+      userId,
+      provider: TOURNAMENT_ACTION_PROVIDER.OFFERWALLME,
+      actionCount: 1,
+      executedAtUTC: creditedAt,
+      providerEventId: transId,
+      metadata: {
+        offerName: offerName || null,
+        offerType: offerType || null,
+        timestampSource: "db_created_at",
+      },
+    });
+  }
+
   res.send("ok");
 }
 

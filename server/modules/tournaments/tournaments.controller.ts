@@ -49,3 +49,17 @@ export async function myHistory(req: Request, res: Response): Promise<void> {
     res.status(500).json({ ok: false, message: "Failed" });
   }
 }
+
+export async function myScoreBreakdown(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  const userId = (req as any).user?.id as number | undefined;
+  if (!id || !userId) { res.status(400).json({ ok: false, message: "Invalid request" }); return; }
+  try {
+    const { getMyTournamentScoreBreakdown } = await import("./tournaments.service.js");
+    const data = await getMyTournamentScoreBreakdown(id, userId);
+    if (!data) { res.status(404).json({ ok: false, message: "Not found or metric has no score breakdown" }); return; }
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: "Failed" });
+  }
+}

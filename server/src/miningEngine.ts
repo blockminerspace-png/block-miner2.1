@@ -484,17 +484,9 @@ export class MiningEngine {
         }
       >();
 
-      // Load energy-blocked users so their rewards are skipped this block.
-      const blockedRows = await prisma.user.findMany({
-        where: { energyBlocked: true },
-        select: { id: true },
-      });
-      const blockedUserIds = new Set(blockedRows.map((r) => r.id));
-
       for (const [minerId, split] of splitByMiner.entries()) {
         const miner = this.miners.get(minerId);
         if (!miner) continue;
-        if (blockedUserIds.has(miner.userId)) continue;
 
         balanceSnapshot.set(minerId, {
           balance: miner.balance,

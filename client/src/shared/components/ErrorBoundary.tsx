@@ -67,16 +67,14 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     const componentStack = errorInfo?.componentStack ?? null;
     const staleChunk = isChunkLoadError(msg) || isChunkLoadError(error);
 
-    // Stale chunks (cached old index referencing deleted hashes) are self-healing:
-    // try ONE silent reload per 60s — user never sees the error screen, admin
-    // never gets a report. If reload throttle blocks, fall through to the screen.
-    if (staleChunk && shouldAutoReloadChunkError()) {
+    // Stale chunks + DOM noise (browser translators) — self-heal via reload.
+    if ((staleChunk || isClientErrorNoise(msg, stack, componentStack)) && shouldAutoReloadChunkError()) {
       forceReloadForNewBuild();
       return;
     }
 
-    // De-dupe + skip reporting noise (chunks + browser extensions).
-    if (!staleChunk) {
+    // De-dupe + skip reporting noise (chunks + browser extensions + translators).
+    if (!staleChunk && !isClientErrorNoise(msg, stack, componentStack)) {
       const key = `${msg}\n${stack ?? ''}`;
       if (this.state.reportedKey !== key) {
         reportClientError({ message: msg, stack, componentStack });
@@ -94,6 +92,15 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   render(): ReactNode {
     if (this.state.hasError) {
+      const msg = this.state.error?.message ?? '';
+      const stack = this.state.error?.stack ?? null;
+      if (isClientErrorNoise(msg, stack, this.state.errorStack)) {
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-[#020617] text-slate-400">
+            <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        );
+      }
       return (
         <div
           style={{

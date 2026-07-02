@@ -11,7 +11,7 @@
  * Best-effort: nunca lança. Respeita o rate limiter do servidor (10/min).
  */
 
-type ApiFailurePayload = {
+export type ApiFailurePayload = {
   /** Operação que falhou, ex.: "youtube_claim", "faucet_claim". */
   operation: string;
   /** Mensagem curta p/ o admin entender rápido. */
@@ -26,9 +26,27 @@ type ApiFailurePayload = {
   url?: string;
 };
 
+/** HTTP statuses that are transient infra (deploy, CF timeout) — not actionable app bugs. */
+const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504, 522, 524]);
+
+/**
+ * Falhas esperadas ou transitórias que não devem lotar o painel admin.
+ * Ex.: sessão expirada (401), gateway timeout durante deploy (522), rede instável.
+ */
+export function isApiFailureNoise(payload: ApiFailurePayload): boolean {
+  const status = payload.statusCode;
+  if (status === 401) return true;
+  if (status != null && TRANSIENT_HTTP_STATUSES.has(status)) return true;
+  const msg = payload.message.trim();
+  if (/^network error$/i.test(msg)) return true;
+  if (/session invalid/i.test(msg)) return true;
+  return false;
+}
+
 export function reportApiFailure(payload: ApiFailurePayload): void {
   try {
     if (typeof window === "undefined") return;
+    if (isApiFailureNoise(payload)) return;
     const body = {
       category: "api_failure" as const,
       operation: payload.operation,

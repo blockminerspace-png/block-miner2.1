@@ -1,5 +1,21 @@
 import _prisma from "../../src/db/prisma.js";
 import { rankingUserSelect, aggregateUserHashrates } from "../../services/networkHashrateService.js";
+import {
+  formatUtcWindowLabel,
+} from "./offerwallTournamentScore.js";
+import {
+  computeDepositScores,
+  aggregateDepositSummary,
+  getDepositScoreDetailForUser,
+} from "./depositTournamentScore.js";
+import { snapWindowForType, snapWindowForActiveTournament } from "./tournamentWindow.js";
+import { isTournamentSkipGetRecomputeEnabled, isTournamentIncrementalScoringEnabled } from "./config/feature-flags.js";
+import { registerTournamentMetricScorers } from "./domain/metrics/register-scorers.js";
+import { getMetricScorer } from "./domain/metrics/metric-scorer.registry.js";
+import { getCachedLeaderboard, setCachedLeaderboard, invalidateLeaderboardCache } from "./infrastructure/cache/leaderboard.cache.js";
+import { normalizeDepositSummary, isDepositTournamentMetric, depositRankingUnit } from "./depositTournamentPresentation.js";
+import { reconcileTournament } from "./application/tournament-engine.js";
+import { processTournamentOutboxBatch } from "./infrastructure/outbox/tournament-outbox.processor.js";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 
@@ -8,18 +24,6 @@ type TournamentEntry = { id: number; tournamentId: number; userId: number; score
 type TournamentPrize = { id: number; tournamentId: number; rankFrom: number; rankTo: number; prizeType: string; polAmount: number | null; blkAmount: number | null; boostHashRate: number | null; boostHours: number | null; minerId: number | null; minerCount: number | null };
 
 export const LEADERBOARD_LIMIT = 100;
-
-const INTERNAL_OFFER_COMPLETED = "COMPLETED";
-
-function mergeZeradsClicks(
-  merged: Map<number, number>,
-  zeradsRows: Array<{ userId: number; _sum: { clicks: number | null } }>,
-): void {
-  for (const r of zeradsRows) {
-    const clicks = Number(r._sum.clicks ?? 0);
-    if (clicks > 0) merged.set(r.userId, (merged.get(r.userId) ?? 0) + clicks);
-  }
-}
 
 // ─── Score computation ──────────────────────────────────────────────────────
 
@@ -85,83 +89,59 @@ export async function computeScoresForTournament(tournament: Tournament): Promis
   }
 
   if (metric === "DEPOSITS_POL") {
-    const rows = await prisma.transaction.groupBy({
-      by: ["userId"],
-      where: {
-        type: "deposit",
-        status: "completed",
-        createdAt: { gte: startsAt, lte: upperBound},
-      },
-      _sum: { amount: true },
-    });
+    if (isTournamentIncrementalScoringEnabled()) {
+      registerTournamentMetricScorers();
+      const scorer = getMetricScorer("DEPOSITS_POL");
+      if (scorer) {
+        const scores = await scorer.reconcile(
+          { id: tournament.id, name: tournament.name, metric: "DEPOSITS_POL", startsAt, endsAt: tournament.endsAt, status: tournament.status as "ACTIVE" },
+          { startsAt, endsAt: upperBound },
+        );
+        await batchUpsertEntries(
+          tournament.id,
+          Array.from(scores.entries())
+            .map(([userId, b]) => ({ userId, score: b.total }))
+            .filter((r) => r.score > 0),
+        );
+        return;
+      }
+    }
+    const scores = await computeDepositScores(startsAt, upperBound);
     await batchUpsertEntries(
       tournament.id,
-      rows
-        .map((r) => ({ userId: r.userId, score: Number(r._sum.amount ?? 0) }))
+      Array.from(scores.entries())
+        .map(([userId, b]) => ({ userId, score: b.total }))
         .filter((r) => r.score > 0),
     );
     return;
   }
 
-  if (metric === "OFFERS_INTERNAL" || metric === "OFFERS_ALL") {
-    const internal = await prisma.internalOfferwallAttempt.groupBy({
-      by: ["userId"],
-      where: {
-        status: INTERNAL_OFFER_COMPLETED,
-        completedAt: { gte: startsAt, lte: upperBound },
-      },
-      _count: { id: true },
-    });
-    if (metric === "OFFERS_INTERNAL") {
-      await batchUpsertEntries(
-        tournament.id,
-        internal.map((r) => ({ userId: r.userId, score: r._count.id })),
-      );
+  if (metric === "DEPOSITS_USD") {
+    registerTournamentMetricScorers();
+    const scorer = getMetricScorer("DEPOSITS_USD");
+    if (!scorer) throw new Error("DEPOSITS_USD scorer not registered");
+    const scores = await scorer.reconcile(
+      { id: tournament.id, name: tournament.name, metric: "DEPOSITS_USD", startsAt, endsAt: tournament.endsAt, status: tournament.status as "ACTIVE" },
+      { startsAt, endsAt: upperBound },
+    );
+    await batchUpsertEntries(
+      tournament.id,
+      Array.from(scores.entries())
+        .map(([userId, b]) => ({ userId, score: b.total }))
+        .filter((r) => r.score > 0),
+    );
+    return;
+  }
+
+  if (
+    metric === "OFFERS_INTERNAL" ||
+    metric === "OFFERS_EXTERNAL" ||
+    metric === "OFFERS_ALL"
+  ) {
+    if (isTournamentIncrementalScoringEnabled()) {
+      // Engine V2: scores come only from incremental contributions — no batch recompute.
       return;
     }
-    // OFFERS_ALL: internal + OfferwallMe (status=1) + Zerads PTC clicks.
-    const ome = await prisma.offerwallMeCallback.groupBy({
-      by: ["userId"],
-      where: { createdAt: { gte: startsAt, lte: upperBound }, status: 1 },
-      _count: { id: true },
-    });
-    const zerads = await prisma.zeradsCallback.groupBy({
-      by: ["userId"],
-      where: { callbackAt: { gte: startsAt, lte: upperBound } },
-      _sum: { clicks: true },
-    });
-    const merged = new Map<number, number>();
-    for (const r of internal) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
-    for (const r of ome) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
-    mergeZeradsClicks(merged, zerads);
-    const rows = Array.from(merged.entries())
-      .map(([userId, score]) => ({ userId, score }))
-      .filter((r) => r.score > 0);
-    await batchUpsertEntries(tournament.id, rows);
-    return;
-  }
-
-  if (metric === "OFFERS_EXTERNAL") {
-    const ome = await prisma.offerwallMeCallback.groupBy({
-      by: ["userId"],
-      where: { createdAt: { gte: startsAt, lte: upperBound }, status: 1 },
-      _count: { id: true },
-    });
-    const zerads = await prisma.zeradsCallback.groupBy({
-      by: ["userId"],
-      where: { callbackAt: { gte: startsAt, lte: upperBound } },
-      _sum: { clicks: true },
-    });
-    const merged = new Map<number, number>();
-    for (const r of ome) merged.set(r.userId, (merged.get(r.userId) ?? 0) + r._count.id);
-    mergeZeradsClicks(merged, zerads);
-    await batchUpsertEntries(
-      tournament.id,
-      Array.from(merged.entries())
-        .map(([userId, score]) => ({ userId, score }))
-        .filter((r) => r.score > 0),
-    );
-    return;
   }
 }
 
@@ -174,6 +154,7 @@ async function batchUpsertEntries(
 
   if (activeIds.length === 0) {
     await prisma.tournamentEntry.deleteMany({ where: { tournamentId } });
+    await invalidateLeaderboardCache(tournamentId);
     return;
   }
 
@@ -193,58 +174,39 @@ async function batchUpsertEntries(
       ),
     );
   }
+
+  await invalidateLeaderboardCache(tournamentId);
 }
 
 // ─── Finalization ───────────────────────────────────────────────────────────
 
-// Início do "dia" no horário do servidor (UTC): 00:00 UTC = 21:00 BRT.
-function serverDayStart(date: Date): Date {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
 /**
- * Janela canônica do ciclo para um determinado tipo, contendo `anchor`.
- * O servidor usa UTC, então "dia" começa 00:00 UTC (21:00 BRT).
- *  - DAILY:   00:00 UTC do dia de `anchor` → +24h
- *  - WEEKLY:  segunda 00:00 UTC da semana de `anchor` → +7d
- *  - MONTHLY: dia 1 00:00 UTC do mês de `anchor` → dia 1 do mês seguinte
- *  - outros:  null (sem snap)
+ * Corrige startsAt/endsAt de torneios ACTIVE para janelas UTC canônicas.
+ * Só ajusta o ciclo em curso (não salta mensal/semanal para o período seguinte).
  */
-export function snapWindowForType(
-  type: string | undefined,
-  anchor: Date,
-): { start: Date; end: Date } | null {
-  if (type === "DAILY") {
-    const start = serverDayStart(anchor);
-    return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
+export async function alignActiveTournamentWindows(): Promise<number> {
+  const now = new Date();
+  const active = await prisma.tournament.findMany({
+    where: { status: "ACTIVE", type: { in: ["DAILY", "WEEKLY", "MONTHLY"] } },
+  });
+  let fixed = 0;
+  for (const t of active) {
+    const snap = snapWindowForActiveTournament(t.type, t.startsAt, t.endsAt, now);
+    if (!snap) continue;
+    if (t.startsAt.getTime() === snap.start.getTime() && t.endsAt.getTime() === snap.end.getTime()) {
+      continue;
+    }
+    await prisma.tournament.update({
+      where: { id: t.id },
+      data: { startsAt: snap.start, endsAt: snap.end },
+    });
+    await computeScoresForTournament({ ...t, startsAt: snap.start, endsAt: snap.end });
+    fixed++;
+    console.info(
+      `[tournaments] aligned #${t.id} "${t.name}" → UTC ${snap.start.toISOString()} .. ${snap.end.toISOString()}`,
+    );
   }
-  if (type === "WEEKLY") {
-    // Início = segunda 21:00 BRT = terça 00:00 UTC. Semana = ter→ter no UTC.
-    const today = serverDayStart(anchor);
-    const dow = today.getUTCDay(); // 0=dom, 1=seg, 2=ter
-    const daysSinceTuesday = (dow + 5) % 7; // ter=0, qua=1, ..., seg=6
-    const start = new Date(today.getTime() - daysSinceTuesday * 24 * 60 * 60 * 1000);
-    return { start, end: new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000) };
-  }
-  if (type === "MONTHLY") {
-    // Início = dia 1 às 21:00 BRT = dia 2 00:00 UTC.
-    // Janela que contém `anchor`: se anchor < dia 2 00:00 UTC do seu mês, pertence ao mês anterior.
-    const d = serverDayStart(anchor);
-    const y = d.getUTCFullYear();
-    const m = d.getUTCMonth();
-    const thisMonthStart = Date.UTC(y, m, 2, 0, 0, 0, 0);
-    const startMs = anchor.getTime() < thisMonthStart
-      ? Date.UTC(y, m - 1, 2, 0, 0, 0, 0)
-      : thisMonthStart;
-    const start = new Date(startMs);
-    const sy = start.getUTCFullYear();
-    const sm = start.getUTCMonth();
-    const end = new Date(Date.UTC(sy, sm + 1, 2, 0, 0, 0, 0));
-    return { start, end };
-  }
-  return null;
+  return fixed;
 }
 
 // Próximo início de ciclo alinhado ao "dia do servidor" (UTC), conforme o tipo.
@@ -284,12 +246,17 @@ export async function finalizeTournament(tournamentId: number): Promise<{ ranked
   if (!tournament) throw new Error("Tournament not found");
   if (tournament.status === "ENDED") return { ranked: 0, rewarded: 0, nextId: null };
 
-  // Final score update before ranking
-  await computeScoresForTournament(tournament);
+  // Final score reconcile before ranking (incremental metrics use contribution ledger)
+  if (isTournamentIncrementalScoringEnabled()) {
+    registerTournamentMetricScorers();
+    await reconcileTournament(tournamentId);
+  } else {
+    await computeScoresForTournament(tournament);
+  }
 
   const entries = await prisma.tournamentEntry.findMany({
     where: { tournamentId },
-    orderBy: { score: "desc" },
+    orderBy: [{ score: "desc" }, { firstContributionAt: "asc" }],
   });
 
   let rewarded = 0;
@@ -364,7 +331,17 @@ export async function finalizeTournament(tournamentId: number): Promise<{ ranked
     }
   }
 
+  await invalidateTournamentCaches(tournamentId);
   return { ranked: entries.length, rewarded, nextId };
+}
+
+async function invalidateTournamentCaches(tournamentId: number): Promise<void> {
+  await invalidateLeaderboardCache(tournamentId);
+}
+
+function depositScoreMismatch(stored: number, computed: number, metric: string): boolean {
+  const eps = metric === "DEPOSITS_USD" ? 0.01 : 0.0001;
+  return Math.abs(stored - computed) > eps;
 }
 
 async function grantPrize(
@@ -477,6 +454,7 @@ function sortByTypeOrder<T extends { type: string; startsAt: Date }>(list: T[], 
 
 export async function listActiveTournaments() {
   const order = await getTypeDisplayOrder();
+  const now = new Date();
   const rows = await prisma.tournament.findMany({
     where: {
       status: { in: ["ACTIVE", "SCHEDULED"] },
@@ -487,7 +465,51 @@ export async function listActiveTournaments() {
     },
     orderBy: { startsAt: "asc" },
   });
-  return sortByTypeOrder(rows, order);
+  return sortByTypeOrder(
+    rows.map((t: { startsAt: Date; endsAt: Date }) => ({
+      ...t,
+      windowUtc: formatUtcWindowLabel(t.startsAt, t.endsAt),
+      windowUtcNow: formatUtcWindowLabel(t.startsAt, t.endsAt < now ? t.endsAt : now),
+    })),
+    order,
+  );
+}
+
+function isDepositMetric(metric: string): boolean {
+  return metric === "DEPOSITS_POL" || metric === "DEPOSITS_USD";
+}
+
+/** POL totals for USD-ranked deposit tournaments (informational; ranking uses USD). */
+async function enrichDepositLeaderboardWithPolTotals<T extends { userId: number }>(
+  top: T[],
+  startsAt: Date,
+  upperBound: Date,
+): Promise<Array<T & { scorePol: number }>> {
+  if (top.length === 0) return [];
+
+  const userIds = top.map((e) => e.userId);
+  const rows = await prisma.transaction.groupBy({
+    by: ["userId"],
+    where: {
+      userId: { in: userIds },
+      type: "deposit",
+      status: "completed",
+      countsForTournament: true,
+      confirmedEventAt: { gte: startsAt, lte: upperBound },
+    },
+    _sum: { amount: true },
+  });
+  const polByUser = new Map<number, number>(
+    rows.map((r: { userId: number; _sum: { amount: unknown } }) => [
+      r.userId,
+      Number(r._sum.amount ?? 0),
+    ]),
+  );
+
+  return top.map((entry) => ({
+    ...entry,
+    scorePol: polByUser.get(entry.userId) ?? 0,
+  }));
 }
 
 export async function getTournamentWithLeaderboard(tournamentId: number, userId?: number) {
@@ -501,7 +523,8 @@ export async function getTournamentWithLeaderboard(tournamentId: number, userId?
   if (!tournament) return null;
 
   let scoresComputedAt: string | null = null;
-  if (tournament.status === "ACTIVE") {
+  const skipRecompute = isTournamentSkipGetRecomputeEnabled();
+  if (tournament.status === "ACTIVE" && !skipRecompute) {
     await computeScoresForTournament(tournament);
     scoresComputedAt = new Date().toISOString();
     tournament = await prisma.tournament.findUnique({
@@ -512,21 +535,35 @@ export async function getTournamentWithLeaderboard(tournamentId: number, userId?
       },
     });
     if (!tournament) return null;
+  } else if (tournament.status === "ACTIVE") {
+    scoresComputedAt = tournament.scoresReconciledAt?.toISOString() ?? null;
   }
 
-  const top = await prisma.tournamentEntry.findMany({
-    where: { tournamentId },
-    orderBy: { score: "desc" },
-    take: LEADERBOARD_LIMIT,
-    include: {
-      user: {
-        select: { id: true, username: true, name: true },
+  type TopEntry = Awaited<ReturnType<typeof prisma.tournamentEntry.findMany>>[number];
+  const upperBound = tournament.endsAt < new Date() ? tournament.endsAt : new Date();
+  let top: TopEntry[] | null = await getCachedLeaderboard<TopEntry[]>(tournamentId);
+  if (!top) {
+    top = await prisma.tournamentEntry.findMany({
+      where: { tournamentId },
+      orderBy: [{ score: "desc" }, { firstContributionAt: "asc" }],
+      take: LEADERBOARD_LIMIT,
+      include: {
+        user: {
+          select: { id: true, username: true, name: true },
+        },
       },
-    },
-  });
+    });
+    await setCachedLeaderboard(tournamentId, top);
+  }
+  if (tournament.metric === "DEPOSITS_USD" && top && top.length > 0) {
+    top = await enrichDepositLeaderboardWithPolTotals(top, tournament.startsAt, upperBound);
+  }
 
   let myEntry: TournamentEntry | null = null;
   let myRankLive: number | null = null;
+  let myDepositBreakdown: Awaited<ReturnType<typeof getDepositScoreDetailForUser>> | null = null;
+  const depositMetric = isDepositMetric(tournament.metric);
+
   if (userId) {
     myEntry = await prisma.tournamentEntry.findUnique({
       where: { tournamentId_userId: { tournamentId, userId } },
@@ -537,9 +574,45 @@ export async function getTournamentWithLeaderboard(tournamentId: number, userId?
           where: { tournamentId, score: { gt: myEntry.score } },
         })) + 1;
     }
+    if (depositMetric) {
+      registerTournamentMetricScorers();
+      const scorer = getMetricScorer(tournament.metric as "DEPOSITS_POL" | "DEPOSITS_USD");
+      if (scorer?.getUserBreakdown) {
+        myDepositBreakdown = (await scorer.getUserBreakdown(
+          userId,
+          { id: tournament.id, name: tournament.name, metric: tournament.metric as "DEPOSITS_POL" | "DEPOSITS_USD", startsAt: tournament.startsAt, endsAt: tournament.endsAt, status: tournament.status as "ACTIVE" },
+          { startsAt: tournament.startsAt, endsAt: upperBound },
+        )) as typeof myDepositBreakdown;
+      } else {
+        myDepositBreakdown = await getDepositScoreDetailForUser(
+          userId,
+          tournament.startsAt,
+          upperBound,
+        );
+      }
+    }
   }
 
-  return { tournament, top, myEntry, myRankLive, scoresComputedAt };
+  return {
+    tournament: {
+      ...tournament,
+      depositRankingUnit: isDepositTournamentMetric(tournament.metric)
+        ? depositRankingUnit(tournament.metric)
+        : undefined,
+      windowUtc: formatUtcWindowLabel(tournament.startsAt, tournament.endsAt),
+      windowUtcNow: formatUtcWindowLabel(
+        tournament.startsAt,
+        tournament.endsAt < new Date() ? tournament.endsAt : new Date(),
+      ),
+    },
+    top,
+    myEntry,
+    myRankLive,
+    scoresComputedAt,
+    myDepositBreakdown: depositMetric && myDepositBreakdown
+      ? { breakdown: (myDepositBreakdown as { breakdown: Record<string, unknown> }).breakdown }
+      : null,
+  };
 }
 
 export async function getUserTournamentHistory(userId: number) {
@@ -573,7 +646,7 @@ export async function adminCreateTournament(data: {
   name: string;
   description?: string;
   type: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
-  metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
+  metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
   startsAt: Date;
   endsAt: Date;
   recurring?: boolean;
@@ -631,7 +704,7 @@ export async function adminUpdateTournament(
     name?: string;
     description?: string | null;
     type?: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
-    metric?: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
+    metric?: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
     startsAt?: Date;
     endsAt?: Date;
     recurring?: boolean;
@@ -688,6 +761,9 @@ export async function adminUpdateTournament(
       },
       include: { prizes: true },
     });
+  }).then(async (updated) => {
+    await invalidateTournamentCaches(tournamentId);
+    return updated;
   });
 }
 
@@ -695,10 +771,12 @@ export async function adminCancelTournament(tournamentId: number) {
   const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   if (!t) throw new Error("Tournament not found");
   if (t.status === "ENDED") throw new Error("Cannot cancel an ended tournament");
-  return prisma.tournament.update({
+  const updated = await prisma.tournament.update({
     where: { id: tournamentId },
     data: { status: "CANCELLED" },
   });
+  await invalidateTournamentCaches(tournamentId);
+  return updated;
 }
 
 export async function adminGetEntries(tournamentId: number, page = 1, limit = 50) {
@@ -714,4 +792,167 @@ export async function adminGetEntries(tournamentId: number, page = 1, limit = 50
     prisma.tournamentEntry.count({ where: { tournamentId } }),
   ]);
   return { entries, total, page, limit };
+}
+
+function tournamentUpperBound(tournament: { endsAt: Date }, now = new Date()): Date {
+  return tournament.endsAt < now ? tournament.endsAt : now;
+}
+
+function isAuditableMetric(metric: string): boolean {
+  return isDepositMetric(metric);
+}
+
+export async function adminTournamentScoreAudit(tournamentId: number) {
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  if (!tournament) return null;
+  if (!isAuditableMetric(tournament.metric)) {
+    throw new Error("Score audit is only available for deposit tournament metrics");
+  }
+
+  const now = new Date();
+  const upperBound = tournamentUpperBound(tournament, now);
+
+  const stored = await prisma.tournamentEntry.findMany({
+    where: { tournamentId },
+    orderBy: { score: "desc" },
+    take: 500,
+    include: { user: { select: { id: true, username: true, name: true } } },
+  });
+
+  if (tournament.metric === "DEPOSITS_POL" || tournament.metric === "DEPOSITS_USD") {
+    registerTournamentMetricScorers();
+    const scorer = getMetricScorer(tournament.metric);
+    const scores = scorer
+      ? await scorer.reconcile(
+          { id: tournament.id, name: tournament.name, metric: tournament.metric, startsAt: tournament.startsAt, endsAt: tournament.endsAt, status: tournament.status as "ACTIVE" },
+          { startsAt: tournament.startsAt, endsAt: upperBound },
+        )
+      : tournament.metric === "DEPOSITS_POL"
+        ? await computeDepositScores(tournament.startsAt, upperBound)
+        : new Map();
+    const summary = scorer?.getAggregateSummary
+      ? await scorer.getAggregateSummary(
+          { id: tournament.id, name: tournament.name, metric: tournament.metric, startsAt: tournament.startsAt, endsAt: tournament.endsAt, status: tournament.status as "ACTIVE" },
+          { startsAt: tournament.startsAt, endsAt: upperBound },
+        )
+      : tournament.metric === "DEPOSITS_POL"
+        ? await aggregateDepositSummary(tournament.startsAt, upperBound)
+        : null;
+    const entries = stored.map(
+      (
+        e: {
+          userId: number;
+          score: number;
+          rank: number | null;
+          user: { id: number; username: string | null; name: string };
+        },
+        idx: number,
+      ) => {
+        const breakdown = scores.get(e.userId) ?? { total: 0, txCount: 0 };
+        const storedScore = Number(e.score);
+        return {
+          rank: e.rank ?? idx + 1,
+          userId: e.userId,
+          username: e.user.username ?? e.user.name,
+          storedScore,
+          breakdown,
+          mismatch: depositScoreMismatch(storedScore, breakdown.total, tournament.metric),
+        };
+      },
+    );
+
+    return {
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+        metric: tournament.metric,
+        depositRankingUnit: depositRankingUnit(tournament.metric),
+        status: tournament.status,
+        startsAt: tournament.startsAt.toISOString(),
+        endsAt: tournament.endsAt.toISOString(),
+        windowUtc: formatUtcWindowLabel(tournament.startsAt, upperBound),
+        upperBound: upperBound.toISOString(),
+      },
+      serverNow: now.toISOString(),
+      serverNowUtc: formatUtcWindowLabel(now, now).start,
+      depositSummary: summary
+        ? normalizeDepositSummary(tournament.metric, summary as Record<string, unknown>)
+        : null,
+      entries,
+    };
+  }
+
+  throw new Error("Unsupported audit metric");
+}
+
+export async function adminTournamentScoreAuditUser(tournamentId: number, userId: number) {
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  if (!tournament) return null;
+  if (!isAuditableMetric(tournament.metric)) {
+    throw new Error("Score audit is only available for deposit tournament metrics");
+  }
+
+  const upperBound = tournamentUpperBound(tournament);
+  const stored = await prisma.tournamentEntry.findUnique({
+    where: { tournamentId_userId: { tournamentId, userId } },
+  });
+
+  if (tournament.metric === "DEPOSITS_POL" || tournament.metric === "DEPOSITS_USD") {
+    registerTournamentMetricScorers();
+    const scorer = getMetricScorer(tournament.metric);
+    const detail = scorer?.getUserBreakdown
+      ? await scorer.getUserBreakdown(
+          userId,
+          { id: tournament.id, name: tournament.name, metric: tournament.metric, startsAt: tournament.startsAt, endsAt: tournament.endsAt, status: tournament.status as "ACTIVE" },
+          { startsAt: tournament.startsAt, endsAt: upperBound },
+        )
+      : await getDepositScoreDetailForUser(userId, tournament.startsAt, upperBound);
+    const breakdownTotal = (detail as { breakdown?: { total: number } }).breakdown?.total ?? 0;
+    const detailObj = detail as Record<string, unknown>;
+    return {
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+        metric: tournament.metric,
+        startsAt: tournament.startsAt.toISOString(),
+        endsAt: tournament.endsAt.toISOString(),
+        windowUtc: formatUtcWindowLabel(tournament.startsAt, upperBound),
+        upperBound: upperBound.toISOString(),
+      },
+      serverNow: new Date().toISOString(),
+      userId,
+      storedScore: stored ? Number(stored.score) : null,
+      ...detailObj,
+      mismatch: stored ? depositScoreMismatch(Number(stored.score), breakdownTotal, tournament.metric) : false,
+    };
+  }
+
+  throw new Error("Unsupported audit metric");
+}
+
+export async function getMyTournamentScoreBreakdown(tournamentId: number, userId: number) {
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  if (!tournament || !isAuditableMetric(tournament.metric)) return null;
+  const upperBound = tournamentUpperBound(tournament);
+
+  if (tournament.metric === "DEPOSITS_POL" || tournament.metric === "DEPOSITS_USD") {
+    registerTournamentMetricScorers();
+    const scorer = getMetricScorer(tournament.metric);
+    const detail = scorer?.getUserBreakdown
+      ? await scorer.getUserBreakdown(
+          userId,
+          { id: tournament.id, name: tournament.name, metric: tournament.metric, startsAt: tournament.startsAt, endsAt: tournament.endsAt, status: tournament.status as "ACTIVE" },
+          { startsAt: tournament.startsAt, endsAt: upperBound },
+        )
+      : await getDepositScoreDetailForUser(userId, tournament.startsAt, upperBound);
+    const detailObj = detail as Record<string, unknown>;
+    return {
+      tournamentId,
+      metric: tournament.metric,
+      windowUtc: formatUtcWindowLabel(tournament.startsAt, upperBound),
+      ...detailObj,
+    };
+  }
+
+  return null;
 }

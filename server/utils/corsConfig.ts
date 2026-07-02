@@ -44,7 +44,8 @@ export function buildExpressCorsOptions() {
         callback(null, true);
         return;
       }
-      callback(new Error("Not allowed by CORS"));
+      // Reject without throwing — Error() becomes an unhandled 500 on GET / (bots, scanners).
+      callback(null, false);
     },
     credentials: true
   };

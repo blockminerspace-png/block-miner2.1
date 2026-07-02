@@ -1,5 +1,8 @@
 import prisma from '../src/db/prisma.js';
 
+/** Fraction of each referred user's block reward (POL + SHIB) paid to their referrer. */
+export const REFERRAL_MINING_COMMISSION_RATE = 0.10;
+
 export async function createReferral(referrerId, referredId) {
   return prisma.referral.create({
     data: {

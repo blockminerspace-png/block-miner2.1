@@ -17,7 +17,6 @@ import {
   Sliders,
   X,
   AlertTriangle,
-  XCircle,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
@@ -38,14 +37,14 @@ type EnergyTaxSummaryLight = {
 };
 
 function EnergyTaxWarning() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
-  const unpaidDays = user?.energyUnpaidDays ?? 0;
-  const blocked = user?.energyBlocked ?? false;
+  const hasPendingTax = user?.energyHasPendingTax ?? false;
   const [open, setOpen] = useState(true);
   const [summary, setSummary] = useState<EnergyTaxSummaryLight | null>(null);
 
   useEffect(() => {
-    if (unpaidDays === 0) return;
+    if (!hasPendingTax) return;
     fetch('/api/energy-tax/summary', { credentials: 'include' })
       .then(r => r.json())
       .then((d: unknown) => {
@@ -55,78 +54,61 @@ function EnergyTaxWarning() {
         }
       })
       .catch(() => {});
-  }, [unpaidDays]);
+  }, [hasPendingTax]);
 
-  if (unpaidDays === 0 || !open) return null;
-
-  const daysLeft = Math.max(0, 3 - unpaidDays);
-  const isRed = blocked || daysLeft === 0;
+  if (!hasPendingTax || !open) return null;
 
   const fmt = (v: number) => v.toFixed(6);
 
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      onClick={() => !blocked && setOpen(false)}
+      onClick={() => setOpen(false)}
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
       <div
-        className={`relative z-10 w-full max-w-lg rounded-2xl border shadow-2xl flex flex-col gap-5 p-6 sm:p-8 ${
-          isRed ? 'bg-[#1a0a0a] border-red-500/40' : 'bg-[#111008] border-yellow-500/30'
-        }`}
+        className="relative z-10 w-full max-w-lg rounded-2xl border shadow-2xl flex flex-col gap-5 p-6 sm:p-8 bg-[#111008] border-yellow-500/30"
         onClick={(e) => e.stopPropagation()}
       >
-        {!blocked && (
-          <button
-            onClick={() => setOpen(false)}
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-300 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        <button
+          onClick={() => setOpen(false)}
+          className="absolute top-4 right-4 text-gray-500 hover:text-gray-300 transition-colors"
+          aria-label={t('dashboard.energy_tax_reminder.dismiss')}
+        >
+          <X className="w-4 h-4" />
+        </button>
 
         {/* header */}
         <div className="flex items-center gap-4">
-          <div className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center ${
-            isRed ? 'bg-red-500/15 border border-red-500/30' : 'bg-yellow-500/15 border border-yellow-500/30'
-          }`}>
-            {isRed
-              ? <XCircle className="w-6 h-6 text-red-400" />
-              : <AlertTriangle className="w-6 h-6 text-yellow-400" />
-            }
+          <div className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-yellow-500/15 border border-yellow-500/30">
+            <AlertTriangle className="w-6 h-6 text-yellow-400" />
           </div>
           <div>
-            <p className={`text-base font-bold ${isRed ? 'text-red-300' : 'text-yellow-300'}`}>
-              {blocked ? 'Energia do galpão cortada' : 'Taxa de Energia pendente'}
+            <p className="text-base font-bold text-yellow-300">
+              {t('dashboard.energy_tax_reminder.title')}
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
-              {blocked
-                ? `${unpaidDays} dias sem pagar — mineração pausada.`
-                : daysLeft > 0
-                  ? `${unpaidDays} dia${unpaidDays > 1 ? 's' : ''} sem pagar — corte em ${daysLeft} dia${daysLeft > 1 ? 's' : ''}.`
-                  : 'Pague agora para evitar o corte de energia.'}
+              {t('dashboard.energy_tax_reminder.subtitle')}
             </p>
           </div>
         </div>
 
         {/* tabela de valores */}
-        <div className={`rounded-xl border divide-y text-sm ${
-          isRed ? 'border-red-500/20 divide-red-500/10 bg-red-500/5' : 'border-yellow-500/20 divide-yellow-500/10 bg-yellow-500/5'
-        }`}>
+        <div className="rounded-xl border divide-y text-sm border-yellow-500/20 divide-yellow-500/10 bg-yellow-500/5">
           <div className="flex justify-between items-center px-4 py-3">
             <div>
-              <p className="text-white font-medium">Pagar só hoje</p>
-              <p className="text-xs text-gray-400">0,7143%/dia × 7 dias = 5% total na semana</p>
+              <p className="text-white font-medium">{t('dashboard.energy_tax_reminder.pay_today')}</p>
+              <p className="text-xs text-gray-400">{t('dashboard.energy_tax_reminder.pay_today_hint')}</p>
             </div>
-            <span className={`font-mono font-semibold ${isRed ? 'text-red-300' : 'text-yellow-300'}`}>
+            <span className="font-mono font-semibold text-yellow-300">
               {summary ? `${fmt(summary.todayDailyCharge)} POL` : '…'}
             </span>
           </div>
           <div className="flex justify-between items-center px-4 py-3">
             <div>
-              <p className="text-white font-medium">Fechar semana completa</p>
-              <p className="text-xs text-gray-400">15% sobre tudo minerado nos últimos 7 dias</p>
+              <p className="text-white font-medium">{t('dashboard.energy_tax_reminder.close_week')}</p>
+              <p className="text-xs text-gray-400">{t('dashboard.energy_tax_reminder.close_week_hint')}</p>
             </div>
             <span className="font-mono font-semibold text-gray-300">
               {summary ? `${fmt(summary.fullRateTax)} POL` : '…'}
@@ -134,20 +116,17 @@ function EnergyTaxWarning() {
           </div>
           {summary && (
             <div className="flex justify-between items-center px-4 py-3 text-xs text-gray-500">
-              <span>Total minerado 7 dias</span>
+              <span>{t('dashboard.energy_tax_reminder.total_7d')}</span>
               <span className="font-mono">{fmt(summary.totalRewards7d)} POL</span>
             </div>
           )}
         </div>
 
         {/* dica de isenção por atividade */}
-        <div className={`rounded-xl border px-4 py-3 flex items-start gap-3 text-sm ${
-          isRed ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-emerald-500/20 bg-emerald-500/5'
-        }`}>
+        <div className="rounded-xl border px-4 py-3 flex items-start gap-3 text-sm border-emerald-500/20 bg-emerald-500/5">
           <span className="text-emerald-400 mt-0.5 shrink-0">💡</span>
           <p className="text-xs text-emerald-300/80 leading-relaxed">
-            <span className="font-semibold text-emerald-300">Quer abater a taxa?</span>{' '}
-            Complete <span className="font-semibold">10 atividades no dia</span> — offerwall, faucet, shortlink, YouTube ou jogos — e o dia fica <span className="font-semibold">100% isento</span>.
+            {t('dashboard.energy_tax_reminder.exempt_hint')}
           </p>
         </div>
 
@@ -155,22 +134,16 @@ function EnergyTaxWarning() {
         <div className="flex flex-col gap-2">
           <a
             href="/taxes"
-            className={`w-full text-center text-sm font-semibold py-3 rounded-xl transition-colors ${
-              isRed
-                ? 'bg-red-500 hover:bg-red-400 text-white'
-                : 'bg-yellow-500 hover:bg-yellow-400 text-black'
-            }`}
+            className="w-full text-center text-sm font-semibold py-3 rounded-xl transition-colors bg-yellow-500 hover:bg-yellow-400 text-black"
           >
-            Ir para Taxa de Energia →
+            {t('dashboard.energy_tax_reminder.cta')}
           </a>
-          {!blocked && (
-            <button
-              onClick={() => setOpen(false)}
-              className="w-full text-center text-xs text-gray-500 hover:text-gray-400 py-1.5 transition-colors"
-            >
-              Lembrar depois
-            </button>
-          )}
+          <button
+            onClick={() => setOpen(false)}
+            className="w-full text-center text-xs text-gray-500 hover:text-gray-400 py-1.5 transition-colors"
+          >
+            {t('dashboard.energy_tax_reminder.remind_later')}
+          </button>
         </div>
       </div>
     </div>
@@ -793,17 +766,17 @@ export default function Dashboard(): ReactElement {
                   <h2 className="text-xl font-black text-white italic uppercase tracking-tighter">Programa de Afiliados</h2>
                 </div>
                 <p className="text-sm text-gray-500 font-medium leading-relaxed">
-                  Convide seus amigos e ganhe bônus de mineração vitalícios sobre cada bloco que eles minerarem.
+                  {t('dashboard.affiliate_description')}
                 </p>
                 <div className="flex items-center gap-6">
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Indicados Ativos</span>
+                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('dashboard.affiliate_active_referrals')}</span>
                     <span className="text-xl font-black text-white">{miner?.referralCount ?? 0}</span>
                   </div>
                   <div className="w-[1px] h-8 bg-gray-800" />
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Bônus Estimado</span>
-                    <span className="text-xl font-black text-emerald-400">10%</span>
+                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('dashboard.affiliate_bonus_label')}</span>
+                    <span className="text-xl font-black text-emerald-400">{t('dashboard.affiliate_bonus_rate')}</span>
                   </div>
                 </div>
               </div>

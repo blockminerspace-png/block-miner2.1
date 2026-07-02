@@ -11,9 +11,8 @@ import { getCheckinResetHour } from "../checkin/checkin.config.js";
  * Modelo: 3 regimes (diário 5%, semanal 15%, isenção por atividade 0%).
  * Taxas são SEMPRE por dia, sobre o minerado daquele dia — nunca retroativo.
  *
- * Fonte única de verdade para corte: `computeConsecutiveUnpaidMiningDays`, usada
- * tanto pelo bloqueio real (`checkAndUpdateEnergyBlock`) quanto pelo banner do
- * dashboard (`unpaidDays` em `computeWeekSummary`), evitando divergência.
+ * Dias em aberto: `computeConsecutiveUnpaidMiningDays` alimenta `unpaidDays` em
+ * `computeWeekSummary` (lembrete no dashboard). Não há corte de mineração.
  */
 const logger = loggerLib.child("EnergyTax");
 
@@ -184,23 +183,18 @@ async function sumRewardsBetween(userId: number, fromInclusive: Date, toExclusiv
 }
 
 /**
- * Conta dias consecutivos, de hoje para trás, que contam como "devendo" para fins de
- * corte de energia. Um dia conta como devendo quando:
+ * Conta dias consecutivos, de hoje para trás, com taxa em aberto. Um dia conta como devendo quando:
  *   1. Teve mineração (rewards > 0), E
  *   2. NÃO teve charge quitado (qualquer status paid/partial/skipped/exempt), E
  *   3. NÃO foi isento por atividade (10+ atividades no dia).
  *
  * A contagem para no primeiro dia que NÃO deve (sem mineração, pago, ou isento).
- * É a ÚNICA fonte de verdade usada tanto pelo bloqueio real
- * (`checkAndUpdateEnergyBlock`) quanto pelo aviso/banner do dashboard — assim os
- * dois nunca divergem (bug histórico B2).
- *
- * Retorna `{ consecutiveUnpaid, willBlock }` onde willBlock = consecutiveUnpaid >= 3.
+ * Usado em `computeWeekSummary` para o lembrete do dashboard.
  */
 export async function computeConsecutiveUnpaidMiningDays(
   userId: number,
   now: Date = new Date(),
-): Promise<{ consecutiveUnpaid: number; willBlock: boolean }> {
+): Promise<{ consecutiveUnpaid: number }> {
   const days = lastSevenBrtDays(now);
 
   const charges = await prisma.energyTaxCharge.findMany({
@@ -232,7 +226,7 @@ export async function computeConsecutiveUnpaidMiningDays(
     consecutiveUnpaid++;
   }
 
-  return { consecutiveUnpaid, willBlock: consecutiveUnpaid >= 3 };
+  return { consecutiveUnpaid };
 }
 
 export async function rewardsForBrtDay(userId: number, dayStart: Date): Promise<number> {
@@ -322,10 +316,6 @@ export async function computeWeekSummary(userId: number, now: Date = new Date())
 
   const todayAct = await countTodayActivities(userId, currentStart);
 
-  // unpaidDays alinhado à regra real de bloqueio (bug B2): conta apenas dias
-  // consecutivos minerados sem quitação (pago OU isento por atividade).
-  // Antes era `7 - paidDays`, que inflava o aviso de corte e apavorava quem
-  // escolheu o regime semanal ou tinha dias sem minerar.
   const { consecutiveUnpaid: unpaidDays } = await computeConsecutiveUnpaidMiningDays(userId, now);
 
   const periodEndKeys = Array.from({ length: 7 }, (_, i) =>
@@ -502,30 +492,18 @@ export async function payDailyTax(userId: number, now: Date = new Date()) {
 }
 
 /**
- * Recalcula o status de bloqueio de energia do usuário.
- * Delega 100% para `computeConsecutiveUnpaidMiningDays` (fonte única de verdade),
- * que considera um dia como quitado se houve charge pago/isento OU 10+ atividades
- * (bug B3). Bloqueia quando `willBlock` (>= 3 dias consecutivos devendo).
+ * Limpa flag legada `energyBlocked` se ainda estiver setada. Não bloqueia mineração.
  */
-export async function checkAndUpdateEnergyBlock(userId: number, now: Date = new Date()): Promise<boolean> {
-  if (!isEnergyTaxActive(now)) return false;
-
-  const { willBlock: shouldBlock, consecutiveUnpaid } = await computeConsecutiveUnpaidMiningDays(userId, now);
-
+export async function checkAndUpdateEnergyBlock(userId: number): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { energyBlocked: true } });
-  if (!user) return false;
+  if (!user?.energyBlocked) return false;
 
-  if (shouldBlock !== user.energyBlocked) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        energyBlocked: shouldBlock,
-        energyBlockedAt: shouldBlock ? new Date() : null,
-      },
-    });
-    logger.info("energy block updated", { userId, energyBlocked: shouldBlock, consecutiveUnpaid });
-  }
-  return shouldBlock;
+  await prisma.user.update({
+    where: { id: userId },
+    data: { energyBlocked: false, energyBlockedAt: null },
+  });
+  logger.info("legacy energy block cleared", { userId });
+  return false;
 }
 
 /**
@@ -660,7 +638,7 @@ export async function runWeeklySweep(now: Date = new Date()) {
         logger.warn("sweep day charge failed", { userId, dayStart, err: (err as Error).message });
       }
     }
-    await checkAndUpdateEnergyBlock(userId, now).catch(() => {});
+    await checkAndUpdateEnergyBlock(userId).catch(() => {});
     touched++;
   }
 

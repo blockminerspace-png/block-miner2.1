@@ -148,6 +148,7 @@ export async function registerPost(req: Request, res: Response): Promise<void> {
           email: normalizedEmail,
           passwordHash,
           refCode: refCode,
+          ...(referrerId ? { referredBy: referrerId } : {}),
           ip: clientIp,
           registrationIp: clientIp,
           userAgent: req.headers["user-agent"] || null,

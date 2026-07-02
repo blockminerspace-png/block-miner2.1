@@ -8,6 +8,10 @@ import {
   contractDepositMatchesLinkedWallet,
   extractDepositReceivedFromReceipt
 } from "./contractDepositLog.js";
+import { valueDepositAtConfirmation } from "../modules/tournaments/infrastructure/deposit/deposit-valuation.service.js";
+import { publishDepositConfirmedOutbox } from "../modules/tournaments/infrastructure/outbox/tournament-outbox.publisher.js";
+import type { DepositConfirmedPayload } from "../modules/tournaments/domain/events/deposit-confirmed.event.js";
+import { dispatchDepositConfirmedForTournaments } from "../modules/tournaments/application/deposit-tournament-dispatch.js";
 
 const logger = loggerLib.child("DepositVerifier");
 
@@ -216,6 +220,39 @@ async function verifyOnePendingDeposit(tx) {
       return;
     }
 
+    // Immutable USD valuation at on-chain confirmation moment
+    let valuation: Awaited<ReturnType<typeof valueDepositAtConfirmation>> | null = null;
+    try {
+      valuation = await valueDepositAtConfirmation({
+        polAmount: verifiedAmount,
+        blockNumber: Number(receipt.blockNumber),
+        source: depositSource,
+      });
+    } catch (valErr: unknown) {
+      logger.warn("Deposit USD valuation failed (will retry)", {
+        txId: tx.id,
+        attempt: attempts,
+        error: valErr instanceof Error ? valErr.message : String(valErr),
+      });
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: { verifyAttempts: attempts },
+      });
+      return;
+    }
+
+    const depositPayload: DepositConfirmedPayload = {
+      transactionId: tx.id,
+      userId: tx.userId,
+      polAmount: verifiedAmount,
+      usdValue: valuation.usdValue,
+      usdRate: valuation.usdRate,
+      eventAt: valuation.confirmedEventAt.toISOString(),
+      source: depositSource,
+      countsForTournament: valuation.countsForTournament,
+      txHash: tx.txHash ?? null,
+    };
+
     // Credita valor verificado em transação atômica
     await prisma.$transaction(async (ptx) => {
       await ptx.transaction.update({
@@ -226,11 +263,19 @@ async function verifyOnePendingDeposit(tx) {
           fromAddress: onchainTx.from?.toLowerCase() || null,
           completedAt: new Date(),
           verifyAttempts: attempts,
+          confirmedEventAt: valuation!.confirmedEventAt,
+          usdRateAtConfirmation: valuation!.usdRate.toString(),
+          usdValueAtConfirmation: valuation!.usdValue.toString(),
+          countsForTournament: valuation!.countsForTournament,
+          priceSnapshotId: valuation!.priceSnapshotId,
           rawTx: JSON.stringify({
             verifiedAmount,
             block: receipt.blockNumber,
             from: onchainTx.from,
-            source: depositSource
+            source: depositSource,
+            usdRate: valuation!.usdRate,
+            usdValue: valuation!.usdValue,
+            confirmedEventAt: valuation!.confirmedEventAt.toISOString(),
           })
         }
       });
@@ -238,7 +283,17 @@ async function verifyOnePendingDeposit(tx) {
         where: { id: tx.userId },
         data: { polBalance: { increment: verifiedAmount } }
       });
+      await publishDepositConfirmedOutbox(depositPayload, ptx as unknown as Parameters<typeof publishDepositConfirmedOutbox>[1]);
     });
+
+    try {
+      await dispatchDepositConfirmedForTournaments(depositPayload);
+    } catch (dispatchErr: unknown) {
+      logger.warn("Tournament deposit dispatch failed (outbox will retry)", {
+        txId: tx.id,
+        error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+      });
+    }
 
     // Sync runtime balance (sem-crash se engine não estiver disponível)
     try {

@@ -20,7 +20,16 @@ import {
   Zap,
   Pencil,
   X,
+  BarChart2,
 } from 'lucide-react';
+import {
+  formatDepositRankScore,
+  formatDepositRowValue,
+  formatSummaryTotal,
+  isDepositTournamentMetric,
+  isUsdDepositRanking,
+  metricLabelKey,
+} from '../../shared/utils/tournamentDeposit';
 
 const adminApi = axios.create({
   baseURL: '/',
@@ -228,7 +237,8 @@ const METRIC_OPTIONS = [
   { value: 'BLOCKS_MINED', key: 'tournaments.metrics.BLOCKS_MINED' },
   { value: 'CHECKINS', key: 'tournaments.metrics.CHECKINS' },
   { value: 'TASKS_COMPLETED', key: 'tournaments.metrics.TASKS_COMPLETED' },
-  { value: 'DEPOSITS_POL', key: 'tournaments.metrics.DEPOSITS_POL' },
+  { value: 'DEPOSITS_USD', key: 'tournaments.metrics.DEPOSITS_USD' },
+  { value: 'DEPOSITS_POL', key: 'tournaments.metrics.DEPOSITS_POL_LEGACY' },
   { value: 'OFFERS_INTERNAL', key: 'tournaments.metrics.OFFERS_INTERNAL' },
   { value: 'OFFERS_EXTERNAL', key: 'tournaments.metrics.OFFERS_EXTERNAL' },
   { value: 'OFFERS_ALL', key: 'tournaments.metrics.OFFERS_ALL' },
@@ -461,6 +471,9 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
               >
                 {METRIC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{t(o.key)}</option>)}
               </select>
+              {isDepositTournamentMetric(metric) && (
+                <p className="mt-1.5 text-[10px] text-amber-300/90">{t('tournaments.admin.metricDepositHint')}</p>
+              )}
             </div>
           </div>
 
@@ -846,6 +859,9 @@ function EditTournamentModal({
               >
                 {METRIC_OPTIONS.map((o) => <option key={o.value} value={o.value}>{i18t(o.key)}</option>)}
               </select>
+              {isDepositTournamentMetric(metric) && (
+                <p className="mt-1.5 text-[10px] text-amber-300/90">{i18t('tournaments.admin.metricDepositHint')}</p>
+              )}
             </div>
           </div>
 
@@ -957,6 +973,11 @@ function TournamentRow({
   const [loadingFinalize, setLoadingFinalize] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const [auditOpen, setAuditOpen] = useState(false);
+
+  const isAuditableMetric =
+    t.metric === 'DEPOSITS_POL' || t.metric === 'DEPOSITS_USD';
+
   const cancel = async () => {
     if (!confirm(i18t('tournaments.admin.cancelConfirm', { name: t.name }))) return;
     setLoadingCancel(true);
@@ -995,7 +1016,7 @@ function TournamentRow({
           {i18t(`tournaments.status.${t.status}`)}
         </span>
         <span className="font-semibold text-white text-sm">{t.name}</span>
-        <span className="text-[10px] text-slate-500 font-mono">{t.type} · {t.metric}</span>
+        <span className="text-[10px] text-slate-500 font-mono">{t.type} · {i18t(metricLabelKey(t.metric))}</span>
         {t.recurring && (
           <span className="flex items-center gap-1 rounded-full bg-amber-500/10 text-amber-300 px-2 py-0.5 text-[10px] font-bold">
             <Repeat className="h-2.5 w-2.5" />
@@ -1052,6 +1073,15 @@ function TournamentRow({
           )}
 
           <div className="flex flex-wrap gap-2 pt-1">
+            {isAuditableMetric && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setAuditOpen(true); }}
+                className="flex items-center gap-1.5 rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-400 hover:bg-violet-500/20 transition-colors"
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                Auditoria
+              </button>
+            )}
             {(t.status === 'SCHEDULED' || t.status === 'ACTIVE') && (
               <button
                 onClick={(e) => { e.stopPropagation(); setEditing(true); }}
@@ -1092,6 +1122,287 @@ function TournamentRow({
           onSaved={onRefresh}
         />
       )}
+
+      {auditOpen && (
+        <TournamentAuditModal tournament={t} onClose={() => setAuditOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+type AuditBreakdown = {
+  internal?: number;
+  offerwallMe?: number;
+  zeradsRaw?: number;
+  zeradsCapped?: number;
+  total?: number;
+  txCount?: number;
+  totalPol?: number;
+  totalUsd?: number;
+};
+
+type AuditEntry = {
+  rank: number;
+  userId: number;
+  username: string;
+  storedScore: number;
+  breakdown: AuditBreakdown;
+  mismatch: boolean;
+};
+
+function TournamentAuditModal({ tournament, onClose }: { tournament: Tournament; onClose: () => void }) {
+  const { t: i18t } = useTranslation();
+  const isDeposit = isDepositTournamentMetric(tournament.metric);
+  const isUsdDeposit = isUsdDepositRanking(tournament.metric);
+  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [meta, setMeta] = useState<Record<string, unknown> | null>(null);
+  const [detailUserId, setDetailUserId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await adminApi.get(`/api/admin/tournaments/${tournament.id}/score-audit`);
+      if (data?.ok) {
+        setEntries(data.entries ?? []);
+        setMeta(data);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [tournament.id]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const loadDetail = async (userId: number) => {
+    setDetailUserId(userId);
+    setDetailLoading(true);
+    try {
+      const { data } = await adminApi.get(`/api/admin/tournaments/${tournament.id}/score-audit/${userId}`);
+      if (data?.ok) setDetail(data);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const scoringConfig = meta?.scoringConfig as { zeradsMaxPerWindow?: number; zeradsMaxPerUtcDay?: number } | undefined;
+  const depositSummary = meta?.depositSummary as {
+    totalPol?: number;
+    totalUsd?: number | null;
+    txCount?: number;
+    participantCount?: number;
+    rankingUnit?: string;
+  } | undefined;
+  const tMeta = meta?.tournament as { windowUtc?: { start: string; end: string } } | undefined;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
+      <div
+        className="relative w-full max-w-5xl max-h-[90vh] overflow-auto rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-white">Auditoria — {tournament.name}</h3>
+            <p className="text-xs text-slate-500 mt-1 font-mono">
+              Servidor: {String(meta?.serverNow ?? '…')} · agora UTC: {String((meta as { serverNowUtc?: string })?.serverNowUtc ?? '…')}
+            </p>
+            {tMeta?.windowUtc && (
+              <p className="text-xs text-slate-400 mt-1">
+                Janela UTC: {tMeta.windowUtc.start} → {tMeta.windowUtc.end}
+              </p>
+            )}
+            {isDeposit && depositSummary && (
+              <p className="text-xs text-emerald-300 mt-1 font-mono">
+                Total janela: {depositSummary.txCount ?? 0} depósitos ·{' '}
+                {formatSummaryTotal(tournament.metric, depositSummary)}{' '}
+                {isUsdDeposit && depositSummary.totalPol != null && depositSummary.totalPol > 0 && (
+                  <span className="text-slate-400">
+                    ({depositSummary.totalPol.toFixed(4)} POL)
+                  </span>
+                )}{' '}
+                · {depositSummary.participantCount ?? 0} participantes
+              </p>
+            )}
+            {!isDeposit && (
+              <p className="text-xs text-violet-300 mt-1">
+                Zerads: cliques válidos (máx. {scoringConfig?.zeradsMaxPerUtcDay ?? scoringConfig?.zeradsMaxPerWindow ?? 100}/dia UTC)
+              </p>
+            )}
+            {isDeposit && (
+              <p className="text-xs text-amber-300/90 mt-1">
+                {i18t('tournaments.admin.depositAuditNote')}
+              </p>
+            )}
+          </div>
+          <button type="button" onClick={onClose} className="text-slate-500 hover:text-white"><X className="h-5 w-5" /></button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-slate-500" /></div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-white/8">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider">
+                {isDeposit ? (
+                  <tr>
+                    <th className="px-3 py-2 text-left">#</th>
+                    <th className="px-3 py-2 text-left">User</th>
+                    <th className="px-3 py-2 text-right">Txs</th>
+                    <th className="px-3 py-2 text-right">{isUsdDeposit ? 'Valor USD' : 'Total POL'}</th>
+                    {isUsdDeposit && <th className="px-3 py-2 text-right">POL (info)</th>}
+                    <th className="px-3 py-2 text-right">Gravado</th>
+                    <th className="px-3 py-2 text-right">Δ</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th className="px-3 py-2 text-left">#</th>
+                    <th className="px-3 py-2 text-left">User</th>
+                    <th className="px-3 py-2 text-right">Int</th>
+                    <th className="px-3 py-2 text-right">OWM</th>
+                    <th className="px-3 py-2 text-right">Zerads</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                    <th className="px-3 py-2 text-right">Gravado</th>
+                    <th className="px-3 py-2 text-right">Δ</th>
+                  </tr>
+                )}
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {entries.map((e) => (
+                  <tr
+                    key={e.userId}
+                    className={`cursor-pointer hover:bg-white/5 ${e.mismatch ? 'bg-red-500/10' : ''}`}
+                    onClick={() => void loadDetail(e.userId)}
+                  >
+                    <td className="px-3 py-2 text-slate-500">{e.rank}</td>
+                    <td className="px-3 py-2 text-white font-medium">{e.username} <span className="text-slate-600">#{e.userId}</span></td>
+                    {isDeposit ? (
+                      <>
+                        <td className="px-3 py-2 text-right font-mono">{e.breakdown.txCount ?? 0}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-400">
+                          {formatDepositRankScore(tournament.metric, e.breakdown.total ?? 0)}
+                        </td>
+                        {isUsdDeposit && (
+                          <td className="px-3 py-2 text-right font-mono text-slate-400">
+                            {(e.breakdown.totalPol ?? 0).toFixed(4)}
+                          </td>
+                        )}
+                        <td className="px-3 py-2 text-right font-mono">
+                          {formatDepositRankScore(tournament.metric, e.storedScore)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-mono ${e.mismatch ? 'text-red-400' : 'text-slate-600'}`}>
+                          {isUsdDeposit
+                            ? (e.storedScore - (e.breakdown.total ?? 0)).toFixed(2)
+                            : (e.storedScore - (e.breakdown.total ?? 0)).toFixed(4)}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2 text-right font-mono">{e.breakdown.internal ?? 0}</td>
+                        <td className="px-3 py-2 text-right font-mono">{e.breakdown.offerwallMe ?? 0}</td>
+                        <td className="px-3 py-2 text-right font-mono text-violet-300">
+                          {e.breakdown.zeradsRaw ?? 0}→{e.breakdown.zeradsCapped ?? 0} cliques válidos
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-400">{e.breakdown.total ?? 0}</td>
+                        <td className="px-3 py-2 text-right font-mono">{e.storedScore}</td>
+                        <td className={`px-3 py-2 text-right font-mono ${e.mismatch ? 'text-red-400' : 'text-slate-600'}`}>
+                          {(e.storedScore - (e.breakdown.total ?? 0)).toFixed(0)}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {detailUserId != null && (
+          <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/80 p-4">
+            <p className="text-sm font-bold text-white mb-2">Detalhe user #{detailUserId}</p>
+            {detailLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+            ) : detail ? (
+              isDeposit ? (
+                <div className="text-[11px] font-mono text-slate-400 max-h-64 overflow-auto space-y-3">
+                  <p className="text-emerald-400">
+                    Total: {formatDepositRankScore(tournament.metric, Number((detail.breakdown as { total?: number })?.total ?? 0))}
+                    {(detail.breakdown as { totalPol?: number })?.totalPol != null && isUsdDeposit && (
+                      <span className="text-slate-400 ml-1">
+                        ({((detail.breakdown as { totalPol?: number }).totalPol ?? 0).toFixed(4)} POL)
+                      </span>
+                    )}
+                    {' · '}{(detail.breakdown as { txCount?: number })?.txCount ?? 0} txs
+                    {(detail as { mismatch?: boolean }).mismatch && <span className="text-red-400 ml-2">mismatch</span>}
+                  </p>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-slate-500 text-left">
+                        <th className="py-1 pr-2">Valor</th>
+                        <th className="py-1 pr-2">Creditado UTC</th>
+                        <th className="py-1">Hash</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(detail.deposits as Array<{
+                        amount: number;
+                        amountPol?: number;
+                        usdValue?: number | null;
+                        completedAt: string | null;
+                        confirmedEventAt?: string | null;
+                        createdAt: string;
+                        txHash: string | null;
+                      }> | undefined)?.map((d, i) => {
+                        const amountPol = d.amountPol ?? d.amount;
+                        const formatted = formatDepositRowValue(tournament.metric, d.usdValue, amountPol);
+                        const credited = d.confirmedEventAt ?? d.completedAt ?? d.createdAt;
+                        return (
+                          <tr key={i} className="border-t border-white/5">
+                            <td className="py-1 pr-2 text-white">
+                              {formatted.primary}
+                              {formatted.secondary ? ` (${formatted.secondary})` : ''}
+                            </td>
+                            <td className="py-1 pr-2">{credited.replace('T', ' ').slice(0, 19)}</td>
+                            <td className="py-1 truncate max-w-[200px]">{d.txHash ? `${d.txHash.slice(0, 10)}…${d.txHash.slice(-6)}` : '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {(detail.pendingInWindow as Array<{ amount: number; createdAt: string }> | undefined)?.length ? (
+                    <p className="text-amber-400">
+                      Pendentes na janela: {(detail.pendingInWindow as Array<unknown>).length} (não contam no score)
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-3 text-[11px] font-mono text-slate-400 max-h-48 overflow-auto">
+                  <div>
+                    <p className="text-slate-500 mb-1">Internas</p>
+                    {(detail.internalAttempts as Array<{ title: string; completedAt: string }> | undefined)?.map((a, i) => (
+                      <div key={i} className="truncate">{a.completedAt.slice(11, 19)} {a.title}</div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-1">OfferwallMe</p>
+                    {(detail.offerwallMe as Array<{ createdAt: string; offerName: string | null }> | undefined)?.map((a, i) => (
+                      <div key={i} className="truncate">{a.createdAt.slice(11, 19)} {a.offerName ?? '—'}</div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-1">Zerads (cliques)</p>
+                    {(detail.zerads as Array<{ callbackAt: string; clicks: number }> | undefined)?.map((z, i) => (
+                      <div key={i}>{z.callbackAt.slice(11, 19)} ({z.clicks} cliques)</div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ) : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

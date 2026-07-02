@@ -18,8 +18,7 @@ export type AuthUser = {
   username: string | null;
   email: string;
   hasReferral?: boolean;
-  energyBlocked?: boolean;
-  energyUnpaidDays?: number;
+  energyHasPendingTax?: boolean;
 };
 
 export interface RegisterPayload {
@@ -74,8 +73,7 @@ function parseAuthUserPayload(raw: unknown): AuthUser | null {
   if (un !== null && typeof un !== 'string') return null;
   const out: AuthUser = { id: o.id, name: o.name, email: o.email, username: un };
   if (typeof o.hasReferral === 'boolean') out.hasReferral = o.hasReferral;
-  if (typeof o.energyBlocked === 'boolean') out.energyBlocked = o.energyBlocked;
-  if (typeof o.energyUnpaidDays === 'number') out.energyUnpaidDays = o.energyUnpaidDays;
+  if (typeof o.energyHasPendingTax === 'boolean') out.energyHasPendingTax = o.energyHasPendingTax;
   return out;
 }
 

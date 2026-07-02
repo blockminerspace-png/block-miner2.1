@@ -226,31 +226,51 @@ else
   compose build app worker
 fi
 
-# Preserve previously-shipped /assets/* so stale tabs (cached old index.html
-# referencing previous chunk hashes) keep loading instead of 404→ErrorBoundary.
+# One-generation lazy chunks from the previous container (never accumulate index-*.js).
 LEGACY_ASSETS_DIR="$APP_ROOT/.legacy-assets"
-mkdir -p "$LEGACY_ASSETS_DIR"
+LEGACY_CAPTURE="$(mktemp -d /tmp/bm-legacy-cap-XXXXXX)"
 if docker ps -a --format '{{.Names}}' | grep -qx block-miner-app; then
-  docker cp block-miner-app:/app/client/dist/assets/. "$LEGACY_ASSETS_DIR/" 2>/dev/null || true
+  docker cp block-miner-app:/app/client/dist/assets/. "$LEGACY_CAPTURE/" 2>/dev/null || true
 fi
-# Prune assets older than 14 days so legacy dir doesn't grow forever.
-find "$LEGACY_ASSETS_DIR" -type f -mtime +14 -delete 2>/dev/null || true
+rm -rf "$LEGACY_ASSETS_DIR"
+mkdir -p "$LEGACY_ASSETS_DIR"
+if [[ -d "$LEGACY_CAPTURE" ]]; then
+  sh -c 'cd "$1" && for f in *; do
+    [ -e "$f" ] || continue
+    case "$f" in index-*.js) continue ;; esac
+    cp -a "$f" "$2/"
+  done' _ "$LEGACY_CAPTURE" "$LEGACY_ASSETS_DIR" 2>/dev/null || true
+fi
+rm -rf "$LEGACY_CAPTURE"
 
 compose up -d --remove-orphans db redis app worker telegram-worker nginx
 
-# After containers are up, merge legacy assets into the new container's dist.
-# Same-name files (current build) win because we use a tar pipe that skips conflicts.
+# Runtime resolves #server/* from backend/_server_vendor — keep in sync with dist/server after image build.
+docker exec block-miner-app sh -c 'if [ -d dist/server/modules/tournaments ] && [ -d backend/_server_vendor/modules/tournaments ]; then cp -a dist/server/modules/tournaments/. backend/_server_vendor/modules/tournaments/; fi' 2>/dev/null || true
+
+# Merge previous-build lazy chunks only (entry bundles always come from the new image).
 sleep 2
 if [[ -d "$LEGACY_ASSETS_DIR" ]] && [[ "$(ls -A "$LEGACY_ASSETS_DIR" 2>/dev/null)" ]]; then
   docker exec block-miner-app sh -c 'mkdir -p /tmp/legacy && rm -rf /tmp/legacy/*' 2>/dev/null || true
   docker cp "$LEGACY_ASSETS_DIR/." block-miner-app:/tmp/legacy/ 2>/dev/null || true
-  docker exec block-miner-app sh -c 'cd /tmp/legacy && for f in *; do [ -e "/app/client/dist/assets/$f" ] || cp -r "$f" /app/client/dist/assets/; done' 2>/dev/null || true
-  echo "[vm] merged legacy assets so stale tabs keep working"
+  docker exec block-miner-app sh -c 'cd /tmp/legacy && for f in *; do
+    case "$f" in index-*.js) continue ;; esac
+    [ -e "/app/client/dist/assets/$f" ] || cp -r "$f" /app/client/dist/assets/
+  done' 2>/dev/null || true
+  echo "[vm] merged one-generation lazy chunks (no index-*.js)"
 fi
 if ! ss -tlnp 2>/dev/null | grep -qF ':80 '; then
   compose up -d --force-recreate --no-deps nginx || true
 fi
 compose exec -T app npx prisma migrate deploy --schema=server/prisma/schema.prisma || true
+if [[ -f "$APP_ROOT/scripts/vm-prod-maintenance.sh" ]]; then
+  APP_ROOT="$APP_ROOT" bash "$APP_ROOT/scripts/vm-prod-maintenance.sh" || true
+else
+  echo "[vm] warning: scripts/vm-prod-maintenance.sh missing — skip post-deploy cleanup"
+fi
+if [[ -f "$APP_ROOT/scripts/install-vm-maintenance-cron.sh" ]]; then
+  bash "$APP_ROOT/scripts/install-vm-maintenance-cron.sh" "$APP_ROOT" || true
+fi
 curl -sS -o /dev/null -w "health:%{http_code}\n" http://127.0.0.1:3000/health || true
 echo "[vm] docker steps finished"
 '''

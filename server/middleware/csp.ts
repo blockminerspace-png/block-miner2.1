@@ -64,7 +64,14 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
     defaultSrc: ["'self'"],
     baseUri: ["'self'"],
     formAction: ["'self'"],
-    frameAncestors: ["'self'", "https://genesisdao.tech", "https://www.genesisdao.tech"],
+    frameAncestors: [
+      "'self'",
+      "https://genesisdao.tech",
+      "https://www.genesisdao.tech",
+      "https://acrenighttv.base44.app",
+      "https://zerads.com",
+      "https://www.zerads.com",
+    ],
     frameSrc: [
       "'self'",
       "https://challenges.cloudflare.com",

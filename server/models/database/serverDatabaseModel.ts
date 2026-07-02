@@ -2,6 +2,7 @@ import prisma from '../../src/db/prisma.js';
 import { createNotification } from '../../controllers/notificationController.js';
 import { getMiningEngine } from '../../src/miningEngineInstance.js';
 import { applyUserBalanceDelta } from '../../src/runtime/miningRuntime.js';
+import { REFERRAL_MINING_COMMISSION_RATE } from '../referralModel.js';
 
 export async function markCheckinConfirmed(checkinId, now) {
   return prisma.dailyCheckin.update({
@@ -158,11 +159,11 @@ export async function persistBlockRewards({
           });
         }
 
-        // 3) Referral commission (1%) on each currency, paid to the referrer's matching balance.
+        // Referral commission on each currency, paid to the referrer's matching balance.
         const referredBy = referrerByMinerId.get(r.userId);
         if (referredBy) {
-          const polCommission = polInc > 0 ? polInc * 0.01 : 0;
-          const shibCommission = shibInc > 0 ? shibInc * 0.01 : 0;
+          const polCommission = polInc > 0 ? polInc * REFERRAL_MINING_COMMISSION_RATE : 0;
+          const shibCommission = shibInc > 0 ? shibInc * REFERRAL_MINING_COMMISSION_RATE : 0;
           if (polCommission > 0 || shibCommission > 0) {
             await tx.user.update({
               where: { id: referredBy },
@@ -196,8 +197,8 @@ export async function persistBlockRewards({
           return {
             referrerId: referredBy,
             referredId: r.userId,
-            amount: polInc > 0 ? polInc * 0.01 : 0,
-            amountShib: shibInc > 0 ? shibInc * 0.01 : 0,
+            amount: polInc > 0 ? polInc * REFERRAL_MINING_COMMISSION_RATE : 0,
+            amountShib: shibInc > 0 ? shibInc * REFERRAL_MINING_COMMISSION_RATE : 0,
             source: `mining_block_${blockNumber}`,
             createdAt: timestamp,
           };

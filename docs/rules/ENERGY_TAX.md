@@ -1,7 +1,7 @@
 # Taxa de Energia — Regras de Negócio
 
 > Fonte de verdade: `server/modules/energy-tax/energyTax.service.ts`
-> UI: `client/src/pages/taxes/EnergyTaxSection.tsx`, aviso no `client/src/pages/dashboard/DashboardPage.tsx`
+> UI: `client/src/pages/taxes/EnergyTaxSection.tsx`, lembrete no `client/src/pages/dashboard/DashboardPage.tsx`
 
 ## 1. Modelo
 
@@ -19,6 +19,9 @@ Trade-off: pagar todo dia economiza **67%** mas exige ação diária. Deixar pra
 > ⚠️ **Importante:** as taxas são sempre **por dia, sobre o minerado daquele dia**.
 > Nunca há cobrança retroativa de 7 dias de uma vez. O cron semanal cobra **cada dia em
 > aberto separadamente**, multiplicando o minerado daquele dia por `AUTO_PER_DAY_RATE`.
+
+**Não há corte de mineração.** A única consequência de não pagar durante a semana é o
+fechamento automático de segunda (regime semanal, 15%).
 
 ## 2. Feature gating
 
@@ -38,9 +41,9 @@ Um dia é considerado **quitado** quando existe um `EnergyTaxCharge` com
 `periodDayStartsAt = início do período` (qualquer `status`) **OU** quando o jogador atingiu
 10+ atividades no período corrente ao pagar (isenção por atividade).
 
-## 4. Corte de energia (bloqueio)
+## 4. Dias em aberto (lembrete no dashboard)
 
-Função única: **`computeConsecutiveUnpaidMiningDays(userId, now)`**.
+Função: **`computeConsecutiveUnpaidMiningDays(userId, now)`**.
 
 Conta, de hoje para trás, os dias consecutivos que **devem** (tiveram mineração E não
 foram quitados por pagamento ou isenção). A contagem **para** no primeiro dia que:
@@ -49,11 +52,8 @@ foram quitados por pagamento ou isenção). A contagem **para** no primeiro dia 
 - **foi quitado** (charge existente), ou
 - **foi isento por atividade** (10+ atividades).
 
-`willBlock = consecutiveUnpaid >= 3` → `User.energyBlocked = true` (mineração pausada).
-
-> Essa **mesma função** alimenta tanto o bloqueio real
-> (`checkAndUpdateEnergyBlock`) quanto o `unpaidDays` exposto no
-> `computeWeekSummary` / banner do dashboard. Assim os dois nunca divergem.
+O resultado alimenta `unpaidDays` em `computeWeekSummary`. Se `unpaidDays > 0`, a sessão
+expõe `energyHasPendingTax` e o dashboard mostra um lembrete suave (sem pausar mineração).
 
 ## 5. Cron semanal (`runWeeklySweep`, segunda 21h BRT)
 
@@ -66,19 +66,18 @@ Para cada usuário que minerou na janela de 7 dias, para cada dia em aberto:
    - 0 < saldo < valor → `status:"partial"` (debita o que tem)
    - saldo = 0 → `status:"skipped"` (sem débito)
 
-Ao final, chama `checkAndUpdateEnergyBlock` por usuário.
-
 ## 6. Bugs corrigidos (referência histórica)
 
 | ID | Problema | Correção |
 |---|---|---|
 | B1 | Offerwall interno não contava pra isenção: query filtrava `status:"completed"` mas o enum grava `"COMPLETED"` | Filtro corrigido para `"COMPLETED"` |
-| B2 | `unpaidDays` do banner era `7 - paidDays` (inflava o aviso de corte, apavorava quem escolheu o regime semanal) | `unpaidDays` agora vem de `computeConsecutiveUnpaidMiningDays`, alinhado ao bloqueio real |
-| B3 | `checkAndUpdateEnergyBlock` ignorava a isenção por atividade | Dia isento agora conta como quitado (via função única) |
+| B2 | `unpaidDays` do banner era `7 - paidDays` (inflava o aviso) | `unpaidDays` agora vem de `computeConsecutiveUnpaidMiningDays` |
+| B3 | Isenção por atividade não era considerada na contagem | Dia isento conta como quitado (via função única) |
 | B4 | Comentário dizia `AUTO_PER_DAY_RATE (1.43%/dia)` | Corrigido para `2.1429%/dia` |
 | B5 | Card "Sua fatura desta semana" parecia cobrança retroativa de 7 dias | Reformulado como "Simulação de economia" com disclaimer explícito |
 | B6 | `runWeeklySweep` cobrava dias isentos por atividade se o jogador não clicasse "Pagar hoje" | Sweep agora cria charge `mode:"exempt"` em dias com 10+ atividades |
 | B7 | `payDailyTax` gravava `periodDayStartsAt` no dia do pagamento; sweep buscava no dia minerado → dupla cobrança auto+manual | Manual e sweep usam o mesmo `periodDayStartsAt` (dia minerado); migration corrige histórico |
+| B8 | 3+ dias sem pagar pausava mineração (`energyBlocked`) | Corte de energia removido; taxa continua via pagamento diário ou sweep semanal |
 
 ## 7. Constantes
 

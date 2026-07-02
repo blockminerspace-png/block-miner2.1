@@ -180,6 +180,9 @@
       "#server/modules/tournaments/index.js": [
         "./src/types/stubs/stub-server-modules-tournaments-index.d.ts"
       ],
+      "#server/modules/offerwall/offerwall.admin.routes.js": [
+        "./src/types/stubs/stub-server-modules-offerwall-routes.d.ts"
+      ],
       "#server/modules/energy-tax/index.js": [
         "./src/types/stubs/stub-server-modules-energy-tax-index.d.ts"
       ],

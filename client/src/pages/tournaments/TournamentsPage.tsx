@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Trophy,
@@ -12,8 +13,6 @@ import {
   Loader2,
   RefreshCw,
   Zap,
-  TrendingUp,
-  CalendarDays,
   Gift,
   CheckCircle2,
   XCircle,
@@ -23,6 +22,14 @@ import {
 } from 'lucide-react';
 import { api } from '../../store/auth';
 import { formatHashrate } from '../../shared/utils/machine';
+import {
+  formatDepositRankScore,
+  formatDepositRankScoreWithPolHint,
+  depositRankColumnKey,
+  depositTotalLabelKey,
+  isDepositTournamentMetric,
+  isUsdDepositRanking,
+} from '../../shared/utils/tournamentDeposit';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -55,6 +62,7 @@ interface TournamentSummary {
   metric: string;
   startsAt: string;
   endsAt: string;
+  windowUtc?: { start: string; end: string };
   status: 'SCHEDULED' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
   prizes: TournamentPrize[];
   _count: { entries: number };
@@ -63,6 +71,8 @@ interface TournamentSummary {
 interface LeaderboardEntry {
   id: number;
   score: number;
+  /** POL deposited in window — informational when metric is DEPOSITS_USD */
+  scorePol?: number | null;
   rank?: number;
   user: { id: number; username: string; name?: string; avatarUrl?: string };
 }
@@ -73,6 +83,9 @@ interface TournamentDetail {
   myEntry?: { score: number; rank?: number; rewardGranted: boolean } | null;
   myRankLive?: number | null;
   scoresComputedAt?: string | null;
+  myDepositBreakdown?: {
+    breakdown: { total: number; txCount: number; totalUsd?: number | null; totalPol?: number };
+  } | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -90,6 +103,7 @@ const METRIC_CATEGORY: Record<string, CategoryInfo> = {
   OFFERS_INTERNAL: { id: 'offerwall', key: 'offerwall', icon: Gift },
   OFFERS_EXTERNAL: { id: 'offerwall', key: 'offerwall', icon: Gift },
   DEPOSITS_POL:    { id: 'deposit',   key: 'deposit',   icon: Wallet },
+  DEPOSITS_USD:    { id: 'deposit',   key: 'deposit',   icon: Wallet },
   HASHRATE:        { id: 'mining',    key: 'mining',    icon: Cpu },
   BLOCKS_MINED:    { id: 'mining',    key: 'mining',    icon: Cpu },
   CHECKINS:        { id: 'activity',  key: 'activity',  icon: CheckCircle2 },
@@ -104,8 +118,44 @@ function categoryOf(metric: string): CategoryInfo {
 
 function formatScore(score: number, metric: string): string {
   if (metric === 'HASHRATE') return formatHashrate(score);
-  if (metric === 'DEPOSITS_POL') return `${score.toFixed(4)} POL`;
+  if (isDepositTournamentMetric(metric)) return formatDepositRankScore(metric, score);
   return score.toLocaleString();
+}
+
+function DepositScoreCell({
+  score,
+  metric,
+  polHint,
+  align = 'end',
+}: {
+  score: number;
+  metric: string;
+  polHint?: number | null;
+  align?: 'end' | 'center';
+}) {
+  const alignClass = align === 'center' ? 'items-center' : 'items-end';
+  if (!isUsdDepositRanking(metric)) {
+    return <span>{formatDepositRankScore(metric, score)}</span>;
+  }
+  const { primary, secondary } = formatDepositRankScoreWithPolHint(metric, score, polHint);
+  return (
+    <span className={`inline-flex flex-col ${alignClass} leading-tight`}>
+      <span>{primary}</span>
+      {secondary && <span className="text-[10px] text-slate-500 font-normal">{secondary}</span>}
+    </span>
+  );
+}
+
+function isOfferwallMetric(metric: string): boolean {
+  return metric === 'OFFERS_ALL' || metric === 'OFFERS_EXTERNAL' || metric === 'OFFERS_INTERNAL';
+}
+
+function isDepositMetric(metric: string): boolean {
+  return isDepositTournamentMetric(metric);
+}
+
+function totalLabelKey(metric: string): string {
+  return isOfferwallMetric(metric) ? 'tournaments.offers_total' : 'tournaments.score';
 }
 
 function formatPrizeStr(prize: TournamentPrize): string {
@@ -305,8 +355,18 @@ export default function TournamentsPage() {
     setLoadingDetail(true);
     setError(null);
     try {
-      const res = await api.get<TournamentDetail>(`/tournaments/${id}`);
-      setSelected(res.data);
+      const res = await api.get<TournamentDetail & { ok?: boolean }>(`/tournaments/${id}`);
+      const body = res.data;
+      setSelected({
+        tournament: body.tournament,
+        top: body.top ?? [],
+        myEntry: body.myEntry,
+        myRankLive: body.myRankLive,
+        scoresComputedAt: body.scoresComputedAt,
+        myDepositBreakdown: body.myDepositBreakdown
+          ? { breakdown: body.myDepositBreakdown.breakdown }
+          : null,
+      });
     } catch {
       setError(t('tournaments.errors.loadDetail'));
       setSelected(null);
@@ -543,20 +603,36 @@ export default function TournamentsPage() {
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">{selected.tournament.name}</h2>
                 <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap">
-                  <span className="flex items-center gap-1.5">
-                    <Zap className="h-3.5 w-3.5 text-amber-400" />
-                    {t(`tournaments.metrics.${selected.tournament.metric}`)}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5 text-sky-400" />
-                    {t('tournaments.participants', { count: selected.tournament._count.entries })}
-                  </span>
+                  {!isDepositMetric(selected.tournament.metric) && (
+                    <>
+                      <span className="flex items-center gap-1.5">
+                        <Zap className="h-3.5 w-3.5 text-amber-400" />
+                        {t(`tournaments.metrics.${selected.tournament.metric}`)}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-sky-400" />
+                        {t('tournaments.participants', { count: selected.tournament._count.entries })}
+                      </span>
+                    </>
+                  )}
                   <CountdownBadge startsAt={selected.tournament.startsAt} endsAt={selected.tournament.endsAt} status={selected.tournament.status} />
                 </div>
-                {selected.scoresComputedAt && (
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    {t('tournaments.scores_live_hint')}
+                {selected.tournament.windowUtc && (
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    {t('tournaments.period_utc', {
+                      start: selected.tournament.windowUtc.start,
+                      end: selected.tournament.windowUtc.end,
+                    })}
                   </p>
+                )}
+                {isDepositMetric(selected.tournament.metric) && (
+                  <Link
+                    to="/wallet"
+                    className="inline-flex items-center gap-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold px-4 py-2 transition-colors mt-1"
+                  >
+                    <Wallet className="h-3.5 w-3.5" />
+                    {t('tournaments.deposit_cta')}
+                  </Link>
                 )}
               </div>
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 max-w-xs">
@@ -564,19 +640,49 @@ export default function TournamentsPage() {
                 <PrizeList prizes={selected.tournament.prizes} />
               </div>
             </div>
-            {selected.myEntry && (
-              <div className="border-t border-white/8 bg-sky-500/5 px-6 py-3 flex items-center justify-between flex-wrap gap-2 text-xs">
-                <span className="text-sky-300 font-bold uppercase tracking-wider">{t('tournaments.yourResult')}</span>
-                <div className="flex items-center gap-4">
-                  <span className="font-mono font-black text-white text-lg">
-                    #{selected.myRankLive ?? selected.myEntry.rank ?? '—'}
-                  </span>
-                  <span className="text-slate-400">{t('tournaments.score')}: <span className="text-white font-mono font-bold">{formatScore(selected.myEntry.score, selected.tournament.metric)}</span></span>
-                  {selected.myEntry.rewardGranted && (
-                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                      <CheckCircle2 className="h-3 w-3" /> {t('tournaments.rewardCredited')}
+            {isDepositMetric(selected.tournament.metric) && selected.myEntry && (
+              <div className="border-t border-white/8 bg-amber-500/5 px-6 py-3 flex flex-col gap-2 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-sky-300 font-bold uppercase tracking-wider">{t('tournaments.yourResult')}</span>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <span className="font-mono font-black text-white text-lg">
+                      #{selected.myRankLive ?? selected.myEntry.rank ?? '—'}
                     </span>
-                  )}
+                    <span className="text-slate-400">
+                      {t(depositTotalLabelKey(selected.tournament.metric))}:{' '}
+                      <span className="text-white font-mono font-bold inline-flex">
+                        <DepositScoreCell
+                          score={selected.myEntry.score}
+                          metric={selected.tournament.metric}
+                          polHint={selected.myDepositBreakdown?.breakdown.totalPol}
+                          align="center"
+                        />
+                      </span>
+                    </span>
+                    {selected.myEntry.rewardGranted && (
+                      <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                        <CheckCircle2 className="h-3 w-3" /> {t('tournaments.rewardCredited')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            {selected.myEntry && !isDepositMetric(selected.tournament.metric) && (
+              <div className="border-t border-white/8 bg-sky-500/5 px-6 py-3 flex flex-col gap-2 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-sky-300 font-bold uppercase tracking-wider">{t('tournaments.yourResult')}</span>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <span className="font-mono font-black text-white text-lg">
+                      #{selected.myRankLive ?? selected.myEntry.rank ?? '—'}
+                    </span>
+                    <span className="text-slate-400">{t(totalLabelKey(selected.tournament.metric))}: <span className="text-white font-mono font-bold">{formatScore(selected.myEntry.score, selected.tournament.metric)}</span></span>
+                    {selected.myEntry.rewardGranted && (
+                      <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                        <CheckCircle2 className="h-3 w-3" /> {t('tournaments.rewardCredited')}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -609,7 +715,9 @@ export default function TournamentsPage() {
                           <Medal className="w-8 h-8 text-slate-300" />
                         </div>
                         <h3 className="text-xl font-black text-white truncate px-4">{selected.top[1].user.name || selected.top[1].user.username}</h3>
-                        <p className="text-amber-300 font-bold text-lg font-mono">{formatScore(selected.top[1].score, selected.tournament.metric)}</p>
+                        <p className="text-amber-300 font-bold text-lg font-mono">
+                          <DepositScoreCell score={selected.top[1].score} metric={selected.tournament.metric} polHint={selected.top[1].scorePol} align="center" />
+                        </p>
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('tournaments.podium.second')}</span>
                       </div>
                     </div>
@@ -627,7 +735,9 @@ export default function TournamentsPage() {
                           <Crown className="w-12 h-12 text-slate-950" />
                         </div>
                         <h3 className="text-2xl font-black text-white truncate px-4">{selected.top[0].user.name || selected.top[0].user.username}</h3>
-                        <p className="text-amber-400 font-black text-2xl font-mono">{formatScore(selected.top[0].score, selected.tournament.metric)}</p>
+                        <p className="text-amber-400 font-black text-2xl font-mono">
+                          <DepositScoreCell score={selected.top[0].score} metric={selected.tournament.metric} polHint={selected.top[0].scorePol} align="center" />
+                        </p>
                         <span className="text-xs font-black text-amber-500/60 uppercase tracking-[0.3em]">{t('tournaments.podium.champion')}</span>
                       </div>
                     </div>
@@ -645,7 +755,9 @@ export default function TournamentsPage() {
                           <Medal className="w-8 h-8 text-orange-500" />
                         </div>
                         <h3 className="text-xl font-black text-white truncate px-4">{selected.top[2].user.name || selected.top[2].user.username}</h3>
-                        <p className="text-amber-300 font-bold text-lg font-mono">{formatScore(selected.top[2].score, selected.tournament.metric)}</p>
+                        <p className="text-amber-300 font-bold text-lg font-mono">
+                          <DepositScoreCell score={selected.top[2].score} metric={selected.tournament.metric} polHint={selected.top[2].scorePol} align="center" />
+                        </p>
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('tournaments.podium.third')}</span>
                       </div>
                     </div>
@@ -661,7 +773,7 @@ export default function TournamentsPage() {
                       <tr>
                         <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 w-12 sm:w-20">Rank</th>
                         <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">{t('tournaments.header.subtitle').includes('ranking') ? 'Miner' : 'Miner'}</th>
-                        <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 text-right">{t(`tournaments.metrics.${selected.tournament.metric}`)}</th>
+                        <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 text-right">{t(depositRankColumnKey(selected.tournament.metric))}</th>
                         <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 text-right hidden sm:table-cell">{t('tournaments.prizes')}</th>
                       </tr>
                     </thead>
@@ -698,7 +810,7 @@ export default function TournamentsPage() {
                               </div>
                             </td>
                             <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 text-right text-amber-300 font-black text-xs sm:text-sm font-mono">
-                              {formatScore(entry.score, selected.tournament.metric)}
+                              <DepositScoreCell score={entry.score} metric={selected.tournament.metric} polHint={entry.scorePol} />
                             </td>
                             <td className="px-3 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 text-right hidden sm:table-cell">
                               {prize ? (
@@ -782,7 +894,7 @@ export default function TournamentsPage() {
                             </p>
                           </div>
                           <span className="shrink-0 font-mono text-xs text-amber-300/80 font-bold">
-                            {formatScore(entry.score, selected.tournament.metric)}
+                            <DepositScoreCell score={entry.score} metric={selected.tournament.metric} polHint={entry.scorePol} />
                           </span>
                         </li>
                       );
@@ -859,9 +971,13 @@ function TournamentCard({
       <h3 className="font-bold text-white mb-1 text-sm leading-snug">{tn.name}</h3>
 
       <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono mb-3">
-        <Zap className="h-3 w-3" />
-        {t(`tournaments.metrics.${tn.metric}`)}
-        <span className="text-slate-700">·</span>
+        {!isDepositTournamentMetric(tn.metric) && (
+          <>
+            <Zap className="h-3 w-3" />
+            {t(`tournaments.metrics.${tn.metric}`)}
+            <span className="text-slate-700">·</span>
+          </>
+        )}
         <Users className="h-3 w-3" />
         {tn._count.entries}
       </div>

@@ -6,9 +6,13 @@ import {
   adminCancelTournament,
   adminGetEntries,
   finalizeTournament,
+  adminTournamentScoreAudit,
+  adminTournamentScoreAuditUser,
   getTypeDisplayOrder,
   setTypeDisplayOrder,
 } from "./tournaments.service.js";
+import { getEngineStats } from "./application/tournament-engine-metrics.service.js";
+import { listRecentDriftAlerts } from "./application/offerwall-drift.service.js";
 
 const MAX_TOURNAMENT_DURATION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const MAX_TYPE_ORDER_LENGTH = 20;
@@ -62,7 +66,7 @@ export async function create(req: Request, res: Response): Promise<void> {
     name: string;
     description?: string;
     type: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
-    metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
+    metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
     startsAt: string;
     endsAt: string;
     recurring?: boolean;
@@ -75,7 +79,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   }
 
   const VALID_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
-  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
+  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "DEPOSITS_USD", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
   if (!VALID_TYPES.includes(type) || !VALID_METRICS.includes(metric)) {
     res.status(400).json({ ok: false, message: "Invalid type or metric" });
     return;
@@ -127,7 +131,7 @@ export async function update(req: Request, res: Response): Promise<void> {
 
   const body = req.body as Record<string, unknown>;
   const VALID_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
-  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
+  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "DEPOSITS_USD", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
 
   const patch: Parameters<typeof adminUpdateTournament>[1] = {};
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
@@ -234,5 +238,54 @@ export async function entries(req: Request, res: Response): Promise<void> {
     res.json({ ok: true, ...data });
   } catch (err) {
     res.status(500).json({ ok: false, message: String(err) });
+  }
+}
+
+export async function scoreAudit(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (!id) { res.status(400).json({ ok: false, message: "Invalid id" }); return; }
+  try {
+    const data = await adminTournamentScoreAudit(id);
+    if (!data) { res.status(404).json({ ok: false, message: "Not found" }); return; }
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+export async function scoreAuditUser(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  const userId = parseInt(String(req.params.userId ?? ""), 10);
+  if (!id || !userId) { res.status(400).json({ ok: false, message: "Invalid id" }); return; }
+  try {
+    const data = await adminTournamentScoreAuditUser(id, userId);
+    if (!data) { res.status(404).json({ ok: false, message: "Not found" }); return; }
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+export async function engineStats(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (!id) { res.status(400).json({ ok: false, message: "Invalid id" }); return; }
+  try {
+    const stats = await getEngineStats(id);
+    if (!stats) { res.status(404).json({ ok: false, message: "Not found" }); return; }
+    res.json({ ok: true, engineStats: stats });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+export async function driftAlerts(req: Request, res: Response): Promise<void> {
+  const id = parseInt(String(req.params.id ?? ""), 10);
+  if (!id) { res.status(400).json({ ok: false, message: "Invalid id" }); return; }
+  const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+  try {
+    const alerts = await listRecentDriftAlerts(id, limit);
+    res.json({ ok: true, alerts });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err instanceof Error ? err.message : String(err) });
   }
 }
