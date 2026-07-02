@@ -20,6 +20,7 @@ import {
   compareAll,
   sealTournaments,
   backupEntries,
+  clearContributionsForActiveTournaments,
 } from "./lib/offerwall-migration.mjs";
 
 const phase = process.argv[2] ?? "all";
@@ -106,6 +107,10 @@ async function runAll() {
   console.log(JSON.stringify({ event: "migration.backfill.start" }));
   const backfill = await runGlobalBackfill(now);
   console.log(JSON.stringify({ event: "migration.backfill.done", ...backfill }));
+
+  console.log(JSON.stringify({ event: "migration.project.clear_contributions" }));
+  const cleared = await clearContributionsForActiveTournaments();
+  console.log(JSON.stringify({ event: "migration.project.cleared", count: cleared }));
 
   console.log(JSON.stringify({ event: "migration.project.start" }));
   const project = await projectAllContributions(now);

@@ -10,6 +10,10 @@ import { tournamentActionOutboxPayload } from "../../dist/server/modules/tournam
 import { OffersMetricScorer } from "../../dist/server/modules/tournaments/domain/metrics/offerwall.scorer.js";
 import { computeOfferwallScores } from "../../dist/server/modules/tournaments/offerwallTournamentScore.js";
 import { insertContributionIdempotent } from "../../dist/server/modules/tournaments/infrastructure/repositories/tournament.repository.js";
+import {
+  capZeradsClicksForUtcDay,
+  utcDayKey,
+} from "../../dist/server/modules/zerads/zeradsClickLimits.js";
 
 export const prisma = _prisma;
 export const OFFERWALL_METRICS = ["OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
@@ -51,7 +55,21 @@ async function upsertAction(row) {
     await prisma.tournamentAction.create({ data: row });
     return "inserted";
   } catch (e) {
-    if (e?.code === "P2002") return "skipped";
+    if (e?.code === "P2002") {
+      // Re-backfill: update actionCount if zerads cap distribution changed.
+      if (row.metadata?.backfill) {
+        await prisma.tournamentAction.updateMany({
+          where: { provider: row.provider, sourceId: row.sourceId },
+          data: {
+            actionCount: row.actionCount,
+            executedAtUTC: row.executedAtUTC,
+            metadata: row.metadata,
+          },
+        });
+        return "updated";
+      }
+      return "skipped";
+    }
     throw e;
   }
 }
@@ -68,6 +86,7 @@ export async function runGlobalBackfill(now = new Date()) {
   const range = scanRange(tournaments, now);
   let inserted = 0;
   let skipped = 0;
+  let updated = 0;
 
   const internalRows = await prisma.internalOfferwallAttempt.findMany({
     where: {
@@ -97,6 +116,7 @@ export async function runGlobalBackfill(now = new Date()) {
       metadata: { offerId: r.offerId, backfill: true, timestampSource: "completed_at" },
     });
     if (result === "inserted") inserted++;
+    else if (result === "updated") updated++;
     else skipped++;
   }
 
@@ -128,6 +148,7 @@ export async function runGlobalBackfill(now = new Date()) {
       metadata: { backfill: true, timestampSource: "db_created_at" },
     });
     if (result === "inserted") inserted++;
+    else if (result === "updated") updated++;
     else skipped++;
   }
 
@@ -136,26 +157,57 @@ export async function runGlobalBackfill(now = new Date()) {
       callbackAt: { gte: range.start, lte: range.end },
     },
     select: { callbackHash: true, userId: true, callbackAt: true, clicks: true },
+    orderBy: { callbackAt: "asc" },
   });
+
+  /** Legacy caps Zerads per UTC day on the sum of clicks — match that when backfilling. */
+  const zeradsByUserDay = new Map();
   for (const r of zeradsRows) {
     const clicks = Math.trunc(Number(r.clicks) || 0);
     if (clicks <= 0) continue;
-    if (
-      !qualifiesForAnyTournament(TOURNAMENT_ACTION_PROVIDER.ZERADS, r.callbackAt, tournaments, now)
-    ) {
-      continue;
+    const day = utcDayKey(r.callbackAt);
+    const key = `${r.userId}|${day}`;
+    if (!zeradsByUserDay.has(key)) zeradsByUserDay.set(key, []);
+    zeradsByUserDay.get(key).push({ ...r, clicks });
+  }
+
+  for (const [, dayRows] of zeradsByUserDay) {
+    const dayTotal = dayRows.reduce((s, r) => s + r.clicks, 0);
+    const dayCredited = capZeradsClicksForUtcDay(dayTotal);
+    let assigned = 0;
+    for (let i = 0; i < dayRows.length; i++) {
+      const r = dayRows[i];
+      let actionCount;
+      if (i === dayRows.length - 1) {
+        actionCount = dayCredited - assigned;
+      } else {
+        actionCount = dayTotal > 0 ? Math.floor((r.clicks / dayTotal) * dayCredited) : 0;
+        assigned += actionCount;
+      }
+      if (actionCount <= 0) continue;
+      if (
+        !qualifiesForAnyTournament(TOURNAMENT_ACTION_PROVIDER.ZERADS, r.callbackAt, tournaments, now)
+      ) {
+        continue;
+      }
+      const result = await upsertAction({
+        userId: r.userId,
+        provider: TOURNAMENT_ACTION_PROVIDER.ZERADS,
+        actionCount,
+        executedAtUTC: r.callbackAt,
+        sourceId: r.callbackHash,
+        tournamentEligible: true,
+        metadata: {
+          backfill: true,
+          timestampSource: "callback_at",
+          zeradsDayCredited: dayCredited,
+          zeradsDayRaw: dayTotal,
+        },
+      });
+      if (result === "inserted") inserted++;
+      else if (result === "updated") updated++;
+      else skipped++;
     }
-    const result = await upsertAction({
-      userId: r.userId,
-      provider: TOURNAMENT_ACTION_PROVIDER.ZERADS,
-      actionCount: clicks,
-      executedAtUTC: r.callbackAt,
-      sourceId: r.callbackHash,
-      tournamentEligible: true,
-      metadata: { backfill: true, timestampSource: "callback_at" },
-    });
-    if (result === "inserted") inserted++;
-    else skipped++;
   }
 
   await prisma.tournamentOfferwallMigrationGlobal.upsert({
@@ -173,7 +225,7 @@ export async function runGlobalBackfill(now = new Date()) {
     },
   });
 
-  return { inserted, skipped, range, tournaments: tournaments.map((t) => t.id) };
+  return { inserted, skipped, updated, range, tournaments: tournaments.map((t) => t.id) };
 }
 
 /**
@@ -207,6 +259,16 @@ export async function projectContributionsForTournament(tournament, now = new Da
   });
 
   return { tournamentId: tournament.id, inserted, skipped, actionsScanned: actions.length };
+}
+
+export async function clearContributionsForActiveTournaments() {
+  const tournaments = await loadActiveOfferwallTournaments();
+  const ids = tournaments.map((t) => t.id);
+  if (ids.length === 0) return 0;
+  const r = await prisma.tournamentScoreContribution.deleteMany({
+    where: { tournamentId: { in: ids } },
+  });
+  return r.count;
 }
 
 export async function projectAllContributions(now = new Date()) {
