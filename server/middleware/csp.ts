@@ -185,7 +185,8 @@ export function getHelmetContentSecurityPolicyOptions(): CspConfig {
 export function createCspMiddleware() {
   return (req: Request, res: Response, next: NextFunction) => {
     const group = getRouteGroup(req.path);
-    if (group === "api") {
+    // API JSON and hashed Vite bundles do not need HTML CSP headers (saves ~4KB/response).
+    if (group === "api" || group === "asset") {
       next();
       return;
     }
