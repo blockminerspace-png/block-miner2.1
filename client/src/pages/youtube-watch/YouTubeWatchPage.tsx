@@ -635,7 +635,7 @@ export default function YouTubeWatch() {
                                 icon={ShieldCheck}
                                 color="blue"
                             />
-                            <TrackerItem label={t('youtube.tracker_per_minute')} value={formatHashrate(Number(status?.rewardGh || 3))} icon={Zap} color="amber" />
+                            <TrackerItem label={t('youtube.tracker_per_minute')} value={formatHashrate(Number(status?.rewardGh || 10))} icon={Zap} color="amber" />
                             <TrackerItem label={t('youtube.tracker_duration')} value={`${Number(status?.durationMin || 1440)} min`} icon={History} color="blue" />
                             <div className="h-[1px] bg-gray-800 w-full my-2" />
                             <TrackerItem label={t('youtube.tracker_bonus')} value={formatHashrate(status?.activeHashRate || 0)} icon={TrendingUp} color="emerald" />

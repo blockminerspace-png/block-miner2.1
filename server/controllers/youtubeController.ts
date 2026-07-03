@@ -9,9 +9,9 @@ import { getBoostTtlMs } from "../services/powerBoostService.js";
 
 const logger = loggerLib.child("YouTubeController");
 
-const REWARD_PER_CLAIM = 3.0;
+const REWARD_PER_CLAIM = 10.0;
 const DURATION_HOURS = Number(process.env.YOUTUBE_REWARD_DURATION_HOURS || 24);
-const DAILY_LIMIT_HASH = 1440.0;
+const DAILY_LIMIT_HASH = 4800.0;
 
 type AuthedRequest = Request & { user: { id: number } };
 
