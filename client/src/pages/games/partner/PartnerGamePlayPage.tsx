@@ -106,7 +106,7 @@ export default function PartnerGamePlayPage() {
     : t("partnerGames.play.status_paused");
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-3 pb-10 pt-2 sm:px-4 lg:px-6">
+    <div className="w-full">
       {/* Header */}
       <header className="mb-4 flex flex-col gap-3 border-b border-slate-800/80 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
@@ -185,7 +185,7 @@ export default function PartnerGamePlayPage() {
           )}
 
           <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black shadow-2xl">
-            <div className="relative h-[min(72vh,900px)] min-h-[420px] w-full sm:min-h-[520px]">
+            <div className="relative h-[min(62vh,820px)] min-h-[360px] w-full sm:min-h-[440px]">
               {!iframeBlocked ? (
                 <>
                   {!iframeLoaded && <IframeSkeleton />}

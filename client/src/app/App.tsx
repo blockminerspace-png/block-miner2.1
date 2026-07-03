@@ -259,7 +259,6 @@ function App() {
           </Route>
 
           <Route element={<ProtectedNoLayout />}>
-            <Route path="/games/partner/:slug" element={<PartnerGamePlayPage />} />
             <Route path="/games/:slug" element={<GameSessionPage />} />
           </Route>
 
@@ -293,6 +292,7 @@ function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/support" element={<Support />} />
             <Route path="/taxes" element={<TaxesPage />} />
+            <Route path="/games/partner/:slug" element={<PartnerGamePlayPage />} />
             <Route path="/games" element={<Games />} />
             <Route path="/games/verify" element={<GameVerifyPage />} />
             <Route path="/games/2048" element={<Game2048Page />} />
