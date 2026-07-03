@@ -171,13 +171,18 @@ export async function claimForUser(userId: number, req: Request): Promise<Faucet
     return g.id;
   }
 
+  let faucetRewardTtlMs: number | null = null;
+
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (miner.id === 999999) {
       const gameId = await getOrCreateFaucetGameId(tx);
       const playedAt = now;
-      const { getBoostTtlMs } = await import("../../services/powerBoostService.js");
-      const ttlMs = await getBoostTtlMs(userId);
-      const expiresAt = new Date(playedAt.getTime() + ttlMs);
+      const { getRewardDurationMsTx, computeRewardExpiresAt } = await import(
+        "../../services/powerBoostService.js"
+      );
+      const ttlMs = await getRewardDurationMsTx(tx, userId, "faucet");
+      faucetRewardTtlMs = ttlMs;
+      const expiresAt = computeRewardExpiresAt(playedAt, ttlMs);
       await tx.userPowerGame.create({
         data: {
           userId,
@@ -209,21 +214,28 @@ export async function claimForUser(userId: number, req: Request): Promise<Faucet
   });
 
   if (miner.id === 999999) {
+    const { formatRewardDurationPt, rewardDurationHoursFromMs } = await import(
+      "../../services/powerBoostService.js"
+    );
+    const ttlMs = faucetRewardTtlMs ?? 24 * 60 * 60 * 1000;
+    const durationLabel = formatRewardDurationPt(ttlMs);
+    const durationHours = rewardDurationHoursFromMs(ttlMs);
     faucetLogger.info("Faucet temporary power reward created", {
       userId,
       hashRate: miner.baseHashRate,
-      durationHours: 24,
+      durationHours,
+      ttlMs,
     });
     logUserActivity("FAUCET_CLAIM_SUCCESS", req, {
       userId,
       rewardType: "TEMPORARY_POWER",
       hashRate: miner.baseHashRate,
-      durationHours: 24,
+      durationHours,
       dayKey: normalized.todayKey,
     });
     return {
       ok: true,
-      message: `Sucesso! Poder de mineração temporário de ${miner.baseHashRate} H/s ativado por 24 horas.`,
+      message: `Sucesso! Poder de mineração temporário de ${miner.baseHashRate} H/s ativado por ${durationLabel}.`,
       nextAvailableAt: now.getTime() + reward.cooldownMs,
     };
   }

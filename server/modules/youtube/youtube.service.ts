@@ -5,6 +5,12 @@ import { getMiningEngine } from "../../src/miningEngineInstance.js";
 import { notifyDailyTaskYoutubeWatch } from "../../services/dailyTasks/dailyTaskHookService.js";
 import type { YoutubeClaimResult, YoutubeStatsResult, YoutubeStatusResult } from "./youtube.types.js";
 import {
+  computeRewardExpiresAt,
+  formatRewardDurationPt,
+  getRewardDurationMs,
+  getRewardDurationMsTx,
+} from "../../services/powerBoostService.js";
+import {
   DAILY_LIMIT_HASH,
   DURATION_HOURS,
   MIN_SECONDS_TO_CLAIM,
@@ -22,12 +28,13 @@ export async function getStatusForUser(userId: number): Promise<YoutubeStatusRes
   const now = new Date();
   const activePowers = await findActivePowers(userId, now);
   const activeHashRate = activePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
+  const ttlMs = await getRewardDurationMs(userId, "youtube");
   return {
     ok: true,
     activeHashRate,
     count: activePowers.length,
     rewardGh: REWARD_PER_CLAIM,
-    durationMin: DURATION_HOURS * 60,
+    durationMin: Math.round(ttlMs / 60_000),
   };
 }
 
@@ -77,13 +84,15 @@ export async function claimForUser(userId: number, videoId: string): Promise<You
     return { ok: false, status: 400, message: "Limite diário atingido. Tente novamente amanhã!" };
   }
 
-  const expiresAt = new Date(Date.now() + DURATION_HOURS * 60 * 60 * 1000);
-
+  let claimTtlMs = 0;
   let historyId: number;
   try {
-    const hist = await prisma.$transaction((tx) =>
-      claimRewardTx(tx, userId, videoId, now, expiresAt),
-    );
+    const hist = await prisma.$transaction(async (tx) => {
+      const ttlMs = await getRewardDurationMsTx(tx, userId, "youtube");
+      claimTtlMs = ttlMs;
+      const expiresAt = computeRewardExpiresAt(now, ttlMs);
+      return claimRewardTx(tx, userId, videoId, now, expiresAt);
+    });
     historyId = hist.id;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -110,6 +119,6 @@ export async function claimForUser(userId: number, videoId: string): Promise<You
   return {
     ok: true,
     rewardGh: REWARD_PER_CLAIM,
-    message: `+${REWARD_PER_CLAIM} H/s ativado por ${DURATION_HOURS / 24} dia(s)!`,
+    message: `+${REWARD_PER_CLAIM} H/s ativado por ${formatRewardDurationPt(claimTtlMs)}!`,
   };
 }

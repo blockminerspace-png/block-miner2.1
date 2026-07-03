@@ -6,7 +6,13 @@ import { createAuditLog } from "../models/auditLogModel.js";
 import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import type { Prisma } from "@prisma/client";
-import { getBoostTtlMs } from "../services/powerBoostService.js";
+import {
+  computeRewardExpiresAt,
+  formatRewardDurationPt,
+  getRewardDurationMs,
+  getRewardDurationMsTx,
+  rewardDurationHoursFromMs,
+} from "../services/powerBoostService.js";
 import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
 
 function brazilMidnightUTC(): Date {
@@ -18,7 +24,6 @@ const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
 const MAX_DAILY_RUNS = 1;
 const REWARD_HASH_RATE = 5.0;
-const REWARD_DURATION_HOURS = 24;
 
 type AuthedRequest = Request & { user: { id: number } };
 
@@ -55,13 +60,14 @@ export async function getShortlinkStatus(req: Request, res: Response) {
     if (!status) {
       return res.status(500).json({ ok: false, message: "Server error" });
     }
+    const ttlMs = await getRewardDurationMs(userId, "shortlinks");
     res.json({
       ok: true,
       status: {
         currentStep: status.currentStep,
         dailyRuns: status.dailyRuns,
         shortlinkName: "Internal Shortlink",
-        rewardName: `+${REWARD_HASH_RATE} H/s por ${REWARD_DURATION_HOURS}h`,
+        rewardName: `+${REWARD_HASH_RATE} H/s por ${formatRewardDurationPt(ttlMs)}`,
         totalSteps: TOTAL_STEPS,
         maxDailyRuns: MAX_DAILY_RUNS,
         inProgress: status.currentStep > 0
@@ -163,8 +169,9 @@ export async function completeShortlinkStep(req: Request, res: Response) {
       });
 
       if (isLastStep) {
-        const ttlMs = await getBoostTtlMs(userId);
-        const expiresAt = new Date(now.getTime() + ttlMs);
+        const ttlMs = await getRewardDurationMsTx(tx, userId, "shortlinks");
+        const expiresAt = computeRewardExpiresAt(now, ttlMs);
+        const durationHours = rewardDurationHoursFromMs(ttlMs);
         await tx.shortlinkPower.create({
           data: { userId, hashRate: REWARD_HASH_RATE, claimedAt: now, expiresAt }
         });
@@ -172,7 +179,7 @@ export async function completeShortlinkStep(req: Request, res: Response) {
           data: {
             userId,
             action: "shortlink_power_claimed",
-            detailsJson: JSON.stringify({ hashRate: REWARD_HASH_RATE, durationHours: REWARD_DURATION_HOURS, expiresAt })
+            detailsJson: JSON.stringify({ hashRate: REWARD_HASH_RATE, durationHours, ttlMs, expiresAt })
           }
         });
       }
@@ -180,7 +187,8 @@ export async function completeShortlinkStep(req: Request, res: Response) {
 
     let rewardMessage: string | null = null;
     if (isLastStep) {
-      rewardMessage = `+${REWARD_HASH_RATE} H/s ativado por ${REWARD_DURATION_HOURS}h!`;
+      const ttlMs = await getRewardDurationMs(userId, "shortlinks");
+      rewardMessage = `+${REWARD_HASH_RATE} H/s ativado por ${formatRewardDurationPt(ttlMs)}!`;
       try {
         const newTotal = await syncUserBaseHashRate(userId);
         const engine = getMiningEngine();

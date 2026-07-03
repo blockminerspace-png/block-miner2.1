@@ -94,9 +94,11 @@ prune_docker_artifacts() {
   echo "[maintenance] docker builder prune older than ${DOCKER_BUILDER_UNTIL_HOURS}h…"
   docker builder prune -af --filter "until=${DOCKER_BUILDER_UNTIL_HOURS}h" 2>/dev/null || true
   # Frequent deploys keep cache "fresh" — if still huge, drop all unused layers (safe; next build is slower once).
-  BUILDER_RECLAIM_MB=$(docker system df -v 2>/dev/null | awk '/Build Cache/ {gsub(/[^0-9.]/,"",$4); print int($4+0.5)}' | head -1)
-  if [[ -n "${BUILDER_RECLAIM_MB:-}" ]] && [[ "$BUILDER_RECLAIM_MB" -gt 20480 ]]; then
-    echo "[maintenance] build cache ~${BUILDER_RECLAIM_MB}MB reclaimable — full builder prune"
+  BUILDER_RECLAIM_GB=$(
+    docker system df 2>/dev/null | awk '/^Build Cache/ {gsub(/GB/, "", $6); print $6 + 0}' | head -1
+  )
+  if [[ -n "${BUILDER_RECLAIM_GB:-}" ]] && awk "BEGIN {exit !(${BUILDER_RECLAIM_GB} > 20)}"; then
+    echo "[maintenance] build cache ~${BUILDER_RECLAIM_GB}GB reclaimable — full builder prune"
     docker builder prune -af 2>/dev/null || true
   fi
   docker system df 2>/dev/null || true

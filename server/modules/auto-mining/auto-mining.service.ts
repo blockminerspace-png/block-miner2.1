@@ -5,7 +5,11 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
-import { getBoostTtlMs } from "../../services/powerBoostService.js";
+import {
+  computeRewardExpiresAt,
+  getRewardDurationMsTx,
+  NORMAL_TTL_MS,
+} from "../../services/powerBoostService.js";
 import { createInventoryWithOwnedMachineTx } from "../../services/userOwnedMachineService.js";
 import { V1_DAILY_LIMIT, V1_CLAIM_COST_SECONDS } from "./auto-mining.config.js";
 import * as repo from "./auto-mining.repository.js";
@@ -67,10 +71,12 @@ export async function claimGPU(
   }
 
   const gpuWithReward = await repo.findGPUWithReward(gpu.id);
-  const durationMs = await getBoostTtlMs(userId);
-  const expiresAt = new Date(now.getTime() + durationMs);
+  let grantExpiresAt = computeRewardExpiresAt(now, NORMAL_TTL_MS);
 
   const updatedGpu = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const durationMs = await getRewardDurationMsTx(tx, userId, "autoMining");
+    const expiresAt = computeRewardExpiresAt(now, durationMs);
+    grantExpiresAt = expiresAt;
     const u = await repo.claimGPUTx(tx, gpu.id, now, expiresAt);
     await repo.decrementSecondsBalanceTx(tx, userId, V1_CLAIM_COST_SECONDS);
 
@@ -102,7 +108,7 @@ export async function claimGPU(
     return u;
   });
 
-  return { gpu: updatedGpu, expiresAt };
+  return { gpu: updatedGpu, expiresAt: grantExpiresAt };
 }
 
 export async function getGPUHistory(userId: number) {
