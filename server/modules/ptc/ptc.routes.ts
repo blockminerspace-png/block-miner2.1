@@ -9,12 +9,21 @@ export const ptcAdminRouter = express.Router();
 const limiter = createRateLimiter({ windowMs: 60_000, max: 60 });
 const viewLimiter = createRateLimiter({ windowMs: 10_000, max: 5 });
 
+const heartbeatLimiter = createRateLimiter({ windowMs: 30_000, max: 10 });
+
 // ── User routes ──────────────────────────────────────────────────────────────
 ptcRouter.get("/settings", limiter, ctrl.getSettings);
 ptcRouter.get("/tiers", limiter, ctrl.getActiveTiers);
-ptcRouter.get("/next", requireAuth, limiter, ctrl.getNextAd);
-ptcRouter.post("/view/:id", requireAuth, viewLimiter, ctrl.trackView);
+ptcRouter.get("/ads", requireAuth, limiter, ctrl.getAvailableAds);
 ptcRouter.get("/earnings", requireAuth, limiter, ctrl.getEarningsHistory);
+
+// ── Session routes ───────────────────────────────────────────────────────────
+ptcRouter.get("/session/active", requireAuth, limiter, ctrl.getActiveSession);
+ptcRouter.post("/session/start", requireAuth, viewLimiter, ctrl.startSession);
+ptcRouter.post("/session/:sessionId/heartbeat", requireAuth, heartbeatLimiter, ctrl.heartbeat);
+ptcRouter.post("/session/:sessionId/pause", requireAuth, limiter, ctrl.pauseSession);
+ptcRouter.post("/session/:sessionId/cancel", requireAuth, limiter, ctrl.cancelSession);
+ptcRouter.post("/session/:sessionId/claim", requireAuth, viewLimiter, ctrl.claimSession);
 
 ptcRouter.get("/my-campaigns", requireAuth, limiter, ctrl.getMyCampaigns);
 ptcRouter.post("/campaigns", requireAuth, limiter, ctrl.createCampaign);

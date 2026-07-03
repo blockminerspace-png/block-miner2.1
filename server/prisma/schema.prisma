@@ -68,6 +68,7 @@ model User {
   rackConfigs   RackConfig[]
   ptpAds        PtpAd[]
   ptpEarnings   PtpEarning[]
+  ptpSessions   PtpSession[]
   chatMessages  ChatMessage[]
   sentPrivateMessages     PrivateMessage[] @relation("SentPrivateMessages")
   receivedPrivateMessages PrivateMessage[] @relation("ReceivedPrivateMessages")
@@ -132,6 +133,8 @@ model User {
   videoSubmissions               YoutubeVideoSubmission[]
   videoVotes                     YoutubeVideoVote[]
   partnerGameVotes               PartnerGameVote[]
+  gameCooldownStates             GameCooldownState[]
+  gameSessionLogs                GameSessionLog[]
 
   // Traffic attribution (captured at registration)
   utmSource      String? @map("utm_source")
@@ -1150,6 +1153,46 @@ model Game2048Session {
   @@map("game2048_sessions")
 }
 
+/// Progressive cooldown state per user per game slug (DB-backed, survives restarts).
+model GameCooldownState {
+  id             Int       @id @default(autoincrement())
+  userId         Int       @map("user_id")
+  gameSlug       String    @map("game_slug")
+  sessions       Int       @default(0)
+  lastFinishedAt DateTime? @map("last_finished_at")
+  cooldownEndsAt DateTime? @map("cooldown_ends_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameSlug])
+  @@index([userId])
+  @@map("game_cooldown_states")
+}
+
+/// Full audit trail for every game session (win or loss).
+model GameSessionLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  gameSlug      String   @map("game_slug")
+  gameId        Int?     @map("game_id")
+  success       Boolean
+  score         Int      @default(0)
+  playTimeMs    Int      @default(0) @map("play_time_ms")
+  failReason    String?  @map("fail_reason")
+  trustScore    Int?     @map("trust_score")
+  rewardGranted Boolean  @default(false) @map("reward_granted")
+  ip            String?
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([gameSlug, createdAt])
+  @@map("game_session_logs")
+}
+
 model YoutubeWatchPower {
   id            Int      @id @default(autoincrement())
   userId        Int      @map("user_id")
@@ -1249,9 +1292,10 @@ model PtpAd {
   costUsd           Float    @default(0) @map("cost_usd")
   costAsset         Float    @default(0) @map("cost_asset")
 
-  user     User       @relation(fields: [userId], references: [id])
-  tier     PtcAdTier? @relation(fields: [tierId], references: [id])
-  ptpViews PtpView[]
+  user        User         @relation(fields: [userId], references: [id])
+  tier        PtcAdTier?   @relation(fields: [tierId], references: [id])
+  ptpViews    PtpView[]
+  ptpSessions PtpSession[]
 
   @@index([userId])
   @@index([status])
@@ -1283,6 +1327,29 @@ model PtpEarning {
 
   @@index([userId])
   @@map("ptp_earnings")
+}
+
+model PtpSession {
+  id              String    @id @default(uuid())
+  userId          Int       @map("user_id")
+  adId            Int       @map("ad_id")
+  viewerHash      String    @map("viewer_hash")
+  // status: opening | viewing | paused | completed | cancelled | claimed
+  status          String    @default("opening")
+  requiredSeconds Int       @map("required_seconds")
+  accumulatedMs   Int       @default(0) @map("accumulated_ms")
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  claimedAt       DateTime? @map("claimed_at")
+  cancelReason    String?   @map("cancel_reason")
+
+  user User   @relation(fields: [userId], references: [id])
+  ad   PtpAd  @relation(fields: [adId], references: [id])
+
+  @@index([userId, status])
+  @@index([lastHeartbeatAt])
+  @@map("ptp_sessions")
 }
 
 model ZeradsCallback {

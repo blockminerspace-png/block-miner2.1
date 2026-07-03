@@ -2,7 +2,7 @@ import express from "express";
 import prisma from "../src/db/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { buildRankingRows, rankingUserSelect } from "../services/networkHashrateService.js";
-import { isAutoMiningV2SchemaAvailable } from "../services/autoMiningV2/autoMiningV2DbAvailability.js";
+import { isAutoMiningV2SchemaAvailable } from "../modules/auto-mining/index.js";
 
 export const rankingRouter = express.Router();
 

@@ -133,23 +133,80 @@ export async function removeViews(req: Request, res: Response): Promise<void> {
 
 // ── Viewer (earn SHIB by watching ads) ───────────────────────────────────────
 
-export async function getNextAd(req: Request, res: Response): Promise<void> {
+export async function getAvailableAds(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) { err(res, 401, "Unauthorized"); return; }
-    const ad = await svc.getNextAd(req.user.id);
-    res.json({ ok: true, ad: ad ?? null });
+    const ads = await svc.getAvailableAds(req.user.id);
+    res.json({ ok: true, ads });
   } catch {
     err(res, 500, "Server error");
   }
 }
 
-export async function trackView(req: Request, res: Response): Promise<void> {
+// ── Session endpoints ─────────────────────────────────────────────────────────
+
+export async function getActiveSession(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) { err(res, 401, "Unauthorized"); return; }
-    const adId = Number(req.params.id);
-    const viewerHash = `user_${req.user.id}`;
-    await svc.trackView(req.user.id, adId, viewerHash);
-    res.json({ ok: true, message: "View recorded" });
+    const session = await svc.getActiveSession(req.user.id);
+    res.json({ ok: true, session: session ?? null });
+  } catch {
+    err(res, 500, "Server error");
+  }
+}
+
+export async function startSession(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) { err(res, 401, "Unauthorized"); return; }
+    const adId = Number((req.body as Record<string, unknown>).adId);
+    if (!adId) { err(res, 400, "adId required"); return; }
+    const session = await svc.startSession(req.user.id, adId);
+    res.json({ ok: true, session });
+  } catch (e) {
+    err(res, 400, e instanceof Error ? e.message : "Server error");
+  }
+}
+
+export async function heartbeat(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) { err(res, 401, "Unauthorized"); return; }
+    const sessionId = String(req.params.sessionId);
+    const session = await svc.heartbeat(sessionId, req.user.id);
+    res.json({ ok: true, status: session.status, accumulatedMs: session.accumulatedMs });
+  } catch (e) {
+    err(res, 400, e instanceof Error ? e.message : "Server error");
+  }
+}
+
+export async function pauseSession(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) { err(res, 401, "Unauthorized"); return; }
+    const sessionId = String(req.params.sessionId);
+    const session = await svc.pauseSession(sessionId, req.user.id);
+    res.json({ ok: true, status: session.status, accumulatedMs: session.accumulatedMs });
+  } catch (e) {
+    err(res, 400, e instanceof Error ? e.message : "Server error");
+  }
+}
+
+export async function cancelSession(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) { err(res, 401, "Unauthorized"); return; }
+    const sessionId = String(req.params.sessionId);
+    const reason = String((req.body as Record<string, unknown>).reason ?? "user_cancelled");
+    await svc.cancelSession(sessionId, req.user.id, reason);
+    res.json({ ok: true });
+  } catch (e) {
+    err(res, 400, e instanceof Error ? e.message : "Server error");
+  }
+}
+
+export async function claimSession(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) { err(res, 401, "Unauthorized"); return; }
+    const sessionId = String(req.params.sessionId);
+    await svc.claimSession(sessionId, req.user.id);
+    res.json({ ok: true, message: "Recompensa creditada!" });
   } catch (e) {
     err(res, 400, e instanceof Error ? e.message : "Server error");
   }

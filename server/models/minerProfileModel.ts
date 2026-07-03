@@ -1,6 +1,6 @@
 import prisma from '../src/db/prisma.js';
 import crypto from 'crypto';
-import { isAutoMiningV2SchemaAvailable } from '../services/autoMiningV2/autoMiningV2DbAvailability.js';
+import { isAutoMiningV2SchemaAvailable } from '../modules/auto-mining/index.js';
 import { lockUserRowForUpdate } from '../utils/transactionLocks.js';
 
 export async function getOrCreateMinerProfile(user: { id: number }) {

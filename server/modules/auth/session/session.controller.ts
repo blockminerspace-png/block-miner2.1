@@ -5,18 +5,26 @@ import { verifyAccessToken } from "../../../utils/authTokens.js";
 import { enqueueAuditEvent, buildAuditEventFromHttpRequest } from "../../../src/audit/service.js";
 import { AuditEventType, AuditEventStatus } from "../../../src/audit/constants.js";
 import loggerLib, { logUserActivity } from "../../../utils/logger.js";
-import { clearAuthCookies, unknownErrorMessage } from "../shared/auth.security.js";
+import { clearAuthCookies, clearAccessCookieOnly, unknownErrorMessage } from "../shared/auth.security.js";
 import { toAuthPublicUserDto } from "../auth.dto.js";
 import { AUTH_LOGIN_MESSAGES, buildAuthFailureJson } from "../auth.errors.js";
 import { computeWeekSummary, isEnergyTaxActive } from "../../energy-tax/energyTax.service.js";
 import { respondAuthPrismaError } from "../shared/auth.prisma.js";
+import { getRefreshTokenFromRequest } from "../../../utils/token.js";
+import { authDebug } from "../../../utils/authDebug.js";
+import { maybeRenewAccessCookie } from "./refresh.controller.js";
 
 const logger = loggerLib.child("AuthSessionController");
 
-function sendUnauthenticated(res: Response): void {
+function sendUnauthenticated(res: Response, code = "UNAUTHENTICATED", clearRefresh = false): void {
+  if (clearRefresh) {
+    res.setHeader("Set-Cookie", clearAuthCookies());
+  } else {
+    res.setHeader("Set-Cookie", clearAccessCookieOnly());
+  }
   res.status(401).json(
     buildAuthFailureJson(
-      "UNAUTHENTICATED",
+      code,
       "Sessão expirada ou ausente.",
     ),
   );
@@ -26,30 +34,23 @@ export async function getSession(req: Request, res: Response): Promise<void> {
   try {
     const token = getTokenFromRequest(req);
     if (!token) {
-      sendUnauthenticated(res);
+      const hasRefresh = Boolean(getRefreshTokenFromRequest(req));
+      authDebug("AUTH_SESSION_REJECT", req, { reason: "ACCESS_COOKIE_MISSING", hasRefresh });
+      sendUnauthenticated(res, hasRefresh ? "ACCESS_MISSING" : "UNAUTHENTICATED", !hasRefresh);
       return;
     }
 
-    let payload: ReturnType<typeof verifyAccessToken>;
-    try {
-      payload = verifyAccessToken(token);
-    } catch (error: unknown) {
-      logger.warn("auth.session.invalid_token", {
-        message: unknownErrorMessage(error),
-      });
-      res.setHeader("Set-Cookie", clearAuthCookies());
-      sendUnauthenticated(res);
-      return;
-    }
-
-    if (!payload?.sub) {
-      sendUnauthenticated(res);
+    const payload = verifyAccessToken(token);
+    if (!payload || typeof payload === "string" || !payload.sub) {
+      const hasRefresh = Boolean(getRefreshTokenFromRequest(req));
+      authDebug("AUTH_SESSION_REJECT", req, { reason: "ACCESS_JWT_INVALID", hasRefresh });
+      sendUnauthenticated(res, hasRefresh ? "ACCESS_INVALID" : "UNAUTHENTICATED", !hasRefresh);
       return;
     }
 
     const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
     if (!user || user.isBanned) {
-      sendUnauthenticated(res);
+      sendUnauthenticated(res, "UNAUTHENTICATED", true);
       return;
     }
 
@@ -62,6 +63,9 @@ export async function getSession(req: Request, res: Response): Promise<void> {
         : Promise.resolve({ energyHasPendingTax: false }),
     ]);
 
+    req.user = user;
+    maybeRenewAccessCookie(req, res);
+    authDebug("AUTH_SESSION_OK", req, { userId: user.id });
     res.json({ ok: true, user: toAuthPublicUserDto(user, { hasReferral, ...energyInfo }) });
   } catch (error: unknown) {
     if (

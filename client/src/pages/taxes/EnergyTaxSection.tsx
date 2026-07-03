@@ -35,6 +35,7 @@ type EnergyTaxSummary = {
   todayExempt: boolean;
   offerwallExtToday: number;
   offerwallIntToday: number;
+  zeradsToday: number;
   faucetToday: number;
   shortlinkToday: number;
   youtubeToday: number;
@@ -323,6 +324,7 @@ export default function EnergyTaxSection() {
           {([
             { icon: <LayoutGrid className="w-3 h-3" />, label: t('taxes.energy_tax.discount_src_ow_ext'), count: summary.offerwallExtToday },
             { icon: <LayoutGrid className="w-3 h-3" />, label: t('taxes.energy_tax.discount_src_ow_int'), count: summary.offerwallIntToday },
+            { icon: <LayoutGrid className="w-3 h-3" />, label: t('taxes.energy_tax.discount_src_zerads'), count: summary.zeradsToday },
             { icon: <Droplets className="w-3 h-3" />, label: t('taxes.energy_tax.discount_src_faucet'), count: summary.faucetToday },
             { icon: <Link2 className="w-3 h-3" />, label: t('taxes.energy_tax.discount_src_shortlink'), count: summary.shortlinkToday },
             { icon: <Youtube className="w-3 h-3" />, label: t('taxes.energy_tax.discount_src_youtube'), count: summary.youtubeToday },

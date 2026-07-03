@@ -31,20 +31,23 @@ export function registerMinerSocketHandlers({
         const authToken = explicitToken || getTokenFromRequest(requestLike);
 
         if (!authToken) {
-          callback?.({ ok: false, message: "Sessao invalida. Faça login novamente." });
+          socket.emit("auth:expired");
+          callback?.({ ok: false, code: "AUTH_EXPIRED", message: "Sessao invalida. Faça login novamente." });
           return;
         }
 
         const jwtPayload = verifyAccessToken(authToken);
         const userId = Number(jwtPayload?.sub);
         if (!userId) {
-          callback?.({ ok: false, message: "Sessao invalida. Faça login novamente." });
+          socket.emit("auth:expired");
+          callback?.({ ok: false, code: "AUTH_EXPIRED", message: "Sessao invalida. Faça login novamente." });
           return;
         }
 
         const user = await getUserById(userId);
         if (!user) {
-          callback?.({ ok: false, message: "Sessão inválida. Faça login novamente." });
+          socket.emit("auth:expired");
+          callback?.({ ok: false, code: "AUTH_EXPIRED", message: "Sessão inválida. Faça login novamente." });
           return;
         }
 

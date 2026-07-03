@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { adminAuthRouter } from "#server/routes/admin-auth.js";
 import { adminRouter } from "#server/routes/admin.js";
-import { adminAutoMiningRewardsRouter } from "#server/routes/admin-auto-mining-rewards.js";
+import { adminAutoMiningRewardsRouter } from "#server/modules/auto-mining/index.js";
 import { adminTournamentsRouter } from "#server/modules/tournaments/index.js";
 import { adminOfferwallRouter } from "#server/modules/offerwall/offerwall.admin.routes.js";
 import { adminTrafficRouter } from "#server/modules/traffic/index.js";

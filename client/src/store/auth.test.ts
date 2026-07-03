@@ -73,12 +73,31 @@ describe('useAuthStore checkSession', () => {
     vi.spyOn(api, 'get').mockRejectedValue(
       mockAxiosError({ ok: false, code: 'UNAUTHENTICATED', message: 'Sessão expirada ou ausente.' }, 401),
     );
+    vi.spyOn(api, 'post').mockRejectedValue(mockAxiosError({ ok: false, code: 'REFRESH_INVALID' }, 401));
     await useAuthStore.getState().checkSession({ silent: true });
     const s = useAuthStore.getState();
     expect(s.authHydrated).toBe(true);
     expect(s.isAuthenticated).toBe(false);
     expect(s.user).toBe(null);
     expect(s.error).toBe(null);
+  });
+
+  it('recovers session via refresh when access cookie expired', async () => {
+    vi.spyOn(api, 'get')
+      .mockRejectedValueOnce(
+        mockAxiosError({ ok: false, code: 'ACCESS_INVALID', message: 'Sessão expirada ou ausente.' }, 401),
+      )
+      .mockResolvedValueOnce({
+        data: { user: { id: 2, name: 'Refreshed', username: 'r', email: 'r@e.com' } },
+      });
+    vi.spyOn(api, 'post').mockResolvedValueOnce({
+      data: { ok: true, user: { id: 2, name: 'Refreshed', username: 'r', email: 'r@e.com' } },
+    });
+    await useAuthStore.getState().checkSession({ silent: true });
+    const s = useAuthStore.getState();
+    expect(s.isAuthenticated).toBe(true);
+    expect(s.user?.id).toBe(2);
+    expect(api.post).toHaveBeenCalledWith('/auth/refresh', {}, expect.any(Object));
   });
 
   it('surfaces a clean message for session 500 without authenticating', async () => {
@@ -127,7 +146,7 @@ describe('useAuthStore register', () => {
     expect(s.user).toEqual({ id: 7, name: 'U', username: 'u', email: 'u@gmail.com' });
     expect(s.isLoading).toBe(false);
     expect(s.error).toBe(null);
-    expect(api.post).toHaveBeenCalledWith('/auth/register', payload);
+    expect(api.post).toHaveBeenCalledWith('/auth/register', payload, expect.any(Object));
   });
 
   it('returns field metadata from validation errors array', async () => {

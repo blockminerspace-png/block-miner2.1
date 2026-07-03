@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
-import { refreshIframeHostAllowlistCache } from "../../services/internalOfferwall/iframeHostAllowlistCache.js";
+import { refreshIframeHostAllowlistCache } from "../internal-offerwall/internal-offerwall.iframe-allowlist.js";
 
 const logger = loggerLib.child("PartnerGamesController");
 

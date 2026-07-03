@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import {
   Bell,
   Search,
@@ -9,12 +9,107 @@ import {
   AlertTriangle,
   TrendingUp,
   Inbox,
+  Clock,
+  CheckCircle2,
+  PauseCircle,
 } from 'lucide-react';
 import { useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../../store/game';
 import { useAuthStore } from '../../store/auth';
 import CommunityShortcuts from './CommunityShortcuts';
+import { usePtcSessionStore } from '../../store/ptcSession';
+import { useOfferwallTimerStore } from '../../store/offerwallTimer';
+
+function fmtPtcTime(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function PtcGlobalTimer() {
+  const session = usePtcSessionStore((s) => s.session);
+  const status = usePtcSessionStore((s) => s.status);
+  const accumulatedMs = usePtcSessionStore((s) => s.accumulatedMs);
+  const isViewing = usePtcSessionStore((s) => s.isViewing);
+  const [tick, setTick] = useState(0);
+
+  const viewingStartRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isViewing) {
+      if (viewingStartRef.current == null) viewingStartRef.current = Date.now();
+    } else {
+      viewingStartRef.current = null;
+    }
+  }, [isViewing]);
+
+  useEffect(() => {
+    if (status !== 'viewing') return;
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [status]);
+
+  const elapsed = useMemo(() => {
+    if (!session || !['viewing', 'paused', 'completed', 'opening'].includes(status)) return 0;
+    if (status === 'completed') return session.requiredSeconds;
+    const liveMs = isViewing && viewingStartRef.current != null ? Date.now() - viewingStartRef.current : 0;
+    return Math.min((accumulatedMs + liveMs) / 1000, session.requiredSeconds);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, status, accumulatedMs, isViewing, tick]);
+
+  if (!session || status === 'idle' || status === 'claimed') return null;
+
+  const requiredSeconds = session.requiredSeconds;
+  const pct = Math.min(100, (elapsed / requiredSeconds) * 100);
+
+  if (status === 'cancelled') {
+    return (
+      <Link
+        to="/ptc"
+        className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-colors"
+      >
+        <AlertTriangle className="w-3.5 h-3.5" />
+        PTC Cancelado
+      </Link>
+    );
+  }
+
+  if (status === 'completed') {
+    return (
+      <Link
+        to="/ptc"
+        className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-colors animate-pulse"
+      >
+        <CheckCircle2 className="w-3.5 h-3.5" />
+        PTC Pronto — Resgatar
+      </Link>
+    );
+  }
+
+  const isPaused = status === 'paused' || status === 'opening' || (status === 'viewing' && !isViewing);
+
+  return (
+    <Link
+      to="/ptc"
+      className={`hidden lg:flex items-center gap-2.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-colors ${
+        isPaused
+          ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20'
+          : 'bg-sky-500/10 border-sky-500/20 text-sky-400 hover:bg-sky-500/20'
+      }`}
+    >
+      {isPaused ? <PauseCircle className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0 animate-pulse" />}
+      <span className="tabular-nums">{fmtPtcTime(elapsed)} / {fmtPtcTime(requiredSeconds)}</span>
+      <div className="w-12 h-1 bg-gray-700 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-1000 ${isPaused ? 'bg-amber-400' : 'bg-sky-400'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </Link>
+  );
+}
 
 interface HeaderNotification {
   id: string | number;
@@ -23,6 +118,52 @@ interface HeaderNotification {
   title?: string;
   message?: string;
   createdAt?: string | number | Date;
+}
+
+function OfferwallGlobalTimer() {
+  const isActive = useOfferwallTimerStore((s) => s.isActive);
+  const elapsed = useOfferwallTimerStore((s) => s.elapsed);
+  const minSec = useOfferwallTimerStore((s) => s.minSec);
+  const isPaused = useOfferwallTimerStore((s) => s.isPaused);
+  const canSubmit = useOfferwallTimerStore((s) => s.canSubmit);
+
+  if (!isActive) return null;
+
+  const pct = minSec > 0 ? Math.min(100, (elapsed / minSec) * 100) : 0;
+
+  if (canSubmit) {
+    return (
+      <Link
+        to="/internal-offerwall"
+        className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-colors animate-pulse"
+      >
+        <CheckCircle2 className="w-3.5 h-3.5" />
+        Offerwall — Concluído
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      to="/internal-offerwall"
+      className={`hidden lg:flex items-center gap-2.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-colors ${
+        isPaused
+          ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20'
+          : 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20'
+      }`}
+    >
+      {isPaused
+        ? <PauseCircle className="w-3.5 h-3.5 shrink-0" />
+        : <Clock className="w-3.5 h-3.5 shrink-0 animate-pulse" />}
+      <span className="tabular-nums">{fmtPtcTime(elapsed)} / {fmtPtcTime(minSec)}</span>
+      <div className="w-12 h-1 bg-gray-700 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-1000 ${isPaused ? 'bg-amber-400' : 'bg-purple-400'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </Link>
+  );
 }
 
 export default function Header() {
@@ -100,6 +241,9 @@ export default function Header() {
       </div>
 
       <div className="ml-auto flex items-center gap-6">
+        <OfferwallGlobalTimer />
+        <PtcGlobalTimer />
+
         <div className="relative hidden lg:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input

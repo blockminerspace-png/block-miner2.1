@@ -10,6 +10,7 @@ import { changePasswordSchema } from "./auth.schemas.js";
 import { loginPost } from "./login/login.controller.js";
 import { registerPost } from "./register/register.controller.js";
 import { getSession, logoutPost, markAdblockPost } from "./session/session.controller.js";
+import { refreshPost } from "./session/refresh.controller.js";
 import * as AuthCtrl from "./auth.controller.js";
 
 export const authRouter = express.Router();
@@ -52,6 +53,8 @@ authRouter.post(
 );
 
 authRouter.get("/session", getSession);
+
+authRouter.post("/refresh", refreshPost);
 
 authRouter.post("/logout", logoutPost);
 

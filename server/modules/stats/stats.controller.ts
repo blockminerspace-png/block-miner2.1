@@ -11,7 +11,7 @@ import {
 } from "../../services/networkHashrateService.js";
 import { readErrorMessage, requireSessionUser } from "../../controllers/controllerHttpStatusError.js";
 import { respondPrismaAwareError } from "../../utils/prismaHttpErrors.js";
-import { isAutoMiningV2SchemaAvailable } from "../../services/autoMiningV2/autoMiningV2DbAvailability.js";
+import { isAutoMiningV2SchemaAvailable } from "../auto-mining/index.js";
 import loggerLib from "../../utils/logger.js";
 
 const powerStatsLog = loggerLib.child("PowerStats");

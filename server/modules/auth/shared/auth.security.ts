@@ -58,3 +58,8 @@ export function buildRefreshCookie(refreshToken: string, expiresAt: number): str
 export function clearAuthCookies(): string[] {
   return [buildCookie(ACCESS_COOKIE_NAME, "", 0), buildCookie(REFRESH_COOKIE_NAME, "", 0)];
 }
+
+/** Clears only the access JWT cookie; keeps refresh token for silent rotation. */
+export function clearAccessCookieOnly(): string {
+  return buildCookie(ACCESS_COOKIE_NAME, "", 0);
+}

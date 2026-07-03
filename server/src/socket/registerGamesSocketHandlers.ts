@@ -12,6 +12,8 @@ import { getMemoryMismatchRevealMs } from "../../utils/memoryGameConstants.js";
 import { createAuditLogBestEffort } from "../../models/auditLogModel.js";
 import { errMsg } from "../../types/tsNarrowing.js";
 import type { MiningEngine } from "../miningEngine.js";
+import { checkCooldown, recordFinish } from "../../modules/games/gameCooldownEngine.js";
+import { evaluateTrust } from "../../modules/games/gameAntiCheatV2.js";
 
 const logger = loggerLib.child("GamesSocket");
 
@@ -70,8 +72,6 @@ function getMemoryFlipped(s: GameSessionState): MemoryCard[] {
   const f = s.flipped;
   return Array.isArray(f) ? (f as MemoryCard[]) : [];
 }
-const LAST_GAME_FINISH = new Map(); // key: `${userId}-${gameSlug}`
-const GAME_COOLDOWN_MS = Number(process.env.GAME_COOLDOWN_MS) || 180000;
 const GAME_POWER_DAYS = Number(process.env.GAME_POWER_DAYS) || 7;
 /** Time for the client flip-open animation to settle so both cards are fully visible. */
 const MEMORY_FLIP_OPEN_SETTLE_MS = 320;
@@ -267,15 +267,10 @@ export function registerGamesSocketHandlers({ io, engine }) {
 
         if (!userId) return socket.emit("game:error", { code: "invalid_session" });
 
-        // Cooldown check individual por jogo
-        const cooldownKey = `${userId}-${slug}`;
-        const lastFinish = LAST_GAME_FINISH.get(cooldownKey);
-        if (lastFinish) {
-          const elapsed = Date.now() - lastFinish;
-          if (elapsed < GAME_COOLDOWN_MS) {
-            const remaining = Math.ceil((GAME_COOLDOWN_MS - elapsed) / 1000);
-            return socket.emit("game:error", { code: "cooldown", seconds: remaining });
-          }
+        // Cooldown check (DB-backed progressive cooldown)
+        const cooldownResult = await checkCooldown(userId, slug);
+        if (cooldownResult) {
+          return socket.emit("game:error", { code: "cooldown", seconds: cooldownResult.remainingSeconds });
         }
 
         const gameName = GAME_NAMES[slug];
@@ -882,25 +877,39 @@ async function finishGame(
   state.isFinished = true;
   GAME_SESSIONS.delete(socket.id);
 
-  // Record finish time for cooldown (individual por jogo)
-  LAST_GAME_FINISH.set(`${Number(state.userId)}-${state.slug}`, Date.now());
+  const playTimeMs = Date.now() - state.startTime;
+  const userId = Number(state.userId);
+  const gameSlug = String(state.slug || "");
+  const score = Number(state.score || 0);
+  const ip = socket.handshake?.address || socket.request?.socket?.remoteAddress || null;
+  const userAgent = (socket.request?.headers?.["user-agent"] as string | undefined) || null;
 
   if (success) {
-    // ANTI-CHEAT: Verifica o tempo mínimo humanamente viável para terminar (ex: 15 segundos)
-    const playTimeMs = Date.now() - state.startTime;
-    if (playTimeMs < 15000) {
-      logger.warn(`Cheating attempt detected: User ${state.userId} finished game too quickly (${playTimeMs}ms).`);
+    // Anti-cheat V2: trust score evaluation
+    const trust = evaluateTrust(gameSlug, playTimeMs, score);
+
+    if (trust.rejected) {
+      logger.warn(`[AntiCheat] Rejected userId=${userId} game=${gameSlug} playTimeMs=${playTimeMs} trustScore=${trust.trustScore} events=${trust.events.join(",")}`);
+
+      prisma.gameSessionLog.create({
+        data: { userId, gameSlug, gameId: Number(state.gameId) || null, success: false, score, playTimeMs, failReason: `anticheat:${trust.events.join(",")}`, trustScore: trust.trustScore, rewardGranted: false, ip, userAgent },
+      }).catch(() => {});
+
+      // Still advance cooldown so abusers get longer waits
+      recordFinish(userId, gameSlug).catch(() => {});
+
+      const nextCooldown = 30; // fixed short cooldown after rejection
       return socket.emit("game:finished", {
         success: false,
         messageCode: "anti_cheat_timing",
-        cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000)
+        cooldownSeconds: nextCooldown,
       });
     }
 
     // Verifica se o usuário fez check-in hoje — sem check-in bônus dura só 24h
     const checkinToday = await prisma.dailyCheckin.findFirst({
       where: {
-        userId: Number(state.userId),
+        userId,
         status: "confirmed",
         checkinDate: { in: getBrazilDateKeyAliases() }
       },
@@ -913,73 +922,78 @@ async function finishGame(
 
     const expiresAt = new Date(Date.now() + powerDays * 24 * 60 * 60 * 1000);
     try {
-      // ANTI-CHEAT: Limita o máximo de poderes ativos acumulados pelo minigame a um valor seguro (ex: max 10 instâncias = 500 H/s)
       const powerRow = await prisma.userPowerGame.create({
         data: {
-          userId: Number(state.userId),
+          userId,
           gameId: Number(state.gameId),
           hashRate: 25.0,
           playedAt: new Date(),
           expiresAt
         }
       });
-      notifyMiniPassGamePlayed(Number(state.userId), {
-        userPowerGameId: powerRow.id,
-        gameSlug: String(state.slug || "")
+
+      // Advance progressive cooldown
+      await recordFinish(userId, gameSlug);
+
+      prisma.gameSessionLog.create({
+        data: { userId, gameSlug, gameId: Number(state.gameId) || null, success: true, score, playTimeMs, trustScore: trust.trustScore, rewardGranted: true, ip, userAgent },
       }).catch(() => {});
-      notifyDailyTaskGamePlayed(Number(state.userId), {
+
+      notifyMiniPassGamePlayed(userId, {
         userPowerGameId: powerRow.id,
-        gameSlug: String(state.slug || "")
+        gameSlug,
+      }).catch(() => {});
+      notifyDailyTaskGamePlayed(userId, {
+        userPowerGameId: powerRow.id,
+        gameSlug,
       }).catch(() => {});
       createAuditLogBestEffort({
-        userId: Number(state.userId),
+        userId,
         action: "MINIGAME_PLAYED_REWARD",
-        ip: socket.handshake?.address || socket.request?.socket?.remoteAddress || null,
-        userAgent: socket.request?.headers?.["user-agent"] || null,
-        details: {
-          gameSlug: String(state.slug || ""),
-          score: Number(state.score || 0),
-          success: true,
-          rewardHashRate: 25,
-          rewardDays: powerDays,
-          userPowerGameId: powerRow.id
-        }
+        ip,
+        userAgent,
+        details: { gameSlug, score, success: true, rewardHashRate: 25, rewardDays: powerDays, userPowerGameId: powerRow.id }
       }).catch(() => {});
-      const total = await syncUserBaseHashRate(state.userId);
-      const miner = engine.miners.get(state.userId.toString());
+
+      const total = await syncUserBaseHashRate(userId);
+      const miner = engine.miners.get(userId.toString());
       if (miner) miner.baseHashRate = total;
+
+      // Fetch next cooldown for client display
+      const cooldownResult = await checkCooldown(userId, gameSlug);
+      const cooldownSeconds = cooldownResult?.remainingSeconds ?? 10;
 
       socket.emit("game:finished", {
         success: true,
         rewardCode,
         rewardParams,
-        cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000)
+        cooldownSeconds,
       });
       socket.emit("machines:update");
     } catch (e) {
       socket.emit("game:finished", {
         success: true,
         rewardCode: "persist_ok",
-        cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000)
+        cooldownSeconds: 10,
       });
     }
   } else {
-    createAuditLogBestEffort({
-      userId: Number(state.userId),
-      action: "MINIGAME_PLAYED_FAILED",
-      ip: socket.handshake?.address || socket.request?.socket?.remoteAddress || null,
-      userAgent: socket.request?.headers?.["user-agent"] || null,
-      details: {
-        gameSlug: String(state.slug || ""),
-        score: Number(state.score || 0),
-        success: false,
-        reason: failureCode
-      }
+    prisma.gameSessionLog.create({
+      data: { userId, gameSlug, gameId: Number(state.gameId) || null, success: false, score, playTimeMs, failReason: failureCode, rewardGranted: false, ip, userAgent },
     }).catch(() => {});
+
+    createAuditLogBestEffort({
+      userId,
+      action: "MINIGAME_PLAYED_FAILED",
+      ip,
+      userAgent,
+      details: { gameSlug, score, success: false, reason: failureCode }
+    }).catch(() => {});
+
     socket.emit("game:finished", {
       success: false,
       messageCode: failureCode,
-      cooldownSeconds: Math.ceil(GAME_COOLDOWN_MS / 1000)
+      cooldownSeconds: 10,
     });
   }
 }

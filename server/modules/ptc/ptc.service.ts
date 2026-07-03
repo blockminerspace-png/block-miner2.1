@@ -247,31 +247,158 @@ export async function rejectCampaign(adId: number, reason: string) {
   });
 }
 
-// ── View tracking ─────────────────────────────────────────────────────────────
+// ── Session-based view tracking ───────────────────────────────────────────────
 
-export async function trackView(viewerUserId: number, adId: number, viewerHash: string) {
+const HEARTBEAT_MAX_GAP_MS = 15_000;
+const SESSION_STALE_MS = 90_000; // 90s without heartbeat → stale
+
+function isSessionStale(lastHeartbeatAt: Date | null, now: Date): boolean {
+  if (!lastHeartbeatAt) return false;
+  return now.getTime() - lastHeartbeatAt.getTime() > SESSION_STALE_MS;
+}
+
+export async function startSession(userId: number, adId: number) {
+  const existing = await repo.getActiveSessionForUser(userId);
+  if (existing) {
+    throw new Error("Você já possui um anúncio ativo. Conclua-o antes de iniciar outro.");
+  }
+
+  const ad = await repo.getCampaignById(adId);
+  if (!ad || ad.status !== "active") throw new Error("Anúncio não disponível");
+  if (ad.userId === userId) throw new Error("Você não pode visualizar seu próprio anúncio");
+
+  const viewerHash = `user_${userId}`;
+  const alreadySeen = await prisma.ptpView.findUnique({
+    where: { adId_viewerHash: { adId, viewerHash } },
+  });
+  if (alreadySeen) throw new Error("Você já visualizou este anúncio");
+
+  const session = await repo.createSession({ userId, adId, viewerHash, requiredSeconds: ad.durationSeconds });
+  console.info(`[PTC] session_started userId=${userId} adId=${adId} sessionId=${session.id} requiredSeconds=${ad.durationSeconds}`);
+  return session;
+}
+
+export async function heartbeat(sessionId: string, userId: number) {
+  const session = await repo.getSessionById(sessionId);
+  if (!session || session.userId !== userId) throw new Error("Sessão não encontrada");
+
+  if (session.status === "claimed") throw new Error("Sessão já foi resgatada");
+  if (session.status === "cancelled") throw new Error("Sessão cancelada");
+  if (session.status === "completed") return session;
+
+  const now = new Date();
+  let deltaMs = 0;
+  if (session.status === "viewing" && session.lastHeartbeatAt) {
+    deltaMs = Math.min(now.getTime() - session.lastHeartbeatAt.getTime(), HEARTBEAT_MAX_GAP_MS);
+  }
+
+  const newAccumulatedMs = session.accumulatedMs + deltaMs;
+  const isComplete = newAccumulatedMs / 1000 >= session.requiredSeconds;
+
+  const updated = await repo.updateSession(sessionId, {
+    status: isComplete ? "completed" : "viewing",
+    accumulatedMs: newAccumulatedMs,
+    lastHeartbeatAt: now,
+    ...(isComplete ? { completedAt: now } : {}),
+  });
+
+  if (isComplete) {
+    console.info(`[PTC] session_completed userId=${userId} sessionId=${sessionId} accumulatedMs=${newAccumulatedMs}`);
+  }
+  return updated;
+}
+
+export async function pauseSession(sessionId: string, userId: number) {
+  const session = await repo.getSessionById(sessionId);
+  if (!session || session.userId !== userId) throw new Error("Sessão não encontrada");
+
+  if (["completed", "cancelled", "claimed"].includes(session.status)) return session;
+
+  const now = new Date();
+  let deltaMs = 0;
+  if (session.status === "viewing" && session.lastHeartbeatAt) {
+    deltaMs = Math.min(now.getTime() - session.lastHeartbeatAt.getTime(), HEARTBEAT_MAX_GAP_MS);
+  }
+
+  const newAccumulatedMs = session.accumulatedMs + deltaMs;
+  const isComplete = newAccumulatedMs / 1000 >= session.requiredSeconds;
+
+  const updated = await repo.updateSession(sessionId, {
+    status: isComplete ? "completed" : "paused",
+    accumulatedMs: newAccumulatedMs,
+    lastHeartbeatAt: now,
+    ...(isComplete ? { completedAt: now } : {}),
+  });
+
+  console.info(`[PTC] session_paused userId=${userId} sessionId=${sessionId} accumulatedMs=${newAccumulatedMs} isComplete=${isComplete}`);
+  return updated;
+}
+
+export async function cancelSession(sessionId: string, userId: number, reason: string) {
+  const session = await repo.getSessionById(sessionId);
+  if (!session || session.userId !== userId) return;
+  if (session.status === "claimed") return;
+
+  await repo.updateSession(sessionId, { status: "cancelled", cancelReason: reason });
+  console.info(`[PTC] session_cancelled userId=${userId} sessionId=${sessionId} reason=${reason}`);
+}
+
+export async function claimSession(sessionId: string, userId: number) {
   await prisma.$transaction(async (tx) => {
-    const ad = await tx.ptpAd.findUnique({ where: { id: adId } });
-    if (!ad || ad.status !== "active") throw new Error("Ad not available");
-    if (ad.userId === viewerUserId) throw new Error("Cannot view your own ad");
+    const session = await tx.ptpSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.userId !== userId) throw new Error("Sessão não encontrada");
+    if (session.status === "claimed") throw new Error("Recompensa já foi resgatada");
+    if (session.status === "cancelled") throw new Error("Sessão cancelada — reinicie o anúncio");
+
+    if (session.status !== "completed") {
+      const now = new Date();
+      if (isSessionStale(session.lastHeartbeatAt, now)) {
+        await tx.ptpSession.update({
+          where: { id: sessionId },
+          data: { status: "cancelled", cancelReason: "heartbeat_timeout" },
+        });
+        throw new Error("Sessão expirada por inatividade — reinicie o anúncio");
+      }
+      throw new Error("Tempo de visualização ainda não concluído");
+    }
 
     const alreadySeen = await tx.ptpView.findUnique({
-      where: { adId_viewerHash: { adId, viewerHash } },
+      where: { adId_viewerHash: { adId: session.adId, viewerHash: session.viewerHash } },
     });
-    if (alreadySeen) throw new Error("Already viewed");
+    if (alreadySeen) throw new Error("Visualização já registrada");
 
+    const ad = await tx.ptpAd.findUnique({ where: { id: session.adId } });
+    if (!ad || ad.status !== "active") throw new Error("Anúncio não está mais disponível");
+
+    const earnedShib = new Decimal(ad.rewardPerViewShib.toString());
     const newViews = ad.views + 1;
     const isCompleted = newViews >= ad.targetViews;
-    const earnedShib = new Decimal(ad.rewardPerViewShib.toString());
 
-    await tx.ptpView.create({ data: { adId, viewerHash, earnedShib } });
+    await tx.ptpView.create({ data: { adId: session.adId, viewerHash: session.viewerHash, earnedShib } });
     await tx.ptpAd.update({
-      where: { id: adId },
+      where: { id: session.adId },
       data: { views: newViews, status: isCompleted ? "completed" : "active" },
     });
-    await tx.ptpEarning.create({ data: { userId: viewerUserId, adId, amountShib: earnedShib } });
-    await tx.user.update({ where: { id: viewerUserId }, data: { shibBalance: { increment: earnedShib } } });
+    await tx.ptpEarning.create({ data: { userId, adId: session.adId, amountShib: earnedShib } });
+    await tx.user.update({ where: { id: userId }, data: { shibBalance: { increment: earnedShib } } });
+    await tx.ptpSession.update({ where: { id: sessionId }, data: { status: "claimed", claimedAt: new Date() } });
+
+    console.info(`[PTC] reward_claimed userId=${userId} sessionId=${sessionId} earnedShib=${earnedShib.toString()}`);
   });
+}
+
+export async function getActiveSession(userId: number) {
+  const session = await repo.getActiveSessionForUser(userId);
+  if (!session) return null;
+
+  // Auto-cancel stale sessions on access
+  if (isSessionStale(session.lastHeartbeatAt, new Date()) && session.status === "viewing") {
+    await repo.updateSession(session.id, { status: "cancelled", cancelReason: "heartbeat_timeout" });
+    console.info(`[PTC] session_stale_cancelled userId=${userId} sessionId=${session.id}`);
+    return null;
+  }
+
+  return session;
 }
 
 // ── Getters ───────────────────────────────────────────────────────────────────
@@ -280,9 +407,8 @@ export async function getMyCampaigns(userId: number) {
   return repo.getCampaignsByUser(userId);
 }
 
-export async function getNextAd(viewerUserId: number) {
-  const viewerHash = `user_${viewerUserId}`;
-  return repo.getNextAdForViewer(viewerHash);
+export async function getAvailableAds(userId: number) {
+  return repo.getAdsForViewer(userId);
 }
 
 export async function getEarningsHistory(userId: number) {

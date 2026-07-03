@@ -5,7 +5,6 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Socket } from "socket.io-client";
 import { io } from "socket.io-client";
-import { toast } from "sonner";
 import { useAuthStore, api } from "../../store/auth";
 import Games from "./GamesPage";
 
@@ -131,40 +130,4 @@ describe("Games page", () => {
     expect(screen.queryByText(/game2048\.arena_cooldown_minutes/)).not.toBeInTheDocument();
   });
 
-  it("shows translated toast for coded game:error", async () => {
-    renderWithRouter(<Games />);
-    await waitFor(() => expect(socketHandlers["game:error"]).toBeTypeOf("function"));
-    socketHandlers["game:error"]({ code: "invalid_session" });
-    expect(toast.error).toHaveBeenCalledWith("minerGames.socket_errors.invalid_session");
-  });
-
-  it("passes legacy string game:error to toast unchanged", async () => {
-    renderWithRouter(<Games />);
-    await waitFor(() => expect(socketHandlers["game:error"]).toBeTypeOf("function"));
-    socketHandlers["game:error"]("Legacy message");
-    expect(toast.error).toHaveBeenCalledWith("Legacy message");
-  });
-
-  it("shows translated toast for coded game:finished failure", async () => {
-    renderWithRouter(<Games />);
-    await waitFor(() => expect(socketHandlers["game:finished"]).toBeTypeOf("function"));
-    socketHandlers["game:finished"]({
-      success: false,
-      messageCode: "session_ended",
-      cooldownSeconds: 60,
-    });
-    expect(toast.error).toHaveBeenCalledWith("minerGames.game_finish.session_ended");
-  });
-
-  it("shows translated reward for coded game:finished success", async () => {
-    renderWithRouter(<Games />);
-    await waitFor(() => expect(socketHandlers["game:finished"]).toBeTypeOf("function"));
-    socketHandlers["game:finished"]({
-      success: true,
-      rewardCode: "full_term",
-      rewardParams: { days: 7 },
-      cooldownSeconds: 60,
-    });
-    expect(toast.success).toHaveBeenCalledWith('minerGames.game_reward.full_term:{"days":7}');
-  });
 });

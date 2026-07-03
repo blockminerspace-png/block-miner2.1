@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useOfferwallTimerStore } from '../../store/offerwallTimer';
+import { useDocumentTitleCountdown } from '../../shared/hooks/useDocumentTitleCountdown';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -7,7 +9,7 @@ import { ArrowLeft, ExternalLink, LayoutGrid, Loader2, PlayCircle, Send } from '
 import { api } from '../../store/auth';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { formatHoursClock, openPartnerWithReferrer, rewardLine } from './internalOfferwallHelpers';
-import { useDecountingSeconds, useElapsedSeconds } from './internalOfferwallHooks';
+import { useActiveViewSeconds, useDecountingSeconds } from './internalOfferwallHooks';
 import type {
   InternalOfferwallAttempt,
   InternalOfferwallMutationResponse,
@@ -393,10 +395,33 @@ function OfferCard({
 
   const clockIso = isPtc ? String(attempt?.partnerOpenedAt || '') : String(attempt?.startedAt || '');
   const timerActive = attempt?.status === STATUS_STARTED && Boolean(clockIso);
-  const elapsed = useElapsedSeconds(clockIso, timerActive);
+  const { elapsed, isPaused } = useActiveViewSeconds(clockIso, timerActive);
   const canSubmit = attempt?.status === STATUS_STARTED && elapsed >= minSec;
   const modeSelf = String(offer.completionMode || '') !== MODE_ADMIN;
   const remaining = Math.max(0, Math.ceil(minSec - elapsed));
+
+  // Contador regressivo na aba do browser
+  useDocumentTitleCountdown({
+    remainingSeconds: remaining,
+    isPaused,
+    isActive: timerActive && minSec > 0,
+    isComplete: canSubmit,
+    pageName: 'Offerwall',
+  });
+
+  // Sync timer state to global store so Header shows live progress
+  const syncTimer = useOfferwallTimerStore((s) => s.sync);
+  const clearTimer = useOfferwallTimerStore((s) => s.clear);
+  useEffect(() => {
+    if (timerActive && minSec > 0) {
+      syncTimer({ offerTitle: String(offer.title || ''), elapsed, minSec, isPaused, canSubmit });
+    } else if (!timerActive) {
+      clearTimer();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timerActive, elapsed, isPaused, canSubmit, minSec]);
+  // Clear global timer when this card unmounts
+  useEffect(() => () => clearTimer(), [clearTimer]);
 
   const handleBackToListOnly = () => {
     onClearOfferFocus();
@@ -570,18 +595,26 @@ function OfferCard({
           {minSec > 0 ? (
             !canSubmit ? (
               <div
-                className="rounded-2xl border border-sky-500/25 bg-sky-950/30 px-6 py-8 text-center"
+                className={`rounded-2xl border px-6 py-8 text-center transition-colors duration-300 ${
+                  isPaused
+                    ? 'border-amber-500/30 bg-amber-950/20'
+                    : 'border-sky-500/25 bg-sky-950/30'
+                }`}
                 role="status"
                 aria-live="polite"
                 aria-atomic="true"
               >
-                <p className="text-xs font-bold uppercase tracking-widest text-sky-300/90">
-                  {t('internalOfferwallPage.countdown_title')}
+                <p className={`text-xs font-bold uppercase tracking-widest ${isPaused ? 'text-amber-400/90' : 'text-sky-300/90'}`}>
+                  {isPaused
+                    ? t('internalOfferwallPage.countdown_paused')
+                    : t('internalOfferwallPage.countdown_title')}
                 </p>
                 <p className="mt-3 text-5xl font-black tabular-nums tracking-tight text-white sm:text-6xl">{remaining}</p>
                 <p className="mt-1 text-sm text-slate-400">{t('internalOfferwallPage.countdown_unit')}</p>
                 <p className="mt-4 text-xs text-slate-500 max-w-md mx-auto">
-                  {t('internalOfferwallPage.min_view_hint', { seconds: String(minSec) })}
+                  {isPaused
+                    ? t('internalOfferwallPage.countdown_paused_hint')
+                    : t('internalOfferwallPage.min_view_hint', { seconds: String(minSec) })}
                 </p>
               </div>
             ) : (

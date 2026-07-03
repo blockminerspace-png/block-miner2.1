@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDocumentTitleCountdown } from '../../shared/hooks/useDocumentTitleCountdown';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import {
@@ -221,6 +222,14 @@ export default function Faucet() {
 
     const bannerShouldShow = !isLoading && remainingMs === 0 && !isPartnerUnlocked && !partnerFlowActive && partnerWaitMs === 0;
 
+    // Contador regressivo na aba do browser durante o fluxo de parceiro
+    useDocumentTitleCountdown({
+        remainingSeconds: Math.ceil(partnerWaitMs / 1000),
+        isActive: partnerFlowActive && partnerWaitMs > 0,
+        isComplete: isPartnerUnlocked,
+        pageName: 'Faucet',
+    });
+
     useEffect(() => {
         if (!bannerShouldShow) return;
         void ensureMondiadScript().catch(() => {});
@@ -282,6 +291,23 @@ export default function Faucet() {
         setIsPartnerUnlocked(true);
         setCanClaim(remainingMsRef.current <= 0);
     }, [partnerWaitMs, partnerFlowActive]);
+
+    // Detect when the user navigates to the advertiser (blur fires when a new tab opens
+    // or focus shifts to the iframe). No click interception — we only observe focus loss.
+    useEffect(() => {
+        if (!bannerShouldShow || isAdClicked) return undefined;
+        const onBlur = () => {
+            if (isAdClickedRef.current || remainingMsRef.current > 0) return;
+            statusFetchSeqRef.current += 1;
+            faucetLocalPartnerFlowLock = true;
+            isAdClickedRef.current = true;
+            setIsAdClicked(true);
+            void startPartnerTimer();
+        };
+        window.addEventListener('blur', onBlur);
+        return () => window.removeEventListener('blur', onBlur);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bannerShouldShow, isAdClicked]);
 
     // Monetag itself handles the click and opens its own ad in a new tab.
     // We only call the backend to start the 10s timer and unlock the claim — we do NOT redirect anywhere.
@@ -478,7 +504,7 @@ export default function Faucet() {
                                                         marginHeight={0}
                                                         scrolling="no"
                                                         frameBorder={0}
-                                                        style={{ border: 'none', maxWidth: '100%', width: '100%', display: 'block', pointerEvents: 'none' }}
+                                                        style={{ border: 'none', maxWidth: '100%', width: '100%', display: 'block' }}
                                                         title={t('faucet.partner_iframe_title')}
                                                     />
                                                 </div>

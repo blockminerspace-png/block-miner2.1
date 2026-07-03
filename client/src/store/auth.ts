@@ -192,9 +192,36 @@ api.interceptors.request.use(
 
 let adminSessionRedirectScheduled = false;
 
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function tryRefreshSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await api.post('/auth/refresh', {}, { timeout: API_TIMEOUT_MS_SESSION });
+      const rawUser =
+        res.data && typeof res.data === 'object' ? (res.data as { user?: unknown }).user : null;
+      const u = parseAuthUserPayload(rawUser);
+      if (!u) return false;
+      useAuthStore.setState({
+        user: u,
+        isAuthenticated: true,
+        token: readTokenFromPayload(res.data) ?? useAuthStore.getState().token,
+        error: null,
+      });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error: unknown) => {
+  async (error: unknown) => {
     if (!isAxiosError(error)) return Promise.reject(error);
     const status = error.response?.status;
     const url = String(error.config?.url || '');
@@ -224,6 +251,28 @@ api.interceptors.response.use(
         window.location.assign('/admin/login?reason=admin_session');
       }
     }
+
+    const isUserApi = !isAdminApi && url.startsWith('/');
+    const isAuthRoute =
+      url.startsWith('/auth/login') ||
+      url.startsWith('/auth/register') ||
+      url.startsWith('/auth/refresh') ||
+      url.startsWith('/auth/session');
+    const originalConfig = error.config;
+    if (
+      status === 401 &&
+      isUserApi &&
+      !isAuthRoute &&
+      originalConfig &&
+      !(originalConfig as { _bmRetriedAfterRefresh?: boolean })._bmRetriedAfterRefresh
+    ) {
+      const refreshed = await tryRefreshSession();
+      if (refreshed) {
+        (originalConfig as { _bmRetriedAfterRefresh?: boolean })._bmRetriedAfterRefresh = true;
+        return api.request(originalConfig);
+      }
+    }
+
     return Promise.reject(error);
   },
 );
@@ -266,9 +315,18 @@ export const useAuthStore = create<AuthState>()((set) => ({
         if (!silent) {
           set({ isLoading: true, error: null });
         }
-        const response = await api.get('/auth/session', { timeout: API_TIMEOUT_MS_SESSION });
-        const rawUser = response.data && typeof response.data === 'object' ? (response.data as { user?: unknown }).user : null;
-        const u = parseAuthUserPayload(rawUser);
+        let response = await api.get('/auth/session', { timeout: API_TIMEOUT_MS_SESSION });
+        let rawUser = response.data && typeof response.data === 'object' ? (response.data as { user?: unknown }).user : null;
+        let u = parseAuthUserPayload(rawUser);
+        if (!u) {
+          const refreshed = await tryRefreshSession();
+          if (refreshed) {
+            response = await api.get('/auth/session', { timeout: API_TIMEOUT_MS_SESSION });
+            rawUser =
+              response.data && typeof response.data === 'object' ? (response.data as { user?: unknown }).user : null;
+            u = parseAuthUserPayload(rawUser);
+          }
+        }
         set((state) => {
           const tokenNew = readTokenFromPayload(response.data);
           return {
@@ -281,8 +339,29 @@ export const useAuthStore = create<AuthState>()((set) => ({
       } catch (error: unknown) {
         const axiosError = isAxiosError(error) ? error : null;
         const status = axiosError?.response?.status;
-        // 401 without cookie = guest; must not surface as a critical UI error.
         if (status === 401) {
+          const refreshed = await tryRefreshSession();
+          if (refreshed) {
+            try {
+              const response = await api.get('/auth/session', { timeout: API_TIMEOUT_MS_SESSION });
+              const rawUser =
+                response.data && typeof response.data === 'object' ? (response.data as { user?: unknown }).user : null;
+              const u = parseAuthUserPayload(rawUser);
+              set((state) => {
+                const tokenNew = readTokenFromPayload(response.data);
+                return {
+                  user: u,
+                  isAuthenticated: Boolean(u),
+                  isLoading: false,
+                  token: !u ? null : tokenNew !== null ? tokenNew : state.token,
+                  error: null,
+                };
+              });
+              return;
+            } catch {
+              /* fall through to guest state */
+            }
+          }
           set({ user: null, isAuthenticated: false, isLoading: false, token: null, error: null });
         } else {
           const message =

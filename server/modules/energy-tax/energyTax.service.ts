@@ -2,8 +2,16 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
 import { addDaysToBrazilDateKey, normalizeBrazilDateKey } from "../../utils/checkinDate.js";
-import { getCheckinPeriodEndKey, getPeriodStartAt, getCheckinPeriodLookupKeys } from "../checkin/checkin.calendar.js";
+import { getCheckinPeriodEndKey, getPeriodStartAt } from "../checkin/checkin.calendar.js";
 import { getCheckinResetHour } from "../checkin/checkin.config.js";
+import {
+  ACTIVITY_DISCOUNT_THRESHOLD,
+  findUsersWithRewardsInWindow,
+  getActivitiesForPeriod,
+  getMiningRewardsForPeriod,
+  type ActivityBreakdown,
+  type MiningBreakdown,
+} from "./energyTaxActivity.service.js";
 
 /**
  * Taxa de Energia — regras de negócio em docs/rules/ENERGY_TAX.md.
@@ -106,16 +114,22 @@ export function lastSevenMiningPeriodStarts(now: Date = new Date()): Date[] {
   return days;
 }
 
-export const ACTIVITY_DISCOUNT_THRESHOLD = 10; // atividades por dia para isenção total
+export { ACTIVITY_DISCOUNT_THRESHOLD } from "./energyTaxActivity.service.js";
 
+/**
+ * Formato de atividades exposto pela API (mantido por compat).
+ * A implementação vive em `energyTaxActivity.service.ts` — este tipo
+ * apenas remapeia os nomes de campo consumidos pelo cliente/legado.
+ */
 export type TodayActivities = {
   offerwallExtCount: number;   // OfferwallMe callbacks (status=1)
   offerwallIntCount: number;   // Internal offerwall attempts (status='COMPLETED')
-  faucetCount: number;         // Faucet claims (FaucetClaim.totalClaims no dayKey de hoje)
+  zeradsClicksCount: number;   // Zerads: SUM(creditedClicks)
+  faucetCount: number;         // FaucetClaim.totalClaims do dayKey
   shortlinkCount: number;      // ShortlinkPower claims
   youtubeCount: number;        // YoutubeWatchPower claims
   gamesCount: number;          // UserPowerGame plays
-  totalActivities: number;     // soma de todas as fontes
+  totalActivities: number;
   exempt: boolean;
 };
 
@@ -124,62 +138,18 @@ export async function countTodayActivities(
   userId: number,
   periodStart: Date,
 ): Promise<TodayActivities> {
-  const dayEnd = nextMiningPeriodStart(periodStart);
-  const periodEndKey = miningPeriodEndKey(new Date(periodStart.getTime() + 3600000));
-  const periodKeyAliases = new Set(getCheckinPeriodLookupKeys(periodEndKey));
-
-  const [
-    offerwallExtCount,
-    offerwallIntCount,
-    shortlinkCount,
-    youtubeCount,
-    gamesCount,
-    faucetRecord,
-  ] = await Promise.all([
-    prisma.offerwallMeCallback.count({
-      where: { userId, status: 1, createdAt: { gte: periodStart, lt: dayEnd } },
-    }),
-    prisma.internalOfferwallAttempt.count({
-      // O enum interno grava "COMPLETED" em maiúsculas (ver internalOfferwallConstants.ts).
-      where: { userId, status: "COMPLETED", completedAt: { gte: periodStart, lt: dayEnd } },
-    }),
-    prisma.shortlinkPower.count({
-      where: { userId, claimedAt: { gte: periodStart, lt: dayEnd } },
-    }),
-    prisma.youtubeWatchPower.count({
-      where: { userId, claimedAt: { gte: periodStart, lt: dayEnd } },
-    }),
-    prisma.userPowerGame.count({
-      where: { userId, playedAt: { gte: periodStart, lt: dayEnd } },
-    }),
-    prisma.faucetClaim.findUnique({ where: { userId }, select: { dayKey: true, totalClaims: true } }),
-  ]);
-
-  const faucetCount =
-    faucetRecord && periodKeyAliases.has(normalizeBrazilDateKey(faucetRecord.dayKey))
-      ? faucetRecord.totalClaims
-      : 0;
-  const totalActivities = offerwallExtCount + offerwallIntCount + shortlinkCount + youtubeCount + gamesCount + faucetCount;
-
+  const a = await getActivitiesForPeriod(userId, periodStart);
   return {
-    offerwallExtCount,
-    offerwallIntCount,
-    faucetCount,
-    shortlinkCount,
-    youtubeCount,
-    gamesCount,
-    totalActivities,
-    exempt: totalActivities >= ACTIVITY_DISCOUNT_THRESHOLD,
+    offerwallExtCount: a.offerwallMe,
+    offerwallIntCount: a.offerwallInt,
+    zeradsClicksCount: a.zeradsClicks,
+    faucetCount: a.faucet,
+    shortlinkCount: a.shortlink,
+    youtubeCount: a.youtube,
+    gamesCount: a.games,
+    totalActivities: a.total,
+    exempt: a.exempt,
   };
-}
-
-/** Soma de POL minerado num intervalo (BlockMinerReward.rewardAmount). */
-async function sumRewardsBetween(userId: number, fromInclusive: Date, toExclusive: Date): Promise<number> {
-  const agg = await prisma.blockMinerReward.aggregate({
-    where: { userId, createdAt: { gte: fromInclusive, lt: toExclusive } },
-    _sum: { rewardAmount: true },
-  });
-  return Number(agg._sum.rewardAmount ?? 0);
 }
 
 /**
@@ -206,14 +176,9 @@ export async function computeConsecutiveUnpaidMiningDays(
   let consecutiveUnpaid = 0;
   for (let i = days.length - 1; i >= 0; i--) {
     const dayStart = days[i];
-    const dayEnd = nextMiningPeriodStart(dayStart);
 
-    const rewards = await prisma.blockMinerReward.aggregate({
-      where: { userId, createdAt: { gte: dayStart, lt: dayEnd } },
-      _sum: { rewardAmount: true },
-    });
-    const hadRewards = Number(rewards._sum.rewardAmount ?? 0) > 0;
-    if (!hadRewards) break; // dia sem mineração não conta como devendo
+    const rewards = await rewardsForBrtDay(userId, dayStart);
+    if (rewards <= 0) break; // dia sem crédito de POL não conta como devendo
 
     if (paidKeys.has(dayStart.getTime())) break; // dia quitado (pago/isento) para contagem
 
@@ -229,8 +194,18 @@ export async function computeConsecutiveUnpaidMiningDays(
   return { consecutiveUnpaid };
 }
 
+/** Soma total de POL creditado no dia BRT — inclui BlockMinerReward + Zerads +
+ *  OfferwallMe + Offerwall Interna (fontes que efetivamente aumentam saldo). */
 export async function rewardsForBrtDay(userId: number, dayStart: Date): Promise<number> {
-  return sumRewardsBetween(userId, dayStart, nextMiningPeriodStart(dayStart));
+  const m = await getMiningRewardsForPeriod(userId, dayStart);
+  return m.total;
+}
+
+export async function miningBreakdownForBrtDay(
+  userId: number,
+  dayStart: Date,
+): Promise<MiningBreakdown> {
+  return getMiningRewardsForPeriod(userId, dayStart);
 }
 
 export type EnergyTaxSummary = {
@@ -254,11 +229,13 @@ export type EnergyTaxSummary = {
   todayExempt: boolean;
   offerwallExtToday: number;
   offerwallIntToday: number;
+  zeradsToday: number;
   faucetToday: number;
   shortlinkToday: number;
   youtubeToday: number;
   gamesToday: number;
   totalActivitiesToday: number;
+  todayMiningBreakdown: MiningBreakdown;
   resetHour: number;
   lastClosedPeriodEndKey: string;
   currentPeriodEndKey: string;
@@ -314,7 +291,10 @@ export async function computeWeekSummary(userId: number, now: Date = new Date())
   const yesterdayRewards = closedRewards;
   const todayDailyCharge = Number((closedRewards * DAILY_PER_DAY_RATE).toFixed(8));
 
-  const todayAct = await countTodayActivities(userId, currentStart);
+  const [todayAct, todayMining] = await Promise.all([
+    countTodayActivities(userId, currentStart),
+    getMiningRewardsForPeriod(userId, currentStart),
+  ]);
 
   const { consecutiveUnpaid: unpaidDays } = await computeConsecutiveUnpaidMiningDays(userId, now);
 
@@ -350,11 +330,13 @@ export async function computeWeekSummary(userId: number, now: Date = new Date())
     todayExempt: todayAct.exempt,
     offerwallExtToday: todayAct.offerwallExtCount,
     offerwallIntToday: todayAct.offerwallIntCount,
+    zeradsToday: todayAct.zeradsClicksCount,
     faucetToday: todayAct.faucetCount,
     shortlinkToday: todayAct.shortlinkCount,
     youtubeToday: todayAct.youtubeCount,
     gamesToday: todayAct.gamesCount,
     totalActivitiesToday: todayAct.totalActivities,
+    todayMiningBreakdown: todayMining,
     resetHour: getCheckinResetHour(),
     lastClosedPeriodEndKey: closedEndKey,
     currentPeriodEndKey: currentEndKey,
@@ -526,19 +508,17 @@ export async function runWeeklySweep(now: Date = new Date()) {
   const todayStart = miningPeriodStart(now);
   const firstTaxable = firstTaxableBrtDayStart();
 
-  // Quem minerou nos últimos 7d
-  const minerRows = await prisma.blockMinerReward.groupBy({
-    by: ["userId"],
-    where: { createdAt: { gte: windowStart, lt: windowEnd } },
-    _sum: { rewardAmount: true },
-  });
-  logger.info("sweep starting", { users: minerRows.length, window: [windowStart, windowEnd] });
+  // Quem recebeu crédito POL nos últimos 7d — inclui BlockMinerReward, Zerads,
+  // OfferwallMe (aprovados) e Offerwall Interna (attempts COMPLETED). Antes só
+  // olhava BlockMinerReward e usuários que só mineravam via offerwall/zerads
+  // escapavam da taxa.
+  const userIds = await findUsersWithRewardsInWindow(windowStart, windowEnd);
+  logger.info("sweep starting", { users: userIds.length, window: [windowStart, windowEnd] });
 
   let touched = 0;
   let chargesCreated = 0;
 
-  for (const row of minerRows) {
-    const userId = row.userId;
+  for (const userId of userIds) {
     const existing = await prisma.energyTaxCharge.findMany({
       where: { userId, periodDayStartsAt: { gte: windowStart, lt: windowEnd } },
       select: { periodDayStartsAt: true },

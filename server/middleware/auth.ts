@@ -4,6 +4,7 @@ import { verifyAccessToken } from "../utils/authTokens.js";
 import { getTokenFromRequest } from "../utils/token.js";
 import loggerNamespace from "../utils/logger.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
+import { authDebug } from "../utils/authDebug.js";
 import { buildPrismaAwareErrorBody, isPrismaConnectionError, prismaAwareHttpStatus, unknownErrorMessage } from "../utils/prismaHttpErrors.js";
 
 const logger = loggerNamespace.child("AuthMiddleware");
@@ -13,7 +14,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const token = getTokenFromRequest(req);
 
     if (!token) {
-      res.status(401).json({ ok: false, message: "Session invalid." });
+      authDebug("AUTH_REJECT", req, { reason: "ACCESS_COOKIE_MISSING" });
+      res.status(401).json({ ok: false, message: "Session invalid.", code: "ACCESS_MISSING" });
       return;
     }
 
@@ -31,7 +33,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const userId = Number(payload?.sub);
 
     if (!userId) {
-      res.status(401).json({ ok: false, message: "Session invalid." });
+      authDebug("AUTH_REJECT", req, { reason: "ACCESS_JWT_INVALID_OR_EXPIRED" });
+      res.status(401).json({ ok: false, message: "Session invalid.", code: "ACCESS_INVALID" });
       return;
     }
 
@@ -45,7 +48,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     if (user.isBanned) {
       logSecurityEvent("AUTHZ_BANNED_USER", { userId: user.id }, req);
-      res.status(403).json({ ok: false, message: "Account disabled." });
+      authDebug("AUTH_REJECT", req, { reason: "USER_BANNED", userId: user.id });
+      res.status(403).json({ ok: false, message: "Account disabled.", code: "ACCOUNT_DISABLED" });
       return;
     }
 

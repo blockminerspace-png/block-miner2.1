@@ -398,7 +398,23 @@ export default function YouTubeWatch() {
                 const security = generateSecurityPayload();
                 await api.post('/session/heartbeat', { type: 'youtube', security });
                 void fetchUserStats();
-            } catch (_) {}
+            } catch (err: unknown) {
+                if (isAxiosError(err) && err.response?.status === 400) {
+                    const code =
+                        typeof err.response.data === 'object' && err.response.data !== null
+                            ? (err.response.data as { code?: string }).code
+                            : undefined;
+                    if (code === 'FINGERPRINT_STALE' || code === 'FINGERPRINT_DECODE_FAILED') {
+                        try {
+                            const security = generateSecurityPayload();
+                            await api.post('/session/heartbeat', { type: 'youtube', security });
+                            void fetchUserStats();
+                        } catch {
+                            /* next interval retries */
+                        }
+                    }
+                }
+            }
         };
         void sendHeartbeat();
         const heartbeatInterval = setInterval(sendHeartbeat, 10000);

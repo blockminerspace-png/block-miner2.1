@@ -2,6 +2,7 @@ import crypto from "crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErrors.js";
 import { logSecurityEvent } from "../utils/securityLogger.js";
+import { authDebug } from "../utils/authDebug.js";
 
 export const CSRF_COOKIE_NAME = "blockminer_csrf";
 
@@ -88,6 +89,11 @@ export function createCsrfMiddleware(): RequestHandler {
           { method, path: url, hasHeader: Boolean(headerStr) },
           req,
         );
+        authDebug("CSRF_REJECT", req, {
+          reason: "INVALID_CSRF_TOKEN",
+          hasHeader: Boolean(headerStr),
+          path: url,
+        });
         res.status(403).json(buildSecurityErrorJson(SecurityErrorCodes.INVALID_CSRF_TOKEN));
         return;
       }

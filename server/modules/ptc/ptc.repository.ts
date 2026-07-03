@@ -113,20 +113,34 @@ export async function recordEarning(
   return tx.ptpEarning.create({ data: { userId, adId, amountShib } });
 }
 
-// ── Next ad for viewer ───────────────────────────────────────────────────────
+// ── Available ads for viewer ─────────────────────────────────────────────────
 
-export async function getNextAdForViewer(viewerHash: string) {
-  // Active ads the viewer hasn't seen yet
+export async function getAdsForViewer(userId: number) {
+  const viewerHash = `user_${userId}`;
+
+  // Ads already viewed by this user
   const seen = await prisma.ptpView.findMany({
     where: { viewerHash },
     select: { adId: true },
   });
   const seenIds = seen.map((v) => v.adId);
 
-  return prisma.ptpAd.findFirst({
+  return prisma.ptpAd.findMany({
     where: {
       status: "active",
-      id: seenIds.length > 0 ? { notIn: seenIds } : undefined,
+      userId: { not: userId },                                 // não mostrar campanha própria
+      id: seenIds.length > 0 ? { notIn: seenIds } : undefined, // não mostrar já vistas
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      url: true,
+      adType: true,
+      durationSeconds: true,
+      rewardPerViewShib: true,
+      views: true,
+      targetViews: true,
     },
     orderBy: { createdAt: "asc" },
   });
@@ -140,5 +154,51 @@ export async function getUserEarnings(userId: number, limit = 20) {
     orderBy: { paidAt: "desc" },
     take: limit,
     include: { user: false },
+  });
+}
+
+// ── PTC Sessions ─────────────────────────────────────────────────────────────
+
+export async function createSession(data: {
+  userId: number;
+  adId: number;
+  viewerHash: string;
+  requiredSeconds: number;
+}) {
+  return prisma.ptpSession.create({ data: { ...data, status: "opening" } });
+}
+
+export async function getSessionById(id: string) {
+  return prisma.ptpSession.findUnique({ where: { id } });
+}
+
+export async function getActiveSessionForUser(userId: number) {
+  return prisma.ptpSession.findFirst({
+    where: { userId, status: { in: ["opening", "viewing", "paused", "completed"] } },
+    include: {
+      ad: { select: { id: true, title: true, url: true, adType: true, durationSeconds: true, rewardPerViewShib: true, status: true, userId: true } },
+    },
+    orderBy: { startedAt: "desc" },
+  });
+}
+
+export async function updateSession(
+  id: string,
+  data: Partial<{
+    status: string;
+    accumulatedMs: number;
+    lastHeartbeatAt: Date;
+    completedAt: Date;
+    claimedAt: Date;
+    cancelReason: string;
+  }>,
+) {
+  return prisma.ptpSession.update({ where: { id }, data });
+}
+
+export async function cancelActiveSessionsForUser(userId: number) {
+  return prisma.ptpSession.updateMany({
+    where: { userId, status: { in: ["opening", "viewing", "paused"] } },
+    data: { status: "cancelled", cancelReason: "superseded" },
   });
 }

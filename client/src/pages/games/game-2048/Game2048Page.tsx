@@ -11,6 +11,8 @@ import { api } from "../../../store/auth";
 import AdRotator, { POWER_STATS_ADS } from '../../../shared/components/AdRotator';
 import { moveBoard, parseBoard, type Board2048, type Direction2048 } from "@game2048/engine";
 import { CRYPTO_ICONS, COIN_COLORS, cryptoSlugFor2048Tile } from "../../../games/cryptoGameIcons";
+import type { GameFlowStat } from "../../../games/finish";
+import { saveGameVerifyRecord } from "../../../games/finish/gameVerifyStorage";
 
 interface Game2048Session {
   id: string;
@@ -44,16 +46,6 @@ interface Game2048MoveResponse {
   ok?: boolean;
   code?: string;
   session?: Game2048Session;
-}
-
-interface Game2048ClaimResponse {
-  ok?: boolean;
-  code?: string;
-  idempotent?: boolean;
-  rewardPowerHours?: number | null;
-  rewardHashRate?: number | string;
-  rewardPowerDays?: number | null;
-  powerDays?: number | null;
 }
 
 function formatMmSs(totalSeconds: unknown): string {
@@ -181,27 +173,11 @@ function Game2048BoardSkeleton({ t, labelKey }: Game2048BoardSkeletonProps) {
   );
 }
 
-function endOverlayKey(session: Game2048Session): "won" | "time" | "closed" | "lost" | null {
-  if (!session?.gameOver) return null;
-  if (session.won) return "won";
-  const limit = session.timeLimitSeconds ?? 0;
-  if (session.hasMoves && limit > 0 && session.startedAt && session.endedAt) {
-    const elapsed = new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime();
-    if (elapsed >= limit * 1000 - 1500) return "time";
-  }
-  if (session.hasMoves) return "closed";
-  return "lost";
-}
-
 export default function Game2048Page() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  /** After auto-claim fails, allow manual retry (same API as claim button). */
-  const [claimFailed, setClaimFailed] = useState(false);
-  /** Ensures a single auto-claim attempt per ended session (Strict Mode / busy churn). */
-  const autoClaimSessionKeyRef = useRef<string | null>(null);
   const [status, setStatus] = useState<Game2048StatusResponse | null>(null);
   const [session, setSession] = useState<Game2048Session | null>(null);
   /** Latest session for async handlers (avoids stale closures + out-of-order move responses). */
@@ -517,72 +493,49 @@ export default function Game2048Page() {
     }
   }, [t, refreshStatus]);
 
-  const claimReward = useCallback(
-    async ({ redirectOnSuccess = false, fromAuto = false } = {}) => {
-      const sid = sessionRef.current?.id;
-      if (!sid || busy || moveSync) {
-        if (fromAuto) autoClaimSessionKeyRef.current = null;
-        return;
-      }
-      setBusy(true);
-      setClaimFailed(false);
-      try {
-        const { data } = await api.post<Game2048ClaimResponse>("/games/2048/claim", { sessionId: sid });
-        if (!data?.ok) {
-          const code = data?.code;
-          const msg = code
-            ? t(`game2048.errors.${code}`, { defaultValue: t("game2048.errors.claim_failed") })
-            : t("game2048.errors.claim_failed");
-          toast.error(msg);
-          autoClaimSessionKeyRef.current = null;
-          setClaimFailed(true);
-          return;
-        }
-        if (!data.idempotent) {
-          if (data.rewardPowerHours != null && Number(data.rewardPowerHours) > 0) {
-            toast.success(
-              t("game2048.claimed_toast_hours", {
-                hr: data.rewardHashRate,
-                hours: data.rewardPowerHours,
-              }),
-            );
-          } else {
-            toast.success(
-              t("game2048.claimed_toast", {
-                hr: data.rewardHashRate,
-                days: data.rewardPowerDays ?? data.powerDays,
-              }),
-            );
-          }
-        }
-        await refreshStatus();
-        if (redirectOnSuccess) {
-          navigate("/games", { replace: true });
-        }
-      } catch {
-        toast.error(t("game2048.errors.claim_failed"));
-        autoClaimSessionKeyRef.current = null;
-        setClaimFailed(true);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [busy, moveSync, t, refreshStatus, navigate],
-  );
+  /** Guards the verify hand-off so each ended session navigates exactly once. */
+  const finishedSessionIdRef = useRef<string | null>(null);
 
+  /**
+   * When the round ends, hand off to the RollerCoin-style /games/verify page
+   * (full page with the app sidebar + navbar — no overlay on top of the game).
+   * The claim itself runs on the verify page; the endpoint is idempotent
+   * server-side, so reloads can never grant the reward twice.
+   */
   useEffect(() => {
-    if (!session?.canClaim || !session?.id) return undefined;
-    if (moveSync || busy) return undefined;
-    if (claimFailed) return undefined;
+    if (!session?.gameOver) return;
+    const sid = String(session.id);
+    if (finishedSessionIdRef.current === sid) return;
+    finishedSessionIdRef.current = sid;
 
-    const key = String(session.id);
-    if (autoClaimSessionKeyRef.current === key) return undefined;
-    autoClaimSessionKeyRef.current = key;
+    const scoreVal = Number(session.score) || 0;
+    const stats: GameFlowStat[] = [
+      { label: t("game2048.score"), value: String(scoreVal) },
+    ];
+    const limit = session.timeLimitSeconds ?? 0;
+    if (limit > 0 && session.startedAt && session.endedAt) {
+      const elapsed = Math.max(
+        0,
+        Math.round((new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 1000),
+      );
+      stats.push({ label: t("gameResult.stats.duration"), value: formatMmSs(elapsed) });
+    }
 
-    void claimReward({ redirectOnSuccess: true, fromAuto: true });
-
-    return undefined;
-  }, [session?.canClaim, session?.id, moveSync, busy, claimFailed, claimReward]);
+    // Only claimable rounds can validate as success; otherwise it's a plain loss.
+    const claimable = Boolean(session.canClaim || session.won);
+    saveGameVerifyRecord({
+      gameKey: "2048",
+      gameLabelKey: "game2048.title",
+      playAgainPath: "/games/2048",
+      stats,
+      claim: claimable ? { kind: "game2048", sessionId: session.id } : null,
+      resolution: claimable
+        ? null
+        : { outcome: "failure", rewardMessage: null, cooldownSeconds: 0, reasonKey: null, reasonMessage: null },
+      cooldownSeconds: status?.cooldownSecondsRemaining ?? 0,
+    });
+    navigate("/games/verify", { replace: true });
+  }, [session, status?.cooldownSecondsRemaining, navigate, t]);
 
   const minSwipePx = useMemo(() => {
     if (typeof window === "undefined") return 24;
@@ -655,7 +608,6 @@ export default function Game2048Page() {
   const cdSec = status?.cooldownSecondsRemaining ?? 0;
   const board = session?.board;
   const showTimer = (session?.timeLimitSeconds ?? 0) > 0 && session?.status === "ACTIVE" && !session?.gameOver;
-  const overlayKind = session ? endOverlayKey(session) : null;
 
   const boardSize = board?.length || 0;
   const hasBoard = Boolean(board && boardSize > 0);
@@ -747,19 +699,6 @@ export default function Game2048Page() {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden overscroll-none">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden overscroll-none px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-4">
-              <div className="flex flex-wrap justify-center gap-2">
-                {session?.canClaim && claimFailed && (
-                  <button
-                    type="button"
-                    onClick={() => void claimReward({ redirectOnSuccess: true })}
-                    disabled={busy || moveSync}
-                    className="min-h-11 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-5 py-3 text-xs font-black uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
-                  >
-                    {busy ? t("game2048.claiming") : t("game2048.claim")}
-                  </button>
-                )}
-              </div>
-
               {cdSec > 0 && !session && (
                 <p className="text-center text-sm text-amber-400">
                   {t("game2048.errors.COOLDOWN_ACTIVE")} ({cdSec}s)
@@ -793,16 +732,6 @@ export default function Game2048Page() {
                           )),
                         )}
                       </div>
-                      {session.gameOver && (
-                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[#03050a]/88 p-4 text-center backdrop-blur-[2px]">
-                          <p className="text-base font-black uppercase leading-tight text-white sm:text-lg">
-                            {overlayKind === "won" && t("game2048.you_won")}
-                            {overlayKind === "time" && t("game2048.time_up")}
-                            {overlayKind === "closed" && t("game2048.round_closed")}
-                            {overlayKind === "lost" && t("game2048.game_over")}
-                          </p>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <Game2048BoardSkeleton t={t} labelKey={skeletonLabelKey} />
@@ -817,7 +746,6 @@ export default function Game2048Page() {
         </div>
 
         <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="game-2048-bottom" />
-
       </>
     </div>
   );

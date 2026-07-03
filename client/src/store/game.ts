@@ -128,6 +128,7 @@ export interface MiningGameStore {
   clearActivePrivateUser: () => void;
 
   initSocket: () => void;
+  disconnectSocket: () => void;
   fetchMachines: () => Promise<void>;
   fetchVault: () => Promise<void>;
   fetchInventory: () => Promise<void>;
@@ -192,23 +193,50 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
       withCredentials: true,
       // Polling first: avoids noisy "WebSocket failed" in DevTools when nginx/proxy delays the upgrade.
       transports: ['polling', 'websocket'],
-      reconnectionAttempts: 14,
-      reconnectionDelay: 750,
-      reconnectionDelayMax: 20000,
+      // Never give up — laptop sleep, mobile handoff, and long tab-background must all recover transparently.
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30_000,
+      randomizationFactor: 0.5,
       timeout: Math.max(
         60_000,
         Number.parseInt(String(runtimeSocketMs || '180000'), 10) || 180_000,
       ),
     });
 
-    socket.on('connect', () => {
+    // When the tab returns to the foreground, browsers may have suspended timers long enough
+    // for the server to have already declared the socket dead. Force an immediate reconnect
+    // attempt instead of waiting for the next scheduled backoff tick.
+    if (typeof document !== 'undefined') {
+      const onVisibility = () => {
+        if (document.visibilityState === 'visible' && !socket.connected) {
+          socket.connect();
+        }
+      };
+      const onOnline = () => {
+        if (!socket.connected) socket.connect();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('online', onOnline);
+      window.addEventListener('focus', onVisibility);
+      // Stored so future disconnectSocket() can clean up.
+      (socket as unknown as { __bmCleanup?: () => void }).__bmCleanup = () => {
+        document.removeEventListener('visibilitychange', onVisibility);
+        window.removeEventListener('online', onOnline);
+        window.removeEventListener('focus', onVisibility);
+      };
+    }
+
+    // Emit a miner:join using the current cookie value. Extracted so we can re-run it
+    // after a silent HTTP token refresh triggered by auth:expired.
+    const joinWithCookieToken = () => {
       const cookies = document.cookie.split(';').reduce<Record<string, string>>((acc, cookie) => {
         const [key, value] = cookie.trim().split('=');
         acc[key] = value;
         return acc;
       }, {});
       const token = cookies.blockminer_access;
-
       socket.emit('miner:join', { token }, (response: unknown) => {
         if (!isRecord(response) || !response.ok) return;
         const state = response.state;
@@ -220,6 +248,25 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
           },
         }));
       });
+    };
+
+    // Server signals when miner:join failed because the access token expired.
+    // Trigger a silent HTTP refresh via the axios interceptor (any authed request works),
+    // then re-run miner:join. If the refresh cookie is also gone, this stays quiet and
+    // the user only sees stale data until they log in — no forced reload.
+    socket.on('auth:expired', () => {
+      void api
+        .post('/auth/refresh', {})
+        .then(() => {
+          if (socket.connected) joinWithCookieToken();
+        })
+        .catch(() => {
+          /* refresh cookie gone — user must re-login manually */
+        });
+    });
+
+    socket.on('connect', () => {
+      joinWithCookieToken();
     });
 
     socket.on('state:update', (payload: unknown) => {
@@ -297,6 +344,16 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
     });
 
     set({ socket });
+  },
+
+  disconnectSocket: () => {
+    const socket = get().socket;
+    if (!socket) return;
+    const cleanup = (socket as unknown as { __bmCleanup?: () => void }).__bmCleanup;
+    if (typeof cleanup === 'function') cleanup();
+    socket.removeAllListeners();
+    socket.disconnect();
+    set({ socket: null });
   },
 
   fetchMachines: async () => {

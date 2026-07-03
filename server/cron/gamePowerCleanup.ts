@@ -1,7 +1,6 @@
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
-import { cleanupStaleAutoMiningV2Impressions } from "../services/autoMiningV2/autoMiningV2Service.js";
-import { isAutoMiningV2SchemaAvailable } from "../services/autoMiningV2/autoMiningV2DbAvailability.js";
+import { cleanupStaleAutoMiningV2Impressions, isAutoMiningV2SchemaAvailable } from "../modules/auto-mining/index.js";
 import { errMsg } from "../types/tsNarrowing.js";
 
 const logger = loggerLib.child("GamePowerCleanup");

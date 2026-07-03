@@ -7,7 +7,7 @@ import express from "express";
 import { Server } from "socket.io";
 
 import prisma from "./src/db/prisma.js";
-import { refreshIframeHostAllowlistCache } from "./services/internalOfferwall/iframeHostAllowlistCache.js";
+import { refreshIframeHostAllowlistCache } from "./modules/internal-offerwall/index.js";
 import { MiningEngine } from "./src/miningEngine.js";
 import { setMiningEngine } from "./src/miningEngineInstance.js";
 import { setMiningEngine as setRuntimeMiningEngine } from "./src/runtime/miningRuntime.js";

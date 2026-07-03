@@ -88,6 +88,7 @@ describe("Game2048Page", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    sessionStorage.clear();
   });
 
   it("loads status from games 2048 API", async () => {
@@ -111,7 +112,7 @@ describe("Game2048Page", () => {
     expect(screen.queryByText("game2048.new_game")).not.toBeInTheDocument();
   });
 
-  it("auto-claims eligible ended session and navigates to /games", async () => {
+  it("hands off an ended claimable session to /games/verify without claiming in-page", async () => {
     const claimableSession = {
       id: 42,
       status: "ENDED",
@@ -153,22 +154,7 @@ describe("Game2048Page", () => {
       },
     });
 
-    vi.mocked(api.post).mockImplementation(async (path, body) => {
-      if (path === "/games/2048/claim") {
-        expect(body).toEqual({ sessionId: 42 });
-        return {
-          data: {
-            ok: true,
-            idempotent: false,
-            rewardHashRate: 25,
-            rewardPowerDays: 7,
-            rewardPowerHours: null,
-            powerDays: 7,
-          },
-        };
-      }
-      return { data: { ok: false } };
-    });
+    vi.mocked(api.post).mockImplementation(async () => ({ data: { ok: false } }));
 
     render(
       <MemoryRouter>
@@ -176,7 +162,20 @@ describe("Game2048Page", () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/games/2048/claim", { sessionId: 42 }));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/games", { replace: true }));
+    // The page hands off to the full-page verify route (RollerCoin-style).
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/games/verify", { replace: true })
+    );
+    // The claim must NOT run in-page — it runs once on the verify page
+    // (idempotent server-side), so reloads can never double-claim.
+    expect(api.post).not.toHaveBeenCalledWith("/games/2048/claim", expect.anything());
+
+    // The hand-off record carries the pending claim for the verify page.
+    const raw = sessionStorage.getItem("bm.gameVerify.v1");
+    expect(raw).toBeTruthy();
+    const record = JSON.parse(raw as string);
+    expect(record.claim).toEqual({ kind: "game2048", sessionId: 42 });
+    expect(record.playAgainPath).toBe("/games/2048");
+    expect(record.resolution).toBeNull();
   });
 });

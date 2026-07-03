@@ -21,7 +21,7 @@ import * as adminReadEarnController from "../controllers/adminReadEarnController
 import * as adminSocialController from "../modules/social/adminSocial.controller.js";
 import * as sidebarNavController from "../controllers/sidebarNavController.js";
 import * as adminDailyTasksController from "../controllers/adminDailyTasksController.js";
-import * as adminInternalOfferwallController from "../controllers/adminInternalOfferwallController.js";
+import * as adminInternalOfferwallController from "../modules/internal-offerwall/internal-offerwall.admin.controller.js";
 import * as adminWithdrawalTelegramController from "../controllers/adminWithdrawalTelegramController.js";
 import { Prisma } from "@prisma/client";
 import prisma from "../src/db/prisma.js";

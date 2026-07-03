@@ -2,8 +2,8 @@ import type { IncomingMessage, ServerResponse } from "http";
 import type { NextFunction, Request, Response } from "express";
 import type { HelmetOptions } from "helmet";
 import helmet from "helmet";
-import { getIframeHostAllowlistCachedSync } from "../services/internalOfferwall/iframeHostAllowlistCache.js";
-import { expandCspFrameSrcHostSources } from "../services/internalOfferwall/validateIframeUrl.js";
+import { getIframeHostAllowlistCachedSync } from "../modules/internal-offerwall/internal-offerwall.iframe-allowlist.js";
+import { expandCspFrameSrcHostSources } from "../modules/internal-offerwall/internal-offerwall.iframe-validate.js";
 
 function isAssetPath(pathname: string | undefined): boolean {
   return Boolean(pathname && /\.(css|js|map|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|otf)$/i.test(pathname));

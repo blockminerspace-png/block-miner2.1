@@ -16,6 +16,7 @@ import ChatSidebar from '../shared/components/ChatSidebar';
 import AdBlockDetector from '../shared/components/AdBlockDetector';
 import SiteFooter from '../shared/components/SiteFooter';
 import BroadcastPopup from '../shared/components/BroadcastPopup';
+import PtcSessionManager from '../shared/components/PtcSessionManager';
 import TransparencyErrorBoundary from '../shared/components/TransparencyErrorBoundary';
 import { prefetchProtectedBootstrap } from '../shared/utils/routePrefetch';
 
@@ -40,6 +41,8 @@ const Settings = lazy(() => import('../pages/settings'));
 const AutoMining = lazy(() => import('../pages/auto-mining'));
 const Games = lazy(() => import('../pages/games'));
 const Game2048Page = lazy(() => import('../pages/games/game-2048'));
+const GameSessionPage = lazy(() => import('../pages/games/GameSessionPage'));
+const GameVerifyPage = lazy(() => import('../pages/games/verify'));
 const ShortlinkStep = lazy(() => import('../pages/shortlinks/ShortlinkStepPage'));
 const Roadmap = lazy(() => import('../pages/roadmap'));
 const Manual = lazy(() => import('../pages/manual'));
@@ -164,6 +167,7 @@ const ProtectedLayout = () => {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden text-gray-100 font-sans">
+      <PtcSessionManager />
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <Header />
@@ -179,6 +183,20 @@ const ProtectedLayout = () => {
         <ChatSidebar />
       </div>
     </div>
+  );
+};
+
+const ProtectedNoLayout = () => {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const checkSession = useAuthStore((s) => s.checkSession);
+  useEffect(() => { void checkSession({ silent: true }); }, [checkSession]);
+  if (isLoading) return <RouteLoader />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return (
+    <Suspense fallback={<RouteLoader />}>
+      <Outlet />
+    </Suspense>
   );
 };
 
@@ -238,6 +256,10 @@ function App() {
             <Route path="/checkin" element={<Checkin />} />
           </Route>
 
+          <Route element={<ProtectedNoLayout />}>
+            <Route path="/games/:slug" element={<GameSessionPage />} />
+          </Route>
+
           <Route element={<ProtectedLayoutWithWeb3 />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/power-stats" element={<PowerStatistics />} />
@@ -269,6 +291,7 @@ function App() {
             <Route path="/support" element={<Support />} />
             <Route path="/taxes" element={<TaxesPage />} />
             <Route path="/games" element={<Games />} />
+            <Route path="/games/verify" element={<GameVerifyPage />} />
             <Route path="/games/2048" element={<Game2048Page />} />
             <Route path="/minigame" element={<Navigate to="/games" replace />} />
             <Route path="/roadmap" element={<Roadmap />} />

@@ -52,15 +52,27 @@ class IronDome {
                     ? navigator.userAgentData?.platform || navigator.platform || null
                     : null,
             hc: typeof navigator !== 'undefined' ? Number(navigator.hardwareConcurrency || 0) : 0,
-            dm: typeof navigator !== 'undefined' ? Number(navigator.deviceMemory || 0) : 0,
+            dm: typeof navigator !== 'undefined' ? Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory || 0) : 0,
             tp: typeof navigator !== 'undefined' ? Number(navigator.maxTouchPoints || 0) : 0,
             s: screenInfo
         };
 
-        const encoded = btoa(JSON.stringify(data));
+        const encoded = utf8ToBase64(JSON.stringify(data));
 
         return { fingerprint: encoded, isBot: this.isBotDetected, sk: this.secretKey };
     }
+}
+
+function utf8ToBase64(value: string): string {
+    if (typeof window === 'undefined') {
+        return Buffer.from(value, 'utf8').toString('base64');
+    }
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]!);
+    }
+    return btoa(binary);
 }
 
 const dome = new IronDome();

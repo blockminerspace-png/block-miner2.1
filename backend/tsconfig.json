@@ -72,6 +72,9 @@
       "#server/routes/internal-offerwall.js": [
         "./src/types/stubs/stub-server-routes-internal-offerwall.d.ts"
       ],
+      "#server/modules/internal-offerwall/index.js": [
+        "./src/types/stubs/stub-server-modules-internal-offerwall.d.ts"
+      ],
       "#server/routes/chat.js": [
         "./src/types/stubs/stub-server-routes-chat.d.ts"
       ],
@@ -92,6 +95,9 @@
       ],
       "#server/routes/auto-mining-gpu.js": [
         "./src/types/stubs/stub-server-routes-auto-mining-gpu.d.ts"
+      ],
+      "#server/modules/auto-mining/index.js": [
+        "./src/types/stubs/stub-server-modules-auto-mining.d.ts"
       ],
       "#server/routes/session.js": [
         "./src/types/stubs/stub-server-routes-session.d.ts"
