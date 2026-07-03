@@ -2254,7 +2254,8 @@
   },
   "powerBoost": {
     "title": "Power Boost — 7-Day Rewards",
-    "headline_desc": "Activate today so every new reward you earn today lasts 7 days instead of just 24 hours.",
+    "headline_desc": "Activate today so rewards earned today last <strong>7 days</strong> instead of <strong>24 hours</strong>.",
+    "learn_more": "Learn more",
     "how_it_works_title": "How it works",
     "how_it_works_s1": "You activate today for {{cost}} POL.",
     "how_it_works_s2": "All rewards earned TODAY last 7 days.",
@@ -2286,7 +2287,23 @@
     "active_button": "Power Boost active today",
     "toast_success": "Power Boost active! New claims today last 7 days.",
     "toast_error": "Failed to activate Power Boost.",
-    "footer_note": "Power Boost works per UTC day. Each payment applies only to rewards earned that day, without changing previously earned rewards."
+    "footer_note": "Power Boost works per UTC day. Each payment applies only to rewards earned that day, without changing previously earned rewards.",
+    "docs": {
+      "title": "Power Boost — Documentation",
+      "back": "Back to Taxes & Fees",
+      "intro": "Everything you need to know about the 7-day premium reward benefit.",
+      "duration_title": "Duration by system",
+      "examples_title": "Examples",
+      "example_today": "Today → paid → everything earned today lasts 7 days.",
+      "example_tomorrow": "Tomorrow → didn't pay → only tomorrow's rewards go back to 24h. Today's stay intact.",
+      "faq_title": "FAQ",
+      "faq_1_q": "Do I need to pay tomorrow to keep today's 7 days?",
+      "faq_1_a": "No. Each reward has a fixed expiration set when it was earned.",
+      "faq_2_q": "What if I don't pay tomorrow?",
+      "faq_2_a": "Only new rewards earned tomorrow go back to 24 hours.",
+      "faq_3_q": "Which systems are affected?",
+      "faq_3_a": "Faucet, Shortlinks, YouTube, and Auto Mining — only rewards earned on the payment day."
+    }
   },
   "powerStats": {
     "title": "Statistics & Power",

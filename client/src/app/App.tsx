@@ -35,6 +35,7 @@ const PopularOffers = lazyWithRetry(() => import('../pages/offers'));
 const DailyTasks = lazyWithRetry(() => import('../pages/tasks'));
 const Support = lazyWithRetry(() => import('../pages/support'));
 const TaxesPage = lazyWithRetry(() => import('../pages/taxes'));
+const PowerBoostDocsPage = lazyWithRetry(() => import('../pages/taxes/PowerBoostDocsPage'));
 const YouTubeWatch = lazyWithRetry(() => import('../pages/youtube-watch'));
 const Ranking = lazyWithRetry(() => import('../pages/ranking'));
 const PublicRoom = lazyWithRetry(() => import('../pages/public-room'));
@@ -300,6 +301,7 @@ function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/support" element={<Support />} />
             <Route path="/taxes" element={<TaxesPage />} />
+            <Route path="/taxes/power-boost" element={<PowerBoostDocsPage />} />
             <Route path="/games/partner/:slug" element={<PartnerGamePlayPage />} />
             <Route path="/games" element={<Games />} />
             <Route path="/games/verify" element={<GameVerifyPage />} />

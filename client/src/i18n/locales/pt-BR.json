@@ -2259,7 +2259,8 @@
   },
   "powerBoost": {
     "title": "Power Boost — Recompensas de 7 Dias",
-    "headline_desc": "Ative hoje para que todas as novas recompensas conquistadas hoje durem 7 dias em vez de apenas 24 horas.",
+    "headline_desc": "Ative hoje para que todas as recompensas conquistadas hoje durem <strong>7 dias</strong> em vez de <strong>24 horas</strong>.",
+    "learn_more": "Saiba mais",
     "how_it_works_title": "Como funciona",
     "how_it_works_s1": "Você ativa hoje por {{cost}} POL.",
     "how_it_works_s2": "Todas as recompensas conquistadas HOJE passam a durar 7 dias.",
@@ -2291,7 +2292,23 @@
     "active_button": "Power Boost ativo hoje",
     "toast_success": "Power Boost ativo! Novas coletas de hoje duram 7 dias.",
     "toast_error": "Erro ao ativar Power Boost.",
-    "footer_note": "O Power Boost funciona por dia (UTC). Cada pagamento vale apenas para as recompensas conquistadas naquele dia, sem alterar recompensas obtidas anteriormente."
+    "footer_note": "O Power Boost funciona por dia (UTC). Cada pagamento vale apenas para as recompensas conquistadas naquele dia, sem alterar recompensas obtidas anteriormente.",
+    "docs": {
+      "title": "Power Boost — Documentação",
+      "back": "Voltar para Impostos e Taxas",
+      "intro": "Tudo o que você precisa saber sobre o benefício premium de recompensas de 7 dias.",
+      "duration_title": "Duração por sistema",
+      "examples_title": "Exemplos",
+      "example_today": "Hoje → pagou → tudo conquistado hoje dura 7 dias.",
+      "example_tomorrow": "Amanhã → não pagou → apenas o conquistado amanhã volta a 24h. O de hoje continua intacto.",
+      "faq_title": "Perguntas frequentes",
+      "faq_1_q": "Preciso pagar amanhã para manter os 7 dias de hoje?",
+      "faq_1_a": "Não. Cada recompensa tem expiração fixa no momento em que foi conquistada.",
+      "faq_2_q": "O que acontece se eu não pagar amanhã?",
+      "faq_2_a": "Apenas as novas recompensas conquistadas amanhã voltam a durar 24 horas.",
+      "faq_3_q": "Quais sistemas são afetados?",
+      "faq_3_a": "Faucet, Shortlinks, YouTube e Auto Mining — somente recompensas obtidas no dia do pagamento."
+    }
   },
   "powerStats": {
     "title": "Estatísticas e poder",

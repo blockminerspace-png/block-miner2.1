@@ -165,7 +165,7 @@ export default function TaxesPage() {
       </div>
 
       {/* Power Boost */}
-      <div className="w-full">
+      <div className="w-full flex justify-center">
         <PowerBoostBanner />
       </div>
 

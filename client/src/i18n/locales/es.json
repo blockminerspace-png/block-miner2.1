@@ -1854,7 +1854,8 @@
   },
   "powerBoost": {
     "title": "Power Boost — Recompensas de 7 Días",
-    "headline_desc": "Activa hoy para que todas las nuevas recompensas conquistadas hoy duren 7 días en lugar de solo 24 horas.",
+    "headline_desc": "Activa hoy para que las recompensas conquistadas hoy duren <strong>7 días</strong> en lugar de <strong>24 horas</strong>.",
+    "learn_more": "Saber más",
     "how_it_works_title": "Cómo funciona",
     "how_it_works_s1": "Activas hoy por {{cost}} POL.",
     "how_it_works_s2": "Todas las recompensas conquistadas HOY duran 7 días.",
@@ -1886,7 +1887,23 @@
     "active_button": "Power Boost activo hoy",
     "toast_success": "¡Power Boost activo! Las nuevas recompensas de hoy duran 7 días.",
     "toast_error": "Error al activar Power Boost.",
-    "footer_note": "El Power Boost funciona por día (UTC). Cada pago vale solo para las recompensas conquistadas ese día, sin alterar las obtenidas antes."
+    "footer_note": "El Power Boost funciona por día (UTC). Cada pago vale solo para las recompensas conquistadas ese día, sin alterar las obtenidas antes.",
+    "docs": {
+      "title": "Power Boost — Documentación",
+      "back": "Volver a Impuestos y Tasas",
+      "intro": "Todo lo que necesitas saber sobre el beneficio premium de recompensas de 7 días.",
+      "duration_title": "Duración por sistema",
+      "examples_title": "Ejemplos",
+      "example_today": "Hoy → pagaste → todo lo conquistado hoy dura 7 días.",
+      "example_tomorrow": "Mañana → no pagaste → solo lo de mañana vuelve a 24h. Lo de hoy sigue intacto.",
+      "faq_title": "Preguntas frecuentes",
+      "faq_1_q": "¿Debo pagar mañana para mantener los 7 días de hoy?",
+      "faq_1_a": "No. Cada recompensa tiene expiración fija al momento de conquistarla.",
+      "faq_2_q": "¿Qué pasa si no pago mañana?",
+      "faq_2_a": "Solo las nuevas recompensas de mañana vuelven a durar 24 horas.",
+      "faq_3_q": "¿Qué sistemas se ven afectados?",
+      "faq_3_a": "Faucet, Shortlinks, YouTube y Auto Mining — solo recompensas del día del pago."
+    }
   },
   "powerStats": {
     "title": "Estadísticas y poder",
