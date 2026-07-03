@@ -3,7 +3,7 @@ import compression from "compression";
 import cors from "cors";
 import helmet from "helmet";
 import { createDistributedRateLimiter } from "#server/middleware/distributedRateLimit.js";
-import { getHelmetContentSecurityPolicyOptions } from "#server/middleware/csp.js";
+import { createCspMiddleware } from "#server/middleware/csp.js";
 import { createCsrfMiddleware } from "#server/middleware/csrf.js";
 import { auditContextMiddleware } from "#server/src/audit/index.js";
 import { createHttpRequestLogger } from "#server/middleware/httpRequestLogger.js";
@@ -27,7 +27,8 @@ export function setupExpressHttpStack(app: Express, opts: SetupExpressHttpStackO
 
   app.use(
     helmet({
-      contentSecurityPolicy: getHelmetContentSecurityPolicyOptions(),
+      // CSP only on HTML/SPA routes — hashed /assets/* must not carry ~4KB policy headers.
+      contentSecurityPolicy: false,
       crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
       referrerPolicy: { policy: "strict-origin-when-cross-origin" },
       permissionsPolicy: {
@@ -45,6 +46,7 @@ export function setupExpressHttpStack(app: Express, opts: SetupExpressHttpStackO
       },
     } as import("helmet").HelmetOptions),
   );
+  app.use(createCspMiddleware());
   app.use(cors(buildExpressCorsOptions()));
 
   if (process.env.NODE_ENV === "production") {
