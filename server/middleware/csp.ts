@@ -51,6 +51,20 @@ const WALLETCONNECT_CONNECT = [
 
 const ZPOOL_CONNECT = ["https://www.zpool.ca"] as const;
 
+/** Google AdSense / Google Ads (site verification + ad units). */
+const GOOGLE_ADS_SCRIPT = [
+  "https://pagead2.googlesyndication.com",
+  "https://www.googleadservices.com",
+  "https://www.googletagmanager.com",
+] as const;
+
+const GOOGLE_ADS_FRAME = [
+  "https://googleads.g.doubleclick.net",
+  "https://tpc.googlesyndication.com",
+  "https://www.google.com",
+  "https://pagead2.googlesyndication.com",
+] as const;
+
 type CspDirectives = NonNullable<Exclude<HelmetOptions["contentSecurityPolicy"], boolean | undefined>["directives"]>;
 
 function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
@@ -92,6 +106,7 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
       "http://ad.a-ads.com",
       "https://acceptable.a-ads.com",
       "https://*.a-ads.com",
+      ...GOOGLE_ADS_FRAME,
       ...internalOfferwallFrameHosts,
     ],
     objectSrc: ["'none'"],
@@ -122,7 +137,7 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
             "'sha256-NzvNrqk5jB9YZATwo5BF4JoRlJ02HsnFikbKXgEPdaQ='",
             "https://challenges.cloudflare.com",
             "https://cdn.jsdelivr.net",
-            "https://www.googletagmanager.com",
+            ...GOOGLE_ADS_SCRIPT,
             "https://www.youtube.com",
             "https://s.ytimg.com",
             "https://s3.tradingview.com",
@@ -137,7 +152,7 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
             "'unsafe-eval'",
             "https://challenges.cloudflare.com",
             "https://cdn.jsdelivr.net",
-            "https://www.googletagmanager.com",
+            ...GOOGLE_ADS_SCRIPT,
             "https://www.youtube.com",
             "https://s.ytimg.com",
             "https://s3.tradingview.com",
