@@ -94,15 +94,18 @@ export async function refreshIframeHostAllowlistCache(prisma: PrismaClient): Pro
 
   const partnerGames = await prisma.partnerGame.findMany({
     where: { isVisible: true },
-    select: { iframeUrl: true }
-  });
+    select: { iframeUrl: true, fallbackUrl: true, partnerUrl: true }
+  }).catch(() => []);
   for (const g of partnerGames) {
-    try {
-      const u = new URL(String(g.iframeUrl));
-      const h = u.hostname.toLowerCase();
-      if (h && h !== "localhost") set.add(h);
-    } catch {
-      /* ignore bad URL — admin validation should have caught it */
+    for (const raw of [g.iframeUrl, g.fallbackUrl, g.partnerUrl]) {
+      if (!raw) continue;
+      try {
+        const u = new URL(String(raw));
+        const h = u.hostname.toLowerCase();
+        if (h && h !== "localhost") set.add(h);
+      } catch {
+        /* ignore bad URL — admin validation should have caught it */
+      }
     }
   }
 

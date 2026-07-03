@@ -2,17 +2,19 @@ import type { Request, Response } from "express";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
 import { refreshIframeHostAllowlistCache } from "../internal-offerwall/internal-offerwall.iframe-allowlist.js";
+import {
+  registerPartnerGameFrameHosts,
+  refreshFrameAllowlistBestEffort,
+} from "./partner-games.frame-host.js";
 import * as sessionSvc from "./partner-games.service.js";
 import { slugifyPartnerGameTitle } from "./partner-games.service.js";
 
 const logger = loggerLib.child("PartnerGamesController");
 
-// Best-effort: refresh the in-memory CSP frame-src allowlist after any admin
-// mutation. Failures here must not roll back the mutation, so we just log.
-function refreshFrameAllowlistBestEffort() {
-  refreshIframeHostAllowlistCache(prisma).catch((err) =>
-    logger.warn("partnerGames.refresh_iframe_allowlist_failed", { err: String(err) })
-  );
+function refreshFrameAllowlistAfterMutation(iframeUrl: string, extras: Array<string | null | undefined> = []) {
+  void registerPartnerGameFrameHosts(prisma, [iframeUrl, ...extras]).then(() => {
+    refreshFrameAllowlistBestEffort(prisma);
+  });
 }
 
 /**
@@ -21,6 +23,9 @@ function refreshFrameAllowlistBestEffort() {
  * and the viewer's own vote (when authenticated).
  */
 export async function listPartnerGamesPublic(req: Request, res: Response): Promise<void> {
+  // Warm CSP frame-src allowlist from partner iframe URLs (best-effort).
+  refreshFrameAllowlistBestEffort(prisma);
+
   const viewerId = req.user?.id ?? null;
 
   const games = await prisma.partnerGame.findMany({
@@ -344,7 +349,7 @@ export async function adminCreatePartnerGame(req: Request, res: Response): Promi
     },
   });
   logger.info("partnerGames.admin_created", { id: game.id, title: game.title });
-  refreshFrameAllowlistBestEffort();
+  refreshFrameAllowlistAfterMutation(iframeOk, [fallbackOk, partnerOk]);
   res.json({ ok: true, game });
 }
 
@@ -401,7 +406,14 @@ export async function adminUpdatePartnerGame(req: Request, res: Response): Promi
 
   const updated = await prisma.partnerGame.update({ where: { id }, data });
   logger.info("partnerGames.admin_updated", { id, fields: Object.keys(data) });
-  refreshFrameAllowlistBestEffort();
+  const iframeForHost =
+    typeof data.iframeUrl === "string"
+      ? data.iframeUrl
+      : existing.iframeUrl;
+  refreshFrameAllowlistAfterMutation(iframeForHost, [
+    typeof data.fallbackUrl === "string" ? data.fallbackUrl : existing.fallbackUrl,
+    typeof data.partnerUrl === "string" ? data.partnerUrl : existing.partnerUrl,
+  ]);
   res.json({ ok: true, game: updated });
 }
 
@@ -418,7 +430,7 @@ export async function adminDeletePartnerGame(req: Request, res: Response): Promi
   }
   await prisma.partnerGame.delete({ where: { id } });
   logger.info("partnerGames.admin_deleted", { id });
-  refreshFrameAllowlistBestEffort();
+  refreshFrameAllowlistBestEffort(prisma);
   res.json({ ok: true });
 }
 
