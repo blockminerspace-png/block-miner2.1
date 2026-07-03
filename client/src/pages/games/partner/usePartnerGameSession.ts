@@ -25,9 +25,10 @@ export interface PartnerSessionState {
   rewardGranted: { hashRate: number } | null;
 }
 
-function isPageActive(): boolean {
+/** Active play = tab visible. Iframe/captcha popups steal window focus but user is still playing. */
+function isPlaySessionActive(): boolean {
   if (typeof document === "undefined") return false;
-  return document.visibilityState === "visible" && document.hasFocus();
+  return document.visibilityState === "visible";
 }
 
 export function usePartnerGameSession(slug: string | undefined, iframeLoaded: boolean) {
@@ -35,7 +36,7 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
   const [session, setSession] = useState<PartnerSessionState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pageActive, setPageActive] = useState(isPageActive);
+  const [pageActive, setPageActive] = useState(isPlaySessionActive);
   const sessionIdRef = useRef<string | null>(null);
   const nextRewardDeadlineRef = useRef<number | null>(null);
   const [nextRewardMs, setNextRewardMs] = useState(60_000);
@@ -110,18 +111,10 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
   }, [slug, applySession]);
 
   useEffect(() => {
-    const onVisibility = () => setPageActive(isPageActive());
-    const onFocus = () => setPageActive(isPageActive());
-    const onBlur = () => setPageActive(false);
-
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("blur", onBlur);
-    };
+    const sync = () => setPageActive(isPlaySessionActive());
+    document.addEventListener("visibilitychange", sync);
+    sync();
+    return () => document.removeEventListener("visibilitychange", sync);
   }, []);
 
   useEffect(() => {
@@ -150,14 +143,14 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
       if (nextRewardDeadlineRef.current) {
         setNextRewardMs(Math.max(0, nextRewardDeadlineRef.current - Date.now()));
       }
-      if (pageActive && iframeLoaded && session?.status === "active") {
+      if (pageActive && iframeLoaded) {
         setDisplayPlayingSeconds((s) => s + 1);
       }
     }, 1000);
     return () => window.clearInterval(id);
   }, [pageActive, iframeLoaded, session?.status]);
 
-  const isPlaying = pageActive && iframeLoaded && session?.status === "active";
+  const isPlaying = pageActive && iframeLoaded && session?.status !== "ended";
 
   return {
     game,

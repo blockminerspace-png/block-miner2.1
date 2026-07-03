@@ -198,8 +198,8 @@ export default function PartnerGamePlayPage() {
                 className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${
                   iframeLoaded ? "opacity-100" : "opacity-0"
                 }`}
-                sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-pointer-lock allow-orientation-lock"
-                allow="autoplay; fullscreen; gamepad; clipboard-write"
+                allow="autoplay; fullscreen; gamepad; clipboard-write; payment; microphone; camera"
+                referrerPolicy="strict-origin-when-cross-origin"
                 onLoad={() => {
                   iframeLoadedRef.current = true;
                   setIframeLoaded(true);

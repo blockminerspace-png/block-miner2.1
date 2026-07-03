@@ -2797,8 +2797,8 @@
       "hash_today": "Hashrate hoje",
       "status_playing": "Jogando",
       "status_paused": "Pausado",
-      "active_hint": "Você está minerando através deste parceiro. Permaneça nesta aba para continuar recebendo +5 H/s por minuto.",
-      "paused_hint": "Retorne para esta aba para continuar acumulando recompensas.",
+      "active_hint": "Você está minerando através deste parceiro. Mantenha esta aba aberta para continuar recebendo +5 H/s por minuto.",
+      "paused_hint": "Volte para esta aba do BlockMiner para continuar acumulando recompensas.",
       "blocked_title": "Este parceiro não permite execução dentro do BlockMiner",
       "blocked_desc": "Clique abaixo para jogar no site oficial.",
       "blocked_note": "Enquanto esta janela permanecer aberta e ativa, seu tempo continuará sendo contabilizado normalmente.",
@@ -2808,7 +2808,7 @@
       "info_title": "Informações",
       "partner_label": "Parceiro",
       "rules_title": "Regras",
-      "rules_body": "+5 H/s a cada 1 minuto de jogo ativo nesta aba. Cada recompensa dura 24 horas. O tempo só conta com a aba visível e em foco.",
+      "rules_body": "+5 H/s a cada 1 minuto de jogo ativo nesta aba. Cada recompensa dura 24 horas. O tempo conta enquanto esta aba do BlockMiner estiver aberta (mesmo clicando dentro do jogo).",
       "open_original": "Abrir site original",
       "reward_toast": "+{{hash}} H/s recebido"
     }
