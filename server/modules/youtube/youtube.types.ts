@@ -14,6 +14,9 @@ export type YoutubeStatsResult = {
   hashGrantedTotal: number;
   dailyLimit: number;
   dailyRemainingHash: number;
+  dailyLimitMinutes: number;
+  dailyMinutesUsed: number;
+  dailyRemainingMinutes: number;
   watchSecondsBalance: number;
   minSecondsToClaim: number;
 };

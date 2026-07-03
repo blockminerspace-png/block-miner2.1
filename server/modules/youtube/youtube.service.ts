@@ -11,6 +11,7 @@ import {
 } from "../../services/powerBoostService.js";
 import {
   DAILY_LIMIT_HASH,
+  MAX_DAILY_CLAIM_MINUTES,
   MIN_SECONDS_TO_CLAIM,
   REWARD_PER_CLAIM,
   getYtSecondsBalance,
@@ -48,14 +49,19 @@ export async function getStatsForUser(userId: number): Promise<YoutubeStatsResul
 
   const hash24h = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
 
+  const minutesUsed24h = claims24h.length;
+
   return {
     ok: true,
-    claims24h: claims24h.length,
+    claims24h: minutesUsed24h,
     hashGranted24h: hash24h,
     claimsTotal: aggregate._count,
     hashGrantedTotal: Number(aggregate._sum.hashRate || 0),
     dailyLimit: DAILY_LIMIT_HASH,
     dailyRemainingHash: Math.max(0, DAILY_LIMIT_HASH - hash24h),
+    dailyLimitMinutes: MAX_DAILY_CLAIM_MINUTES,
+    dailyMinutesUsed: minutesUsed24h,
+    dailyRemainingMinutes: Math.max(0, MAX_DAILY_CLAIM_MINUTES - minutesUsed24h),
     watchSecondsBalance: balanceRow?.ytSecondsBalance ?? 0,
     minSecondsToClaim: MIN_SECONDS_TO_CLAIM,
   };
@@ -77,8 +83,9 @@ export async function claimForUser(userId: number, videoId: string): Promise<You
   }
 
   const currentDailyHash = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+  const minutesUsed24h = claims24h.length;
 
-  if (currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {
+  if (minutesUsed24h >= MAX_DAILY_CLAIM_MINUTES || currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {
     return { ok: false, status: 400, message: "Limite diário atingido. Tente novamente amanhã!" };
   }
 

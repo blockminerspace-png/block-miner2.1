@@ -24,6 +24,9 @@ interface YoutubeStatsPayload {
     hashGranted24h?: number;
     dailyLimit?: number;
     dailyRemainingHash?: number;
+    dailyLimitMinutes?: number;
+    dailyMinutesUsed?: number;
+    dailyRemainingMinutes?: number;
     claims24h?: number;
     claimsTotal?: number;
     hashGrantedTotal?: number;
@@ -447,7 +450,10 @@ export default function YouTubeWatch() {
         };
     }, [isActivelyWatching, claimReward]);
 
-    const dailyProgress = stats ? (Number(stats.hashGranted24h || 0) / Math.max(1, Number(stats.dailyLimit || 1))) * 100 : 0;
+    const dailyLimitMinutes = Number(stats?.dailyLimitMinutes ?? 100);
+    const dailyMinutesUsed = Number(stats?.dailyMinutesUsed ?? stats?.claims24h ?? 0);
+    const dailyRemainingMinutes = Number(stats?.dailyRemainingMinutes ?? Math.max(0, dailyLimitMinutes - dailyMinutesUsed));
+    const dailyProgress = dailyLimitMinutes > 0 ? (dailyMinutesUsed / dailyLimitMinutes) * 100 : 0;
     const minClaimSec = Number(stats?.minSecondsToClaim ?? 50);
     const watchBalance = Number(stats?.watchSecondsBalance ?? 0);
     const showClaimCountdown =
@@ -649,12 +655,12 @@ export default function YouTubeWatch() {
                                 <span className="text-white">{stats?.claims24h || 0}</span>
                             </div>
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                <span className="text-slate-500">{t('youtube.stats_hash24h')}</span>
-                                <span className="text-emerald-400">{formatHashrate(Number(stats?.hashGranted24h || 0))}</span>
+                                <span className="text-slate-500">{t('youtube.stats_minutes_used')}</span>
+                                <span className="text-emerald-400">{dailyMinutesUsed} / {dailyLimitMinutes} min</span>
                             </div>
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
                                 <span className="text-slate-500">{t('youtube.stats_daily_remaining')}</span>
-                                <span className="text-gray-400">{formatHashrate(Number(stats?.dailyRemainingHash ?? 0))}</span>
+                                <span className="text-gray-400">{dailyRemainingMinutes} min</span>
                             </div>
                             
                             <div className="space-y-2">

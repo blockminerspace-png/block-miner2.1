@@ -11,7 +11,8 @@ const logger = loggerLib.child("YouTubeController");
 
 const REWARD_PER_CLAIM = 10.0;
 const DURATION_HOURS = Number(process.env.YOUTUBE_REWARD_DURATION_HOURS || 24);
-const DAILY_LIMIT_HASH = 4800.0;
+const MAX_DAILY_CLAIM_MINUTES = 100;
+const DAILY_LIMIT_HASH = REWARD_PER_CLAIM * MAX_DAILY_CLAIM_MINUTES;
 
 type AuthedRequest = Request & { user: { id: number } };
 
@@ -99,8 +100,9 @@ export async function claimReward(req: Request, res: Response) {
       where: { userId, createdAt: { gt: yesterday } }
     });
     const currentDailyHash = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+    const minutesUsed24h = claims24h.length;
 
-    if (currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {
+    if (minutesUsed24h >= MAX_DAILY_CLAIM_MINUTES || currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {
       return res.status(400).json({ ok: false, message: "Daily reward limit reached. Try again later!" });
     }
 
