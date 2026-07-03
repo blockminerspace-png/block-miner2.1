@@ -2,6 +2,8 @@ import type { Request, Response } from "express";
 import prisma from "../../src/db/prisma.js";
 import loggerLib from "../../utils/logger.js";
 import { refreshIframeHostAllowlistCache } from "../internal-offerwall/internal-offerwall.iframe-allowlist.js";
+import * as sessionSvc from "./partner-games.service.js";
+import { slugifyPartnerGameTitle } from "./partner-games.service.js";
 
 const logger = loggerLib.child("PartnerGamesController");
 
@@ -26,6 +28,7 @@ export async function listPartnerGamesPublic(req: Request, res: Response): Promi
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     select: {
       id: true,
+      slug: true,
       title: true,
       description: true,
       coverImageUrl: true,
@@ -73,6 +76,96 @@ export async function listPartnerGamesPublic(req: Request, res: Response): Promi
   });
 
   res.json({ ok: true, games: enriched });
+}
+
+export async function getPartnerGameBySlugPublic(req: Request, res: Response): Promise<void> {
+  const slug = String(req.params.slug ?? "").trim();
+  if (!slug) {
+    res.status(400).json({ ok: false, message: "slug inválido." });
+    return;
+  }
+  const game = await sessionSvc.getPartnerGameBySlug(slug);
+  if (!game) {
+    res.status(404).json({ ok: false, message: "Jogo parceiro não encontrado." });
+    return;
+  }
+  res.json({ ok: true, game });
+}
+
+export async function startPartnerGameSessionHandler(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const slug = String((req.body as { slug?: string })?.slug ?? "").trim();
+  if (!slug) {
+    res.status(400).json({ ok: false, message: "slug é obrigatório." });
+    return;
+  }
+
+  try {
+    const result = await sessionSvc.startPartnerGameSession(userId, slug);
+    res.json({ ok: true, ...result });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "PARTNER_GAME_NOT_FOUND") {
+      res.status(404).json({ ok: false, message: "Jogo parceiro não encontrado." });
+      return;
+    }
+    logger.warn("partnerGames.session_start_failed", { userId, slug, err: msg });
+    res.status(500).json({ ok: false, message: "Não foi possível iniciar a sessão." });
+  }
+}
+
+export async function heartbeatPartnerGameSessionHandler(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const sessionId = String(req.params.sessionId ?? "");
+  const body = (req.body ?? {}) as { active?: unknown; iframeLoaded?: unknown };
+  const active = body.active !== false;
+  const iframeLoaded = body.iframeLoaded !== false;
+
+  try {
+    const session = await sessionSvc.heartbeatPartnerGameSession(userId, sessionId, {
+      active,
+      iframeLoaded,
+    });
+    res.json({ ok: true, session });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "SESSION_NOT_FOUND") {
+      res.status(404).json({ ok: false, message: "Sessão não encontrada." });
+      return;
+    }
+    if (msg === "SESSION_ENDED") {
+      res.status(409).json({ ok: false, message: "Sessão encerrada." });
+      return;
+    }
+    res.status(500).json({ ok: false, message: "Heartbeat falhou." });
+  }
+}
+
+export async function endPartnerGameSessionHandler(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const sessionId = String(req.params.sessionId ?? "");
+  const reason = String((req.body as { reason?: string })?.reason ?? "user_left");
+  await sessionSvc.endPartnerGameSession(userId, sessionId, reason);
+  res.json({ ok: true });
+}
+
+export async function getPartnerGameSessionStatsHandler(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ ok: false }); return; }
+
+  const slug = String(req.params.slug ?? "").trim();
+  try {
+    const stats = await sessionSvc.getPartnerGameSessionStats(userId, slug);
+    res.json({ ok: true, ...stats });
+  } catch {
+    res.status(404).json({ ok: false, message: "Jogo parceiro não encontrado." });
+  }
 }
 
 /**
@@ -155,6 +248,7 @@ function parseGameInput(body: unknown): {
   partnerUrl?: string | null;
   isVisible?: boolean;
   sortOrder?: number;
+  slug?: string;
 } {
   if (!body || typeof body !== "object") return {};
   const b = body as Record<string, unknown>;
@@ -184,6 +278,9 @@ function parseGameInput(body: unknown): {
   if (b.sortOrder !== undefined) {
     const n = Number(b.sortOrder);
     if (Number.isFinite(n)) out.sortOrder = Math.trunc(n);
+  }
+  if (typeof b.slug === "string" && b.slug.trim()) {
+    out.slug = slugifyPartnerGameTitle(b.slug.trim());
   }
   return out;
 }
@@ -235,6 +332,7 @@ export async function adminCreatePartnerGame(req: Request, res: Response): Promi
 
   const game = await prisma.partnerGame.create({
     data: {
+      slug: input.slug ?? slugifyPartnerGameTitle(input.title),
       title: input.title,
       description: input.description ?? null,
       coverImageUrl: input.coverImageUrl ?? null,
@@ -265,6 +363,7 @@ export async function adminUpdatePartnerGame(req: Request, res: Response): Promi
   const input = parseGameInput(req.body);
   const data: Record<string, unknown> = {};
   if (input.title !== undefined) data.title = input.title;
+  if (input.slug !== undefined) data.slug = input.slug;
   if (input.description !== undefined) data.description = input.description;
   if (input.coverImageUrl !== undefined) data.coverImageUrl = input.coverImageUrl;
 

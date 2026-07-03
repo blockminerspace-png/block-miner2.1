@@ -2372,7 +2372,7 @@
   },
   "partnerGames": {
     "empty": "Aún no hay juegos asociados disponibles.",
-    "play": "Jugar",
+    "playCta": "Jugar",
     "open_aria": "Abrir {{title}}",
     "visit_partner": "Visitar Socio",
     "like_aria": "Me gusta",
@@ -2383,7 +2383,30 @@
     "close_aria": "Cerrar",
     "iframe_failed_title": "El juego no se pudo cargar incrustado",
     "iframe_failed_desc": "El sitio asociado puede bloquear el iframe. Ábrelo en una nueva pestaña.",
-    "open_in_new_tab": "Abrir en nueva pestaña"
+    "open_in_new_tab": "Abrir en nueva pestaña",
+    "play": {
+      "back": "Volver",
+      "not_found": "Juego asociado no encontrado.",
+      "category": "Juego asociado",
+      "time_today": "Tiempo hoy",
+      "hash_today": "Hashrate hoy",
+      "status_playing": "Jugando",
+      "status_paused": "Pausado",
+      "active_hint": "Estás minando a través de este socio. Permanece en esta pestaña para seguir recibiendo +5 H/s por minuto.",
+      "paused_hint": "Vuelve a esta pestaña para seguir acumulando recompensas.",
+      "blocked_title": "Este socio no permite ejecución dentro de BlockMiner",
+      "blocked_desc": "Haz clic abajo para jugar en el sitio oficial.",
+      "blocked_note": "Mientras esta ventana permanezca abierta y activa, tu tiempo seguirá contabilizándose.",
+      "open_partner": "Abrir socio",
+      "playing_now": "Jugando ahora",
+      "next_reward": "Próxima recompensa",
+      "info_title": "Información",
+      "partner_label": "Socio",
+      "rules_title": "Reglas",
+      "rules_body": "+5 H/s cada 1 minuto de juego activo en esta pestaña. Cada recompensa dura 24 horas. El tiempo solo cuenta con la pestaña visible y enfocada.",
+      "open_original": "Abrir sitio original",
+      "reward_toast": "+{{hash}} H/s recibido"
+    }
   },
   "autoMiningGpuPage": {
     "loading": "Sincronizando sesión…",

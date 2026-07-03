@@ -16,6 +16,33 @@ const voteRateLimiter = createRateLimiter({
 // Public: list visible partner games (vote totals + viewer's own vote when logged in).
 partnerGamesRouter.get("/", authenticateTokenOptional, ctrl.listPartnerGamesPublic);
 
+// Play session (authenticated).
+const sessionRateLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 120,
+  message: "Muitas requisições de sessão. Aguarde um instante.",
+});
+
+partnerGamesRouter.get("/play/:slug", authenticateTokenOptional, ctrl.getPartnerGameBySlugPublic);
+partnerGamesRouter.post("/session/start", requireAuth, sessionRateLimiter, ctrl.startPartnerGameSessionHandler);
+partnerGamesRouter.post(
+  "/session/:sessionId/heartbeat",
+  requireAuth,
+  sessionRateLimiter,
+  ctrl.heartbeatPartnerGameSessionHandler,
+);
+partnerGamesRouter.post(
+  "/session/:sessionId/end",
+  requireAuth,
+  sessionRateLimiter,
+  ctrl.endPartnerGameSessionHandler,
+);
+partnerGamesRouter.get(
+  "/session/stats/:slug",
+  requireAuth,
+  ctrl.getPartnerGameSessionStatsHandler,
+);
+
 // Public (authenticated): vote on a partner game.
 partnerGamesRouter.post("/:id/vote", requireAuth, voteRateLimiter, ctrl.votePartnerGame);
 

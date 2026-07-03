@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { TFunction } from "i18next";
-import { Gamepad2, ThumbsUp, ThumbsDown, Maximize2, ExternalLink, Loader2, X } from "lucide-react";
+import { Gamepad2, ThumbsUp, ThumbsDown, ExternalLink, Loader2 } from "lucide-react";
 import { api, useAuthStore } from "../../store/auth";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PartnerGame {
   id: number;
+  slug: string;
   title: string;
   description: string | null;
   coverImageUrl: string | null;
@@ -18,16 +18,14 @@ export interface PartnerGame {
   myVote: 1 | -1 | 0;
 }
 
-// ─── Card ────────────────────────────────────────────────────────────────────
-
 function PartnerGameCard({
   game,
-  onOpen,
+  onPlay,
   onVoted,
   t,
 }: {
   game: PartnerGame;
-  onOpen: (g: PartnerGame) => void;
+  onPlay: (g: PartnerGame) => void;
   onVoted: (next: Pick<PartnerGame, "id" | "likeCount" | "dislikeCount" | "myVote">) => void;
   t: TFunction;
 }) {
@@ -60,15 +58,14 @@ function PartnerGameCard({
         setVoting(false);
       }
     },
-    [game.id, user, voting, onVoted]
+    [game.id, user, voting, onVoted],
   );
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-xl transition-all hover:-translate-y-1 hover:border-primary/60">
-      {/* Cover (clickable → opens iframe modal) */}
       <button
         type="button"
-        onClick={() => onOpen(game)}
+        onClick={() => onPlay(game)}
         className="relative block aspect-video w-full overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950"
         aria-label={t("partnerGames.open_aria", { title: game.title })}
       >
@@ -88,12 +85,11 @@ function PartnerGameCard({
         )}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-300 group-hover:bg-black/40 group-hover:opacity-100">
           <span className="rounded-full bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-xl">
-            {t("partnerGames.play")}
+            {t("partnerGames.playCta")}
           </span>
         </div>
       </button>
 
-      {/* Body */}
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div>
           <h3 className="text-sm font-black uppercase tracking-tight text-white">{game.title}</h3>
@@ -102,7 +98,6 @@ function PartnerGameCard({
           )}
         </div>
 
-        {/* Actions row */}
         <div className="mt-auto flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -137,6 +132,7 @@ function PartnerGameCard({
               href={game.partnerUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className="ml-auto flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-[11px] font-black text-white transition-colors hover:bg-red-500"
               title={t("partnerGames.visit_partner")}
             >
@@ -150,123 +146,10 @@ function PartnerGameCard({
   );
 }
 
-// ─── Iframe modal ────────────────────────────────────────────────────────────
-
-function PartnerGameModal({
-  game,
-  onClose,
-  t,
-}: {
-  game: PartnerGame;
-  onClose: () => void;
-  t: TFunction;
-}) {
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [iframeFailed, setIframeFailed] = useState(false);
-
-  // Auto-detect blocked iframes: if no load event fires in time, the browser
-  // probably blocked it via X-Frame-Options/CSP. We surface a fallback CTA.
-  useEffect(() => {
-    setIframeFailed(false);
-    const timer = setTimeout(() => {
-      // If the iframe loaded successfully, it'd have fired onLoad which clears
-      // this state. We can't detect cross-origin XFO failures programmatically,
-      // so we just wait long enough to be confident and show the fallback.
-      setIframeFailed(true);
-    }, 6000);
-    return () => clearTimeout(timer);
-  }, [game.id]);
-
-  const requestFullscreen = useCallback(() => {
-    const el = iframeRef.current;
-    if (!el) return;
-    // Browser support varies; try the standard API first.
-    if (el.requestFullscreen) void el.requestFullscreen().catch(() => undefined);
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-[1000] flex flex-col bg-black/95 backdrop-blur-sm">
-      {/* Top bar */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-950 px-3 py-2 sm:px-4">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-black text-white">{game.title}</p>
-          <p className="truncate text-[10px] text-slate-500">{t("partnerGames.modal_subtitle")}</p>
-        </div>
-        <button
-          type="button"
-          onClick={requestFullscreen}
-          aria-label={t("partnerGames.fullscreen_aria")}
-          title={t("partnerGames.fullscreen")}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-black text-gray-300 transition-colors hover:border-white/20 hover:text-white"
-        >
-          <Maximize2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t("partnerGames.fullscreen")}</span>
-        </button>
-        {game.partnerUrl && (
-          <a
-            href={game.partnerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-[11px] font-black text-white transition-colors hover:bg-red-500"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{t("partnerGames.visit_partner")}</span>
-          </a>
-        )}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t("partnerGames.close_aria")}
-          className="rounded-lg border border-red-500/30 bg-red-500/20 p-2 text-red-400 transition-colors hover:bg-red-500/40"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Iframe body */}
-      <div className="relative flex-1 bg-black">
-        <iframe
-          ref={iframeRef}
-          src={game.iframeUrl}
-          title={game.title}
-          className="absolute inset-0 h-full w-full border-0"
-          // Sandbox: allow scripts + same-origin enough for game logic, plus popups
-          // (some games open auth flows). We deliberately omit `allow-top-navigation`
-          // so a misbehaving partner can't navigate our top window away.
-          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-pointer-lock allow-orientation-lock"
-          // `allow="fullscreen"` is needed for embed-initiated fullscreen
-          // (e.g. games with their own fullscreen button inside).
-          allow="autoplay; fullscreen; gamepad; clipboard-write"
-          onLoad={() => setIframeFailed(false)}
-        />
-        {iframeFailed && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/70">
-            <div className="pointer-events-auto max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center shadow-2xl">
-              <p className="text-sm font-bold text-white">{t("partnerGames.iframe_failed_title")}</p>
-              <p className="mt-2 text-xs text-slate-400">{t("partnerGames.iframe_failed_desc")}</p>
-              <a
-                href={game.fallbackUrl ?? game.iframeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white transition-colors hover:bg-primary/90"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t("partnerGames.open_in_new_tab")}
-              </a>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab root ────────────────────────────────────────────────────────────────
-
 export default function PartnerGamesTab({ t }: { t: TFunction }) {
+  const navigate = useNavigate();
   const [games, setGames] = useState<PartnerGame[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [openGame, setOpenGame] = useState<PartnerGame | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -284,15 +167,12 @@ export default function PartnerGamesTab({ t }: { t: TFunction }) {
     void load();
   }, [load]);
 
-  // Lock background scroll while the iframe modal is open.
-  useEffect(() => {
-    if (!openGame) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [openGame]);
+  const handlePlay = useCallback(
+    (game: PartnerGame) => {
+      navigate(`/games/partner/${game.slug}`);
+    },
+    [navigate],
+  );
 
   if (loading) {
     return (
@@ -303,7 +183,7 @@ export default function PartnerGamesTab({ t }: { t: TFunction }) {
   }
   if (!games?.length) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500">
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-500">
         <Gamepad2 className="h-10 w-10 opacity-30" />
         <p className="text-sm font-bold">{t("partnerGames.empty")}</p>
       </div>
@@ -311,36 +191,31 @@ export default function PartnerGamesTab({ t }: { t: TFunction }) {
   }
 
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {games.map((g) => (
-          <PartnerGameCard
-            key={g.id}
-            game={g}
-            onOpen={(game) => setOpenGame(game)}
-            onVoted={(next) =>
-              setGames((prev) =>
-                prev
-                  ? prev.map((row) =>
-                      row.id === next.id
-                        ? {
-                            ...row,
-                            likeCount: next.likeCount,
-                            dislikeCount: next.dislikeCount,
-                            myVote: next.myVote,
-                          }
-                        : row
-                    )
-                  : prev
-              )
-            }
-            t={t}
-          />
-        ))}
-      </div>
-      {openGame && (
-        <PartnerGameModal game={openGame} onClose={() => setOpenGame(null)} t={t} />
-      )}
-    </>
+    <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {games.map((g) => (
+        <PartnerGameCard
+          key={g.id}
+          game={g}
+          onPlay={handlePlay}
+          onVoted={(next) =>
+            setGames((prev) =>
+              prev
+                ? prev.map((row) =>
+                    row.id === next.id
+                      ? {
+                          ...row,
+                          likeCount: next.likeCount,
+                          dislikeCount: next.dislikeCount,
+                          myVote: next.myVote,
+                        }
+                      : row,
+                  )
+                : prev,
+            )
+          }
+          t={t}
+        />
+      ))}
+    </div>
   );
 }

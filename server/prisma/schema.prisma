@@ -133,6 +133,7 @@ model User {
   videoSubmissions               YoutubeVideoSubmission[]
   videoVotes                     YoutubeVideoVote[]
   partnerGameVotes               PartnerGameVote[]
+  partnerGameSessions            PartnerGameSession[]
   gameCooldownStates             GameCooldownState[]
   gameSessionLogs                GameSessionLog[]
 
@@ -2305,6 +2306,7 @@ model YoutuberRewardSettings {
 /// External (partner) game shown alongside our own minigames in /games.
 model PartnerGame {
   id            Int      @id @default(autoincrement())
+  slug          String   @unique
   title         String
   description   String?
   coverImageUrl String?  @map("cover_image_url")
@@ -2316,7 +2318,8 @@ model PartnerGame {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  votes PartnerGameVote[]
+  votes    PartnerGameVote[]
+  sessions PartnerGameSession[]
 
   @@index([isVisible, sortOrder])
   @@map("partner_games")
@@ -2337,6 +2340,49 @@ model PartnerGameVote {
   @@unique([userId, partnerGameId])
   @@index([partnerGameId])
   @@map("partner_game_votes")
+}
+
+/// Play session for partner-game rewards (+5 H/s per active minute).
+model PartnerGameSession {
+  id              String    @id @default(uuid())
+  userId          Int       @map("user_id")
+  partnerGameId   Int       @map("partner_game_id")
+  /// active | paused | ended
+  status          String    @default("active")
+  accumulatedMs   Int       @default(0) @map("accumulated_ms")
+  rewardCycleMs   Int       @default(0) @map("reward_cycle_ms")
+  totalHashGranted Float    @default(0) @map("total_hash_granted")
+  grantsCount     Int       @default(0) @map("grants_count")
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerGame PartnerGame @relation(fields: [partnerGameId], references: [id], onDelete: Cascade)
+  events      PartnerGameSessionEvent[]
+
+  @@index([userId, status])
+  @@index([partnerGameId])
+  @@index([lastHeartbeatAt])
+  @@map("partner_game_sessions")
+}
+
+/// Analytics events for partner play sessions.
+model PartnerGameSessionEvent {
+  id            Int      @id @default(autoincrement())
+  sessionId     String   @map("session_id")
+  userId        Int      @map("user_id")
+  partnerGameId Int      @map("partner_game_id")
+  event         String
+  meta          Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  session PartnerGameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([partnerGameId, createdAt])
+  @@index([userId, createdAt])
+  @@map("partner_game_session_events")
 }
 
 // ─── TOURNAMENTS ────────────────────────────────────────────────────────────

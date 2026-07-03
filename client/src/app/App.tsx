@@ -43,6 +43,7 @@ const AutoMining = lazyWithRetry(() => import('../pages/auto-mining'));
 const Games = lazyWithRetry(() => import('../pages/games'));
 const Game2048Page = lazyWithRetry(() => import('../pages/games/game-2048'));
 const GameSessionPage = lazyWithRetry(() => import('../pages/games/GameSessionPage'));
+const PartnerGamePlayPage = lazyWithRetry(() => import('../pages/games/partner/PartnerGamePlayPage'));
 const GameVerifyPage = lazyWithRetry(() => import('../pages/games/verify'));
 const ShortlinkStep = lazyWithRetry(() => import('../pages/shortlinks/ShortlinkStepPage'));
 const Roadmap = lazyWithRetry(() => import('../pages/roadmap'));
@@ -258,6 +259,7 @@ function App() {
           </Route>
 
           <Route element={<ProtectedNoLayout />}>
+            <Route path="/games/partner/:slug" element={<PartnerGamePlayPage />} />
             <Route path="/games/:slug" element={<GameSessionPage />} />
           </Route>
 

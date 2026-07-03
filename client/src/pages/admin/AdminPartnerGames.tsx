@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 type PartnerGameForm = {
   title: string;
+  slug: string;
   description: string;
   coverImageUrl: string;
   iframeUrl: string;
@@ -16,6 +17,7 @@ type PartnerGameForm = {
 
 const EMPTY: PartnerGameForm = {
   title: "",
+  slug: "",
   description: "",
   coverImageUrl: "",
   iframeUrl: "",
@@ -27,6 +29,7 @@ const EMPTY: PartnerGameForm = {
 
 type AdminPartnerGame = {
   id: number;
+  slug: string;
   title: string;
   description: string | null;
   coverImageUrl: string | null;
@@ -107,6 +110,7 @@ export default function AdminPartnerGames() {
     setEditId(g.id);
     setForm({
       title: g.title,
+      slug: g.slug,
       description: g.description ?? "",
       coverImageUrl: g.coverImageUrl ?? "",
       iframeUrl: g.iframeUrl,
@@ -146,6 +150,7 @@ export default function AdminPartnerGames() {
     try {
       const body = {
         title: form.title.trim(),
+        ...(form.slug.trim() ? { slug: form.slug.trim() } : {}),
         description: form.description.trim() || null,
         coverImageUrl: form.coverImageUrl.trim() || null,
         iframeUrl: form.iframeUrl.trim(),
@@ -242,6 +247,14 @@ export default function AdminPartnerGames() {
           </div>
 
           <Field label="Título *" name="title" value={form.title} onChange={handleChange} required maxLength={200} />
+          <Field
+            label="Slug (URL)"
+            name="slug"
+            value={form.slug}
+            onChange={handleChange}
+            maxLength={80}
+            placeholder="genesisdao — /games/partner/genesisdao"
+          />
           <Field
             label="Descrição"
             name="description"
