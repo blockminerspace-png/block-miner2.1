@@ -2389,6 +2389,7 @@
       "not_found": "Juego asociado no encontrado.",
       "category": "Juego asociado",
       "time_today": "Tiempo hoy",
+      "session_time": "Sesión actual",
       "hash_today": "Hashrate hoy",
       "status_playing": "Jugando",
       "status_paused": "Pausado",
@@ -2403,9 +2404,10 @@
       "info_title": "Información",
       "partner_label": "Socio",
       "rules_title": "Reglas",
-      "rules_body": "+5 H/s cada 1 minuto de juego activo en esta pestaña. Cada recompensa dura 24 horas. El tiempo solo cuenta con la pestaña visible y enfocada.",
+      "rules_body": "+5 H/s cada 1 minuto de juego activo en esta pestaña. Cada recompensa dura 24 horas. El tiempo cuenta mientras esta pestaña de BlockMiner esté abierta (incluso al hacer clic dentro del juego).",
       "open_original": "Abrir sitio original",
-      "reward_toast": "+{{hash}} H/s recibido"
+      "reward_toast": "+{{hash}} H/s recibido",
+      "first_reward_in": "1ª recompensa en {{time}}"
     }
   },
   "autoMiningGpuPage": {

@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import { Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from '../store/auth';
 import { lazyWithRetry } from '../shared/utils/lazyWithRetry';
@@ -137,6 +137,8 @@ function ProtectedOutletFallback(): JSX.Element {
 }
 
 const ProtectedLayout = () => {
+  const location = useLocation();
+  const isPartnerPlay = /^\/games\/partner\//.test(location.pathname);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const checkSession = useAuthStore((s) => s.checkSession);
@@ -175,14 +177,20 @@ const ProtectedLayout = () => {
         <Header />
         <BroadcastPopup />
         <main className="flex-1 overflow-y-auto scrollbar-hide mt-14 md:mt-0">
-          <div className="w-full max-w-7xl mx-auto px-3 py-4 pb-24 sm:px-4 md:p-8 md:pb-8">
+          <div
+            className={
+              isPartnerPlay
+                ? "w-full max-w-[1600px] mx-auto px-2 py-2 pb-4 sm:px-3"
+                : "w-full max-w-7xl mx-auto px-3 py-4 pb-24 sm:px-4 md:p-8 md:pb-8"
+            }
+          >
             <Suspense fallback={<ProtectedOutletFallback />}>
               <Outlet />
             </Suspense>
           </div>
-          <SiteFooter compact />
+          {!isPartnerPlay ? <SiteFooter compact /> : null}
         </main>
-        <ChatSidebar />
+        {!isPartnerPlay ? <ChatSidebar /> : null}
       </div>
     </div>
   );

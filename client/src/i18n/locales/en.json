@@ -2789,6 +2789,7 @@
       "not_found": "Partner game not found.",
       "category": "Partner game",
       "time_today": "Time today",
+      "session_time": "Current session",
       "hash_today": "Hashrate today",
       "status_playing": "Playing",
       "status_paused": "Paused",
@@ -2803,9 +2804,10 @@
       "info_title": "Information",
       "partner_label": "Partner",
       "rules_title": "Rules",
-      "rules_body": "+5 H/s every 1 minute of active play on this tab. Each reward lasts 24 hours. Time only counts when the tab is visible and focused.",
+      "rules_body": "+5 H/s every 1 minute of active play on this tab. Each reward lasts 24 hours. Time counts while this BlockMiner tab is open (including clicks inside the game).",
       "open_original": "Open original site",
-      "reward_toast": "+{{hash}} H/s received"
+      "reward_toast": "+{{hash}} H/s received",
+      "first_reward_in": "First reward in {{time}}"
     }
   },
   "autoMiningGpuPage": {

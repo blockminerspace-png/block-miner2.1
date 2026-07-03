@@ -2794,6 +2794,7 @@
       "not_found": "Jogo parceiro não encontrado.",
       "category": "Jogo parceiro",
       "time_today": "Tempo hoje",
+      "session_time": "Sessão atual",
       "hash_today": "Hashrate hoje",
       "status_playing": "Jogando",
       "status_paused": "Pausado",
@@ -2810,7 +2811,8 @@
       "rules_title": "Regras",
       "rules_body": "+5 H/s a cada 1 minuto de jogo ativo nesta aba. Cada recompensa dura 24 horas. O tempo conta enquanto esta aba do BlockMiner estiver aberta (mesmo clicando dentro do jogo).",
       "open_original": "Abrir site original",
-      "reward_toast": "+{{hash}} H/s recebido"
+      "reward_toast": "+{{hash}} H/s recebido",
+      "first_reward_in": "1ª recompensa em {{time}}"
     }
   },
   "autoMiningGpuPage": {

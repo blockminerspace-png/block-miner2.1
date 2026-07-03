@@ -8,11 +8,11 @@ import {
   Loader2,
   Pause,
   Play,
-  Sparkles,
   WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePartnerGameSession, formatDuration, formatCountdownMs } from "./usePartnerGameSession";
+import { useGameStore } from "../../../store/game";
 
 function IframeSkeleton() {
   return (
@@ -36,6 +36,12 @@ export default function PartnerGamePlayPage() {
   const [iframeBlocked, setIframeBlocked] = useState(false);
   const [rewardPulse, setRewardPulse] = useState(false);
   const prevGrantsRef = useRef(0);
+
+  const closeChat = useGameStore((s) => s.closeChat);
+
+  useEffect(() => {
+    closeChat();
+  }, [closeChat]);
 
   const playEligible = iframeLoaded || iframeBlocked;
 
@@ -131,7 +137,7 @@ export default function PartnerGamePlayPage() {
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              {t("partnerGames.play.time_today")}
+              {t("partnerGames.play.session_time")}
             </p>
             <p className="text-sm font-bold tabular-nums text-white">
               {formatDuration(displayPlayingSeconds)}
@@ -150,6 +156,11 @@ export default function PartnerGamePlayPage() {
             <p className="text-sm font-bold tabular-nums text-emerald-400">
               +{session?.hashEarnedToday ?? 0} H/s
             </p>
+            {(session?.grantsCount ?? 0) === 0 && isPlaying ? (
+              <p className="mt-0.5 text-[10px] text-slate-500">
+                {t("partnerGames.play.first_reward_in", { time: formatCountdownMs(nextRewardMs) })}
+              </p>
+            ) : null}
           </div>
           <div
             className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
@@ -181,15 +192,9 @@ export default function PartnerGamePlayPage() {
               {t("partnerGames.play.paused_hint")}
             </div>
           )}
-          {pageActive && !iframeBlocked && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 text-sm text-emerald-100">
-              <Sparkles className="h-4 w-4 shrink-0 text-emerald-400" />
-              {t("partnerGames.play.active_hint")}
-            </div>
-          )}
 
           <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black shadow-2xl">
-            <div className="relative h-[min(62vh,820px)] min-h-[360px] w-full sm:min-h-[440px]">
+            <div className="relative h-[min(72vh,920px)] min-h-[400px] w-full sm:min-h-[480px]">
               {!iframeLoaded && !iframeBlocked && <IframeSkeleton />}
               <iframe
                 ref={iframeRef}
