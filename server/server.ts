@@ -374,7 +374,8 @@ async function bootstrap() {
       }
       // --- END MIGRATION GUARD ---
 
-      // --- MIGRATION: Extend game/yt powers created with 24h to GAME_POWER_DAYS ---
+      // LEGACY one-shot migration (RUN_STARTUP_DATA_MIGRATIONS only).
+      // Do NOT re-enable in production: it mutates expiresAt on existing reward rows.
       try {
         const GAME_POWER_DAYS = Number(process.env.GAME_POWER_DAYS) || 7;
         const YT_POWER_DAYS = Number(process.env.YT_POWER_DAYS) || 7;

@@ -87,6 +87,17 @@ export async function getRewardDurationMsTx(
   return (await hasActiveBoostTx(tx, userId)) ? BOOST_TTL_MS : NORMAL_TTL_MS;
 }
 
+/** Immutable grant expiry: boost status for today's UTC day at creation time only. */
+export async function resolveRewardExpiresAtForGrant(
+  tx: Prisma.TransactionClient,
+  userId: number,
+  earnedAt: Date,
+  rewardType?: PowerBoostRewardSystem,
+): Promise<{ expiresAt: Date; durationMs: number }> {
+  const durationMs = await getRewardDurationMsTx(tx, userId, rewardType);
+  return { expiresAt: computeRewardExpiresAt(earnedAt, durationMs), durationMs };
+}
+
 /** @deprecated Use getRewardDurationMs */
 export const getBoostTtlMs = getRewardDurationMs;
 

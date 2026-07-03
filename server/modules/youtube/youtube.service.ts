@@ -5,14 +5,12 @@ import { getMiningEngine } from "../../src/miningEngineInstance.js";
 import { notifyDailyTaskYoutubeWatch } from "../../services/dailyTasks/dailyTaskHookService.js";
 import type { YoutubeClaimResult, YoutubeStatsResult, YoutubeStatusResult } from "./youtube.types.js";
 import {
-  computeRewardExpiresAt,
   formatRewardDurationPt,
   getRewardDurationMs,
-  getRewardDurationMsTx,
+  resolveRewardExpiresAtForGrant,
 } from "../../services/powerBoostService.js";
 import {
   DAILY_LIMIT_HASH,
-  DURATION_HOURS,
   MIN_SECONDS_TO_CLAIM,
   REWARD_PER_CLAIM,
   getYtSecondsBalance,
@@ -88,9 +86,8 @@ export async function claimForUser(userId: number, videoId: string): Promise<You
   let historyId: number;
   try {
     const hist = await prisma.$transaction(async (tx) => {
-      const ttlMs = await getRewardDurationMsTx(tx, userId, "youtube");
-      claimTtlMs = ttlMs;
-      const expiresAt = computeRewardExpiresAt(now, ttlMs);
+      const { expiresAt, durationMs } = await resolveRewardExpiresAtForGrant(tx, userId, now, "youtube");
+      claimTtlMs = durationMs;
       return claimRewardTx(tx, userId, videoId, now, expiresAt);
     });
     historyId = hist.id;

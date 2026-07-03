@@ -6,17 +6,13 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
 import {
-  computeRewardExpiresAt,
-  getRewardDurationMs,
-  getRewardDurationMsTx,
-  formatRewardDurationPt,
+  resolveRewardExpiresAtForGrant,
 } from "../../services/powerBoostService.js";
 import { isAutoMiningV2SchemaAvailable } from "./auto-mining.db-availability.js";
 import {
   MINING_MODES,
   DAILY_LIMIT_HASH,
   CYCLE_SECONDS,
-  computeExpiresAt,
   isClaimDue,
   canGrantDaily,
   validateImpressionForTurboClaim,
@@ -207,7 +203,7 @@ export async function claimNormal(userId: number) {
       throw err;
     }
 
-    const ttlMs = await getRewardDurationMsTx(tx, userId, "autoMining");
+    const { expiresAt } = await resolveRewardExpiresAtForGrant(tx, userId, now, "autoMining");
     const grant = await tx.autoMiningV2PowerGrant.create({
       data: {
         userId,
@@ -215,7 +211,7 @@ export async function claimNormal(userId: number) {
         hashRate: amount,
         mode: MINING_MODES.NORMAL,
         earnedAt: now,
-        expiresAt: computeExpiresAt(now, ttlMs),
+        expiresAt,
       },
     });
 
@@ -365,7 +361,7 @@ export async function claimTurbo(userId: number, impressionId: string) {
       throw err;
     }
 
-    const ttlMs = await getRewardDurationMsTx(tx, userId, "autoMining");
+    const { expiresAt } = await resolveRewardExpiresAtForGrant(tx, userId, now, "autoMining");
     const grant = await tx.autoMiningV2PowerGrant.create({
       data: {
         userId,
@@ -373,7 +369,7 @@ export async function claimTurbo(userId: number, impressionId: string) {
         hashRate: amount,
         mode: MINING_MODES.TURBO,
         earnedAt: now,
-        expiresAt: computeExpiresAt(now, ttlMs),
+        expiresAt,
       },
     });
 

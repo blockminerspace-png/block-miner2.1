@@ -9,6 +9,7 @@ import { normalizePersistableMinerImageUrl } from "../../utils/ownedMachineImage
 import { FAUCET_ERROR } from "./faucet.errors.js";
 import { buildNoRewardStatusResponse, buildStatusCore, mapPublicReward } from "./faucet.dto.js";
 import type { FaucetPartnerState, FaucetRewardInfo } from "./faucet.types.js";
+import { resolveRewardExpiresAtForGrant } from "../../services/powerBoostService.js";
 import * as faucetRepository from "./faucet.repository.js";
 
 const faucetLogger = loggerLib.child("Faucet");
@@ -177,12 +178,8 @@ export async function claimForUser(userId: number, req: Request): Promise<Faucet
     if (miner.id === 999999) {
       const gameId = await getOrCreateFaucetGameId(tx);
       const playedAt = now;
-      const { getRewardDurationMsTx, computeRewardExpiresAt } = await import(
-        "../../services/powerBoostService.js"
-      );
-      const ttlMs = await getRewardDurationMsTx(tx, userId, "faucet");
-      faucetRewardTtlMs = ttlMs;
-      const expiresAt = computeRewardExpiresAt(playedAt, ttlMs);
+      const { expiresAt, durationMs } = await resolveRewardExpiresAtForGrant(tx, userId, playedAt, "faucet");
+      faucetRewardTtlMs = durationMs;
       await tx.userPowerGame.create({
         data: {
           userId,

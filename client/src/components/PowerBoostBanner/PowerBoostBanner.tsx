@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Zap, CheckCircle2, Loader2, Rocket, Circle } from 'lucide-react';
+import { Zap, CheckCircle2, Loader2, Rocket, Circle, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation, Trans } from 'react-i18next';
 import { api } from '../../store/auth';
@@ -19,6 +19,12 @@ const SYSTEM_ROWS = [
   { key: 'system_shortlinks', id: 'shortlinks' },
   { key: 'system_youtube', id: 'youtube' },
   { key: 'system_autoMining', id: 'autoMining' },
+] as const;
+
+const EXAMPLE_KEYS = [
+  { title: 'example_today_title', body: 'example_today_body' },
+  { title: 'example_tomorrow_title', body: 'example_tomorrow_body' },
+  { title: 'example_later_title', body: 'example_later_body' },
 ] as const;
 
 function useEntitlementCountdown(expiresAt: string | null) {
@@ -88,11 +94,14 @@ export default function PowerBoostBanner() {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <Rocket className="w-5 h-5 text-primary shrink-0" />
-          <h2 className="text-sm font-black uppercase tracking-wide text-white">{t('powerBoost.title')}</h2>
+          <div className="min-w-0">
+            <h2 className="text-sm font-black uppercase tracking-wide text-white">{t('powerBoost.title')}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{t('powerBoost.subtitle')}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold">
+        <div className="flex items-center gap-2 text-xs font-semibold shrink-0">
           <span className="text-slate-500">{t('powerBoost.status_label')}:</span>
           {status.active ? (
             <span className="inline-flex items-center gap-1.5 text-emerald-400">
@@ -109,10 +118,9 @@ export default function PowerBoostBanner() {
       </div>
 
       <div className="px-5 py-4 space-y-4 text-sm text-slate-300">
-        <p className="leading-relaxed">
+        <p className="leading-relaxed text-xs sm:text-sm">
           <Trans i18nKey="powerBoost.intro" values={{ cost }} components={{ strong: <strong className="text-white" /> }} />
         </p>
-        <p className="leading-relaxed text-slate-400 text-xs">{t('powerBoost.body')}</p>
 
         <div className="overflow-x-auto rounded-xl border border-slate-800">
           <table className="w-full text-xs">
@@ -135,28 +143,43 @@ export default function PowerBoostBanner() {
           </table>
         </div>
 
-        <div className="rounded-xl bg-slate-950/60 border border-slate-800 px-4 py-3 space-y-1.5">
-          <p className="text-xs font-bold text-slate-300 uppercase tracking-wide">{t('powerBoost.important_title')}</p>
-          <ul className="text-xs text-slate-500 space-y-1 list-disc pl-4">
+        <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 px-4 py-3 space-y-2">
+          <p className="text-xs font-bold text-amber-200 uppercase tracking-wide flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            {t('powerBoost.important_title')}
+          </p>
+          <ul className="text-xs text-amber-100/80 space-y-1.5 list-disc pl-4">
             <li>{t('powerBoost.important_1')}</li>
-            <li>{t('powerBoost.important_2')}</li>
+            <li className="font-semibold text-amber-100">{t('powerBoost.important_2')}</li>
             <li>{t('powerBoost.important_3')}</li>
             <li>{t('powerBoost.important_4')}</li>
           </ul>
-          <p className="text-[10px] text-slate-600 pt-1">{t('powerBoost.entitlement_note')}</p>
+        </div>
+
+        <div className="rounded-xl bg-slate-950/60 border border-slate-800 px-4 py-3 space-y-3">
+          <p className="text-xs font-bold text-slate-300 uppercase tracking-wide">{t('powerBoost.example_title')}</p>
+          {EXAMPLE_KEYS.map((ex) => (
+            <div key={ex.title} className="text-xs">
+              <p className="font-semibold text-white">{t(`powerBoost.${ex.title}`)}</p>
+              <p className="text-slate-500 mt-0.5 leading-relaxed">{t(`powerBoost.${ex.body}`)}</p>
+            </div>
+          ))}
         </div>
 
         {status.active && countdown ? (
-          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/25 px-4 py-3 space-y-1">
-            <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">{t('powerBoost.expires_in')}</p>
+          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/25 px-4 py-3 space-y-2">
+            <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
+              {t('powerBoost.benefit_window_ends')}
+            </p>
             <p className="text-lg font-black text-emerald-300 tabular-nums">
               {t('powerBoost.countdown', countdown)}
             </p>
-            <p className="text-xs text-emerald-400/80">{t('powerBoost.active_hint')}</p>
+            <p className="text-xs text-emerald-400/90 leading-relaxed">{t('powerBoost.active_hint')}</p>
+            <p className="text-[11px] text-emerald-400/70 leading-relaxed">{t('powerBoost.active_immutable')}</p>
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
-            <p className="text-xs text-slate-500 max-w-xl">{t('powerBoost.entitlement_note')}</p>
+            <p className="text-xs text-slate-500 max-w-xl leading-relaxed">{t('powerBoost.inactive_note')}</p>
             <button
               type="button"
               onClick={() => void handleActivate()}

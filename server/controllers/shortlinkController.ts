@@ -7,10 +7,9 @@ import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import type { Prisma } from "@prisma/client";
 import {
-  computeRewardExpiresAt,
   formatRewardDurationPt,
   getRewardDurationMs,
-  getRewardDurationMsTx,
+  resolveRewardExpiresAtForGrant,
   rewardDurationHoursFromMs,
 } from "../services/powerBoostService.js";
 import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
@@ -169,9 +168,8 @@ export async function completeShortlinkStep(req: Request, res: Response) {
       });
 
       if (isLastStep) {
-        const ttlMs = await getRewardDurationMsTx(tx, userId, "shortlinks");
-        const expiresAt = computeRewardExpiresAt(now, ttlMs);
-        const durationHours = rewardDurationHoursFromMs(ttlMs);
+        const { expiresAt, durationMs } = await resolveRewardExpiresAtForGrant(tx, userId, now, "shortlinks");
+        const durationHours = rewardDurationHoursFromMs(durationMs);
         await tx.shortlinkPower.create({
           data: { userId, hashRate: REWARD_HASH_RATE, claimedAt: now, expiresAt }
         });
@@ -179,7 +177,7 @@ export async function completeShortlinkStep(req: Request, res: Response) {
           data: {
             userId,
             action: "shortlink_power_claimed",
-            detailsJson: JSON.stringify({ hashRate: REWARD_HASH_RATE, durationHours, ttlMs, expiresAt })
+            detailsJson: JSON.stringify({ hashRate: REWARD_HASH_RATE, durationHours, ttlMs: durationMs, expiresAt })
           }
         });
       }
