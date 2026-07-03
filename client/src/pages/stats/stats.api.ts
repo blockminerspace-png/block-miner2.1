@@ -27,6 +27,7 @@ export interface UserPowerStatsPayload {
       name: string;
       hashRate?: number;
       expiresAt?: string | null;
+      playedAt?: string | null;
     }>;
   };
   history?: PowerStatsHistory;

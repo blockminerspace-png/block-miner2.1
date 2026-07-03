@@ -13,6 +13,7 @@ import { readErrorMessage, requireSessionUser } from "../../controllers/controll
 import { respondPrismaAwareError } from "../../utils/prismaHttpErrors.js";
 import { isAutoMiningV2SchemaAvailable } from "../auto-mining/index.js";
 import loggerLib from "../../utils/logger.js";
+import { getUserEarningsStats, parseEarningsPeriod } from "./stats.earnings.service.js";
 
 const powerStatsLog = loggerLib.child("PowerStats");
 
@@ -456,5 +457,22 @@ export async function getPowerStats(req: Request, res: Response) {
   } catch (e: unknown) {
     console.error("getPowerStats", readErrorMessage(e));
     respondPrismaAwareError(res, e, "Não foi possível carregar as estatísticas de poder agora.");
+  }
+}
+
+/**
+ * GET /api/stats/earnings?period=7d|30d|90d|all
+ * Consolidated POL earnings for dashboard (totals + cumulative history).
+ */
+export async function getEarningsStats(req: Request, res: Response) {
+  try {
+    const user = requireSessionUser(req, res);
+    if (!user) return;
+    const period = parseEarningsPeriod(req.query.period);
+    const payload = await getUserEarningsStats(user.id, period);
+    res.json({ ok: true, ...payload });
+  } catch (e: unknown) {
+    powerStatsLog.error("getEarningsStats", { message: readErrorMessage(e) });
+    respondPrismaAwareError(res, e, "Não foi possível carregar os ganhos agora.");
   }
 }

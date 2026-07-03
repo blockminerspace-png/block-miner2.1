@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -19,6 +20,11 @@ import {
   CalendarCheck
 } from 'lucide-react';
 import { useUserPowerStats } from '../../shared/hooks/useUserPowerStats';
+import { useUserEarningsStats } from '../../shared/hooks/useUserEarningsStats';
+import { dashboardQueryClient } from '../../shared/query/dashboardQueryClient';
+import type { EarningsPeriod } from './stats.earnings.api';
+import EarningsDashboard from './components/EarningsDashboard';
+import ExpiryProgressList from './components/ExpiryProgressList';
 import { formatHashrate } from '../../shared/utils/machine';
 import type { UserPowerStatsPayload } from './stats.api';
 import CalculatorPage from '../calculator/CalculatorPage';
@@ -112,8 +118,18 @@ function exportPowerStatsCsv(data: UserPowerStatsPayload | null | undefined, fil
 }
 
 export default function PowerStatistics() {
+  return (
+    <QueryClientProvider client={dashboardQueryClient}>
+      <PowerStatisticsInner />
+    </QueryClientProvider>
+  );
+}
+
+function PowerStatisticsInner() {
   const { t } = useTranslation();
   const { data, loading, error, refetch } = useUserPowerStats(45000);
+  const [earningsPeriod, setEarningsPeriod] = useState<EarningsPeriod>('30d');
+  const { data: earnings, isLoading: earningsLoading, refetch: refetchEarnings } = useUserEarningsStats(earningsPeriod);
   const [tab, setTab] = useState('overview');
   const [openMachine, setOpenMachine] = useState(true);
   const [openTemp, setOpenTemp] = useState(true);
@@ -141,7 +157,10 @@ export default function PowerStatistics() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => refetch()}
+            onClick={() => {
+              void refetch();
+              void refetchEarnings();
+            }}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold uppercase tracking-wider"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -196,52 +215,14 @@ export default function PowerStatistics() {
 
           {tab === 'overview' && (
             <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center">
-                    {t('powerStats.total_power')}
-                    <HelpHint text={t('powerStats.total_tooltip')} />
-                  </p>
-                  <p className="text-2xl font-black text-white">{formatHashrate(overview?.totalHashrate)}</p>
-                </div>
-                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6 space-y-2">
-                  <p className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest flex items-center">
-                    {t('powerStats.permanent')}
-                    <HelpHint text={t('powerStats.permanent_tooltip')} />
-                  </p>
-                  <p className="text-2xl font-black text-emerald-400">{formatHashrate(overview?.permanentHashrate)}</p>
-                </div>
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 space-y-2">
-                  <p className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest flex items-center">
-                    {t('powerStats.temporary')}
-                    <HelpHint text={t('powerStats.temporary_tooltip')} />
-                  </p>
-                  <p className="text-2xl font-black text-amber-400">{formatHashrate(overview?.temporaryHashrate)}</p>
-                </div>
-                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-3">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center">
-                    {t('powerStats.mix')}
-                    <HelpHint text={t('powerStats.mix_tooltip')} />
-                  </p>
-                  <div className="h-3 rounded-full bg-slate-800 overflow-hidden flex" title={t('powerStats.mix_tooltip')}>
-                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${ratioBar.p}%` }} />
-                    <div className="h-full bg-amber-500 transition-all" style={{ width: `${ratioBar.tmp}%` }} />
-                  </div>
-                  <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
-                    <span className="flex items-center gap-1.5 text-emerald-400">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-                      {t('powerStats.charts.legend_permanent')}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-amber-400">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
-                      {t('powerStats.charts.legend_temporary')}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    {overview?.permanentPercent ?? 0}% {t('powerStats.permanent_short')} · {overview?.temporaryPercent ?? 0}% {t('powerStats.temporary_short')}
-                  </p>
-                </div>
-              </div>
+              <EarningsDashboard
+                power={data}
+                earnings={earnings}
+                earningsLoading={earningsLoading}
+                period={earningsPeriod}
+                onPeriodChange={setEarningsPeriod}
+                ratioBar={ratioBar}
+              />
 
               <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6">
                 <h2 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-1">
@@ -250,27 +231,7 @@ export default function PowerStatistics() {
                   <HelpHint text={t('powerStats.next_expirations_help')} />
                 </h2>
                 <p className="text-[11px] text-slate-600 mb-4">{t('powerStats.next_expirations_help')}</p>
-                {(overview?.nextExpirations || []).length === 0 ? (
-                  <p className="text-sm text-slate-600">{t('powerStats.no_active_temporary')}</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {(overview?.nextExpirations || []).map((row, idx) => (
-                      <li
-                        key={`${row.source}-${row.slug}-${idx}`}
-                        className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-slate-800/80 last:border-0"
-                      >
-                        <div>
-                          <span className="text-xs font-bold text-white">{row.name}</span>
-                          <span className="text-[10px] text-slate-600 ml-2 uppercase">({row.source})</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-mono text-sky-400">{formatHashrate(row.hashRate)}</span>
-                          <ExpiryBadge expiresAt={row.expiresAt} t={t} />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ExpiryProgressList rows={overview?.nextExpirations ?? []} />
               </div>
 
               <Suspense fallback={<PowerChartsFallback />}>

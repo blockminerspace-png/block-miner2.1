@@ -11,3 +11,4 @@ const statsLimiter = createRateLimiter({
 });
 
 statsRouter.get("/power", requireAuth, statsLimiter, statsController.getPowerStats);
+statsRouter.get("/earnings", requireAuth, statsLimiter, statsController.getEarningsStats);

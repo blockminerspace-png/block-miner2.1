@@ -2259,7 +2259,7 @@
   },
   "powerStats": {
     "title": "Estatísticas e poder",
-    "subtitle": "Entenda de onde vem cada pedaço do teu hashrate: o que é teu para sempre (máquinas) e o que é emprestado por tempo limitado (bónus). Assim, quando o poder baixar, sabes exatamente o porquê.",
+    "subtitle": "O teu dashboard financeiro na plataforma: ganhos em POL por sistema, evolução no tempo e poder de mineração num só lugar.",
     "refresh": "Atualizar",
     "export_csv": "Exportar CSV",
     "load_error": "Não foi possível carregar as estatísticas. Tenta de novo.",
@@ -2358,6 +2358,49 @@
       "avg_share": "Média da tua fatia do bloco",
       "samples": "Blocos registados (período)",
       "disclaimer": "Estes valores vêm dos logs de recompensa (parte do bloco que te coube), não de uma gravação perfeita de H/s segundo a segundo."
+    },
+    "earnings": {
+      "section_title": "Seus ganhos",
+      "section_subtitle": "Total em POL creditado diretamente por cada sistema da plataforma.",
+      "total_title": "Ganhos totais",
+      "total_desc": "Soma de mineração, offerwalls, faucet, shortlinks, auto mining, YouTube, jogos, check-in e indicações.",
+      "total_label": "Acumulado",
+      "origin_title": "Origem dos ganhos",
+      "origin_note": "Participação de cada sistema no teu total em POL.",
+      "evolution_title": "Evolução dos ganhos",
+      "evolution_note": "Curva acumulada no período selecionado.",
+      "machines": "Máquinas",
+      "boosts": "Boosts ativos",
+      "delta_24h": "Poder +24h",
+      "referral_since_note": "As estatísticas de ganhos por indicação começaram a ser contabilizadas em 03/07/2026.",
+      "period": {
+        "7d": "7 dias",
+        "30d": "30 dias",
+        "90d": "90 dias",
+        "all": "Tudo"
+      },
+      "sources": {
+        "mining": "Mineração",
+        "offerwall": "Offerwalls",
+        "faucet": "Faucet",
+        "shortlinks": "Shortlinks",
+        "youtube": "YouTube",
+        "games": "Jogos",
+        "autoMining": "Auto Mining",
+        "checkin": "Check-in",
+        "referrals": "Referral"
+      },
+      "descriptions": {
+        "mining": "Total obtido através da mineração.",
+        "offerwall": "Recompensas obtidas através das ofertas (interna, OfferwallMe e Zerads).",
+        "faucet": "Total recebido no faucet em POL.",
+        "shortlinks": "Total recebido em shortlinks em POL.",
+        "youtube": "Total recebido no YouTube em POL.",
+        "games": "Total recebido em jogos em POL.",
+        "autoMining": "Total recebido no Auto Mining em POL.",
+        "checkin": "Total recebido no check-in em POL.",
+        "referrals": "Total ganho através das indicações em POL."
+      }
     },
     "charts": {
       "region": "Gráficos do teu poder",

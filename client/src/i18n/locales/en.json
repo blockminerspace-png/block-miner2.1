@@ -2254,7 +2254,7 @@
   },
   "powerStats": {
     "title": "Statistics & Power",
-    "subtitle": "Understand where every piece of your hashrate comes from: what is yours forever (machines) and what is borrowed for a limited time (bonuses). That way, when your power drops, you know exactly why.",
+    "subtitle": "Your financial dashboard on the platform: POL earnings by system, growth over time, and mining power in one place.",
     "refresh": "Refresh",
     "export_csv": "Export CSV",
     "load_error": "Could not load power statistics. Try again.",
@@ -2353,6 +2353,49 @@
       "avg_share": "Average slice of a block",
       "samples": "Blocks recorded (period)",
       "disclaimer": "These values come from reward logs (your share of each block), not a perfect second-by-second H/s recording."
+    },
+    "earnings": {
+      "section_title": "Your earnings",
+      "section_subtitle": "Total POL credited directly by each platform system.",
+      "total_title": "Total earnings",
+      "total_desc": "Sum of mining, offerwalls, faucet, shortlinks, auto mining, YouTube, games, check-in, and referrals.",
+      "total_label": "Cumulative",
+      "origin_title": "Earnings origin",
+      "origin_note": "Each system's share of your total POL.",
+      "evolution_title": "Earnings evolution",
+      "evolution_note": "Cumulative curve for the selected period.",
+      "machines": "Machines",
+      "boosts": "Active boosts",
+      "delta_24h": "Power +24h",
+      "referral_since_note": "Referral earnings statistics have been tracked since 07/03/2026.",
+      "period": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "sources": {
+        "mining": "Mining",
+        "offerwall": "Offerwalls",
+        "faucet": "Faucet",
+        "shortlinks": "Shortlinks",
+        "youtube": "YouTube",
+        "games": "Games",
+        "autoMining": "Auto Mining",
+        "checkin": "Check-in",
+        "referrals": "Referral"
+      },
+      "descriptions": {
+        "mining": "Total earned through mining.",
+        "offerwall": "Rewards from offers (internal, OfferwallMe, and Zerads).",
+        "faucet": "Total POL received from the faucet.",
+        "shortlinks": "Total POL received from shortlinks.",
+        "youtube": "Total POL received from YouTube.",
+        "games": "Total POL received from games.",
+        "autoMining": "Total POL received from Auto Mining.",
+        "checkin": "Total POL received from check-in.",
+        "referrals": "Total earned through referrals in POL."
+      }
     },
     "charts": {
       "region": "Your power charts",
