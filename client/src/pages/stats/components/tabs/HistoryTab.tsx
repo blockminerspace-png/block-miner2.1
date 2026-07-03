@@ -1,4 +1,5 @@
-import { lazy, memo, Suspense } from 'react';
+import { memo, Suspense } from 'react';
+import { lazyWithRetry } from '../../../../shared/utils/lazyWithRetry';
 import { useTranslation } from 'react-i18next';
 import { Download, History } from 'lucide-react';
 import type { StatsDashboardContext } from '../../stats.types';
@@ -6,7 +7,7 @@ import { exportEarningsCsv, exportPowerStatsCsv } from '../../utils/exportStats'
 import ChartsFallback from '../ui/ChartsFallback';
 import PeriodPills from '../ui/PeriodPills';
 
-const PowerChartsPanel = lazy(() => import('../PowerChartsPanel'));
+const PowerChartsPanel = lazyWithRetry(() => import('../PowerChartsPanel'));
 
 function HistoryTab({ power, earnings, earningsFilter, setEarningsFilter }: StatsDashboardContext) {
   const { t } = useTranslation();

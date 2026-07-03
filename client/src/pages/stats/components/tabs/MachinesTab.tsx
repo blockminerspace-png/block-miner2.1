@@ -1,4 +1,5 @@
-import { lazy, memo, Suspense, useMemo } from 'react';
+import { memo, Suspense, useMemo } from 'react';
+import { lazyWithRetry } from '../../../../shared/utils/lazyWithRetry';
 import { useTranslation } from 'react-i18next';
 import { Cpu } from 'lucide-react';
 import { formatHashrate } from '../../../../shared/utils/machine';
@@ -6,7 +7,7 @@ import type { StatsDashboardContext } from '../../stats.types';
 import StatCard from '../ui/StatCard';
 import ChartsFallback from '../ui/ChartsFallback';
 
-const MachinesPowerChart = lazy(() => import('../MachinesPowerChart'));
+const MachinesPowerChart = lazyWithRetry(() => import('../MachinesPowerChart'));
 
 function MachinesTab({ power }: StatsDashboardContext) {
   const { t } = useTranslation();

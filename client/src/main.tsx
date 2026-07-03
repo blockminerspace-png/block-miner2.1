@@ -4,7 +4,7 @@ import './index.css'
 import './i18n/config' // Import i18n config
 import App from './app/App'
 import ErrorBoundary from './shared/components/ErrorBoundary'
-import { isChunkLoadError, shouldAutoReloadChunkError, forceReloadForNewBuild, ensureCurrentBuild } from './shared/utils/chunkLoadError'
+import { isChunkLoadError, shouldAutoReloadChunkError, forceReloadForNewBuild, ensureCurrentBuild, clearChunkReloadMarkers } from './shared/utils/chunkLoadError'
 import { isClientErrorNoise } from './shared/utils/clientErrorNoise'
 
 function reportClientError(payload: { message: string; stack?: string | null; source?: string }) {
@@ -50,8 +50,12 @@ window.addEventListener(
       return
     }
     if (tagFailed) {
+      const src = String((t as HTMLScriptElement).src)
+      if (isClientErrorNoise(`Script load failed: ${src}`, src)) {
+        return
+      }
       reportClientError({
-        message: `Script load failed: ${String((t as HTMLScriptElement).src)}`,
+        message: `Script load failed: ${src}`,
         stack: event?.error instanceof Error ? event.error.stack ?? null : null,
         source: 'window.error',
       })
@@ -95,6 +99,7 @@ const el = document.getElementById('root')
 if (!el) {
   document.body.innerHTML = '<p style="font-family:sans-serif;padding:2rem;color:#fff;background:#020617">Missing #root</p>'
 } else if (ensureCurrentBuild()) {
+  clearChunkReloadMarkers();
   createRoot(el).render(
     <StrictMode>
       <ErrorBoundary>

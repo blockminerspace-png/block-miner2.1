@@ -1,4 +1,5 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { lazyWithRetry } from '../../shared/utils/lazyWithRetry';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Activity, Loader2, RefreshCw } from 'lucide-react';
@@ -9,14 +10,14 @@ import { STATS_TABS, earningsFilterToApiPeriod, type StatsTabId, type EarningsUi
 import type { StatsDashboardContext } from './stats.types';
 import AdRotator, { POWER_STATS_ADS, POWER_STATS_ADS_300 } from '../../shared/components/AdRotator';
 
-const SummaryTab = lazy(() => import('./components/tabs/SummaryTab'));
-const EarningsTab = lazy(() => import('./components/tabs/EarningsTab'));
-const PowerTab = lazy(() => import('./components/tabs/PowerTab'));
-const MachinesTab = lazy(() => import('./components/tabs/MachinesTab'));
-const BoostsTab = lazy(() => import('./components/tabs/BoostsTab'));
-const NetworkTab = lazy(() => import('./components/tabs/NetworkTab'));
-const HistoryTab = lazy(() => import('./components/tabs/HistoryTab'));
-const ToolsTab = lazy(() => import('./components/tabs/ToolsTab'));
+const SummaryTab = lazyWithRetry(() => import('./components/tabs/SummaryTab'));
+const EarningsTab = lazyWithRetry(() => import('./components/tabs/EarningsTab'));
+const PowerTab = lazyWithRetry(() => import('./components/tabs/PowerTab'));
+const MachinesTab = lazyWithRetry(() => import('./components/tabs/MachinesTab'));
+const BoostsTab = lazyWithRetry(() => import('./components/tabs/BoostsTab'));
+const NetworkTab = lazyWithRetry(() => import('./components/tabs/NetworkTab'));
+const HistoryTab = lazyWithRetry(() => import('./components/tabs/HistoryTab'));
+const ToolsTab = lazyWithRetry(() => import('./components/tabs/ToolsTab'));
 
 function TabFallback() {
   return (

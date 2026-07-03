@@ -19,7 +19,12 @@ describe('ErrorBoundary', () => {
     // jsdom location is read-only; override only what we touch.
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { href: 'https://test.local/page', replace: replaceMock },
+      value: {
+        href: 'https://test.local/page',
+        pathname: '/page',
+        search: '',
+        replace: replaceMock,
+      },
     });
     sessionStorage.clear();
     // Silence React's error noise during these tests
@@ -71,7 +76,7 @@ describe('ErrorBoundary', () => {
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
   });
 
-  it('reload button is opt-in for non-chunk errors (only fires on click)', () => {
+  it('reload button is opt-in for non-chunk errors (only fires on click)', async () => {
     render(
       <ErrorBoundary>
         <Bomb msg="boom plain runtime error" />
@@ -79,26 +84,30 @@ describe('ErrorBoundary', () => {
     );
     expect(replaceMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /recarregar plataforma/i }));
-    expect(replaceMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(replaceMock).toHaveBeenCalledTimes(1));
     const url = String(replaceMock.mock.calls[0]?.[0] ?? '');
     expect(url).toContain('_bm_build=');
   });
 
-  it('auto-reloads silently on chunk-load errors (no report, no error screen)', () => {
+  it('auto-reloads silently on chunk-load errors (no report, no error screen)', async () => {
     render(
       <ErrorBoundary>
         <Bomb msg="Failed to fetch dynamically imported module: /assets/foo.js" />
       </ErrorBoundary>,
     );
-    expect(replaceMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(replaceMock).toHaveBeenCalledTimes(1));
     const url = String(replaceMock.mock.calls[0]?.[0] ?? '');
     expect(url).toContain('_bm_build=');
     const reportCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/api/track/client-error'));
     expect(reportCalls).toHaveLength(0);
   });
 
-  it('blocks auto-reload on chunk error if already reloaded in last 60s', () => {
-    sessionStorage.setItem('blockminer:chunk-reload-at', String(Date.now() - 5_000));
+  it('blocks auto-reload on chunk error after max attempts in window', () => {
+    const now = Date.now();
+    sessionStorage.setItem(
+      'blockminer:chunk-reload-at',
+      JSON.stringify([now - 5_000, now - 4_000, now - 3_000]),
+    );
     render(
       <ErrorBoundary>
         <Bomb msg="ChunkLoadError: Loading chunk failed" />

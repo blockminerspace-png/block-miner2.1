@@ -1,4 +1,5 @@
-import { lazy, memo, Suspense, useMemo } from 'react';
+import { memo, Suspense, useMemo } from 'react';
+import { lazyWithRetry } from '../../../../shared/utils/lazyWithRetry';
 import { useTranslation } from 'react-i18next';
 import { Activity, Coins, Cpu, Sparkles, TrendingUp } from 'lucide-react';
 import { formatHashrate } from '../../../../shared/utils/machine';
@@ -9,8 +10,8 @@ import type { StatsDashboardContext } from '../../stats.types';
 import StatCard from '../ui/StatCard';
 import ChartsFallback from '../ui/ChartsFallback';
 
-const EarningsChartsPanel = lazy(() => import('../EarningsChartsPanel'));
-const ExpiryProgressList = lazy(() => import('../ExpiryProgressList'));
+const EarningsChartsPanel = lazyWithRetry(() => import('../EarningsChartsPanel'));
+const ExpiryProgressList = lazyWithRetry(() => import('../ExpiryProgressList'));
 
 function SummaryTab({ power, earnings, earningsLoading, ratioBar, onNavigateTab }: StatsDashboardContext) {
   const { t, i18n } = useTranslation();

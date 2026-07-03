@@ -63,9 +63,20 @@ export function forceReloadForNewBuild(): void {
     // ignore storage failure
   }
 
-  const url = new URL(window.location.href);
-  url.searchParams.set('_bm_build', String(Date.now()));
-  window.location.replace(url.toString());
+  const navigate = (): void => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('_bm_build', String(Date.now()));
+    window.location.replace(url.toString());
+  };
+
+  // Bust CDN/browser cache for index.html before navigating (stale shell → stale chunk refs).
+  void fetch(`${window.location.pathname}${window.location.search}`, {
+    cache: 'no-store',
+    credentials: 'same-origin',
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+  })
+    .catch(() => {})
+    .finally(navigate);
 }
 
 export function clearChunkReloadMarkers(): void {
@@ -97,6 +108,7 @@ export function ensureCurrentBuild(): boolean {
       }
       window.localStorage.setItem(BUILD_ID_KEY, meta);
       window.sessionStorage.setItem(BUILD_RELOADED_KEY, meta);
+      clearChunkReloadMarkers();
       forceReloadForNewBuild();
       return false;
     }

@@ -17,6 +17,7 @@ interface ErrorBoundaryState {
   errorDetail?: string;
   errorStack?: string | null;
   staleChunk?: boolean;
+  chunkReloading?: boolean;
   reportedKey?: string;
 }
 
@@ -56,7 +57,14 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   static getDerivedStateFromError(error: unknown): Partial<ErrorBoundaryState> {
-    return { hasError: true, error: error instanceof Error ? error : new Error(String(error)) };
+    const msg = error instanceof Error ? error.message : String(error);
+    const staleChunk = isChunkLoadError(msg) || isChunkLoadError(error);
+    return {
+      hasError: true,
+      error: error instanceof Error ? error : new Error(String(error)),
+      staleChunk,
+      chunkReloading: staleChunk,
+    };
   }
 
   componentDidCatch(error: unknown, errorInfo: ErrorInfo): void {
@@ -71,6 +79,10 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     if ((staleChunk || isClientErrorNoise(msg, stack, componentStack)) && shouldAutoReloadChunkError()) {
       forceReloadForNewBuild();
       return;
+    }
+
+    if (staleChunk) {
+      this.setState({ chunkReloading: false });
     }
 
     // De-dupe + skip reporting noise (chunks + browser extensions + translators).
@@ -92,6 +104,13 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   render(): ReactNode {
     if (this.state.hasError) {
+      if (this.state.chunkReloading) {
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-[#020617] text-slate-400">
+            <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        );
+      }
       const msg = this.state.error?.message ?? '';
       const stack = this.state.error?.stack ?? null;
       if (isClientErrorNoise(msg, stack, this.state.errorStack)) {
@@ -139,7 +158,9 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
               : 'Ocorreu um erro crítico na renderização. O time já foi notificado automaticamente.'}
           </p>
           <p style={{ color: '#64748b', fontSize: '11px', marginBottom: '20px' }}>
-            Reporte enviado para o administrador.
+            {this.state.staleChunk
+              ? 'Clique em recarregar para obter a versão mais recente.'
+              : 'Reporte enviado para o administrador.'}
           </p>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '8px' }}>
             <button

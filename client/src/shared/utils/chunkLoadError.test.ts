@@ -31,21 +31,26 @@ describe('chunkLoadError', () => {
     ).toBe(true);
   });
 
-  it('allows only one auto reload within 60 seconds', () => {
+  it('allows up to 3 auto reloads within 120 seconds', () => {
     expect(shouldAutoReloadChunkError(1_000)).toBe(true);
-    expect(shouldAutoReloadChunkError(2_000)).toBe(false);
-    expect(shouldAutoReloadChunkError(61_500)).toBe(true);
+    expect(shouldAutoReloadChunkError(2_000)).toBe(true);
+    expect(shouldAutoReloadChunkError(3_000)).toBe(true);
+    expect(shouldAutoReloadChunkError(4_000)).toBe(false);
+    expect(shouldAutoReloadChunkError(121_500)).toBe(true);
   });
 
-  it('forceReloadForNewBuild adds cache-bust query param', () => {
+  it('forceReloadForNewBuild adds cache-bust query param', async () => {
     const replace = vi.fn();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('ok')));
     vi.stubGlobal('location', {
       href: 'https://blockminer.space/dashboard',
-      replace,
+      pathname: '/dashboard',
+      search: '',
+      replace: replace,
     } as unknown as Location);
 
     forceReloadForNewBuild();
-    expect(replace).toHaveBeenCalled();
+    await vi.waitFor(() => expect(replace).toHaveBeenCalled());
     const url = String(replace.mock.calls[0]?.[0] ?? '');
     expect(url).toContain('_bm_build=');
   });

@@ -1,11 +1,12 @@
-import { lazy, memo, Suspense, useMemo, useState } from 'react';
+import { memo, Suspense, useMemo, useState } from 'react';
+import { lazyWithRetry } from '../../../../shared/utils/lazyWithRetry';
 import { useTranslation } from 'react-i18next';
 import type { BoostFilter } from '../../stats.config';
 import { collectAllBoostRows, filterBoostRows } from '../../utils/boostRows';
 import type { StatsDashboardContext } from '../../stats.types';
 
-const BoostsTable = lazy(() => import('../BoostsTable'));
-const BoostsDetailSections = lazy(() => import('../BoostsDetailSections'));
+const BoostsTable = lazyWithRetry(() => import('../BoostsTable'));
+const BoostsDetailSections = lazyWithRetry(() => import('../BoostsDetailSections'));
 
 const FILTERS: BoostFilter[] = ['all', 'games', 'youtube', 'autoMining', 'faucet', 'checkin'];
 

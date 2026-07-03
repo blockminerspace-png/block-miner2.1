@@ -3,6 +3,8 @@
  * previous screen stays visible (React concurrent updates + `React.lazy` routes).
  */
 
+import { handleChunkLoadFailure } from './chunkLoadError';
+
 type RouteLoader = () => Promise<unknown>;
 
 function normalizePathname(pathname: unknown): string {
@@ -18,8 +20,10 @@ function runOnce(key: string, factory: RouteLoader): Promise<void> {
   const existing = inflight.get(key);
   if (existing) return existing;
   const p = factory()
+    .catch((err: unknown) => {
+      handleChunkLoadFailure(err);
+    })
     .then(() => undefined)
-    .catch(() => undefined)
     .finally(() => {
       inflight.delete(key);
     });

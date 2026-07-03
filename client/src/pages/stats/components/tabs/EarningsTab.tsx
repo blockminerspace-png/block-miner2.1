@@ -1,4 +1,5 @@
-import { lazy, memo, Suspense, useMemo } from 'react';
+import { memo, Suspense, useMemo } from 'react';
+import { lazyWithRetry } from '../../../../shared/utils/lazyWithRetry';
 import { useTranslation } from 'react-i18next';
 import { Coins, TrendingUp, Calendar, Award } from 'lucide-react';
 import { EARNINGS_CATEGORY_KEYS } from '../../stats.config';
@@ -9,7 +10,7 @@ import StatCard from '../ui/StatCard';
 import PeriodPills from '../ui/PeriodPills';
 import ChartsFallback from '../ui/ChartsFallback';
 
-const EarningsChartsPanel = lazy(() => import('../EarningsChartsPanel'));
+const EarningsChartsPanel = lazyWithRetry(() => import('../EarningsChartsPanel'));
 
 function EarningsTab({ earnings, earningsLoading, earningsFilter, setEarningsFilter }: StatsDashboardContext) {
   const { t, i18n } = useTranslation();
