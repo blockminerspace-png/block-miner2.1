@@ -51,11 +51,14 @@ const WALLETCONNECT_CONNECT = [
 
 const ZPOOL_CONNECT = ["https://www.zpool.ca"] as const;
 
-/** Google AdSense / Google Ads (site verification + ad units). */
+/** Google AdSense, Funding Choices (Offerwall/consent), and ad frames. */
 const GOOGLE_ADS_SCRIPT = [
   "https://pagead2.googlesyndication.com",
   "https://www.googleadservices.com",
   "https://www.googletagmanager.com",
+  "https://fundingchoicesmessages.google.com",
+  "https://googleads.g.doubleclick.net",
+  "https://tpc.googlesyndication.com",
 ] as const;
 
 const GOOGLE_ADS_FRAME = [
@@ -63,6 +66,9 @@ const GOOGLE_ADS_FRAME = [
   "https://tpc.googlesyndication.com",
   "https://www.google.com",
   "https://pagead2.googlesyndication.com",
+  "https://fundingchoicesmessages.google.com",
+  "https://ep1.adtrafficquality.google",
+  "https://ep2.adtrafficquality.google",
 ] as const;
 
 type CspDirectives = NonNullable<Exclude<HelmetOptions["contentSecurityPolicy"], boolean | undefined>["directives"]>;
