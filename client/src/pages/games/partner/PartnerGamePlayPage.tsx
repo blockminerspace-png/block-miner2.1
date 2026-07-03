@@ -31,6 +31,7 @@ export default function PartnerGamePlayPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const iframeLoadedRef = useRef(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeBlocked, setIframeBlocked] = useState(false);
   const [rewardPulse, setRewardPulse] = useState(false);
@@ -50,13 +51,16 @@ export default function PartnerGamePlayPage() {
   } = usePartnerGameSession(slug, playEligible);
 
   useEffect(() => {
+    iframeLoadedRef.current = false;
     setIframeLoaded(false);
     setIframeBlocked(false);
+
     const timer = window.setTimeout(() => {
-      if (!iframeLoaded) setIframeBlocked(true);
-    }, 8000);
+      if (!iframeLoadedRef.current) setIframeBlocked(true);
+    }, 15000);
+
     return () => window.clearTimeout(timer);
-  }, [game?.id, iframeLoaded]);
+  }, [game?.id]);
 
   useEffect(() => {
     if (!session) return;
@@ -186,26 +190,24 @@ export default function PartnerGamePlayPage() {
 
           <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black shadow-2xl">
             <div className="relative h-[min(62vh,820px)] min-h-[360px] w-full sm:min-h-[440px]">
-              {!iframeBlocked ? (
-                <>
-                  {!iframeLoaded && <IframeSkeleton />}
-                  <iframe
-                    ref={iframeRef}
-                    src={game.iframeUrl}
-                    title={game.title}
-                    className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${
-                      iframeLoaded ? "opacity-100" : "opacity-0"
-                    }`}
-                    sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-pointer-lock allow-orientation-lock"
-                    allow="autoplay; fullscreen; gamepad; clipboard-write"
-                    onLoad={() => {
-                      setIframeLoaded(true);
-                      setIframeBlocked(false);
-                    }}
-                  />
-                </>
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-5 bg-gradient-to-b from-slate-950 to-black px-6 text-center">
+              {!iframeLoaded && !iframeBlocked && <IframeSkeleton />}
+              <iframe
+                ref={iframeRef}
+                src={game.iframeUrl}
+                title={game.title}
+                className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${
+                  iframeLoaded ? "opacity-100" : "opacity-0"
+                }`}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-pointer-lock allow-orientation-lock"
+                allow="autoplay; fullscreen; gamepad; clipboard-write"
+                onLoad={() => {
+                  iframeLoadedRef.current = true;
+                  setIframeLoaded(true);
+                  setIframeBlocked(false);
+                }}
+              />
+              {iframeBlocked && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-slate-950/95 to-black/95 px-6 text-center backdrop-blur-sm">
                   <WifiOff className="h-12 w-12 text-slate-600" />
                   <div className="max-w-md space-y-2">
                     <p className="text-lg font-bold text-white">
