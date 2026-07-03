@@ -84,6 +84,8 @@ export async function listPartnerGamesPublic(req: Request, res: Response): Promi
 }
 
 export async function getPartnerGameBySlugPublic(req: Request, res: Response): Promise<void> {
+  refreshFrameAllowlistBestEffort(prisma);
+
   const slug = String(req.params.slug ?? "").trim();
   if (!slug) {
     res.status(400).json({ ok: false, message: "slug inválido." });
