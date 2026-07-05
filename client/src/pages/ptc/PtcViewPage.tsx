@@ -156,7 +156,7 @@ function StatsStrip({ ads }: { ads: PtcAd[] }) {
         <div>
           <p className="text-sky-300 font-black text-3xl leading-none tabular-nums">{ads.length}</p>
           <p className="text-sky-600 text-[10px] font-bold uppercase tracking-widest mt-1 leading-none">
-            Disponíveis hoje
+            Disponíveis (24h)
           </p>
         </div>
       </div>
@@ -388,7 +388,7 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
       <div>
         <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Nenhum anúncio disponível</h3>
         <p className="text-gray-600 text-xs font-medium max-w-xs mx-auto leading-relaxed">
-          Você já visualizou todos os anúncios disponíveis ou não há campanhas ativas no momento.
+          Você já visualizou todos os anúncios disponíveis nas últimas 24 horas ou não há campanhas ativas no momento.
         </p>
       </div>
       <button
@@ -525,6 +525,13 @@ function ActiveSessionView({ onDone }: { onDone: () => void }) {
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(msg ?? 'Erro ao resgatar recompensa');
+      if (msg && /indisponível|registrada|expirada|cooldown|cancelada/i.test(msg)) {
+        try {
+          await api.post(`/ptc/session/${storeSession.sessionId}/cancel`, { reason: 'claim_failed' });
+        } catch { /* non-fatal */ }
+        clearSession();
+        onDone();
+      }
     } finally {
       setClaiming(false);
     }

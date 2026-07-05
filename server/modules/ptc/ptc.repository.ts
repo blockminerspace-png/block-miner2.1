@@ -1,5 +1,33 @@
 import prisma from "../../src/db/prisma.js";
 import type { Prisma } from "@prisma/client";
+import { VIEW_COOLDOWN_MS } from "./ptc.config.js";
+
+export function getViewCooldownCutoff(now = new Date()): Date {
+  return new Date(now.getTime() - VIEW_COOLDOWN_MS);
+}
+
+export async function findViewInCooldown(adId: number, viewerHash: string, now = new Date()) {
+  const view = await prisma.ptpView.findUnique({
+    where: { adId_viewerHash: { adId, viewerHash } },
+  });
+  if (!view) return null;
+  if (view.viewedAt.getTime() >= getViewCooldownCutoff(now).getTime()) return view;
+  return null;
+}
+
+export async function findViewInCooldownTx(
+  tx: Prisma.TransactionClient,
+  adId: number,
+  viewerHash: string,
+  now = new Date(),
+) {
+  const view = await tx.ptpView.findUnique({
+    where: { adId_viewerHash: { adId, viewerHash } },
+  });
+  if (!view) return null;
+  if (view.viewedAt.getTime() >= getViewCooldownCutoff(now).getTime()) return view;
+  return null;
+}
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
@@ -89,10 +117,8 @@ export async function getAllCampaignsAdmin(page: number, limit: number) {
 
 // ── View tracking ────────────────────────────────────────────────────────────
 
-export async function hasViewed(adId: number, viewerHash: string) {
-  return prisma.ptpView.findUnique({
-    where: { adId_viewerHash: { adId, viewerHash } },
-  });
+export async function hasViewedInCooldown(adId: number, viewerHash: string, now = new Date()) {
+  return findViewInCooldown(adId, viewerHash, now);
 }
 
 export async function recordView(
@@ -100,8 +126,13 @@ export async function recordView(
   adId: number,
   viewerHash: string,
   earnedShib: number,
+  viewedAt: Date,
 ) {
-  return tx.ptpView.create({ data: { adId, viewerHash, earnedShib } });
+  return tx.ptpView.upsert({
+    where: { adId_viewerHash: { adId, viewerHash } },
+    create: { adId, viewerHash, earnedShib, viewedAt },
+    update: { earnedShib, viewedAt },
+  });
 }
 
 export async function recordEarning(
@@ -115,12 +146,12 @@ export async function recordEarning(
 
 // ── Available ads for viewer ─────────────────────────────────────────────────
 
-export async function getAdsForViewer(userId: number) {
+export async function getAdsForViewer(userId: number, now = new Date()) {
   const viewerHash = `user_${userId}`;
+  const cutoff = getViewCooldownCutoff(now);
 
-  // Ads already viewed by this user
   const seen = await prisma.ptpView.findMany({
-    where: { viewerHash },
+    where: { viewerHash, viewedAt: { gte: cutoff } },
     select: { adId: true },
   });
   const seenIds = seen.map((v) => v.adId);
@@ -128,8 +159,8 @@ export async function getAdsForViewer(userId: number) {
   return prisma.ptpAd.findMany({
     where: {
       status: "active",
-      userId: { not: userId },                                 // não mostrar campanha própria
-      id: seenIds.length > 0 ? { notIn: seenIds } : undefined, // não mostrar já vistas
+      userId: { not: userId },
+      id: seenIds.length > 0 ? { notIn: seenIds } : undefined,
     },
     select: {
       id: true,
@@ -170,6 +201,13 @@ export async function createSession(data: {
 
 export async function getSessionById(id: string) {
   return prisma.ptpSession.findUnique({ where: { id } });
+}
+
+export async function listOpenSessionsForUser(userId: number) {
+  return prisma.ptpSession.findMany({
+    where: { userId, status: { in: ["opening", "viewing", "paused", "completed"] } },
+    orderBy: { startedAt: "desc" },
+  });
 }
 
 export async function getActiveSessionForUser(userId: number) {

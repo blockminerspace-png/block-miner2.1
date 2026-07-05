@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 const Decimal = Prisma.Decimal;
 import prisma from "../../src/db/prisma.js";
 import * as repo from "./ptc.repository.js";
+import { SESSION_CLAIM_WINDOW_MS, SESSION_STALE_MS } from "./ptc.config.js";
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
@@ -250,14 +251,37 @@ export async function rejectCampaign(adId: number, reason: string) {
 // ── Session-based view tracking ───────────────────────────────────────────────
 
 const HEARTBEAT_MAX_GAP_MS = 15_000;
-const SESSION_STALE_MS = 90_000; // 90s without heartbeat → stale
 
-function isSessionStale(lastHeartbeatAt: Date | null, now: Date): boolean {
-  if (!lastHeartbeatAt) return false;
-  return now.getTime() - lastHeartbeatAt.getTime() > SESSION_STALE_MS;
+type OpenSessionRow = {
+  id: string;
+  status: string;
+  lastHeartbeatAt: Date | null;
+  startedAt: Date;
+  completedAt: Date | null;
+};
+
+function isSessionStale(session: OpenSessionRow, now: Date): boolean {
+  if (session.status === "completed") {
+    if (!session.completedAt) return true;
+    return now.getTime() - session.completedAt.getTime() > SESSION_CLAIM_WINDOW_MS;
+  }
+  const ref = session.lastHeartbeatAt ?? session.startedAt;
+  return now.getTime() - ref.getTime() > SESSION_STALE_MS;
+}
+
+async function cleanupStaleSessionsForUser(userId: number, now = new Date()): Promise<void> {
+  const sessions = await repo.listOpenSessionsForUser(userId);
+  for (const session of sessions) {
+    if (!isSessionStale(session, now)) continue;
+    const reason = session.status === "completed" ? "claim_window_expired" : "heartbeat_timeout";
+    await repo.updateSession(session.id, { status: "cancelled", cancelReason: reason });
+    console.info(`[PTC] session_stale_cancelled userId=${userId} sessionId=${session.id} reason=${reason}`);
+  }
 }
 
 export async function startSession(userId: number, adId: number) {
+  await cleanupStaleSessionsForUser(userId);
+
   const existing = await repo.getActiveSessionForUser(userId);
   if (existing) {
     throw new Error("Você já possui um anúncio ativo. Conclua-o antes de iniciar outro.");
@@ -268,10 +292,8 @@ export async function startSession(userId: number, adId: number) {
   if (ad.userId === userId) throw new Error("Você não pode visualizar seu próprio anúncio");
 
   const viewerHash = `user_${userId}`;
-  const alreadySeen = await prisma.ptpView.findUnique({
-    where: { adId_viewerHash: { adId, viewerHash } },
-  });
-  if (alreadySeen) throw new Error("Você já visualizou este anúncio");
+  const inCooldown = await repo.findViewInCooldown(adId, viewerHash);
+  if (inCooldown) throw new Error("Este anúncio ainda está em cooldown. Tente novamente mais tarde.");
 
   const session = await repo.createSession({ userId, adId, viewerHash, requiredSeconds: ad.durationSeconds });
   console.info(`[PTC] session_started userId=${userId} adId=${adId} sessionId=${session.id} requiredSeconds=${ad.durationSeconds}`);
@@ -344,6 +366,7 @@ export async function cancelSession(sessionId: string, userId: number, reason: s
 }
 
 export async function claimSession(sessionId: string, userId: number) {
+  const now = new Date();
   await prisma.$transaction(async (tx) => {
     const session = await tx.ptpSession.findUnique({ where: { id: sessionId } });
     if (!session || session.userId !== userId) throw new Error("Sessão não encontrada");
@@ -351,8 +374,7 @@ export async function claimSession(sessionId: string, userId: number) {
     if (session.status === "cancelled") throw new Error("Sessão cancelada — reinicie o anúncio");
 
     if (session.status !== "completed") {
-      const now = new Date();
-      if (isSessionStale(session.lastHeartbeatAt, now)) {
+      if (isSessionStale(session, now)) {
         await tx.ptpSession.update({
           where: { id: sessionId },
           data: { status: "cancelled", cancelReason: "heartbeat_timeout" },
@@ -362,41 +384,46 @@ export async function claimSession(sessionId: string, userId: number) {
       throw new Error("Tempo de visualização ainda não concluído");
     }
 
-    const alreadySeen = await tx.ptpView.findUnique({
-      where: { adId_viewerHash: { adId: session.adId, viewerHash: session.viewerHash } },
-    });
-    if (alreadySeen) throw new Error("Visualização já registrada");
+    const inCooldown = await repo.findViewInCooldownTx(tx, session.adId, session.viewerHash, now);
+    if (inCooldown) {
+      await tx.ptpSession.update({
+        where: { id: sessionId },
+        data: { status: "cancelled", cancelReason: "already_viewed" },
+      });
+      throw new Error("Visualização já registrada");
+    }
 
     const ad = await tx.ptpAd.findUnique({ where: { id: session.adId } });
-    if (!ad || ad.status !== "active") throw new Error("Anúncio não está mais disponível");
+    if (!ad || ad.status !== "active") {
+      await tx.ptpSession.update({
+        where: { id: sessionId },
+        data: { status: "cancelled", cancelReason: "ad_unavailable" },
+      });
+      throw new Error("Anúncio não está mais disponível");
+    }
 
     const earnedShib = new Decimal(ad.rewardPerViewShib.toString());
     const newViews = ad.views + 1;
     const isCompleted = newViews >= ad.targetViews;
 
-    await tx.ptpView.create({ data: { adId: session.adId, viewerHash: session.viewerHash, earnedShib } });
+    await repo.recordView(tx, session.adId, session.viewerHash, Number(earnedShib.toString()), now);
     await tx.ptpAd.update({
       where: { id: session.adId },
       data: { views: newViews, status: isCompleted ? "completed" : "active" },
     });
     await tx.ptpEarning.create({ data: { userId, adId: session.adId, amountShib: earnedShib } });
     await tx.user.update({ where: { id: userId }, data: { shibBalance: { increment: earnedShib } } });
-    await tx.ptpSession.update({ where: { id: sessionId }, data: { status: "claimed", claimedAt: new Date() } });
+    await tx.ptpSession.update({ where: { id: sessionId }, data: { status: "claimed", claimedAt: now } });
 
     console.info(`[PTC] reward_claimed userId=${userId} sessionId=${sessionId} earnedShib=${earnedShib.toString()}`);
   });
 }
 
 export async function getActiveSession(userId: number) {
+  await cleanupStaleSessionsForUser(userId);
+
   const session = await repo.getActiveSessionForUser(userId);
   if (!session) return null;
-
-  // Auto-cancel stale sessions on access
-  if (isSessionStale(session.lastHeartbeatAt, new Date()) && session.status === "viewing") {
-    await repo.updateSession(session.id, { status: "cancelled", cancelReason: "heartbeat_timeout" });
-    console.info(`[PTC] session_stale_cancelled userId=${userId} sessionId=${session.id}`);
-    return null;
-  }
 
   return session;
 }
@@ -408,6 +435,7 @@ export async function getMyCampaigns(userId: number) {
 }
 
 export async function getAvailableAds(userId: number) {
+  await cleanupStaleSessionsForUser(userId);
   return repo.getAdsForViewer(userId);
 }
 
