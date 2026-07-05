@@ -1,16 +1,25 @@
 /**
  * Shared CORS allowlist for Express and Socket.IO.
- * Production requires CORS_ORIGINS (comma-separated exact origins).
+ * Production requires CORS_ORIGINS (comma-separated exact origins), merged with BUILTIN_CORS_ORIGINS.
  */
+
+/** Always allowed frontends (merged with CORS_ORIGINS). */
+export const BUILTIN_CORS_ORIGINS = [
+  "https://minercore.online",
+  "https://www.minercore.online",
+  "https://dev.minercore.online",
+  "http://dev.minercore.online",
+] as const;
 
 export function parseCorsOriginsList() {
   const raw = process.env.CORS_ORIGINS;
-  return raw
+  const fromEnv = raw
     ? raw
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean)
     : [];
+  return [...new Set([...fromEnv, ...BUILTIN_CORS_ORIGINS])];
 }
 
 export function assertProductionCorsConfigured() {
