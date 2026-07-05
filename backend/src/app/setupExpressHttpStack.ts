@@ -29,6 +29,8 @@ export function setupExpressHttpStack(app: Express, opts: SetupExpressHttpStackO
     helmet({
       // CSP only on HTML/SPA routes — hashed /assets/* must not carry ~4KB policy headers.
       contentSecurityPolicy: false,
+      // frame-ancestors in createCspMiddleware() controls embed partners; SAMEORIGIN here blocks them.
+      frameguard: false,
       crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
       referrerPolicy: { policy: "strict-origin-when-cross-origin" },
       permissionsPolicy: {

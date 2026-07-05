@@ -91,6 +91,10 @@ function baseDirectives(opts: { allowWebSockets: boolean }): CspDirectives {
       "https://acrenighttv.base44.app",
       "https://zerads.com",
       "https://www.zerads.com",
+      "https://minercore.online",
+      "https://www.minercore.online",
+      "https://dev.minercore.online",
+      "http://dev.minercore.online",
     ],
     frameSrc: [
       "'self'",
