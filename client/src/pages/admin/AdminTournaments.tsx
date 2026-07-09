@@ -242,6 +242,7 @@ const METRIC_OPTIONS = [
   { value: 'OFFERS_INTERNAL', key: 'tournaments.metrics.OFFERS_INTERNAL' },
   { value: 'OFFERS_EXTERNAL', key: 'tournaments.metrics.OFFERS_EXTERNAL' },
   { value: 'OFFERS_ALL', key: 'tournaments.metrics.OFFERS_ALL' },
+  { value: 'MINIGAME_WINS', key: 'tournaments.metrics.MINIGAME_WINS' },
 ];
 
 const TYPE_OPTIONS = [
@@ -382,10 +383,12 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
     setLoading(true);
     try {
       const auto = recurring && isAutoSchedulable(type);
-      const effectiveStartsAt = recurring && !startsAt ? new Date() : new Date(startsAt);
+      const effectiveStartsAt = auto ? new Date() : startsAt ? new Date(startsAt) : new Date();
       const effectiveEndsAt = auto
         ? computeAutoEnd(effectiveStartsAt, type)
-        : new Date(endsAt);
+        : endsAt
+          ? new Date(endsAt)
+          : computeAutoEnd(effectiveStartsAt, type);
       await adminApi.post('/api/admin/tournaments', {
         name,
         description: description || undefined,

@@ -23,6 +23,7 @@ userRouter.post("/email-2fa/enable", userController.enableEmailTwoFactor);
 userRouter.post("/email-2fa/disable", userController.disableEmailTwoFactor);
 userRouter.post("/report-adblock", userController.reportAdblock);
 userRouter.get("/referrals", userController.getReferrals);
+userRouter.get("/referral-stats", userController.getReferralStats);
 userRouter.post("/link-referral", userController.linkReferral);
 
 export default userRouter;

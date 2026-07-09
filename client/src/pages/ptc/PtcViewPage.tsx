@@ -11,6 +11,7 @@ import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { usePtcSessionStore } from '../../store/ptcSession';
 import { useActiveViewSeconds } from '../internal-offerwall/internalOfferwallHooks';
 import { useDocumentTitleCountdown } from '../../shared/hooks/useDocumentTitleCountdown';
+import { useUtcDailyResetCountdown } from '../../shared/hooks/useUtcDailyResetCountdown';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,14 @@ interface PtcAd {
   rewardPerViewShib: string;
   views?: number;
   targetViews?: number;
+  viewedToday?: boolean;
+  availableToday?: boolean;
+}
+
+interface PtcDailyReset {
+  utcDate: string;
+  nextResetAt: string;
+  nextResetInMs: number;
 }
 
 interface PtcSettings {
@@ -143,8 +152,30 @@ const SitePreview = memo(function SitePreview({ url, title, isActive }: { url: s
 
 // ── Stats strip ───────────────────────────────────────────────────────────────
 
+function UtcResetBanner({ utcDate, initialMs }: { utcDate: string; initialMs?: number }) {
+  const { label } = useUtcDailyResetCountdown(initialMs);
+  return (
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400/90">
+          Reset diário UTC · {utcDate}
+        </p>
+        <p className="mt-1 text-xs font-medium text-gray-400">
+          Cada anúncio pode ser visto <strong className="text-white">1× por dia (UTC)</strong>.
+          Todos liberam juntos às <strong className="text-white">00:00 UTC</strong>.
+        </p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600">Próximo reset em</p>
+        <p className="text-lg font-black tabular-nums text-indigo-300">{label}</p>
+      </div>
+    </div>
+  );
+}
+
 function StatsStrip({ ads }: { ads: PtcAd[] }) {
-  const totalReward = ads.reduce((s, a) => s + Number(a.rewardPerViewShib), 0);
+  const available = ads.filter((a) => a.availableToday !== false && !a.viewedToday);
+  const totalReward = available.reduce((s, a) => s + Number(a.rewardPerViewShib), 0);
 
   return (
     <div className="grid grid-cols-2 gap-4">
@@ -154,9 +185,9 @@ function StatsStrip({ ads }: { ads: PtcAd[] }) {
           <Eye className="w-5 h-5 text-sky-400" />
         </div>
         <div>
-          <p className="text-sky-300 font-black text-3xl leading-none tabular-nums">{ads.length}</p>
+          <p className="text-sky-300 font-black text-3xl leading-none tabular-nums">{available.length}</p>
           <p className="text-sky-600 text-[10px] font-bold uppercase tracking-widest mt-1 leading-none">
-            Disponíveis (24h)
+            Disponíveis hoje (UTC)
           </p>
         </div>
       </div>
@@ -193,16 +224,21 @@ interface AdCardProps {
   isStarting: boolean;
   onStart: (ad: PtcAd) => void;
   onGoToSession: () => void;
+  resetCountdownLabel: string;
 }
 
 const AdCard = memo(function AdCard({
-  ad, storeSession, storeStatus, isStarting, onStart, onGoToSession,
+  ad, storeSession, storeStatus, isStarting, onStart, onGoToSession, resetCountdownLabel,
 }: AdCardProps) {
   const isThisAdActive = storeSession?.adId === ad.id;
   const hasOtherSession = Boolean(storeSession) && !isThisAdActive;
+  const viewedToday = Boolean(ad.viewedToday) && !isThisAdActive;
   const remainingViews = Math.max(0, (ad.targetViews ?? 0) - (ad.views ?? 0));
 
   const badge = useMemo(() => {
+    if (viewedToday) {
+      return { label: 'Visto hoje', cls: 'bg-gray-500/15 text-gray-400 border-gray-500/25' };
+    }
     if (isThisAdActive) {
       if (storeStatus === 'completed') return { label: 'Concluído', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' };
       if (storeStatus === 'paused')    return { label: 'Pausado',   cls: 'bg-amber-500/15 text-amber-400 border-amber-500/25' };
@@ -210,9 +246,17 @@ const AdCard = memo(function AdCard({
       return { label: 'Em andamento', cls: 'bg-sky-500/15 text-sky-400 border-sky-500/25' };
     }
     return { label: 'Disponível', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' };
-  }, [isThisAdActive, storeStatus]);
+  }, [isThisAdActive, storeStatus, viewedToday]);
 
   const btn = useMemo(() => {
+    if (viewedToday) {
+      return {
+        label: 'Reset em ' + resetCountdownLabel,
+        cls: 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-80',
+        icon: Timer,
+        action: 'none' as const,
+      };
+    }
     if (isThisAdActive) {
       if (storeStatus === 'completed') return { label: 'Resgatar recompensa', cls: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20', icon: Gift, action: 'session' as const };
       if (storeStatus === 'viewing')   return { label: 'Ver progresso', cls: 'bg-sky-600 hover:bg-sky-500 shadow-sky-600/20', icon: PlayCircle, action: 'session' as const };
@@ -222,7 +266,7 @@ const AdCard = memo(function AdCard({
     if (isStarting) return { label: 'Iniciando...', cls: 'bg-orange-500 cursor-wait', icon: Loader2, action: 'none' as const };
     if (hasOtherSession) return { label: 'Abrir anúncio', cls: 'bg-gray-700 opacity-40 cursor-not-allowed', icon: ExternalLink, action: 'none' as const };
     return { label: 'Abrir anúncio', cls: 'bg-orange-500 hover:bg-orange-400 shadow-orange-500/20', icon: ExternalLink, action: 'start' as const };
-  }, [isThisAdActive, storeStatus, isStarting, hasOtherSession]);
+  }, [isThisAdActive, storeStatus, isStarting, hasOtherSession, viewedToday, resetCountdownLabel]);
 
   function handleBtnClick() {
     if (btn.action === 'start') onStart(ad);
@@ -233,10 +277,12 @@ const AdCard = memo(function AdCard({
 
   return (
     <article
-      className={`group bg-surface border rounded-3xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-black/40 ${
-        isThisAdActive
-          ? 'border-sky-500/30 shadow-lg shadow-sky-500/10 ring-1 ring-sky-500/10'
-          : 'border-gray-800/50 hover:border-gray-700/70'
+      className={`group bg-surface border rounded-3xl overflow-hidden flex flex-col transition-all duration-300 ${
+        viewedToday
+          ? 'border-gray-800/60 opacity-75'
+          : isThisAdActive
+          ? 'border-sky-500/30 shadow-lg shadow-sky-500/10 ring-1 ring-sky-500/10 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-black/40'
+          : 'border-gray-800/50 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-black/40 hover:border-gray-700/70'
       }`}
     >
       <SitePreview url={ad.url} title={ad.title} isActive={isThisAdActive} />
@@ -288,15 +334,24 @@ const AdCard = memo(function AdCard({
         <div className="flex-1" />
 
         {/* CTA button */}
-        <button
-          onClick={handleBtnClick}
-          disabled={btn.action === 'none'}
-          aria-label={btn.label}
-          className={`w-full py-3.5 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg ${btn.cls} disabled:pointer-events-none`}
-        >
-          <BtnIcon className={`w-4 h-4 ${btn.icon === Loader2 ? 'animate-spin' : ''}`} />
-          {btn.label}
-        </button>
+        {viewedToday ? (
+          <div className="rounded-2xl border border-gray-800 bg-gray-900/60 px-4 py-3 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+              Disponível após reset UTC
+            </p>
+            <p className="mt-1 text-xs font-medium text-gray-400 tabular-nums">{resetCountdownLabel}</p>
+          </div>
+        ) : (
+          <button
+            onClick={handleBtnClick}
+            disabled={btn.action === 'none'}
+            aria-label={btn.label}
+            className={`w-full py-3.5 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg ${btn.cls} disabled:pointer-events-none`}
+          >
+            <BtnIcon className={`w-4 h-4 ${btn.icon === Loader2 ? 'animate-spin' : ''}`} />
+            {btn.label}
+          </button>
+        )}
       </div>
     </article>
   );
@@ -306,8 +361,10 @@ const AdCard = memo(function AdCard({
 
 function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
   const [ads, setAds] = useState<PtcAd[]>([]);
+  const [daily, setDaily] = useState<PtcDailyReset | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState<number | null>(null);
+  const { label: resetCountdownLabel } = useUtcDailyResetCountdown(daily?.nextResetInMs);
 
   const storeSession = usePtcSessionStore((s) => s.session);
   const storeStatus  = usePtcSessionStore((s) => s.status);
@@ -316,8 +373,9 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
   const loadAds = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<{ ok: boolean; ads: PtcAd[] }>('/ptc/ads');
+      const res = await api.get<{ ok: boolean; ads: PtcAd[]; daily?: PtcDailyReset }>('/ptc/ads');
       setAds(res.data.ads ?? []);
+      setDaily(res.data.daily ?? null);
     } catch {
       toast.error('Erro ao carregar anúncios');
     } finally {
@@ -380,6 +438,8 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
     </div>
   );
 
+  const availableAds = ads.filter((a) => a.availableToday !== false && !a.viewedToday);
+
   if (ads.length === 0) return (
     <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-16 text-center space-y-5">
       <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto">
@@ -388,7 +448,7 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
       <div>
         <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Nenhum anúncio disponível</h3>
         <p className="text-gray-600 text-xs font-medium max-w-xs mx-auto leading-relaxed">
-          Você já visualizou todos os anúncios disponíveis nas últimas 24 horas ou não há campanhas ativas no momento.
+          Não há campanhas PTC ativas no momento. Volte mais tarde ou crie a sua campanha.
         </p>
       </div>
       <button
@@ -402,7 +462,19 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {daily ? <UtcResetBanner utcDate={daily.utcDate} initialMs={daily.nextResetInMs} /> : null}
+
       <StatsStrip ads={ads} />
+
+      {availableAds.length === 0 && ads.length > 0 ? (
+        <div className="rounded-2xl border border-gray-800/60 bg-gray-900/40 px-5 py-4 text-center">
+          <p className="text-sm font-bold text-gray-300">Todos os anúncios de hoje já foram vistos</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Disponíveis novamente no próximo reset diário (00:00 UTC) ·{' '}
+            <span className="font-black tabular-nums text-indigo-300">{resetCountdownLabel}</span>
+          </p>
+        </div>
+      ) : null}
 
       {/* Active session banner */}
       {storeSession && (
@@ -424,7 +496,7 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
       {/* Header row */}
       <div className="flex items-center justify-between">
         <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">
-          {ads.length} {ads.length === 1 ? 'anúncio disponível' : 'anúncios disponíveis'}
+          {availableAds.length} {availableAds.length === 1 ? 'anúncio disponível' : 'anúncios disponíveis'} hoje (UTC)
         </p>
         <button
           onClick={() => void loadAds()}
@@ -446,6 +518,7 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
             isStarting={starting === ad.id}
             onStart={handleStart}
             onGoToSession={() => onSelectAd(ad)}
+            resetCountdownLabel={resetCountdownLabel}
           />
         ))}
       </div>
@@ -455,7 +528,7 @@ function AdGridView({ onSelectAd }: { onSelectAd: (ad: PtcAd) => void }) {
         <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
         <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
           Ganhe <strong className="text-orange-300">SHIB</strong> por cada visualização completa.
-          O contador avança apenas enquanto você está no site do anunciante.
+          Limite: <strong className="text-white">1 view por anúncio por dia (UTC)</strong> — reset global às 00:00 UTC.
         </p>
       </div>
     </div>
@@ -525,7 +598,7 @@ function ActiveSessionView({ onDone }: { onDone: () => void }) {
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(msg ?? 'Erro ao resgatar recompensa');
-      if (msg && /indisponível|registrada|expirada|cooldown|cancelada/i.test(msg)) {
+      if (msg && /indisponível|registrada|expirada|reset|cancelada|hoje \(utc\)/i.test(msg)) {
         try {
           await api.post(`/ptc/session/${storeSession.sessionId}/cancel`, { reason: 'claim_failed' });
         } catch { /* non-fatal */ }

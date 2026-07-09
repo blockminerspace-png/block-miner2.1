@@ -9,6 +9,7 @@ import {
   getRewardDurationMs,
   resolveRewardExpiresAtForGrant,
 } from "../../services/powerBoostService.js";
+import { brazilDayDailyResetMeta, endOfBrazilDay, startOfBrazilDay } from "../../utils/brazilDayBounds.js";
 import {
   DAILY_LIMIT_HASH,
   MAX_DAILY_CLAIM_MINUTES,
@@ -18,7 +19,8 @@ import {
   claimRewardTx,
   findActivePowers,
   getAggregateStats,
-  getClaims24h,
+  getClaimsBetween,
+  YoutubeClaimError,
 } from "./youtube.repository.js";
 
 const logger = loggerLib.child("YoutubeService");
@@ -39,29 +41,33 @@ export async function getStatusForUser(userId: number): Promise<YoutubeStatusRes
 
 export async function getStatsForUser(userId: number): Promise<YoutubeStatsResult> {
   const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const dayStart = startOfBrazilDay(now);
+  const dayEnd = endOfBrazilDay(now);
 
-  const [claims24h, aggregate, balanceRow] = await Promise.all([
-    getClaims24h(userId, yesterday),
+  const [claimsToday, aggregate, balanceRow, activePowers] = await Promise.all([
+    getClaimsBetween(userId, dayStart, dayEnd),
     getAggregateStats(userId),
     getYtSecondsBalance(userId),
+    findActivePowers(userId, now),
   ]);
 
-  const hash24h = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
-
-  const minutesUsed24h = claims24h.length;
+  const hashToday = claimsToday.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+  const claimsCountToday = claimsToday.length;
+  const activeHashTotal = activePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
 
   return {
     ok: true,
-    claims24h: minutesUsed24h,
-    hashGranted24h: hash24h,
+    claims24h: claimsCountToday,
+    hashGranted24h: hashToday,
     claimsTotal: aggregate._count,
     hashGrantedTotal: Number(aggregate._sum.hashRate || 0),
     dailyLimit: DAILY_LIMIT_HASH,
-    dailyRemainingHash: Math.max(0, DAILY_LIMIT_HASH - hash24h),
+    dailyRemainingHash: Math.max(0, DAILY_LIMIT_HASH - hashToday),
     dailyLimitMinutes: MAX_DAILY_CLAIM_MINUTES,
-    dailyMinutesUsed: minutesUsed24h,
-    dailyRemainingMinutes: Math.max(0, MAX_DAILY_CLAIM_MINUTES - minutesUsed24h),
+    dailyMinutesUsed: claimsCountToday,
+    dailyRemainingMinutes: Math.max(0, MAX_DAILY_CLAIM_MINUTES - claimsCountToday),
+    activeHashTotal,
+    dailyReset: brazilDayDailyResetMeta(now),
     watchSecondsBalance: balanceRow?.ytSecondsBalance ?? 0,
     minSecondsToClaim: MIN_SECONDS_TO_CLAIM,
   };
@@ -69,10 +75,11 @@ export async function getStatsForUser(userId: number): Promise<YoutubeStatsResul
 
 export async function claimForUser(userId: number, videoId: string): Promise<YoutubeClaimResult> {
   const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const dayStart = startOfBrazilDay(now);
+  const dayEnd = endOfBrazilDay(now);
 
-  const [claims24h, balanceRow] = await Promise.all([
-    getClaims24h(userId, yesterday),
+  const [claimsToday, balanceRow] = await Promise.all([
+    getClaimsBetween(userId, dayStart, dayEnd),
     getYtSecondsBalance(userId),
   ]);
 
@@ -82,11 +89,11 @@ export async function claimForUser(userId: number, videoId: string): Promise<You
     return { ok: false, status: 400, retryAfterMs, message: "Tempo de visualização insuficiente verificado pelo servidor." };
   }
 
-  const currentDailyHash = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
-  const minutesUsed24h = claims24h.length;
+  const currentDailyHash = claimsToday.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+  const claimsCountToday = claimsToday.length;
 
-  if (minutesUsed24h >= MAX_DAILY_CLAIM_MINUTES || currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {
-    return { ok: false, status: 400, message: "Limite diário atingido. Tente novamente amanhã!" };
+  if (claimsCountToday >= MAX_DAILY_CLAIM_MINUTES || currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_HASH) {
+    return { ok: false, status: 400, message: "Limite diário atingido. Tente novamente após a meia-noite (Brasília)." };
   }
 
   let claimTtlMs = 0;
@@ -99,6 +106,14 @@ export async function claimForUser(userId: number, videoId: string): Promise<You
     });
     historyId = hist.id;
   } catch (err: unknown) {
+    if (err instanceof YoutubeClaimError && err.code === "INSUFFICIENT_BALANCE") {
+      return {
+        ok: false,
+        status: 400,
+        retryAfterMs: 10_000,
+        message: "Tempo de visualização insuficiente verificado pelo servidor.",
+      };
+    }
     const msg = err instanceof Error ? err.message : String(err);
     logger.error("YT claim transaction failed", { error: msg, userId });
     return { ok: false, status: 500, message: "Erro interno ao processar recompensa." };

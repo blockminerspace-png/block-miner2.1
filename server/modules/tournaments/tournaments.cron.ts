@@ -4,7 +4,8 @@ const prisma = _prisma as any;
 import { computeScoresForTournament, finalizeTournament, alignActiveTournamentWindows } from "./tournaments.service.js";
 import { isTournamentIncrementalScoringEnabled } from "./config/feature-flags.js";
 import { reconcileAllActive, reconcileLegacyBatchTournament } from "./application/tournament-engine.js";
-import { OFFERS_INCREMENTAL_METRICS } from "./domain/tournament-action.providers.js";
+import { backfillMinigameTournamentFromLogs } from "./application/minigame-backfill.service.js";
+import { OFFERS_INCREMENTAL_METRICS, MINIGAME_INCREMENTAL_METRICS } from "./domain/tournament-action.providers.js";
 import { processTournamentOutboxBatch } from "./infrastructure/outbox/tournament-outbox.processor.js";
 import { registerTournamentMetricScorers } from "./domain/metrics/register-scorers.js";
 import { runOfferwallShadowValidation } from "./application/offerwall-shadow-validation.service.js";
@@ -19,6 +20,7 @@ const INCREMENTAL_METRICS = new Set<string>([
   "DEPOSITS_USD",
   "DEPOSITS_POL",
   ...OFFERS_INCREMENTAL_METRICS,
+  ...MINIGAME_INCREMENTAL_METRICS,
 ]);
 
 export function startTournamentsCron(): Record<string, unknown> {
@@ -123,6 +125,11 @@ async function runLifecycleManager(): Promise<void> {
     for (const t of toActivate) {
       await prisma.tournament.update({ where: { id: t.id }, data: { status: "ACTIVE" } });
       console.info(`[tournaments] activated tournament #${t.id} "${t.name}"`);
+      if (t.metric === "MINIGAME_WINS") {
+        void backfillMinigameTournamentFromLogs(t.id).catch((err) => {
+          console.error(`[tournaments] minigame backfill on activate #${t.id}:`, err);
+        });
+      }
     }
 
     const toFinalize = await prisma.tournament.findMany({

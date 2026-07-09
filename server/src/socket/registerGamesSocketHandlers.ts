@@ -13,7 +13,18 @@ import { createAuditLogBestEffort } from "../../models/auditLogModel.js";
 import { errMsg } from "../../types/tsNarrowing.js";
 import type { MiningEngine } from "../miningEngine.js";
 import { checkCooldown, recordFinish } from "../../modules/games/gameCooldownEngine.js";
-import { evaluateTrust } from "../../modules/games/gameAntiCheatV2.js";
+import { evaluateCartRushTrust, evaluateTrust } from "../../modules/games/gameAntiCheatV2.js";
+import {
+  tryAcquireUserGameSession,
+  releaseUserGameSession,
+  releaseAllUserGameSessionsForSocket,
+  clearStaleUserGameSession,
+} from "../../modules/games/gameActiveSessionLock.js";
+import { flagMinigameBurstIfNeeded } from "../../modules/games/gameBurstGuard.js";
+import {
+  recordTournamentAction,
+  TOURNAMENT_ACTION_PROVIDER,
+} from "../../modules/tournaments/application/tournament-action-dispatch.js";
 
 const logger = loggerLib.child("GamesSocket");
 
@@ -267,20 +278,37 @@ export function registerGamesSocketHandlers({ io, engine }) {
 
         if (!userId) return socket.emit("game:error", { code: "invalid_session" });
 
+        clearStaleUserGameSession(userId, slug, (holderSocketId) => {
+          const live = GAME_SESSIONS.get(holderSocketId);
+          const sock = io.sockets.sockets.get(holderSocketId);
+          return Boolean(sock?.connected && live && !live.isFinished);
+        });
+        if (!tryAcquireUserGameSession(userId, slug, socket.id)) {
+          return socket.emit("game:error", { code: "game_already_active" });
+        }
+        const releaseLock = () => releaseUserGameSession(userId, slug, socket.id);
+
         // Cooldown check (DB-backed progressive cooldown)
         const cooldownResult = await checkCooldown(userId, slug);
         if (cooldownResult) {
+          releaseLock();
           return socket.emit("game:error", { code: "cooldown", seconds: cooldownResult.remainingSeconds });
         }
 
         const gameName = GAME_NAMES[slug];
-        if (!gameName) return socket.emit("game:error", { code: "unknown_game" });
+        if (!gameName) {
+          releaseLock();
+          return socket.emit("game:error", { code: "unknown_game" });
+        }
         const game = await prisma.game.upsert({
           where: { slug },
           create: { name: gameName, slug, isActive: true },
           update: {}
         });
-        if (!game.isActive) return socket.emit("game:error", { code: "game_paused" });
+        if (!game.isActive) {
+          releaseLock();
+          return socket.emit("game:error", { code: "game_paused" });
+        }
 
         let initialState: GameSessionState = {
           gameId: Number(game.id),
@@ -390,6 +418,7 @@ export function registerGamesSocketHandlers({ io, engine }) {
 
         GAME_SESSIONS.set(socket.id, initialState);
       } catch (error: unknown) {
+        releaseAllUserGameSessionsForSocket(socket.id);
         logger.error("Game Start Error", { error: errMsg(error) });
         socket.emit("game:error", { code: "start_failed" });
       }
@@ -480,6 +509,10 @@ export function registerGamesSocketHandlers({ io, engine }) {
 
     socket.on("disconnect", () => {
       const s = GAME_SESSIONS.get(socket.id);
+      if (s && !s.isFinished) {
+        releaseUserGameSession(Number(s.userId), String(s.slug || ""), socket.id);
+      }
+      releaseAllUserGameSessionsForSocket(socket.id);
       clearMemoryMismatchTimer(s);
       GAME_SESSIONS.delete(socket.id);
     });
@@ -877,16 +910,29 @@ async function finishGame(
   state.isFinished = true;
   GAME_SESSIONS.delete(socket.id);
 
-  const playTimeMs = Date.now() - state.startTime;
+  const wallPlayTimeMs = Date.now() - state.startTime;
   const userId = Number(state.userId);
   const gameSlug = String(state.slug || "");
+  releaseUserGameSession(userId, gameSlug, socket.id);
+  const playTimeMs =
+    gameSlug === "cart-rush"
+      ? Math.max(wallPlayTimeMs, Number((state as CartRushState).elapsedMs) || 0)
+      : wallPlayTimeMs;
   const score = Number(state.score || 0);
   const ip = socket.handshake?.address || socket.request?.socket?.remoteAddress || null;
   const userAgent = (socket.request?.headers?.["user-agent"] as string | undefined) || null;
 
   if (success) {
     // Anti-cheat V2: trust score evaluation
-    const trust = evaluateTrust(gameSlug, playTimeMs, score);
+    const trust =
+      gameSlug === "cart-rush"
+        ? evaluateCartRushTrust(
+            playTimeMs,
+            Number((state as CartRushState).distance) || 0,
+            Number((state as CartRushState).btcCount) || 0,
+            score,
+          )
+        : evaluateTrust(gameSlug, playTimeMs, score);
 
     if (trust.rejected) {
       logger.warn(`[AntiCheat] Rejected userId=${userId} game=${gameSlug} playTimeMs=${playTimeMs} trustScore=${trust.trustScore} events=${trust.events.join(",")}`);
@@ -922,6 +968,8 @@ async function finishGame(
 
     const expiresAt = new Date(Date.now() + powerDays * 24 * 60 * 60 * 1000);
     try {
+      await flagMinigameBurstIfNeeded(userId, gameSlug, { ip, userAgent, score, playTimeMs });
+
       const powerRow = await prisma.userPowerGame.create({
         data: {
           userId,
@@ -947,6 +995,20 @@ async function finishGame(
         userPowerGameId: powerRow.id,
         gameSlug,
       }).catch(() => {});
+      void recordTournamentAction({
+        userId,
+        provider: TOURNAMENT_ACTION_PROVIDER.MINIGAME,
+        actionCount: 1,
+        executedAtUTC: powerRow.playedAt instanceof Date ? powerRow.playedAt : new Date(),
+        providerEventId: `upg:${powerRow.id}`,
+        metadata: {
+          gameSlug,
+          userPowerGameId: powerRow.id,
+          score,
+        },
+      }).catch((err) => {
+        logger.warn(`tournament minigame action failed userId=${userId} upg=${powerRow.id}: ${errMsg(err)}`);
+      });
       createAuditLogBestEffort({
         userId,
         action: "MINIGAME_PLAYED_REWARD",

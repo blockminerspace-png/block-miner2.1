@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
-import { getDailyTaskPeriodKey } from "../../services/dailyTasks/dailyTaskPeriod.js";
+import { getInternalOfferwallBrazilDate, getInternalOfferwallPeriodKey, getNextInternalOfferwallResetAt, msUntilInternalOfferwallReset } from "./internal-offerwall.period.js";
 import { bumpDailyTasksForUser } from "../../services/dailyTasks/dailyTaskProgressService.js";
 import { TASK_INTERNAL_OFFERWALL } from "../../services/dailyTasks/dailyTaskConstants.js";
 import {
@@ -338,7 +338,7 @@ export async function userListOffers(userId: number) {
     return { ok: false, code: "FEATURE_DISABLED", offers: [], openAttempts: [] };
   }
   const now = new Date();
-  const periodKey = getDailyTaskPeriodKey(now);
+  const periodKey = getInternalOfferwallPeriodKey(now);
   await abandonStaleStartedAttempts(userId, periodKey);
   const offers = await prisma.internalOfferwallOffer.findMany({
     where: { isActive: true },
@@ -400,6 +400,12 @@ export async function userListOffers(userId: number) {
   });
   return {
     ok: true,
+    dailyReset: {
+      timezone: "America/Sao_Paulo",
+      localDate: getInternalOfferwallBrazilDate(now),
+      nextResetAt: getNextInternalOfferwallResetAt(now).toISOString(),
+      nextResetInMs: msUntilInternalOfferwallReset(now),
+    },
     offers: offers.map((row) => {
       const cfg = getOfferLimitConfig(row);
       const rows = completionByOffer.get(row.id) || [];
@@ -420,7 +426,7 @@ export async function userListOffers(userId: number) {
 
 async function userStartOfferOnceSerializable(userId: number, offerId: number) {
   const now = new Date();
-  const periodKey = getDailyTaskPeriodKey(now);
+  const periodKey = getInternalOfferwallPeriodKey(now);
   const since = new Date(now.getTime() - COMPLETION_HISTORY_LOOKBACK_MS);
 
   return prisma.$transaction(

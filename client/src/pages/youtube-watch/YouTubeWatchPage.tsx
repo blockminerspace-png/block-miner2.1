@@ -3,7 +3,7 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import type { LucideIcon } from 'lucide-react';
-import { Youtube, Zap, Clock, TrendingUp, AlertCircle, History, BarChart3, ShieldCheck, X, PauseCircle, PlayCircle } from 'lucide-react';
+import { Youtube, Zap, Clock, TrendingUp, AlertCircle, History, BarChart3, ShieldCheck, X, PauseCircle, PlayCircle, Loader2 } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import { api } from '../../store/auth';
 import { formatHashrate } from '../../shared/utils/machine';
@@ -11,6 +11,14 @@ import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import { validateTrustedEvent, generateSecurityPayload } from '../../shared/utils/security';
 import { reportApiFailure } from '../../shared/utils/reportApiFailure';
+import { useBrazilDailyResetCountdown } from '../../shared/hooks/useBrazilDailyResetCountdown';
+
+interface YoutubeDailyReset {
+    timezone: string;
+    localDate: string;
+    nextResetAt: string;
+    nextResetInMs: number;
+}
 
 interface YoutubeStatusPayload {
     ok?: boolean;
@@ -27,6 +35,8 @@ interface YoutubeStatsPayload {
     dailyLimitMinutes?: number;
     dailyMinutesUsed?: number;
     dailyRemainingMinutes?: number;
+    activeHashTotal?: number;
+    dailyReset?: YoutubeDailyReset;
     claims24h?: number;
     claimsTotal?: number;
     hashGrantedTotal?: number;
@@ -65,6 +75,9 @@ export default function YouTubeWatch() {
     const playerRef = useRef<YT.Player | null>(null);
     const playerDivRef = useRef<HTMLDivElement | null>(null);
     const ytReadyRef = useRef(false);
+    const [ytApiReady, setYtApiReady] = useState(() => Boolean(window.YT?.Player));
+    const [ytApiFailed, setYtApiFailed] = useState(false);
+    const [playerReady, setPlayerReady] = useState(false);
     const cycleStartRef = useRef<number | null>(null);
     const urlInputRef = useRef<HTMLInputElement | null>(null);
     const urlComposingRef = useRef(false);
@@ -108,6 +121,7 @@ export default function YouTubeWatch() {
         setUrl('');
         setPlayerState('idle');
         resetWatchCycle();
+        setPlayerReady(false);
         if (playerRef.current) {
             try {
                 playerRef.current.destroy();
@@ -123,23 +137,52 @@ export default function YouTubeWatch() {
         });
     }, [resetWatchCycle]);
 
-    // Carrega a YouTube IFrame API uma vez
+    // Carrega a YouTube IFrame API uma vez (com poll — callback pode ter disparado antes).
     useEffect(() => {
-        if (window.YT?.Player) {
+        const markReady = () => {
             ytReadyRef.current = true;
-            return;
+            setYtApiReady(true);
+            setYtApiFailed(false);
+        };
+
+        if (window.YT?.Player) {
+            markReady();
+            return undefined;
         }
+
         const prev = window.onYouTubeIframeAPIReady;
         window.onYouTubeIframeAPIReady = () => {
-            ytReadyRef.current = true;
+            markReady();
             if (typeof prev === 'function') prev();
         };
+
         if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
             const tag = document.createElement('script');
             tag.src = 'https://www.youtube.com/iframe_api';
+            tag.async = true;
             document.head.appendChild(tag);
         }
-    }, []);
+
+        const poll = window.setInterval(() => {
+            if (window.YT?.Player) {
+                markReady();
+                window.clearInterval(poll);
+            }
+        }, 250);
+
+        const timeout = window.setTimeout(() => {
+            window.clearInterval(poll);
+            if (!window.YT?.Player) {
+                setYtApiFailed(true);
+                toast.error(t('youtube.api_load_failed'), { duration: 8000 });
+            }
+        }, 20_000);
+
+        return () => {
+            window.clearInterval(poll);
+            window.clearTimeout(timeout);
+        };
+    }, [t]);
 
     // Destrói o player ao desmontar o componente
     useEffect(() => {
@@ -233,6 +276,7 @@ export default function YouTubeWatch() {
         }
         setPlayerState('idle');
         resetWatchCycle();
+        setPlayerReady(false);
         // Sempre destrói o player antes de criar um novo — evita estado inválido
         if (playerRef.current) {
             try { playerRef.current.destroy(); } catch (_) {}
@@ -247,13 +291,15 @@ export default function YouTubeWatch() {
         toast.warning(t('youtube.external_watch_warning'), { duration: 8000 });
     }, [t]);
 
-    // Inicializa o player YT quando videoId ou playerResetKey muda
+    // Inicializa o player YT quando videoId, reset key e API estão prontos
     useEffect(() => {
-        if (!videoId || !playerDivRef.current) return;
-        if (playerRef.current) return; // já foi recriado
+        if (!videoId || !playerDivRef.current || !ytApiReady) return undefined;
+        if (playerRef.current) return undefined;
+
+        let cancelled = false;
 
         const initPlayer = () => {
-            if (!playerDivRef.current) return;
+            if (cancelled || !playerDivRef.current || playerRef.current) return;
             if (!isValidYoutubeVideoId(videoId)) {
                 toast.error(t('youtube.invalid_url'));
                 setVideoId(null);
@@ -262,13 +308,15 @@ export default function YouTubeWatch() {
                 return;
             }
             try {
-                playerRef.current = new window.YT.Player(playerDivRef.current, {
+                playerRef.current = new window.YT!.Player(playerDivRef.current, {
                     videoId,
                     width: '100%',
                     height: '100%',
                     playerVars: { autoplay: 1, rel: 0, modestbranding: 1 },
                     events: {
                         onReady: () => {
+                            if (cancelled) return;
+                            setPlayerReady(true);
                             setPlayerState((prev) => {
                                 if (prev === 'idle') {
                                     toast.info(t('youtube.click_to_play'), { duration: 4000 });
@@ -284,6 +332,7 @@ export default function YouTubeWatch() {
                                 toast.error(t('youtube.video_error'), { duration: 5000 });
                             }
                             setPlayerState('idle');
+                            setPlayerReady(false);
                             resetWatchCycle();
                         },
                         onStateChange: (event: { data: number }) => {
@@ -308,21 +357,17 @@ export default function YouTubeWatch() {
                 toast.error(t('youtube.invalid_url'));
                 setVideoId(null);
                 setPlayerState('idle');
+                setPlayerReady(false);
                 resetWatchCycle();
             }
         };
 
-        if (ytReadyRef.current && window.YT?.Player) {
-            initPlayer();
-        } else {
-            const prev = window.onYouTubeIframeAPIReady;
-            window.onYouTubeIframeAPIReady = () => {
-                ytReadyRef.current = true;
-                if (typeof prev === 'function') prev();
-                initPlayer();
-            };
-        }
-    }, [videoId, playerResetKey]);
+        initPlayer();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [videoId, playerResetKey, ytApiReady, t, resetWatchCycle]);
 
     const claimReward = useCallback(async () => {
         if (isClaimingRef.current) return;
@@ -450,10 +495,13 @@ export default function YouTubeWatch() {
         };
     }, [isActivelyWatching, claimReward]);
 
-    const dailyLimitMinutes = Number(stats?.dailyLimitMinutes ?? 100);
-    const dailyMinutesUsed = Number(stats?.dailyMinutesUsed ?? stats?.claims24h ?? 0);
-    const dailyRemainingMinutes = Number(stats?.dailyRemainingMinutes ?? Math.max(0, dailyLimitMinutes - dailyMinutesUsed));
-    const dailyProgress = dailyLimitMinutes > 0 ? (dailyMinutesUsed / dailyLimitMinutes) * 100 : 0;
+    const dailyLimitHash = Number(stats?.dailyLimit ?? 1000);
+    const dailyHashUsed = Number(stats?.hashGranted24h ?? 0);
+    const dailyHashRemaining = Number(stats?.dailyRemainingHash ?? Math.max(0, dailyLimitHash - dailyHashUsed));
+    const dailyReset = stats?.dailyReset ?? null;
+    const activeHashTotal = Number(stats?.activeHashTotal ?? status?.activeHashRate ?? 0);
+    const claimsToday = Number(stats?.claims24h ?? 0);
+    const dailyProgress = dailyLimitHash > 0 ? (dailyHashUsed / dailyLimitHash) * 100 : 0;
     const minClaimSec = Number(stats?.minSecondsToClaim ?? 50);
     const watchBalance = Number(stats?.watchSecondsBalance ?? 0);
     const showClaimCountdown =
@@ -477,6 +525,10 @@ export default function YouTubeWatch() {
                     <span className="text-primary font-black text-[10px] uppercase tracking-widest">{t('youtube.protocol_active')}</span>
                 </div>
             </div>
+
+            {dailyReset ? (
+                <YoutubeDailyResetBanner dailyReset={dailyReset} t={t} onResetElapsed={fetchUserStats} />
+            ) : null}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Video Area */}
@@ -539,6 +591,29 @@ export default function YouTubeWatch() {
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600">
                                     <Youtube className="w-20 h-20 mb-4 opacity-20" />
                                     <p className="font-bold uppercase tracking-widest text-[10px]">{t('youtube.waiting_placeholder')}</p>
+                                </div>
+                            )}
+                            {videoId && (!ytApiReady || !playerReady) && !ytApiFailed && (
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-gray-950/90">
+                                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                        {t('youtube.player_loading')}
+                                    </p>
+                                </div>
+                            )}
+                            {videoId && ytApiFailed && (
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-gray-950/95 px-6 text-center">
+                                    <AlertCircle className="h-10 w-10 text-amber-400" />
+                                    <p className="text-sm text-gray-300">{t('youtube.api_load_failed')}</p>
+                                    <a
+                                        href={`https://www.youtube.com/watch?v=${videoId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mt-2 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs font-black uppercase text-white"
+                                    >
+                                        <Youtube className="h-4 w-4" />
+                                        {t('youtube.open_on_youtube')}
+                                    </a>
                                 </div>
                             )}
                             {videoId && (
@@ -651,17 +726,22 @@ export default function YouTubeWatch() {
                     <div className="bg-gray-900 border border-gray-800 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 space-y-6 shadow-2xl">
                         <div className="space-y-4">
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                <span className="text-slate-500">{t('youtube.stats_claims24h')}</span>
-                                <span className="text-white">{stats?.claims24h || 0}</span>
+                                <span className="text-slate-500">{t('youtube.stats_claims_today')}</span>
+                                <span className="text-white">{claimsToday}</span>
                             </div>
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                <span className="text-slate-500">{t('youtube.stats_minutes_used')}</span>
-                                <span className="text-emerald-400">{dailyMinutesUsed} / {dailyLimitMinutes} min</span>
+                                <span className="text-slate-500">{t('youtube.stats_hash_today')}</span>
+                                <span className="text-emerald-400">{formatHashrate(dailyHashUsed)} / {formatHashrate(dailyLimitHash)}</span>
                             </div>
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                <span className="text-slate-500">{t('youtube.stats_daily_remaining')}</span>
-                                <span className="text-gray-400">{dailyRemainingMinutes} min</span>
+                                <span className="text-slate-500">{t('youtube.stats_hash_remaining')}</span>
+                                <span className="text-gray-400">{formatHashrate(dailyHashRemaining)}</span>
                             </div>
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                                <span className="text-slate-500">{t('youtube.stats_active_hash')}</span>
+                                <span className="text-primary">{formatHashrate(activeHashTotal)}</span>
+                            </div>
+                            <p className="text-[9px] text-gray-600 font-bold uppercase leading-relaxed">{t('youtube.stats_active_hash_note')}</p>
                             
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
@@ -722,6 +802,39 @@ function TrackerItem({
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
             </div>
             <span className="text-sm font-black text-white italic">{value}</span>
+        </div>
+    );
+}
+
+function YoutubeDailyResetBanner({
+    dailyReset,
+    t,
+    onResetElapsed,
+}: {
+    dailyReset: YoutubeDailyReset;
+    t: ReturnType<typeof useTranslation>['t'];
+    onResetElapsed: () => Promise<void>;
+}) {
+    const { label, remainingMs } = useBrazilDailyResetCountdown(dailyReset.nextResetInMs);
+
+    useEffect(() => {
+        if (remainingMs > 0) return undefined;
+        void onResetElapsed();
+        return undefined;
+    }, [remainingMs, onResetElapsed]);
+
+    return (
+        <div className="flex flex-col gap-1.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/90">
+                    {t('youtube.daily_reset_title', { date: dailyReset.localDate })}
+                </p>
+                <p className="mt-1 text-xs font-medium text-gray-400">{t('youtube.daily_reset_body')}</p>
+            </div>
+            <div className="shrink-0 text-right">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600">{t('youtube.daily_reset_next')}</p>
+                <p className="text-lg font-black tabular-nums text-emerald-300">{label}</p>
+            </div>
         </div>
     );
 }

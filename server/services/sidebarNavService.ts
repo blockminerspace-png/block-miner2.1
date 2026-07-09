@@ -5,6 +5,7 @@ import {
   coerceGamesInEarnSection,
   coerceInternalOfferwallEarnRoot,
   coerceParentLockedSidebarEntries,
+  coerceYoutubeInEarnRewardsGroup,
   coerceZeradsHidden,
   mergeMissingSidebarRegistryEntries,
   SIDEBAR_ITEM_REGISTRY,
@@ -100,14 +101,15 @@ export async function getSidebarNavForAdmin() {
   const { entries: coercedOfferwall, changed: offerwallChanged } = coerceInternalOfferwallEarnRoot(coerced);
   const { entries: coercedZerads, changed: zeradsChanged } = coerceZeradsHidden(coercedOfferwall);
   const { entries: coercedGames, changed: gamesChanged } = coerceGamesInEarnSection(coercedZerads);
-  if (lockedChanged || offerwallChanged || zeradsChanged || gamesChanged) {
+  const { entries: coercedYoutube, changed: youtubeChanged } = coerceYoutubeInEarnRewardsGroup(coercedGames);
+  if (lockedChanged || offerwallChanged || zeradsChanged || gamesChanged || youtubeChanged) {
     await prisma.sidebarNavConfig.update({
       where: { id: SINGLETON_ID },
-      data: { entries: coercedGames }
+      data: { entries: coercedYoutube }
     });
   }
   const { entries: merged, changed: mergeChanged } =
-    mergeMissingSidebarRegistryEntries(coercedGames);
+    mergeMissingSidebarRegistryEntries(coercedYoutube);
   if (mergeChanged) {
     await prisma.sidebarNavConfig.update({
       where: { id: SINGLETON_ID },
@@ -147,7 +149,8 @@ export async function saveSidebarNavEntries(bodyEntries) {
   const { entries: afterOfferwall } = coerceInternalOfferwallEarnRoot(afterLocked);
   const { entries: afterZerads } = coerceZeradsHidden(afterOfferwall);
   const { entries: coerced } = coerceGamesInEarnSection(afterZerads);
-  const v = validateSidebarEntriesPayload(coerced);
+  const { entries: afterYoutube } = coerceYoutubeInEarnRewardsGroup(coerced);
+  const v = validateSidebarEntriesPayload(afterYoutube);
   if (!v.ok) return { ok: false, code: v.code };
   await ensureRow();
   await prisma.sidebarNavConfig.update({

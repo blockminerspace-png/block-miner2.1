@@ -5,7 +5,7 @@ import * as ctrl from "./energyTax.controller.js";
 
 export const energyTaxRouter = Router();
 
-const summaryLimiter = createRateLimiter({ windowMs: 30_000, max: 30 });
+const summaryLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
 const payLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
 
 energyTaxRouter.get("/summary", requireAuth, summaryLimiter, ctrl.getSummary);

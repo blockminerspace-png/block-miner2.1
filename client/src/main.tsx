@@ -5,7 +5,7 @@ import './i18n/config' // Import i18n config
 import App from './app/App'
 import ErrorBoundary from './shared/components/ErrorBoundary'
 import { isChunkLoadError, shouldAutoReloadChunkError, forceReloadForNewBuild, ensureCurrentBuild, clearChunkReloadMarkers } from './shared/utils/chunkLoadError'
-import { isClientErrorNoise } from './shared/utils/clientErrorNoise'
+import { isClientErrorNoise, isStaleBlockMinerAsset } from './shared/utils/clientErrorNoise'
 
 function reportClientError(payload: { message: string; stack?: string | null; source?: string }) {
   if (isClientErrorNoise(payload.message, payload.stack, payload.source)) return;
@@ -44,13 +44,16 @@ window.addEventListener(
       return
     }
     if (msg && isClientErrorNoise(msg, event?.error instanceof Error ? event.error.stack ?? null : null)) {
-      if (shouldAutoReloadChunkError()) {
-        forceReloadForNewBuild()
-      }
-      return
+      return;
     }
     if (tagFailed) {
       const src = String((t as HTMLScriptElement).src)
+      if (isStaleBlockMinerAsset(`Script load failed: ${src}`)) {
+        if (shouldAutoReloadChunkError()) {
+          forceReloadForNewBuild()
+        }
+        return
+      }
       if (isClientErrorNoise(`Script load failed: ${src}`, src)) {
         return
       }

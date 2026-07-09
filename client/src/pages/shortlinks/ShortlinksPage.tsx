@@ -17,6 +17,14 @@ import PowerBoostBanner from '../../components/PowerBoostBanner/PowerBoostBanner
 import MondiadBanner from '../../shared/components/MondiadBanner';
 import { reportApiFailure } from '../../shared/utils/reportApiFailure';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
+import { useBrazilDailyResetCountdown } from '../../shared/hooks/useBrazilDailyResetCountdown';
+
+interface ShortlinkDailyReset {
+  timezone: string;
+  localDate: string;
+  nextResetAt: string;
+  nextResetInMs: number;
+}
 
 interface ShortlinkStatusPayload {
     dailyRuns?: number;
@@ -29,6 +37,7 @@ interface ShortlinkStatusPayload {
 
 interface ShortlinkStatusResponse {
     ok?: boolean;
+    dailyReset?: ShortlinkDailyReset;
     status?: ShortlinkStatusPayload;
 }
 
@@ -41,6 +50,7 @@ export default function Shortlinks() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const [status, setStatus] = useState<ShortlinkStatusPayload | null>(null);
+    const [dailyReset, setDailyReset] = useState<ShortlinkDailyReset | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isStarting, setIsStarting] = useState(false);
 
@@ -49,6 +59,7 @@ export default function Shortlinks() {
             const res = await api.get<ShortlinkStatusResponse>('/shortlink/status');
             if (res.data.ok && res.data.status) {
                 setStatus(res.data.status);
+                setDailyReset(res.data.dailyReset ?? null);
             }
         } catch (err: unknown) {
             console.error("Erro ao buscar status do shortlink", err);
@@ -128,6 +139,8 @@ export default function Shortlinks() {
                 </div>
             </div>
 
+            {dailyReset ? <ShortlinkDailyResetBanner dailyReset={dailyReset} t={t} onResetElapsed={fetchStatus} /> : null}
+
             <div className="grid grid-cols-1 gap-6">
                 <div className={`bg-surface border rounded-[2.5rem] p-10 shadow-xl transition-all duration-500 ${isLimitReached ? 'border-gray-800 opacity-80' : 'border-primary/20 hover:border-primary/40'
                     }`}>
@@ -197,6 +210,39 @@ export default function Shortlinks() {
             </div>
 
             <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="shortlinks-bottom" />
+        </div>
+    );
+}
+
+function ShortlinkDailyResetBanner({
+    dailyReset,
+    t,
+    onResetElapsed,
+}: {
+    dailyReset: ShortlinkDailyReset;
+    t: ReturnType<typeof useTranslation>['t'];
+    onResetElapsed: () => Promise<void>;
+}) {
+    const { label, remainingMs } = useBrazilDailyResetCountdown(dailyReset.nextResetInMs);
+
+    useEffect(() => {
+        if (remainingMs > 0) return undefined;
+        void onResetElapsed();
+        return undefined;
+    }, [remainingMs, onResetElapsed]);
+
+    return (
+        <div className="flex flex-col gap-1.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/90">
+                    {t('shortlinks.daily_reset_title', { date: dailyReset.localDate })}
+                </p>
+                <p className="mt-1 text-xs font-medium text-gray-400">{t('shortlinks.daily_reset_body')}</p>
+            </div>
+            <div className="shrink-0 text-right">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600">{t('shortlinks.daily_reset_next')}</p>
+                <p className="text-lg font-black tabular-nums text-emerald-300">{label}</p>
+            </div>
         </div>
     );
 }

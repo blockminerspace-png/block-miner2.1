@@ -28,10 +28,10 @@ test("startOfUtcDay returns UTC midnight for the same calendar day", () => {
   assert.equal(s.toISOString(), "2026-04-09T00:00:00.000Z");
 });
 
-test("isClaimDue respects server clock and skew tolerance", () => {
+test("isClaimDue respects server clock without early skew", () => {
   const next = new Date("2026-04-09T12:00:00.000Z");
-  assert.equal(isClaimDue(next, new Date("2026-04-09T11:59:55.100Z"), 5000), true);
-  assert.equal(isClaimDue(next, new Date("2026-04-09T11:59:54.000Z"), 5000), false);
+  assert.equal(isClaimDue(next, new Date("2026-04-09T12:00:00.000Z")), true);
+  assert.equal(isClaimDue(next, new Date("2026-04-09T11:59:59.999Z")), false);
 });
 
 test("canGrantDaily enforces 1000 H/s combined ceiling", () => {

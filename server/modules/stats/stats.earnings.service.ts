@@ -2,9 +2,10 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../src/db/prisma.js";
 import { REWARD_POL as INTERNAL_OFFERWALL_REWARD_POL } from "../internal-offerwall/internal-offerwall.config.js";
 import { isAutoMiningV2SchemaAvailable } from "../auto-mining/index.js";
+import { REFERRAL_STATS_SINCE } from "../../models/referralModel.js";
 
-/** Referral POL totals only count from this date (product requirement). */
-export const REFERRAL_EARNINGS_STATS_SINCE = new Date("2026-07-03T00:00:00.000Z");
+/** @deprecated Use REFERRAL_STATS_SINCE from referralModel */
+export const REFERRAL_EARNINGS_STATS_SINCE = REFERRAL_STATS_SINCE;
 
 export type EarningsPeriod = "7d" | "30d" | "90d" | "all";
 
@@ -142,7 +143,7 @@ async function sumInboxPolByCategory(
 
 async function sumReferralsPol(userId: number, since: Date | null): Promise<number> {
   const effectiveSince =
-    since && since.getTime() > REFERRAL_EARNINGS_STATS_SINCE.getTime() ? since : REFERRAL_EARNINGS_STATS_SINCE;
+    since && since.getTime() > REFERRAL_STATS_SINCE.getTime() ? since : REFERRAL_STATS_SINCE;
   const agg = await prisma.referralEarning.aggregate({
     _sum: { amount: true },
     where: { referrerId: userId, createdAt: { gte: effectiveSince } },
@@ -256,7 +257,7 @@ async function fetchDailyInbox(userId: number, since: Date | null): Promise<Dail
 
 async function fetchDailyReferrals(userId: number, since: Date | null): Promise<DailyRow[]> {
   const effectiveSince =
-    since && since.getTime() > REFERRAL_EARNINGS_STATS_SINCE.getTime() ? since : REFERRAL_EARNINGS_STATS_SINCE;
+    since && since.getTime() > REFERRAL_STATS_SINCE.getTime() ? since : REFERRAL_STATS_SINCE;
   return prisma.$queryRaw<DailyRow[]>`
     SELECT date_trunc('day', created_at AT TIME ZONE 'UTC')::date AS day,
            COALESCE(SUM(amount), 0)::float AS pol,
@@ -461,7 +462,7 @@ export async function getUserEarningsStats(userId: number, period: EarningsPerio
 
   return {
     ...totals,
-    referralStatsSince: REFERRAL_EARNINGS_STATS_SINCE.toISOString().slice(0, 10),
+    referralStatsSince: REFERRAL_STATS_SINCE.toISOString().slice(0, 10),
     period,
     history,
     powerMeta,

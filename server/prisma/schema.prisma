@@ -1308,6 +1308,8 @@ model PtpView {
   adId        Int      @map("ad_id")
   viewerHash  String   @map("viewer_hash")
   viewedAt    DateTime @default(now()) @map("viewed_at")
+  /// UTC calendar day (YYYY-MM-DD) when the viewer last completed this ad — resets at 00:00 UTC
+  lastViewedUtcDate DateTime? @map("last_viewed_utc_date") @db.Date
   earnedShib  Decimal  @default(0) @map("earned_shib") @db.Decimal(30, 8)
 
   ad PtpAd @relation(fields: [adId], references: [id])
@@ -2313,6 +2315,12 @@ model PartnerGame {
   iframeUrl     String   @map("iframe_url")
   fallbackUrl   String?  @map("fallback_url")
   partnerUrl    String?  @map("partner_url") // affiliate / "Visit partner" link
+  /// iframe = embed on /games/partner/:slug; external = open partner site in new tab
+  launchMode    String   @default("iframe") @map("launch_mode")
+  embedStatus   String?  @map("embed_status")
+  embedBlockReason String? @map("embed_block_reason")
+  embedProbe    Json?    @map("embed_probe")
+  embedProbedAt DateTime? @map("embed_probed_at")
   isVisible     Boolean  @default(true) @map("is_visible")
   sortOrder     Int      @default(0) @map("sort_order")
   createdAt     DateTime @default(now()) @map("created_at")
@@ -2404,6 +2412,7 @@ enum TournamentMetric {
   OFFERS_INTERNAL
   OFFERS_EXTERNAL
   OFFERS_ALL
+  MINIGAME_WINS
 }
 
 enum TournamentStatus {

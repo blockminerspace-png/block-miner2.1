@@ -54,10 +54,13 @@ export const USER_DASHBOARD_NAV_FALLBACK: PublicNavCategory[] = [
     section: 'social',
     titleKey: 'sidebar.categories.social',
     items: [
+      { itemId: 'social_feed', labelKey: 'sidebar.social_feed', icon: 'Youtube', path: '/social' },
+      { itemId: 'creator', labelKey: 'sidebar.creator', icon: 'Star', path: '/creator' },
+      { itemId: 'referrals', labelKey: 'sidebar.referrals', icon: 'UserPlus', path: '/referrals' },
+      { itemId: 'manual', labelKey: 'sidebar.manual', icon: 'BookOpen', path: '/manual' },
       { itemId: 'ranking', labelKey: 'sidebar.ranking', icon: 'Trophy', path: '/ranking' },
       { itemId: 'transparency', labelKey: 'sidebar.transparency', icon: 'Eye', path: '/transparency' },
       { itemId: 'roadmap', labelKey: 'sidebar.roadmap', icon: 'Map', path: '/roadmap' },
-      { itemId: 'manual', labelKey: 'sidebar.manual', icon: 'BookOpen', path: '/manual' },
     ],
   },
 ];

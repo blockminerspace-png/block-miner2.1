@@ -9,8 +9,12 @@ import {
   getDepositScoreDetailForUser,
 } from "./depositTournamentScore.js";
 import { snapWindowForType, snapWindowForActiveTournament } from "./tournamentWindow.js";
+import {
+  backfillMinigameTournamentFromLogs,
+  resolveTournamentStatusForWindow,
+} from "./application/minigame-backfill.service.js";
 import { isTournamentSkipGetRecomputeEnabled, isTournamentIncrementalScoringEnabled } from "./config/feature-flags.js";
-import { OFFERS_INCREMENTAL_METRICS } from "./domain/tournament-action.providers.js";
+import { OFFERS_INCREMENTAL_METRICS, MINIGAME_INCREMENTAL_METRICS } from "./domain/tournament-action.providers.js";
 import { registerTournamentMetricScorers } from "./domain/metrics/register-scorers.js";
 import { getMetricScorer } from "./domain/metrics/metric-scorer.registry.js";
 import { getCachedLeaderboard, setCachedLeaderboard, invalidateLeaderboardCache } from "./infrastructure/cache/leaderboard.cache.js";
@@ -200,7 +204,8 @@ export async function alignActiveTournamentWindows(): Promise<number> {
       data: { startsAt: snap.start, endsAt: snap.end },
     });
     const isOfferwall = (OFFERS_INCREMENTAL_METRICS as readonly string[]).includes(t.metric);
-    if (!isOfferwall || !isTournamentIncrementalScoringEnabled()) {
+    const isMinigame = (MINIGAME_INCREMENTAL_METRICS as readonly string[]).includes(t.metric);
+    if ((!isOfferwall && !isMinigame) || !isTournamentIncrementalScoringEnabled()) {
       await computeScoresForTournament({ ...t, startsAt: snap.start, endsAt: snap.end });
     }
     fixed++;
@@ -328,6 +333,11 @@ export async function finalizeTournament(tournamentId: number): Promise<{ ranked
       });
       nextId = next.id;
       console.info(`[tournaments] recurring: spawned next cycle #${next.id} for "${tournament.name}"`);
+      if (next.status === "ACTIVE" && next.metric === "MINIGAME_WINS") {
+        void backfillMinigameTournamentFromLogs(next.id).catch((err) => {
+          console.error(`[tournaments] minigame backfill recurring #${next.id}:`, err);
+        });
+      }
     } catch (err) {
       console.error(`[tournaments] failed to spawn next cycle for #${tournamentId}:`, err);
     }
@@ -648,7 +658,7 @@ export async function adminCreateTournament(data: {
   name: string;
   description?: string;
   type: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
-  metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
+  metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL" | "MINIGAME_WINS";
   startsAt: Date;
   endsAt: Date;
   recurring?: boolean;
@@ -673,7 +683,10 @@ export async function adminCreateTournament(data: {
     if (snap) { startsAt = snap.start; endsAt = snap.end; }
   }
 
-  return prisma.tournament.create({
+  const now = new Date();
+  const status = resolveTournamentStatusForWindow(startsAt, endsAt, now);
+
+  const tournament = await prisma.tournament.create({
     data: {
       name: data.name,
       description: data.description,
@@ -681,6 +694,7 @@ export async function adminCreateTournament(data: {
       metric: data.metric,
       startsAt,
       endsAt,
+      status,
       recurring: data.recurring ?? false,
       prizes: {
         create: data.prizes.map((p) => ({
@@ -698,6 +712,14 @@ export async function adminCreateTournament(data: {
     },
     include: { prizes: true },
   });
+
+  if (status === "ACTIVE" && data.metric === "MINIGAME_WINS") {
+    void backfillMinigameTournamentFromLogs(tournament.id).catch((err) => {
+      console.error(`[tournaments] minigame backfill failed for #${tournament.id}:`, err);
+    });
+  }
+
+  return tournament;
 }
 
 export async function adminUpdateTournament(
@@ -706,7 +728,7 @@ export async function adminUpdateTournament(
     name?: string;
     description?: string | null;
     type?: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
-    metric?: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
+    metric?: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL" | "MINIGAME_WINS";
     startsAt?: Date;
     endsAt?: Date;
     recurring?: boolean;

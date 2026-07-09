@@ -4,6 +4,7 @@ const Decimal = Prisma.Decimal;
 import prisma from "../../src/db/prisma.js";
 import * as repo from "./ptc.repository.js";
 import { SESSION_CLAIM_WINDOW_MS, SESSION_STALE_MS } from "./ptc.config.js";
+import { getNextUtcResetAt, getUtcCalendarDate, msUntilNextUtcReset } from "./ptc.utc.js";
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
@@ -292,8 +293,10 @@ export async function startSession(userId: number, adId: number) {
   if (ad.userId === userId) throw new Error("Você não pode visualizar seu próprio anúncio");
 
   const viewerHash = `user_${userId}`;
-  const inCooldown = await repo.findViewInCooldown(adId, viewerHash);
-  if (inCooldown) throw new Error("Este anúncio ainda está em cooldown. Tente novamente mais tarde.");
+  const alreadyViewedToday = await repo.findViewBlockedForToday(adId, viewerHash);
+  if (alreadyViewedToday) {
+    throw new Error("Você já visualizou este anúncio hoje (UTC). Volte após o reset diário às 00:00 UTC.");
+  }
 
   const session = await repo.createSession({ userId, adId, viewerHash, requiredSeconds: ad.durationSeconds });
   console.info(`[PTC] session_started userId=${userId} adId=${adId} sessionId=${session.id} requiredSeconds=${ad.durationSeconds}`);
@@ -384,8 +387,8 @@ export async function claimSession(sessionId: string, userId: number) {
       throw new Error("Tempo de visualização ainda não concluído");
     }
 
-    const inCooldown = await repo.findViewInCooldownTx(tx, session.adId, session.viewerHash, now);
-    if (inCooldown) {
+    const alreadyViewedToday = await repo.findViewBlockedForTodayTx(tx, session.adId, session.viewerHash, now);
+    if (alreadyViewedToday) {
       await tx.ptpSession.update({
         where: { id: sessionId },
         data: { status: "cancelled", cancelReason: "already_viewed" },
@@ -436,7 +439,16 @@ export async function getMyCampaigns(userId: number) {
 
 export async function getAvailableAds(userId: number) {
   await cleanupStaleSessionsForUser(userId);
-  return repo.getAdsForViewer(userId);
+  const ads = await repo.getAdsForViewer(userId);
+  const now = new Date();
+  return {
+    ads,
+    daily: {
+      utcDate: getUtcCalendarDate(now),
+      nextResetAt: getNextUtcResetAt(now).toISOString(),
+      nextResetInMs: msUntilNextUtcReset(now),
+    },
+  };
 }
 
 export async function getEarningsHistory(userId: number) {

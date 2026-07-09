@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { api } from "../../../store/auth";
+import { usePartnerPageActivity } from "./usePartnerPageActivity";
+import { isEmbeddableLaunch } from "./usePartnerIframe";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -12,6 +14,10 @@ export interface PartnerGameDetail {
   iframeUrl: string;
   fallbackUrl: string | null;
   partnerUrl: string | null;
+  launchMode?: "iframe" | "external";
+  embedStatus?: string | null;
+  embedBlockReason?: string | null;
+  embedProbedAt?: string | null;
 }
 
 export interface PartnerSessionState {
@@ -25,22 +31,22 @@ export interface PartnerSessionState {
   rewardGranted: { hashRate: number } | null;
 }
 
-/** Active play = tab visible. Iframe/captcha popups steal window focus but user is still playing. */
-function isPlaySessionActive(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.visibilityState === "visible";
-}
-
-export function usePartnerGameSession(slug: string | undefined, iframeLoaded: boolean) {
+export function usePartnerGameSession(
+  slug: string | undefined,
+  playSurfaceReadyRef: MutableRefObject<boolean>,
+) {
   const [game, setGame] = useState<PartnerGameDetail | null>(null);
   const [session, setSession] = useState<PartnerSessionState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pageActive, setPageActive] = useState(isPlaySessionActive);
+  const { playActive, online, pageVisible } = usePartnerPageActivity();
   const sessionIdRef = useRef<string | null>(null);
   const nextRewardDeadlineRef = useRef<number | null>(null);
   const [nextRewardMs, setNextRewardMs] = useState(60_000);
   const [displayPlayingSeconds, setDisplayPlayingSeconds] = useState(0);
+  const [reconnecting, setReconnecting] = useState(false);
+  const heartbeatFailCountRef = useRef(0);
 
   const applySession = useCallback((next: PartnerSessionState) => {
     setSession(next);
@@ -54,17 +60,25 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
     async (active: boolean) => {
       const sessionId = sessionIdRef.current;
       if (!sessionId) return null;
-      const res = await api.post<{ ok: boolean; session: PartnerSessionState }>(
-        `/partner-games/session/${sessionId}/heartbeat`,
-        { active, iframeLoaded },
-      );
-      if (res.data.ok) {
-        applySession(res.data.session);
-        return res.data.session;
+      const playSurfaceReady = playSurfaceReadyRef.current;
+      try {
+        const res = await api.post<{ ok: boolean; session: PartnerSessionState }>(
+          `/partner-games/session/${sessionId}/heartbeat`,
+          { active, playSurfaceReady },
+        );
+        if (res.data.ok) {
+          heartbeatFailCountRef.current = 0;
+          setReconnecting(false);
+          applySession(res.data.session);
+          return res.data.session;
+        }
+      } catch {
+        heartbeatFailCountRef.current += 1;
+        setReconnecting(heartbeatFailCountRef.current > 0);
       }
       return null;
     },
-    [applySession, iframeLoaded],
+    [applySession, playSurfaceReadyRef],
   );
 
   useEffect(() => {
@@ -73,21 +87,27 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setSessionLoading(true);
       setError(null);
       try {
-        const [gameRes, startRes] = await Promise.all([
-          api.get<{ ok: boolean; game: PartnerGameDetail }>(`/partner-games/play/${slug}`),
-          api.post<{ ok: boolean; game: PartnerGameDetail; sessionId: string } & PartnerSessionState>(
-            "/partner-games/session/start",
-            { slug },
-          ),
-        ]);
+        const gameRes = await api.get<{ ok: boolean; game: PartnerGameDetail }>(
+          `/partner-games/play/${slug}`,
+        );
         if (cancelled) return;
-        if (!gameRes.data.ok || !startRes.data.ok) {
+        if (!gameRes.data.ok) {
           setError("not_found");
           return;
         }
         setGame(gameRes.data.game);
+
+        const startRes = await api.post<
+          { ok: boolean; game: PartnerGameDetail; sessionId: string } & PartnerSessionState
+        >("/partner-games/session/start", { slug });
+        if (cancelled) return;
+        if (!startRes.data.ok) {
+          setError("session_failed");
+          return;
+        }
         applySession({
           sessionId: startRes.data.sessionId,
           status: startRes.data.status,
@@ -101,7 +121,10 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
       } catch {
         if (!cancelled) setError("load_failed");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setSessionLoading(false);
+        }
       }
     })();
 
@@ -111,30 +134,30 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
   }, [slug, applySession]);
 
   useEffect(() => {
-    const sync = () => setPageActive(isPlaySessionActive());
-    document.addEventListener("visibilitychange", sync);
-    sync();
-    return () => document.removeEventListener("visibilitychange", sync);
-  }, []);
-
-  useEffect(() => {
     if (!sessionIdRef.current || loading) return undefined;
 
     const tick = () => {
-      void sendHeartbeat(pageActive && iframeLoaded);
+      void sendHeartbeat(playActive && playSurfaceReadyRef.current);
     };
 
     tick();
     const id = window.setInterval(tick, HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [loading, pageActive, iframeLoaded, sendHeartbeat]);
+  }, [loading, playActive, sendHeartbeat, playSurfaceReadyRef]);
 
   useEffect(() => {
     if (!sessionIdRef.current) return undefined;
-    return () => {
+    const endSession = () => {
       const sessionId = sessionIdRef.current;
       if (!sessionId) return;
       void api.post(`/partner-games/session/${sessionId}/end`, { reason: "unmount" });
+    };
+    window.addEventListener("pagehide", endSession);
+    window.addEventListener("beforeunload", endSession);
+    return () => {
+      window.removeEventListener("pagehide", endSession);
+      window.removeEventListener("beforeunload", endSession);
+      endSession();
     };
   }, [slug]);
 
@@ -143,25 +166,31 @@ export function usePartnerGameSession(slug: string | undefined, iframeLoaded: bo
       if (nextRewardDeadlineRef.current) {
         setNextRewardMs(Math.max(0, nextRewardDeadlineRef.current - Date.now()));
       }
-      if (pageActive && iframeLoaded) {
+      if (playActive && playSurfaceReadyRef.current && session?.status === "active") {
         setDisplayPlayingSeconds((s) => s + 1);
       }
     }, 1000);
     return () => window.clearInterval(id);
-  }, [pageActive, iframeLoaded, session?.status]);
+  }, [playActive, session?.status, playSurfaceReadyRef]);
 
-  const isPlaying = pageActive && iframeLoaded && session?.status !== "ended";
+  const isPlaying =
+    playActive && playSurfaceReadyRef.current && session?.status === "active";
 
   return {
     game,
     session,
     loading,
+    sessionLoading,
     error,
     isPlaying,
-    pageActive,
+    playActive,
+    pageVisible,
+    online,
+    embeddable: game ? isEmbeddableLaunch(game) : false,
     displayPlayingSeconds,
     nextRewardMs,
     lastReward: session?.rewardGranted,
+    reconnecting: !online || heartbeatFailCountRef.current > 0,
   };
 }
 

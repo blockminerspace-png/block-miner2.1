@@ -1,9 +1,12 @@
-import { getNextDailyTaskResetAt } from "../../services/dailyTasks/dailyTaskPeriod.js";
 import {
   OFFER_KIND_PTC_IFRAME,
   RESET_TYPE_COOLDOWN,
   RESET_TYPE_DAILY
 } from "./internal-offerwall.config.js";
+import {
+  countDailyCompletions,
+  getNextInternalOfferwallResetAt,
+} from "./internal-offerwall.period.js";
 import type { CompletionRow, OfferLimitConfig, UsageSnapshot } from "./internal-offerwall.types.js";
 
 export function assertMinViewForSubmit({
@@ -75,9 +78,9 @@ export function computeUsageSnapshot(args: {
   let secondsUntilAvailable: number | null = null;
 
   if (resetType === RESET_TYPE_DAILY) {
-    completedCount = completionRows.filter((r) => r.periodKey === periodKey).length;
+    completedCount = countDailyCompletions(completionRows, periodKey, resetType);
     if (completedCount >= maxPerPeriod && !hasOpenAttempt) {
-      const next = getNextDailyTaskResetAt(now);
+      const next = getNextInternalOfferwallResetAt(now);
       secondsUntilAvailable = Math.max(0, Math.ceil((next.getTime() - nowMs) / 1000));
     }
   } else {

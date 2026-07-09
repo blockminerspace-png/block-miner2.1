@@ -38,6 +38,9 @@ const TaxesPage = lazyWithRetry(() => import('../pages/taxes'));
 const PowerBoostDocsPage = lazyWithRetry(() => import('../pages/taxes/PowerBoostDocsPage'));
 const YouTubeWatch = lazyWithRetry(() => import('../pages/youtube-watch'));
 const Ranking = lazyWithRetry(() => import('../pages/ranking'));
+const SocialFeed = lazyWithRetry(() => import('../pages/social'));
+const Creator = lazyWithRetry(() => import('../pages/creator'));
+const Referrals = lazyWithRetry(() => import('../pages/referrals'));
 const PublicRoom = lazyWithRetry(() => import('../pages/public-room'));
 const Settings = lazyWithRetry(() => import('../pages/settings'));
 const AutoMining = lazyWithRetry(() => import('../pages/auto-mining'));
@@ -297,6 +300,9 @@ function App() {
             <Route path="/youtube" element={<YouTubeWatch />} />
             <Route path="/auto-mining" element={<AutoMining />} />
             <Route path="/ranking" element={<Ranking />} />
+            <Route path="/social" element={<SocialFeed />} />
+            <Route path="/creator" element={<Creator />} />
+            <Route path="/referrals" element={<Referrals />} />
             <Route path="/room/:username" element={<PublicRoom />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/support" element={<Support />} />

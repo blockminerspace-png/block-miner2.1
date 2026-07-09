@@ -27,6 +27,8 @@ export const THIRD_PART_SCRIPT_NOISE: readonly RegExp[] = [
   /googlesyndication\.com/i,
   /pagead2\.googlesyndication\.com/i,
   /adsbygoogle/i,
+  /adtrafficquality\.google/i,
+  /sodar2\.js/i,
   /doubleclick\.net/i,
   /facebook\.net/i,
   /metapixel/i,
@@ -41,7 +43,17 @@ export const THIRD_PART_SCRIPT_NOISE: readonly RegExp[] = [
   /MaxListenersExceededWarning/i,
   /global Ethereum provider/i,
   /which has only a getter/i,
+  // Adware / extension injectors (not our bundle)
+  /zmstat\.com/i,
+  /simple-ntr\.top/i,
+  // Legacy webpack chunks from cached HTML before Vite migration
+  /blockminer\.space\/js\//i,
 ];
+
+/** Stale BlockMiner asset after deploy — self-heal via reload, never report. */
+export function isStaleBlockMinerAsset(message: string): boolean {
+  return /Script load failed: https?:\/\/[^/]*blockminer\.space\/(js|assets)\//i.test(message);
+}
 
 /** Wallet-extension console noise — message-only patterns. */
 export const WALLET_EXTENSION_NOISE: readonly RegExp[] = [

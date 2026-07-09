@@ -27,7 +27,9 @@ import {
   Receipt,
   Globe,
   MousePointerClick,
-  Pickaxe
+  Pickaxe,
+  Star,
+  UserPlus
 } from 'lucide-react';
 import type { PublicNavCategory, PublicNavItem } from './sidebarNavPublicSchema';
 
@@ -60,7 +62,9 @@ export const SIDEBAR_ICON_MAP: Record<string, LucideIcon> = {
   Receipt,
   Globe,
   MousePointerClick,
-  Pickaxe
+  Pickaxe,
+  Star,
+  UserPlus
 };
 
 export function resolveSidebarIcon(iconName: unknown): LucideIcon {

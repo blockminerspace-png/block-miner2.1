@@ -19,6 +19,7 @@ import {
   Cpu,
   Wallet,
   ArrowLeft,
+  Gamepad2,
 } from 'lucide-react';
 import { api } from '../../store/auth';
 import { formatHashrate } from '../../shared/utils/machine';
@@ -108,9 +109,10 @@ const METRIC_CATEGORY: Record<string, CategoryInfo> = {
   BLOCKS_MINED:    { id: 'mining',    key: 'mining',    icon: Cpu },
   CHECKINS:        { id: 'activity',  key: 'activity',  icon: CheckCircle2 },
   TASKS_COMPLETED: { id: 'activity',  key: 'activity',  icon: CheckCircle2 },
+  MINIGAME_WINS:   { id: 'games',     key: 'games',     icon: Gamepad2 },
 };
 const CATEGORY_FALLBACK: CategoryInfo = { id: 'other', key: 'other', icon: Trophy };
-const CATEGORY_ORDER = ['offerwall', 'deposit', 'mining', 'activity', 'other'];
+const CATEGORY_ORDER = ['offerwall', 'deposit', 'mining', 'activity', 'games', 'other'];
 
 function categoryOf(metric: string): CategoryInfo {
   return METRIC_CATEGORY[metric] ?? CATEGORY_FALLBACK;
@@ -150,12 +152,23 @@ function isOfferwallMetric(metric: string): boolean {
   return metric === 'OFFERS_ALL' || metric === 'OFFERS_EXTERNAL' || metric === 'OFFERS_INTERNAL';
 }
 
+function isMinigameMetric(metric: string): boolean {
+  return metric === 'MINIGAME_WINS';
+}
+
 function isDepositMetric(metric: string): boolean {
   return isDepositTournamentMetric(metric);
 }
 
+function rankColumnKey(metric: string): string {
+  if (isMinigameMetric(metric)) return 'tournaments.minigame_wins_column';
+  return depositRankColumnKey(metric);
+}
+
 function totalLabelKey(metric: string): string {
-  return isOfferwallMetric(metric) ? 'tournaments.offers_total' : 'tournaments.score';
+  if (isOfferwallMetric(metric)) return 'tournaments.offers_total';
+  if (isMinigameMetric(metric)) return 'tournaments.minigame_wins_total';
+  return depositTotalLabelKey(metric);
 }
 
 function formatPrizeStr(prize: TournamentPrize): string {
@@ -521,6 +534,11 @@ export default function TournamentsPage() {
                       ))}
                   </span>
                 </div>
+                {info.id === 'games' && (
+                  <p className="mt-3 text-[10px] text-emerald-400/90 leading-snug border-t border-white/5 pt-3">
+                    {t('tournaments.minigame_scoring_hint_short')}
+                  </p>
+                )}
               </button>
             );
           })}
@@ -624,6 +642,19 @@ export default function TournamentsPage() {
                       end: selected.tournament.windowUtc.end,
                     })}
                   </p>
+                )}
+                {isMinigameMetric(selected.tournament.metric) && (
+                  <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 max-w-2xl">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300 mb-1.5">
+                      {t('tournaments.minigame_scoring_title')}
+                    </p>
+                    <p className="text-xs text-emerald-50/90 leading-relaxed">
+                      {t('tournaments.minigame_scoring_hint')}
+                    </p>
+                    <p className="mt-2 text-[10px] text-emerald-200/70 font-mono">
+                      {t('tournaments.scores_live_hint')}
+                    </p>
+                  </div>
                 )}
                 {isDepositMetric(selected.tournament.metric) && (
                   <Link
@@ -773,7 +804,7 @@ export default function TournamentsPage() {
                       <tr>
                         <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 w-12 sm:w-20">Rank</th>
                         <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">{t('tournaments.header.subtitle').includes('ranking') ? 'Miner' : 'Miner'}</th>
-                        <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 text-right">{t(depositRankColumnKey(selected.tournament.metric))}</th>
+                        <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 text-right">{t(rankColumnKey(selected.tournament.metric))}</th>
                         <th className="px-3 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 text-right hidden sm:table-cell">{t('tournaments.prizes')}</th>
                       </tr>
                     </thead>
@@ -981,6 +1012,12 @@ function TournamentCard({
         <Users className="h-3 w-3" />
         {tn._count.entries}
       </div>
+
+      {tn.metric === 'MINIGAME_WINS' && (
+        <p className="text-[10px] text-emerald-400/90 leading-snug mb-3 border-l-2 border-emerald-500/40 pl-2">
+          {t('tournaments.minigame_scoring_hint_short')}
+        </p>
+      )}
 
       <CountdownBadge startsAt={tn.startsAt} endsAt={tn.endsAt} status={tn.status} />
 

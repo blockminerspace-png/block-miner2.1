@@ -166,6 +166,7 @@ export async function computeConsecutiveUnpaidMiningDays(
   now: Date = new Date(),
 ): Promise<{ consecutiveUnpaid: number }> {
   const days = lastSevenBrtDays(now);
+  const currentPeriodStart = miningPeriodStart(now);
 
   const charges = await prisma.energyTaxCharge.findMany({
     where: { userId, periodDayStartsAt: { gte: days[0], lt: nextMiningPeriodStart(days[6]) } },
@@ -176,6 +177,9 @@ export async function computeConsecutiveUnpaidMiningDays(
   let consecutiveUnpaid = 0;
   for (let i = days.length - 1; i >= 0; i--) {
     const dayStart = days[i];
+
+    // Período aberto (21h BRT): ainda está minerando — só o último período fechado é "Pagar hoje".
+    if (dayStart.getTime() === currentPeriodStart.getTime()) continue;
 
     const rewards = await rewardsForBrtDay(userId, dayStart);
     if (rewards <= 0) break; // dia sem crédito de POL não conta como devendo

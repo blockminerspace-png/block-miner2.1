@@ -13,9 +13,20 @@ export interface PartnerGame {
   iframeUrl: string;
   fallbackUrl: string | null;
   partnerUrl: string | null;
+  launchMode?: "iframe" | "external";
+  embedStatus?: string | null;
+  embedBlockReason?: string | null;
   likeCount: number;
   dislikeCount: number;
   myVote: 1 | -1 | 0;
+}
+
+function normalizePartnerGame(raw: PartnerGame): PartnerGame {
+  const launchMode =
+    raw.launchMode === "external" || (raw.embedStatus && raw.embedStatus !== "embeddable")
+      ? "external"
+      : raw.launchMode ?? "iframe";
+  return { ...raw, launchMode };
 }
 
 function PartnerGameCard({
@@ -155,7 +166,7 @@ export default function PartnerGamesTab({ t }: { t: TFunction }) {
     setLoading(true);
     try {
       const res = await api.get<{ ok: boolean; games: PartnerGame[] }>("/partner-games");
-      if (res.data.ok) setGames(res.data.games);
+      if (res.data.ok) setGames(res.data.games.map(normalizePartnerGame));
     } catch {
       setGames([]);
     } finally {

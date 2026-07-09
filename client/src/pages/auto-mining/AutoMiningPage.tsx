@@ -13,8 +13,16 @@ import AutoMiningCycleTimer from "../../shared/components/autoMining/AutoMiningC
 import TurboPartnerBanner from "../../shared/components/autoMining/TurboPartnerBanner";
 import MondiadBanner from "../../shared/components/MondiadBanner";
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
+import { useBrazilDailyResetCountdown } from '../../shared/hooks/useBrazilDailyResetCountdown';
 
 type MiningMode = "NORMAL" | "TURBO";
+
+interface DailyResetMeta {
+  timezone: string;
+  localDate: string;
+  nextResetAt: string;
+  nextResetInMs: number;
+}
 
 interface AutoMiningSession {
   isActive?: boolean;
@@ -38,10 +46,12 @@ interface AutoMiningV2Payload {
   success?: boolean;
   session?: AutoMiningSession | null;
   cycleSeconds?: number;
+  dailyReset?: DailyResetMeta;
   dailyUsedHash?: number;
   dailyRemainingHash?: number;
   dailyLimitHash?: number;
   dailyLimitReached?: boolean;
+  activeHashTotal?: number;
   sessionEarningsHash?: number;
   activeGrants?: ActiveGrant[];
   recentGrants?: GrantRow[];
@@ -86,6 +96,7 @@ export default function AutoMining() {
   const normalClaimBusyRef = useRef(false);
   const nextClaimRef = useRef<string | null>(null);
   const turboFetchedForRef = useRef<string | null>(null);
+  const presenceReadyRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -126,7 +137,8 @@ export default function AutoMining() {
 
   useEffect(() => {
     nextClaimRef.current = nextClaimAtIso;
-  }, [nextClaimAtIso]);
+    presenceReadyRef.current = false;
+  }, [nextClaimAtIso, session?.id]);
 
   useEffect(() => {
     if (v2?.dailyLimitReached && v2?.session?.isActive) {
@@ -146,6 +158,7 @@ export default function AutoMining() {
   useEffect(() => {
     if (!isRunning || mode !== "NORMAL") return;
     const id = setInterval(async () => {
+      if (document.hidden || !presenceReadyRef.current) return;
       const target = nextClaimRef.current;
       if (!target) return;
       const remain = Math.max(0, Math.ceil((new Date(target).getTime() - Date.now()) / 1000));
@@ -230,15 +243,20 @@ export default function AutoMining() {
   }, [isRunning, mode, t]);
 
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning) {
+      presenceReadyRef.current = false;
+      return;
+    }
     const sendHeartbeat = async () => {
       try {
         const security = generateSecurityPayload();
         await api.post("/session/heartbeat", { type: "auto-mining", security });
+        presenceReadyRef.current = true;
       } catch {
         /* non-fatal */
       }
     };
+    void sendHeartbeat();
     let heartbeatInterval = setInterval(sendHeartbeat, 10000);
     const onVisible = () => {
       if (!document.hidden) {
@@ -336,6 +354,8 @@ export default function AutoMining() {
   const dailyUsed = v2?.dailyUsedHash ?? 0;
   const dailyRemaining = v2?.dailyRemainingHash ?? 0;
   const dailyLimit = v2?.dailyLimitHash ?? 1000;
+  const activeHashTotal = v2?.activeHashTotal ?? 0;
+  const dailyReset = v2?.dailyReset ?? null;
   const sessionEarnings = v2?.sessionEarningsHash ?? 0;
   const activeGrants = v2?.activeGrants ?? [];
   const recentGrants = v2?.recentGrants ?? [];
@@ -377,6 +397,8 @@ export default function AutoMining() {
       </div>
 
       <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{t("autoMiningGpuPage.legacy_note")}</p>
+
+      {dailyReset ? <AutoMiningDailyResetBanner dailyReset={dailyReset} t={t} onResetElapsed={refreshStatus} /> : null}
 
       {schemaUnavailable && (
         <div className="rounded-2xl border border-amber-500/35 bg-amber-950/25 px-5 py-4 text-amber-100/90">
@@ -487,6 +509,8 @@ export default function AutoMining() {
             <TrackerRow label={t("autoMiningGpuPage.daily_used")} value={`${dailyUsed.toFixed(0)} / ${dailyLimit} H/s`} />
             <TrackerRow label={t("autoMiningGpuPage.daily_remaining")} value={`${dailyRemaining.toFixed(0)} H/s`} />
             <p className="text-[9px] text-gray-600 font-bold uppercase">{t("autoMiningGpuPage.daily_limit_note")}</p>
+            <TrackerRow label={t("autoMiningGpuPage.active_hash_total")} value={`${activeHashTotal.toFixed(0)} H/s`} />
+            <p className="text-[9px] text-gray-600 font-bold uppercase leading-relaxed">{t("autoMiningGpuPage.active_hash_note")}</p>
             <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-white/5">
               <div className="h-full bg-gradient-to-r from-primary to-blue-500 transition-all" style={{ width: `${dailyPct}%` }} />
             </div>
@@ -540,6 +564,39 @@ export default function AutoMining() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AutoMiningDailyResetBanner({
+  dailyReset,
+  t,
+  onResetElapsed,
+}: {
+  dailyReset: DailyResetMeta;
+  t: TFunction;
+  onResetElapsed: () => Promise<void>;
+}) {
+  const { label, remainingMs } = useBrazilDailyResetCountdown(dailyReset.nextResetInMs);
+
+  useEffect(() => {
+    if (remainingMs > 0) return undefined;
+    void onResetElapsed();
+    return undefined;
+  }, [remainingMs, onResetElapsed]);
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/90">
+          {t("autoMiningGpuPage.daily_reset_title", { date: dailyReset.localDate })}
+        </p>
+        <p className="mt-1 text-xs font-medium text-gray-400">{t("autoMiningGpuPage.daily_reset_body")}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600">{t("autoMiningGpuPage.daily_reset_next")}</p>
+        <p className="text-lg font-black tabular-nums text-emerald-300">{label}</p>
       </div>
     </div>
   );

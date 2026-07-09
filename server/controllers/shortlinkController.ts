@@ -12,12 +12,10 @@ import {
   resolveRewardExpiresAtForGrant,
   rewardDurationHoursFromMs,
 } from "../services/powerBoostService.js";
-import { getBrazilCheckinDateKey } from "../utils/checkinDate.js";
-
-function brazilMidnightUTC(): Date {
-  const todayKey = getBrazilCheckinDateKey();
-  return new Date(`${todayKey}T00:00:00-03:00`);
-}
+import {
+  isInstantBeforeBrazilDay,
+} from "../utils/brazilDayBounds.js";
+import { brazilDayDailyResetMeta } from "../utils/brazilDayBounds.js";
 
 const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
@@ -28,12 +26,12 @@ type AuthedRequest = Request & { user: { id: number } };
 
 async function resetDailyIfNeeded(status: Awaited<ReturnType<typeof prisma.shortlinkCompletion.findUnique>>) {
   if (!status) return status;
-  const brazilMidnight = brazilMidnightUTC();
+  const now = new Date();
   const lastCompletion = status.completedAt || status.resetAt;
-  if (status.dailyRuns > 0 && lastCompletion && lastCompletion < brazilMidnight) {
+  if (status.dailyRuns > 0 && lastCompletion && isInstantBeforeBrazilDay(lastCompletion, now)) {
     return prisma.shortlinkCompletion.update({
       where: { userId: status.userId },
-      data: { dailyRuns: 0, resetAt: new Date() }
+      data: { dailyRuns: 0, resetAt: now },
     });
   }
   return status;
@@ -60,8 +58,10 @@ export async function getShortlinkStatus(req: Request, res: Response) {
       return res.status(500).json({ ok: false, message: "Server error" });
     }
     const ttlMs = await getRewardDurationMs(userId, "shortlinks");
+    const now = new Date();
     res.json({
       ok: true,
+      dailyReset: brazilDayDailyResetMeta(now),
       status: {
         currentStep: status.currentStep,
         dailyRuns: status.dailyRuns,

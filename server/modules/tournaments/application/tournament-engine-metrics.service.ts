@@ -152,6 +152,10 @@ export function isOfferwallIncrementalMetric(metric: string): boolean {
   return metric === "OFFERS_INTERNAL" || metric === "OFFERS_EXTERNAL" || metric === "OFFERS_ALL";
 }
 
+export function isMinigameIncrementalMetric(metric: string): boolean {
+  return metric === "MINIGAME_WINS";
+}
+
 export function tournamentUpperBound(tournament: Pick<TournamentRecord, "endsAt">): Date {
   const now = new Date();
   return tournament.endsAt < now ? tournament.endsAt : now;

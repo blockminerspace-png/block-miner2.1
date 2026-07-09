@@ -12,7 +12,10 @@ import {
   V2_GRANT_TTL_MS,
   V2_CLICK_GRACE_MS,
   V2_MIN_CLICK_DELAY_MS,
+  V2_HEARTBEAT_STALE_MS,
+  V2_CLAIM_SECONDS_COST,
 } from "./auto-mining.config.js";
+import { startOfBrazilDay } from "../../utils/brazilDayBounds.js";
 
 export const MINING_MODES = Object.freeze({
   NORMAL: "NORMAL" as MiningMode,
@@ -26,13 +29,32 @@ export const DAILY_LIMIT_HASH = V2_DAILY_LIMIT_HASH;
 export const GRANT_TTL_MS = V2_GRANT_TTL_MS;
 export const CLICK_GRACE_MS = V2_CLICK_GRACE_MS;
 export const MIN_CLICK_DELAY_MS = V2_MIN_CLICK_DELAY_MS;
+export const HEARTBEAT_STALE_MS = V2_HEARTBEAT_STALE_MS;
+export const CLAIM_SECONDS_COST = V2_CLAIM_SECONDS_COST;
 
-export function startOfUtcDay(d: Date): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+export function startOfBrazilCalendarDay(d: Date): Date {
+  return startOfBrazilDay(d);
 }
 
-export function isClaimDue(nextClaimAt: Date, serverNow: Date, skewMs = 5000): boolean {
+/** @deprecated Use startOfBrazilCalendarDay — daily cap resets at Brasília midnight. */
+export function startOfUtcDay(d: Date): Date {
+  return startOfBrazilCalendarDay(d);
+}
+
+export function isClaimDue(nextClaimAt: Date, serverNow: Date, skewMs = 0): boolean {
   return serverNow.getTime() >= nextClaimAt.getTime() - skewMs;
+}
+
+export function hasVerifiedPresence(
+  autoMiningSecondsBalance: number,
+  lastHeartbeatAt: Date | null,
+  serverNow: Date,
+  requiredSeconds = CLAIM_SECONDS_COST,
+  staleMs = HEARTBEAT_STALE_MS,
+): boolean {
+  if (autoMiningSecondsBalance < requiredSeconds) return false;
+  if (!lastHeartbeatAt) return false;
+  return serverNow.getTime() - lastHeartbeatAt.getTime() <= staleMs;
 }
 
 export function canGrantDaily(currentDayTotalHash: number, grantAmount: number, limit = DAILY_LIMIT_HASH): boolean {

@@ -1,11 +1,33 @@
 import prisma from './db.js';
+import { isInstantBeforeBrazilDay } from '../utils/brazilDayBounds.js';
 
 const DEFAULT_DAILY_LIMIT = 1;
 
+async function applyDailyResetIfNeeded(userId: number, status: {
+  dailyRuns: number;
+  completedAt: Date | null;
+  resetAt: Date | null;
+}) {
+  const now = new Date();
+  const lastActivity = status.completedAt || status.resetAt;
+  if (status.dailyRuns > 0 && lastActivity && isInstantBeforeBrazilDay(lastActivity, now)) {
+    return prisma.shortlinkCompletion.update({
+      where: { userId },
+      data: { dailyRuns: 0, resetAt: now },
+    });
+  }
+  return null;
+}
+
 export async function getUserShortlinkStatus(userId) {
-  const status = await prisma.shortlinkCompletion.findUnique({
+  let status = await prisma.shortlinkCompletion.findUnique({
     where: { userId }
   });
+
+  if (status) {
+    const reset = await applyDailyResetIfNeeded(userId, status);
+    if (reset) status = reset;
+  }
   
   if (!status) {
     return {

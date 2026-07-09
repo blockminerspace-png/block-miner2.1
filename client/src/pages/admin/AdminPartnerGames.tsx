@@ -11,6 +11,7 @@ type PartnerGameForm = {
   iframeUrl: string;
   fallbackUrl: string;
   partnerUrl: string;
+  launchMode: "iframe" | "external";
   isVisible: boolean;
   sortOrder: number;
 };
@@ -23,6 +24,7 @@ const EMPTY: PartnerGameForm = {
   iframeUrl: "",
   fallbackUrl: "",
   partnerUrl: "",
+  launchMode: "iframe",
   isVisible: true,
   sortOrder: 0,
 };
@@ -36,6 +38,7 @@ type AdminPartnerGame = {
   iframeUrl: string;
   fallbackUrl: string | null;
   partnerUrl: string | null;
+  launchMode?: "iframe" | "external";
   isVisible: boolean;
   sortOrder: number;
   createdAt?: string;
@@ -116,6 +119,7 @@ export default function AdminPartnerGames() {
       iframeUrl: g.iframeUrl,
       fallbackUrl: g.fallbackUrl ?? "",
       partnerUrl: g.partnerUrl ?? "",
+      launchMode: g.launchMode === "external" ? "external" : "iframe",
       isVisible: g.isVisible,
       sortOrder: g.sortOrder,
     });
@@ -156,6 +160,7 @@ export default function AdminPartnerGames() {
         iframeUrl: form.iframeUrl.trim(),
         fallbackUrl: form.fallbackUrl.trim() || null,
         partnerUrl: form.partnerUrl.trim() || null,
+        launchMode: form.launchMode,
         isVisible: form.isVisible,
         sortOrder: Math.trunc(form.sortOrder),
       };
@@ -312,6 +317,25 @@ export default function AdminPartnerGames() {
             required
             placeholder="https://parceiro.com/game"
           />
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Modo de abertura
+            </label>
+            <select
+              name="launchMode"
+              value={form.launchMode}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  launchMode: e.target.value === "external" ? "external" : "iframe",
+                }))
+              }
+              className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-sky-500/50 focus:outline-none"
+            >
+              <option value="iframe">Iframe (jogar dentro do BlockMiner)</option>
+              <option value="external">Nova aba (login/registro ou parceiro bloqueia embed)</option>
+            </select>
+          </div>
           <Field
             label="URL de fallback (caso o iframe seja bloqueado)"
             name="fallbackUrl"

@@ -9,6 +9,7 @@ import {
   buildDefaultSidebarEntries,
   coerceInternalOfferwallEarnRoot,
   coerceParentLockedSidebarEntries,
+  coerceYoutubeInEarnRewardsGroup,
   mergeMissingSidebarRegistryEntries
 } from "#server/services/sidebarNavRegistry.js";
 import { buildResolvedCategories } from "#server/services/sidebarNavService.js";
@@ -146,4 +147,40 @@ test("coerceInternalOfferwallEarnRoot moves internal_offerwall from earn root in
   assert.equal(row.parentItemId, "rewards_group");
   const v = validateSidebarEntriesPayload(entries);
   assert.equal(v.ok, true);
+});
+
+test("youtube is nested under rewards_group in default resolved nav", () => {
+  const d = buildDefaultSidebarEntries();
+  const row = d.find((x) => x.itemId === "youtube");
+  assert.equal(row.section, "earn");
+  assert.equal(row.parentItemId, "rewards_group");
+  const cats = buildResolvedCategories(d);
+  const earn = cats.find((c) => c.section === "earn");
+  const group = earn.items.find((x) => x.itemId === "rewards_group");
+  assert.ok(group?.children?.some((c) => c.itemId === "youtube" && c.path === "/youtube"));
+});
+
+test("coerceYoutubeInEarnRewardsGroup moves youtube from social back into rewards_group", () => {
+  const d = buildDefaultSidebarEntries();
+  const i = d.findIndex((x) => x.itemId === "youtube");
+  assert.ok(i >= 0);
+  d[i] = { ...d[i], section: "social", parentItemId: null };
+  const { entries, changed } = coerceYoutubeInEarnRewardsGroup(d);
+  assert.equal(changed, true);
+  const row = entries.find((x) => x.itemId === "youtube");
+  assert.equal(row.section, "earn");
+  assert.equal(row.parentItemId, "rewards_group");
+  const v = validateSidebarEntriesPayload(entries);
+  assert.equal(v.ok, true);
+});
+
+test("social_feed and creator are top-level in social section", () => {
+  const d = buildDefaultSidebarEntries();
+  const cats = buildResolvedCategories(d);
+  const social = cats.find((c) => c.section === "social");
+  const ids = social.items.map((x) => x.itemId);
+  assert.ok(ids.includes("social_feed"));
+  assert.ok(ids.includes("creator"));
+  assert.ok(ids.includes("referrals"));
+  assert.equal(social.items.find((x) => x.itemId === "referrals")?.path, "/referrals");
 });

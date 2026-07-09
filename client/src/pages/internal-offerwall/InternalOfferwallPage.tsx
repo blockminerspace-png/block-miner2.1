@@ -8,10 +8,12 @@ import axios from 'axios';
 import { ArrowLeft, ExternalLink, LayoutGrid, Loader2, PlayCircle, Send } from 'lucide-react';
 import { api } from '../../store/auth';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
+import { useBrazilDailyResetCountdown } from '../../shared/hooks/useBrazilDailyResetCountdown';
 import { formatHoursClock, openPartnerWithReferrer, rewardLine } from './internalOfferwallHelpers';
 import { useActiveViewSeconds, useDecountingSeconds } from './internalOfferwallHooks';
 import type {
   InternalOfferwallAttempt,
+  InternalOfferwallDailyReset,
   InternalOfferwallMutationResponse,
   InternalOfferwallOffer,
   InternalOfferwallOffersResponse,
@@ -41,6 +43,7 @@ export default function InternalOfferwall() {
   const [submitBusyId, setSubmitBusyId] = useState<number | null>(null);
   const [partnerBusyAttemptId, setPartnerBusyAttemptId] = useState<number | null>(null);
   const [abandonBusyId, setAbandonBusyId] = useState<number | null>(null);
+  const [dailyReset, setDailyReset] = useState<InternalOfferwallDailyReset | null>(null);
 
   const clearOfferQuery = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -75,10 +78,12 @@ export default function InternalOfferwall() {
       if (d?.ok) {
         setOffers(d.offers ?? []);
         setOpenAttempts(d.openAttempts ?? []);
+        setDailyReset(d.dailyReset ?? null);
       } else if (d?.code === 'FEATURE_DISABLED' || res.status === 403) {
         setFeatureEnabled(false);
         setOffers([]);
         setOpenAttempts([]);
+        setDailyReset(null);
       } else {
         toast.error(t('internalOfferwallPage.load_error'));
       }
@@ -286,6 +291,8 @@ export default function InternalOfferwall() {
         </div>
       </div>
 
+      {dailyReset ? <InternalOfferwallDailyResetBanner dailyReset={dailyReset} t={t} onResetElapsed={loadOffers} /> : null}
+
       {offersLoading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="w-10 h-10 animate-spin text-sky-400" aria-hidden />
@@ -321,6 +328,47 @@ export default function InternalOfferwall() {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+function InternalOfferwallDailyResetBanner({
+  dailyReset,
+  t,
+  onResetElapsed,
+}: {
+  dailyReset: InternalOfferwallDailyReset;
+  t: IoTranslate;
+  onResetElapsed: () => Promise<void>;
+}) {
+  const { label, remainingMs } = useBrazilDailyResetCountdown(dailyReset.nextResetInMs);
+  const reloadedRef = useRef(false);
+
+  useEffect(() => {
+    reloadedRef.current = false;
+  }, [dailyReset.localDate]);
+
+  useEffect(() => {
+    if (remainingMs > 0 || reloadedRef.current) return undefined;
+    reloadedRef.current = true;
+    void onResetElapsed();
+    return undefined;
+  }, [remainingMs, onResetElapsed]);
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/90">
+          {t('internalOfferwallPage.daily_reset_title', { date: dailyReset.localDate })}
+        </p>
+        <p className="mt-1 text-xs font-medium text-gray-400">{t('internalOfferwallPage.daily_reset_body')}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600">
+          {t('internalOfferwallPage.daily_reset_next')}
+        </p>
+        <p className="text-lg font-black tabular-nums text-emerald-300">{label}</p>
+      </div>
     </div>
   );
 }

@@ -122,4 +122,8 @@ nginx/certs/*.pfx
 nginx/certs/*.key
 backups/
 
+# Large/sensitive account deletion exports (keep REPORT.md + summary in repo)
+reports/account-deletions/**/full-export.json
+reports/account-deletions/**/user.json
+
 /src/generated/prisma

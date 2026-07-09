@@ -1,21 +1,17 @@
 import prisma from "../../src/db/prisma.js";
 import type { Prisma } from "@prisma/client";
-import { VIEW_COOLDOWN_MS } from "./ptc.config.js";
+import { utcDateFromNow, wasViewedOnUtcDate } from "./ptc.utc.js";
 
-export function getViewCooldownCutoff(now = new Date()): Date {
-  return new Date(now.getTime() - VIEW_COOLDOWN_MS);
-}
-
-export async function findViewInCooldown(adId: number, viewerHash: string, now = new Date()) {
+export async function findViewBlockedForToday(adId: number, viewerHash: string, now = new Date()) {
   const view = await prisma.ptpView.findUnique({
     where: { adId_viewerHash: { adId, viewerHash } },
   });
   if (!view) return null;
-  if (view.viewedAt.getTime() >= getViewCooldownCutoff(now).getTime()) return view;
+  if (wasViewedOnUtcDate(view.lastViewedUtcDate, view.viewedAt, now)) return view;
   return null;
 }
 
-export async function findViewInCooldownTx(
+export async function findViewBlockedForTodayTx(
   tx: Prisma.TransactionClient,
   adId: number,
   viewerHash: string,
@@ -25,7 +21,7 @@ export async function findViewInCooldownTx(
     where: { adId_viewerHash: { adId, viewerHash } },
   });
   if (!view) return null;
-  if (view.viewedAt.getTime() >= getViewCooldownCutoff(now).getTime()) return view;
+  if (wasViewedOnUtcDate(view.lastViewedUtcDate, view.viewedAt, now)) return view;
   return null;
 }
 
@@ -117,10 +113,6 @@ export async function getAllCampaignsAdmin(page: number, limit: number) {
 
 // ── View tracking ────────────────────────────────────────────────────────────
 
-export async function hasViewedInCooldown(adId: number, viewerHash: string, now = new Date()) {
-  return findViewInCooldown(adId, viewerHash, now);
-}
-
 export async function recordView(
   tx: Prisma.TransactionClient,
   adId: number,
@@ -128,10 +120,11 @@ export async function recordView(
   earnedShib: number,
   viewedAt: Date,
 ) {
+  const lastViewedUtcDate = utcDateFromNow(viewedAt);
   return tx.ptpView.upsert({
     where: { adId_viewerHash: { adId, viewerHash } },
-    create: { adId, viewerHash, earnedShib, viewedAt },
-    update: { earnedShib, viewedAt },
+    create: { adId, viewerHash, earnedShib, viewedAt, lastViewedUtcDate },
+    update: { earnedShib, viewedAt, lastViewedUtcDate },
   });
 }
 
@@ -148,33 +141,43 @@ export async function recordEarning(
 
 export async function getAdsForViewer(userId: number, now = new Date()) {
   const viewerHash = `user_${userId}`;
-  const cutoff = getViewCooldownCutoff(now);
 
-  const seen = await prisma.ptpView.findMany({
-    where: { viewerHash, viewedAt: { gte: cutoff } },
-    select: { adId: true },
-  });
-  const seenIds = seen.map((v) => v.adId);
+  const [views, ads] = await Promise.all([
+    prisma.ptpView.findMany({
+      where: { viewerHash },
+      select: { adId: true, lastViewedUtcDate: true, viewedAt: true },
+    }),
+    prisma.ptpAd.findMany({
+      where: {
+        status: "active",
+        userId: { not: userId },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        url: true,
+        adType: true,
+        durationSeconds: true,
+        rewardPerViewShib: true,
+        views: true,
+        targetViews: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
-  return prisma.ptpAd.findMany({
-    where: {
-      status: "active",
-      userId: { not: userId },
-      id: seenIds.length > 0 ? { notIn: seenIds } : undefined,
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      url: true,
-      adType: true,
-      durationSeconds: true,
-      rewardPerViewShib: true,
-      views: true,
-      targetViews: true,
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const viewedTodayIds = new Set(
+    views
+      .filter((v) => wasViewedOnUtcDate(v.lastViewedUtcDate, v.viewedAt, now))
+      .map((v) => v.adId),
+  );
+
+  return ads.map((ad) => ({
+    ...ad,
+    viewedToday: viewedTodayIds.has(ad.id),
+    availableToday: !viewedTodayIds.has(ad.id),
+  }));
 }
 
 // ── Earnings history ─────────────────────────────────────────────────────────

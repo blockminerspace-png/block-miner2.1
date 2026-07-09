@@ -46,7 +46,12 @@ export async function getOffers(req: Request, res: Response): Promise<void> {
       res.status(403).json({ ok: false, code: out.code, offers: [], openAttempts: [] });
       return;
     }
-    res.json({ ok: true, offers: out.offers, openAttempts: out.openAttempts });
+    res.json({
+      ok: true,
+      dailyReset: "dailyReset" in out ? out.dailyReset : undefined,
+      offers: out.offers,
+      openAttempts: out.openAttempts,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("internalOfferwall getOffers", msg);

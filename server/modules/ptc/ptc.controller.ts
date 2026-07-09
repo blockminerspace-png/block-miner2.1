@@ -136,8 +136,8 @@ export async function removeViews(req: Request, res: Response): Promise<void> {
 export async function getAvailableAds(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) { err(res, 401, "Unauthorized"); return; }
-    const ads = await svc.getAvailableAds(req.user.id);
-    res.json({ ok: true, ads });
+    const payload = await svc.getAvailableAds(req.user.id);
+    res.json({ ok: true, ...payload });
   } catch {
     err(res, 500, "Server error");
   }

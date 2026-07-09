@@ -3,6 +3,7 @@ export const TOURNAMENT_ACTION_PROVIDER = {
   INTERNAL: "internal",
   OFFERWALLME: "offerwallme",
   ZERADS: "zerads",
+  MINIGAME: "minigame",
 } as const;
 
 export type TournamentActionProvider =
@@ -13,6 +14,8 @@ export const OFFERS_INCREMENTAL_METRICS = [
   "OFFERS_EXTERNAL",
   "OFFERS_ALL",
 ] as const;
+
+export const MINIGAME_INCREMENTAL_METRICS = ["MINIGAME_WINS"] as const;
 
 const PROVIDERS_BY_METRIC: Record<string, readonly TournamentActionProvider[]> = {
   OFFERS_INTERNAL: [TOURNAMENT_ACTION_PROVIDER.INTERNAL],
@@ -25,6 +28,7 @@ const PROVIDERS_BY_METRIC: Record<string, readonly TournamentActionProvider[]> =
     TOURNAMENT_ACTION_PROVIDER.OFFERWALLME,
     TOURNAMENT_ACTION_PROVIDER.ZERADS,
   ],
+  MINIGAME_WINS: [TOURNAMENT_ACTION_PROVIDER.MINIGAME],
 };
 
 export function providersForOfferwallMetric(metric: string): readonly TournamentActionProvider[] {

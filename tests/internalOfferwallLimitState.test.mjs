@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getDailyTaskPeriodKey } from "#server/services/dailyTasks/dailyTaskPeriod.js";
+import { getInternalOfferwallPeriodKey } from "#server/modules/internal-offerwall/internal-offerwall.period.js";
 import { computeUsageSnapshot, getOfferLimitConfig } from "#server/services/internalOfferwall/internalOfferwallLimitState.js";
 import { RESET_TYPE_COOLDOWN, RESET_TYPE_DAILY } from "#server/services/internalOfferwall/internalOfferwallConstants.js";
 
@@ -24,7 +24,7 @@ describe("internalOfferwallLimitState", () => {
 
   it("computes daily usage and countdown when at limit", () => {
     const now = new Date("2026-04-13T12:00:00.000Z");
-    const periodKey = getDailyTaskPeriodKey(now);
+    const periodKey = getInternalOfferwallPeriodKey(now);
     const snap = computeUsageSnapshot({
       resetType: RESET_TYPE_DAILY,
       maxPerPeriod: 3,
@@ -45,7 +45,7 @@ describe("internalOfferwallLimitState", () => {
 
   it("allows resume when an open attempt exists even if daily limit is reached", () => {
     const now = new Date("2026-04-13T12:00:00.000Z");
-    const periodKey = getDailyTaskPeriodKey(now);
+    const periodKey = getInternalOfferwallPeriodKey(now);
     const snap = computeUsageSnapshot({
       resetType: RESET_TYPE_DAILY,
       maxPerPeriod: 1,
@@ -61,7 +61,7 @@ describe("internalOfferwallLimitState", () => {
 
   it("computes rolling cooldown unblock time", () => {
     const now = new Date("2026-04-13T12:00:00.000Z");
-    const periodKey = getDailyTaskPeriodKey(now);
+    const periodKey = getInternalOfferwallPeriodKey(now);
     const windowSec = 3600;
     const t0 = new Date("2026-04-13T11:30:00.000Z");
     const t1 = new Date("2026-04-13T11:45:00.000Z");

@@ -19,10 +19,13 @@ import {
   assertValidMiningMode,
   nextClaimAfterSuccess,
   hashRateForMode,
-  startOfUtcDay,
+  hasVerifiedPresence,
+  HEARTBEAT_STALE_MS,
+  CLAIM_SECONDS_COST,
   CLICK_GRACE_MS,
   MIN_CLICK_DELAY_MS,
 } from "./auto-mining.domain.js";
+import { brazilDayDailyResetMeta, endOfBrazilDay, startOfBrazilDay } from "../../utils/brazilDayBounds.js";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -43,6 +46,9 @@ function degradedStatusPayload() {
     dailyUsedHash: 0,
     dailyLimitHash: DAILY_LIMIT_HASH,
     dailyRemainingHash: DAILY_LIMIT_HASH,
+    dailyLimitReached: false,
+    dailyReset: brazilDayDailyResetMeta(now),
+    activeHashTotal: 0,
     cycleSeconds: CYCLE_SECONDS,
     activeGrants: [],
     sessionEarningsHash: 0,
@@ -52,8 +58,8 @@ function degradedStatusPayload() {
 }
 
 export async function sumDailyGrantedHash(userId: number, serverNow: Date, tx: DbClient = prisma): Promise<number> {
-  const dayStart = startOfUtcDay(serverNow);
-  const dayEnd = new Date(dayStart.getTime() + 86400000);
+  const dayStart = startOfBrazilDay(serverNow);
+  const dayEnd = endOfBrazilDay(serverNow);
   const agg = await tx.autoMiningV2PowerGrant.aggregate({
     where: { userId, earnedAt: { gte: dayStart, lt: dayEnd } },
     _sum: { hashRate: true },
@@ -68,6 +74,39 @@ export async function deactivateUserSessions(userId: number, tx: DbClient = pris
   });
 }
 
+async function getUserPresence(userId: number, tx: DbClient = prisma) {
+  return tx.user.findUnique({
+    where: { id: userId },
+    select: { autoMiningSecondsBalance: true, lastHeartbeatAt: true },
+  });
+}
+
+function isHeartbeatStale(lastHeartbeatAt: Date | null, now: Date): boolean {
+  if (!lastHeartbeatAt) return true;
+  return now.getTime() - lastHeartbeatAt.getTime() > HEARTBEAT_STALE_MS;
+}
+
+/** While the tab was away, do not auto-grant missed cycles — restart the countdown on return. */
+async function resyncSessionAfterAbsence(
+  userId: number,
+  session: { id: string; nextClaimAt: Date },
+  now: Date,
+  tx: DbClient = prisma,
+) {
+  const user = await getUserPresence(userId, tx);
+  const stale = isHeartbeatStale(user?.lastHeartbeatAt ?? null, now);
+  const missedCycle = session.nextClaimAt.getTime() <= now.getTime();
+  if (!stale && !missedCycle) return session;
+
+  const nextClaimAt = new Date(now.getTime() + CYCLE_SECONDS * 1000);
+  const bumped = await tx.autoMiningV2Session.updateMany({
+    where: { id: session.id, isActive: true },
+    data: { nextClaimAt },
+  });
+  if (bumped.count === 1) return { ...session, nextClaimAt };
+  return session;
+}
+
 export async function startSession(userId: number, mode: string) {
   await assertV2SchemaOrThrow();
   const m = assertValidMiningMode(mode);
@@ -76,6 +115,10 @@ export async function startSession(userId: number, mode: string) {
 
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await deactivateUserSessions(userId, tx);
+    await tx.user.update({
+      where: { id: userId },
+      data: { autoMiningSecondsBalance: 0 },
+    });
     return tx.autoMiningV2Session.create({
       data: { userId, mode: m, nextClaimAt, isActive: true },
     });
@@ -120,7 +163,13 @@ export async function getStatusPayload(userId: number) {
   if (!(await isAutoMiningV2SchemaAvailable())) return degradedStatusPayload();
 
   const now = new Date();
-  const session = await getActiveSession(userId);
+  let session = await getActiveSession(userId);
+  if (session) {
+    const synced = await resyncSessionAfterAbsence(userId, session, now);
+    if (synced.nextClaimAt.getTime() !== session.nextClaimAt.getTime()) {
+      session = await getActiveSession(userId);
+    }
+  }
   const dailyUsed = await sumDailyGrantedHash(userId, now);
   const activeGrants = await prisma.autoMiningV2PowerGrant.findMany({
     where: { userId, expiresAt: { gt: now } },
@@ -137,10 +186,12 @@ export async function getStatusPayload(userId: number) {
     sessionEarningsHash = Number(s._sum.hashRate || 0);
   }
 
-  const dayStart = startOfUtcDay(now);
+  const dayStart = startOfBrazilDay(now);
+  const dayEnd = endOfBrazilDay(now);
+  const activeHashTotal = activeGrants.reduce((sum, g) => sum + (Number(g.hashRate) || 0), 0);
   const [impToday, clickToday, recentGrants] = await Promise.all([
-    prisma.autoMiningV2BannerImpression.count({ where: { userId, createdAt: { gte: dayStart } } }),
-    prisma.autoMiningV2BannerImpression.count({ where: { userId, clickedAt: { not: null, gte: dayStart } } }),
+    prisma.autoMiningV2BannerImpression.count({ where: { userId, createdAt: { gte: dayStart, lt: dayEnd } } }),
+    prisma.autoMiningV2BannerImpression.count({ where: { userId, clickedAt: { not: null, gte: dayStart, lt: dayEnd } } }),
     prisma.autoMiningV2PowerGrant.findMany({
       where: { userId },
       orderBy: { earnedAt: "desc" },
@@ -152,10 +203,12 @@ export async function getStatusPayload(userId: number) {
   return {
     session,
     serverNow: now.toISOString(),
+    dailyReset: brazilDayDailyResetMeta(now),
     dailyUsedHash: dailyUsed,
     dailyLimitHash: DAILY_LIMIT_HASH,
     dailyRemainingHash: Math.max(0, DAILY_LIMIT_HASH - dailyUsed),
     dailyLimitReached: dailyUsed >= DAILY_LIMIT_HASH,
+    activeHashTotal,
     cycleSeconds: CYCLE_SECONDS,
     activeGrants,
     sessionEarningsHash,
@@ -184,6 +237,20 @@ export async function claimNormal(userId: number) {
       throw err;
     }
 
+    const user = await getUserPresence(userId, tx);
+    if (
+      !user
+      || !hasVerifiedPresence(
+        user.autoMiningSecondsBalance,
+        user.lastHeartbeatAt,
+        now,
+      )
+    ) {
+      const err = new Error("CLAIM_NOT_DUE") as Error & { code: string };
+      err.code = "CLAIM_NOT_DUE";
+      throw err;
+    }
+
     const dailyUsed = await sumDailyGrantedHash(userId, now, tx);
     const amount = hashRateForMode(MINING_MODES.NORMAL);
     if (!canGrantDaily(dailyUsed, amount)) {
@@ -204,6 +271,15 @@ export async function claimNormal(userId: number) {
     }
 
     const { expiresAt } = await resolveRewardExpiresAtForGrant(tx, userId, now, "autoMining");
+    const debited = await tx.user.updateMany({
+      where: { id: userId, autoMiningSecondsBalance: { gte: CLAIM_SECONDS_COST } },
+      data: { autoMiningSecondsBalance: { decrement: CLAIM_SECONDS_COST } },
+    });
+    if (debited.count === 0) {
+      const err = new Error("CLAIM_NOT_DUE") as Error & { code: string };
+      err.code = "CLAIM_NOT_DUE";
+      throw err;
+    }
     const grant = await tx.autoMiningV2PowerGrant.create({
       data: {
         userId,
@@ -342,6 +418,20 @@ export async function claimTurbo(userId: number, impressionId: string) {
       throw err;
     }
 
+    const user = await getUserPresence(userId, tx);
+    if (
+      !user
+      || !hasVerifiedPresence(
+        user.autoMiningSecondsBalance,
+        user.lastHeartbeatAt,
+        now,
+      )
+    ) {
+      const err = new Error("CLAIM_NOT_DUE") as Error & { code: string };
+      err.code = "CLAIM_NOT_DUE";
+      throw err;
+    }
+
     const dailyUsed = await sumDailyGrantedHash(userId, now, tx);
     const amount = hashRateForMode(MINING_MODES.TURBO);
     if (!canGrantDaily(dailyUsed, amount)) {
@@ -362,6 +452,15 @@ export async function claimTurbo(userId: number, impressionId: string) {
     }
 
     const { expiresAt } = await resolveRewardExpiresAtForGrant(tx, userId, now, "autoMining");
+    const debited = await tx.user.updateMany({
+      where: { id: userId, autoMiningSecondsBalance: { gte: CLAIM_SECONDS_COST } },
+      data: { autoMiningSecondsBalance: { decrement: CLAIM_SECONDS_COST } },
+    });
+    if (debited.count === 0) {
+      const err = new Error("CLAIM_NOT_DUE") as Error & { code: string };
+      err.code = "CLAIM_NOT_DUE";
+      throw err;
+    }
     const grant = await tx.autoMiningV2PowerGrant.create({
       data: {
         userId,

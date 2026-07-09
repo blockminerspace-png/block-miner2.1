@@ -5,6 +5,7 @@ import { authenticator } from "otplib";
 import qrcode from "qrcode";
 import { issueEmailTwoFactorChallenge, verifyEmailTwoFactorChallenge } from "../services/emailTwoFactorService.js";
 import { isSmtpConfigured } from "../utils/mailer.js";
+import { getUserReferralStats } from "../modules/referrals/referrals.stats.service.js";
 
 function clientIp(req: Request): string | undefined {
   const xReal = req.headers["x-real-ip"];
@@ -269,6 +270,19 @@ export const getReferrals = async (req: Request, res: Response): Promise<void> =
     res.json({ ok: true, referrals });
   } catch (_e: unknown) {
     res.status(500).json({ ok: false, message: "Erro ao obter referidos." });
+  }
+};
+
+export const getReferralStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (req.user == null) {
+      res.status(401).json({ ok: false, message: "Unauthorized." });
+      return;
+    }
+    const stats = await getUserReferralStats(req.user.id);
+    res.json({ ok: true, ...stats });
+  } catch (_e: unknown) {
+    res.status(500).json({ ok: false, message: "Erro ao obter estatísticas de indicações." });
   }
 };
 

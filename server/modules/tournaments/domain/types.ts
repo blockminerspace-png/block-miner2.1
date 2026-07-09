@@ -7,7 +7,8 @@ export type TournamentMetric =
   | "DEPOSITS_USD"
   | "OFFERS_INTERNAL"
   | "OFFERS_EXTERNAL"
-  | "OFFERS_ALL";
+  | "OFFERS_ALL"
+  | "MINIGAME_WINS";
 
 export type TournamentStatus = "SCHEDULED" | "ACTIVE" | "ENDED" | "CANCELLED";
 

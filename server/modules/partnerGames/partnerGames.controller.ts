@@ -8,6 +8,12 @@ import {
 } from "./partner-games.frame-host.js";
 import * as sessionSvc from "./partner-games.service.js";
 import { slugifyPartnerGameTitle } from "./partner-games.service.js";
+import {
+  inferPartnerLaunchMode,
+  parsePartnerLaunchMode,
+} from "./partner-games.launch-mode.js";
+import { applyEmbedProbeToGame } from "./partner-games.embed-sync.js";
+import type { PartnerEmbedProbeResult } from "./partner-games.embed.types.js";
 
 const logger = loggerLib.child("PartnerGamesController");
 
@@ -40,6 +46,10 @@ export async function listPartnerGamesPublic(req: Request, res: Response): Promi
       iframeUrl: true,
       fallbackUrl: true,
       partnerUrl: true,
+      launchMode: true,
+      embedStatus: true,
+      embedBlockReason: true,
+      embedProbedAt: true,
     },
   });
 
@@ -128,14 +138,23 @@ export async function heartbeatPartnerGameSessionHandler(req: Request, res: Resp
   if (!userId) { res.status(401).json({ ok: false }); return; }
 
   const sessionId = String(req.params.sessionId ?? "");
-  const body = (req.body ?? {}) as { active?: unknown; iframeLoaded?: unknown };
+  const body = (req.body ?? {}) as {
+    active?: unknown;
+    iframeLoaded?: unknown;
+    playSurfaceReady?: unknown;
+  };
   const active = body.active !== false;
   const iframeLoaded = body.iframeLoaded !== false;
+  const playSurfaceReady =
+    body.playSurfaceReady !== undefined
+      ? body.playSurfaceReady !== false
+      : iframeLoaded;
 
   try {
     const session = await sessionSvc.heartbeatPartnerGameSession(userId, sessionId, {
       active,
       iframeLoaded,
+      playSurfaceReady,
     });
     res.json({ ok: true, session });
   } catch (err: unknown) {
@@ -256,6 +275,7 @@ function parseGameInput(body: unknown): {
   isVisible?: boolean;
   sortOrder?: number;
   slug?: string;
+  launchMode?: string;
 } {
   if (!body || typeof body !== "object") return {};
   const b = body as Record<string, unknown>;
@@ -288,6 +308,10 @@ function parseGameInput(body: unknown): {
   }
   if (typeof b.slug === "string" && b.slug.trim()) {
     out.slug = slugifyPartnerGameTitle(b.slug.trim());
+  }
+  if (b.launchMode !== undefined) {
+    const mode = parsePartnerLaunchMode(b.launchMode);
+    if (mode) out.launchMode = mode;
   }
   return out;
 }
@@ -337,6 +361,9 @@ export async function adminCreatePartnerGame(req: Request, res: Response): Promi
     return;
   }
 
+  const launchMode =
+    parsePartnerLaunchMode(input.launchMode) ?? inferPartnerLaunchMode(iframeOk);
+
   const game = await prisma.partnerGame.create({
     data: {
       slug: input.slug ?? slugifyPartnerGameTitle(input.title),
@@ -346,13 +373,16 @@ export async function adminCreatePartnerGame(req: Request, res: Response): Promi
       iframeUrl: iframeOk,
       fallbackUrl: fallbackOk,
       partnerUrl: partnerOk,
+      launchMode,
       isVisible: input.isVisible ?? true,
       sortOrder: input.sortOrder ?? 0,
     },
   });
   logger.info("partnerGames.admin_created", { id: game.id, title: game.title });
   refreshFrameAllowlistAfterMutation(iframeOk, [fallbackOk, partnerOk]);
-  res.json({ ok: true, game });
+  const probed = await applyEmbedProbeToGame(prisma, game.id, iframeOk);
+  const refreshed = await prisma.partnerGame.findUnique({ where: { id: game.id } });
+  res.json({ ok: true, game: refreshed, embedProbe: probed });
 }
 
 export async function adminUpdatePartnerGame(req: Request, res: Response): Promise<void> {
@@ -400,6 +430,12 @@ export async function adminUpdatePartnerGame(req: Request, res: Response): Promi
   }
   if (input.isVisible !== undefined) data.isVisible = input.isVisible;
   if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
+  if (input.launchMode !== undefined) {
+    const mode = parsePartnerLaunchMode(input.launchMode);
+    if (mode) data.launchMode = mode;
+  } else if (typeof data.iframeUrl === "string") {
+    data.launchMode = inferPartnerLaunchMode(data.iframeUrl);
+  }
 
   if (Object.keys(data).length === 0) {
     res.status(400).json({ ok: false, message: "Nenhum campo para atualizar." });
@@ -416,7 +452,12 @@ export async function adminUpdatePartnerGame(req: Request, res: Response): Promi
     typeof data.fallbackUrl === "string" ? data.fallbackUrl : existing.fallbackUrl,
     typeof data.partnerUrl === "string" ? data.partnerUrl : existing.partnerUrl,
   ]);
-  res.json({ ok: true, game: updated });
+  let embedProbe: PartnerEmbedProbeResult | null = null;
+  if (typeof data.iframeUrl === "string") {
+    embedProbe = await applyEmbedProbeToGame(prisma, id, data.iframeUrl);
+  }
+  const refreshed = await prisma.partnerGame.findUnique({ where: { id } });
+  res.json({ ok: true, game: refreshed, embedProbe });
 }
 
 export async function adminDeletePartnerGame(req: Request, res: Response): Promise<void> {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Zap, Calendar, CheckCircle2, AlertCircle, Loader2, History, Sparkles, BookOpen, CreditCard, Clock, Gift, Gamepad2, LayoutGrid, Droplets, Link2, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
-import { api } from '../../store/auth';
+import { api, useAuthStore } from '../../store/auth';
 
 type ChargeRow = {
   id: number;
@@ -102,6 +102,8 @@ function nextMondayBrtCountdown(now = new Date()): string {
 
 export default function EnergyTaxSection() {
   const { t, i18n } = useTranslation();
+  const checkSession = useAuthStore((s) => s.checkSession);
+  const setUser = useAuthStore((s) => s.setUser);
   const [summary, setSummary] = useState<EnergyTaxSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
@@ -140,7 +142,9 @@ export default function EnergyTaxSection() {
     try {
       await api.post('/energy-tax/pay-daily');
       toast.success(t('taxes.energy_tax.toast_paid_success'));
-      void load();
+      setUser({ energyHasPendingTax: false });
+      await load();
+      await checkSession({ silent: true });
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? t('taxes.energy_tax.toast_pay_error_default');
       toast.error(msg);

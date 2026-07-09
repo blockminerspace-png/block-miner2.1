@@ -2,10 +2,8 @@
 import type { SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { NavigateFunction } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Trophy, Zap, Cpu, Gamepad2, RefreshCw, ExternalLink, Crown, Medal, Loader2, ChevronRight, Youtube, Star } from 'lucide-react';
+import { Trophy, Zap, Cpu, Gamepad2, RefreshCw, ExternalLink, Crown, Medal, Loader2, ChevronRight } from 'lucide-react';
 import { api } from '../../store/auth';
-import SocialTab, { CredentialTab } from './SocialTab';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 import {
   formatHashrate,
@@ -192,14 +190,10 @@ function MiniRacks({ username, navigate }: { username: string; navigate: Navigat
   );
 }
 
-type Tab = 'ranking' | 'social' | 'creator';
-
 export default function Ranking() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>('ranking');
 
   const fetchRanking = useCallback(async () => {
     try {
@@ -225,57 +219,14 @@ export default function Ranking() {
           <h1 className="text-3xl font-black text-white tracking-tight">Hall da Fama</h1>
           <p className="text-gray-500 font-medium">Os mineradores mais poderosos da rede global.</p>
         </div>
-        {activeTab === 'ranking' && (
-          <button
-            onClick={fetchRanking}
-            className="p-3 bg-gray-800/50 hover:bg-gray-800 text-gray-400 hover:text-white rounded-xl transition-all border border-gray-700/50"
-          >
-            <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-        )}
-      </div>
-
-      {/* Tab switcher */}
-      <div className="flex gap-2 p-1 bg-white/5 rounded-2xl w-fit border border-white/8">
         <button
-          onClick={() => setActiveTab('ranking')}
-          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-black transition-all ${
-            activeTab === 'ranking'
-              ? 'bg-amber-500 text-slate-950 shadow-lg'
-              : 'text-gray-500 hover:text-white'
-          }`}
+          onClick={fetchRanking}
+          className="p-3 bg-gray-800/50 hover:bg-gray-800 text-gray-400 hover:text-white rounded-xl transition-all border border-gray-700/50"
         >
-          <Trophy className="w-4 h-4" />
-          Ranking
-        </button>
-        <button
-          onClick={() => setActiveTab('social')}
-          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-black transition-all ${
-            activeTab === 'social'
-              ? 'bg-red-600 text-white shadow-lg'
-              : 'text-gray-500 hover:text-white'
-          }`}
-        >
-          <Youtube className="w-4 h-4" />
-          Social
-        </button>
-        <button
-          onClick={() => setActiveTab('creator')}
-          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-black transition-all ${
-            activeTab === 'creator'
-              ? 'bg-violet-600 text-white shadow-lg'
-              : 'text-gray-500 hover:text-white'
-          }`}
-        >
-          <Star className="w-4 h-4" />
-          Criador
+          <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {activeTab === 'social' && <SocialTab />}
-      {activeTab === 'creator' && <CredentialTab />}
-
-      {activeTab === 'ranking' && <>
       {/* Top 3 Spotlight */}
       {!isLoading && ranking.length >= 3 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
@@ -435,7 +386,6 @@ export default function Ranking() {
           </table>
         </div>
       </div>
-      </>}
 
       <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="ranking-bottom" />
     </div>

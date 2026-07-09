@@ -1,4 +1,4 @@
-/**
+t/**
  * @deprecated Use migrate-offerwall-run.mjs (global backfill, not per-tournament).
  *
  *   node scripts/migrate-offerwall-run.mjs backfill

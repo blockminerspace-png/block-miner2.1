@@ -207,6 +207,22 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     section: "social",
     defaultParentItemId: null
   },
+  social_feed: {
+    path: "/social",
+    labelKey: "sidebar.social_feed",
+    icon: "Youtube",
+    section: "social",
+    defaultParentItemId: null,
+    parentLocked: true
+  },
+  creator: {
+    path: "/creator",
+    labelKey: "sidebar.creator",
+    icon: "Star",
+    section: "social",
+    defaultParentItemId: null,
+    parentLocked: true
+  },
   ranking: {
     path: "/ranking",
     labelKey: "sidebar.ranking",
@@ -227,6 +243,14 @@ export const SIDEBAR_ITEM_REGISTRY: Record<string, SidebarRegistryItemDef> = {
     icon: "Eye",
     section: "social",
     defaultParentItemId: null
+  },
+  referrals: {
+    path: "/referrals",
+    labelKey: "sidebar.referrals",
+    icon: "UserPlus",
+    section: "social",
+    defaultParentItemId: null,
+    parentLocked: true
   },
   tournaments: {
     path: "/tournaments",
@@ -313,6 +337,25 @@ export function coerceGamesInEarnSection(entries) {
     if (row.section !== "earn" || (row.parentItemId ?? null) !== null) {
       changed = true;
       return { ...row, section: "earn", parentItemId: null };
+    }
+    return /** @type {object} */ (e);
+  });
+  return { entries: next, changed };
+}
+
+/**
+ * Migrates `youtube` back under Recompensas (earn) after mistaken Social & Fun placement.
+ */
+export function coerceYoutubeInEarnRewardsGroup(entries) {
+  if (!Array.isArray(entries)) return { entries: /** @type {object[]} */ (entries), changed: false };
+  let changed = false;
+  const next = entries.map((e) => {
+    if (!e || typeof e !== "object") return /** @type {object} */ (e);
+    const row = /** @type {{ itemId: string, section?: string, parentItemId?: string | null }} */ (e);
+    if (row.itemId !== "youtube") return /** @type {object} */ (e);
+    if (row.section !== "earn" || (row.parentItemId ?? null) !== "rewards_group") {
+      changed = true;
+      return { ...row, section: "earn", parentItemId: "rewards_group" };
     }
     return /** @type {object} */ (e);
   });
@@ -424,10 +467,13 @@ export function buildDefaultSidebarEntries(): SidebarPersistedEntry[] {
     { itemId: "auto_mining", visible: true, sortOrder: 170, section: "earn", parentItemId: "rewards_group" },
     { itemId: "zpool", visible: true, sortOrder: 180, section: "earn", parentItemId: "rewards_group" },
 
-    { itemId: "ranking", visible: true, sortOrder: 220, section: "social", parentItemId: null },
-    { itemId: "transparency", visible: true, sortOrder: 230, section: "social", parentItemId: null },
-    { itemId: "roadmap", visible: true, sortOrder: 240, section: "social", parentItemId: null },
-    { itemId: "manual", visible: true, sortOrder: 250, section: "social", parentItemId: null }
+    { itemId: "social_feed", visible: true, sortOrder: 210, section: "social", parentItemId: null },
+    { itemId: "creator", visible: true, sortOrder: 215, section: "social", parentItemId: null },
+    { itemId: "referrals", visible: true, sortOrder: 218, section: "social", parentItemId: null },
+    { itemId: "manual", visible: true, sortOrder: 220, section: "social", parentItemId: null },
+    { itemId: "ranking", visible: true, sortOrder: 230, section: "social", parentItemId: null },
+    { itemId: "transparency", visible: true, sortOrder: 240, section: "social", parentItemId: null },
+    { itemId: "roadmap", visible: true, sortOrder: 250, section: "social", parentItemId: null }
   ];
 }
 

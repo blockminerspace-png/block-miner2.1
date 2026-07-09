@@ -70,7 +70,7 @@ export async function create(req: Request, res: Response): Promise<void> {
     name: string;
     description?: string;
     type: "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM";
-    metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL";
+    metric: "HASHRATE" | "BLOCKS_MINED" | "CHECKINS" | "TASKS_COMPLETED" | "DEPOSITS_POL" | "DEPOSITS_USD" | "OFFERS_INTERNAL" | "OFFERS_EXTERNAL" | "OFFERS_ALL" | "MINIGAME_WINS";
     startsAt: string;
     endsAt: string;
     recurring?: boolean;
@@ -83,7 +83,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   }
 
   const VALID_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
-  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "DEPOSITS_USD", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
+  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "DEPOSITS_USD", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL", "MINIGAME_WINS"];
   if (!VALID_TYPES.includes(type) || !VALID_METRICS.includes(metric)) {
     res.status(400).json({ ok: false, message: "Invalid type or metric" });
     return;
@@ -135,7 +135,7 @@ export async function update(req: Request, res: Response): Promise<void> {
 
   const body = req.body as Record<string, unknown>;
   const VALID_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
-  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "DEPOSITS_USD", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL"];
+  const VALID_METRICS = ["HASHRATE", "BLOCKS_MINED", "CHECKINS", "TASKS_COMPLETED", "DEPOSITS_POL", "DEPOSITS_USD", "OFFERS_INTERNAL", "OFFERS_EXTERNAL", "OFFERS_ALL", "MINIGAME_WINS"];
 
   const patch: Parameters<typeof adminUpdateTournament>[1] = {};
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();

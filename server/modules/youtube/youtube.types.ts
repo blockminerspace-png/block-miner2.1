@@ -6,6 +6,13 @@ export type YoutubeStatusResult = {
   durationMin: number;
 };
 
+export type YoutubeDailyResetMeta = {
+  timezone: string;
+  localDate: string;
+  nextResetAt: string;
+  nextResetInMs: number;
+};
+
 export type YoutubeStatsResult = {
   ok: true;
   claims24h: number;
@@ -17,6 +24,8 @@ export type YoutubeStatsResult = {
   dailyLimitMinutes: number;
   dailyMinutesUsed: number;
   dailyRemainingMinutes: number;
+  activeHashTotal: number;
+  dailyReset: YoutubeDailyResetMeta;
   watchSecondsBalance: number;
   minSecondsToClaim: number;
 };

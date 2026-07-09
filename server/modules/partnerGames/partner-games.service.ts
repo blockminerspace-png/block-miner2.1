@@ -148,6 +148,10 @@ export async function getPartnerGameBySlug(slug: string) {
       iframeUrl: true,
       fallbackUrl: true,
       partnerUrl: true,
+      launchMode: true,
+      embedStatus: true,
+      embedBlockReason: true,
+      embedProbedAt: true,
     },
   });
 }
@@ -223,7 +227,7 @@ export async function startPartnerGameSession(userId: number, slug: string) {
 export async function heartbeatPartnerGameSession(
   userId: number,
   sessionId: string,
-  input: { active: boolean; iframeLoaded?: boolean },
+  input: { active: boolean; iframeLoaded?: boolean; playSurfaceReady?: boolean },
 ) {
   const session = await prisma.partnerGameSession.findUnique({
     where: { id: sessionId },
@@ -233,10 +237,11 @@ export async function heartbeatPartnerGameSession(
   if (!session || session.userId !== userId) throw new Error("SESSION_NOT_FOUND");
   if (session.status === "ended") throw new Error("SESSION_ENDED");
 
+  const surfaceReady = input.playSurfaceReady ?? input.iframeLoaded ?? false;
   const now = new Date();
   const hashEarnedToday = await sumHashEarnedTodayUtc(userId, session.partnerGame.slug);
 
-  if (!input.active || input.iframeLoaded === false) {
+  if (!input.active || !surfaceReady) {
     let rewardGranted = false;
     const paused = await prisma.$transaction(async (tx) => {
       const current = await tx.partnerGameSession.findUniqueOrThrow({

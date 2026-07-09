@@ -9,6 +9,7 @@ import { Server } from "socket.io";
 import prisma from "./src/db/prisma.js";
 import { refreshIframeHostAllowlistCache } from "./modules/internal-offerwall/index.js";
 import { syncAllPartnerGameFrameHosts } from "./modules/partnerGames/partner-games.frame-host.js";
+import { syncAllPartnerGameEmbedProbes } from "./modules/partnerGames/partner-games.embed-sync.js";
 import { MiningEngine } from "./src/miningEngine.js";
 import { setMiningEngine } from "./src/miningEngineInstance.js";
 import { setMiningEngine as setRuntimeMiningEngine } from "./src/runtime/miningRuntime.js";
@@ -348,6 +349,11 @@ async function bootstrap() {
     );
     await syncAllPartnerGameFrameHosts(prisma).catch((err) =>
       logger.error("Failed to sync partner game iframe frame-src hosts", {
+        error: String(err?.message || err)
+      })
+    );
+    await syncAllPartnerGameEmbedProbes(prisma).catch((err) =>
+      logger.error("Failed to sync partner game embed probes", {
         error: String(err?.message || err)
       })
     );

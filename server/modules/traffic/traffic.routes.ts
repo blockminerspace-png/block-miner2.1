@@ -47,6 +47,12 @@ const CLIENT_ERROR_NOISE = [
   /translate_a\/element\.js/i,
   /youtube\.com\/iframe_api/i,           // YouTube IFrame API CDN (client already handles)
   /infird\.com/i,                       // third-party ad/analytics CDN
+  /adtrafficquality\.google/i,
+  /sodar2\.js/i,
+  /zmstat\.com/i,
+  /simple-ntr\.top/i,
+  /blockminer\.space\/js\//i,           // legacy webpack chunks (cached HTML)
+  /Script load failed:.*blockminer\.space\/(js|assets)\//i,
   // React DOM errors almost always caused by browser extensions (translators/adblocks)
   // mutating the DOM under React's feet. We can't fix these from our side.
   /Failed to execute 'insertBefore'/i,
@@ -75,6 +81,10 @@ trafficRouter.post("/client-error", clientErrorLimiter, async (req, res) => {
   const statusCode = typeof body.statusCode === "number" ? body.statusCode : null;
   // api_failure: HTTP 429 (rate limit / cooldown) is expected UX, not a bug — drop it.
   if (category === "api_failure" && statusCode === 429) {
+    return res.json({ ok: true, dropped: true });
+  }
+  // Expected session UX (shortlink step without active session).
+  if (category === "api_failure" && /no session/i.test(message)) {
     return res.json({ ok: true, dropped: true });
   }
   const ip = String(req.ip ?? req.headers["x-forwarded-for"] ?? "").slice(0, 64);

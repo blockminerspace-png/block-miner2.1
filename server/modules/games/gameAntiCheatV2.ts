@@ -14,10 +14,17 @@ export const REJECT_THRESHOLD = 30;
 export const GAME_MIN_DURATION_MS: Record<string, number> = {
   "crypto-memory": 25_000,  // 8 pairs, each flip takes at least a few seconds
   "crypto-match-3": 20_000, // 1500 pts via cascades, each swap ~2-4s
-  "cart-rush": 30_000,      // 250 score at road speed
+  "cart-rush": 8_000,       // fallback; cart-rush uses physics-based evaluateCartRushTrust
   "block-stack": 14_000,    // 8 blocks; theoretically ~15.2s but give 1s slack
   "sky-runner": 14_000,     // checkpoint validation already covers this
 };
+
+const CART_TICK_MS = 200;
+const CART_COIN_POINTS = 50;
+/** Loose floor per collected coin (spawn + travel to collision). */
+const CART_MIN_MS_PER_COIN = 1_200;
+/** Absolute floor — instant wins are impossible on the server tick loop. */
+const CART_ABSOLUTE_MIN_MS = 8_000;
 
 export type AntiCheatEvent =
   | "timing_below_minimum"   // play time < game minimum
@@ -34,6 +41,46 @@ export interface TrustResult {
   trustScore: number;
   rejected: boolean;
   events: AntiCheatEvent[];
+}
+
+/**
+ * Cart Rush is server-ticked: distance grows 10m every 200ms and coins grant +50.
+ * A flat 30s floor rejected legit coin-heavy wins (~12–22s). Use tick physics instead.
+ */
+export function evaluateCartRushTrust(
+  elapsedMs: number,
+  distance: number,
+  btcCount: number,
+  score: number,
+): TrustResult {
+  let trustScore = 100;
+  const events: AntiCheatEvent[] = [];
+
+  const safeElapsed = Math.max(0, elapsedMs);
+  const safeDistance = Math.max(0, distance);
+  const safeBtc = Math.max(0, btcCount);
+  const distanceScore = Math.floor(safeDistance / 10);
+  const expectedScore = distanceScore + safeBtc * CART_COIN_POINTS;
+
+  const minFromDistance = distanceScore * CART_TICK_MS * 0.8;
+  const minFromCoins = safeBtc * CART_MIN_MS_PER_COIN;
+  const minRequired = Math.max(CART_ABSOLUTE_MIN_MS, minFromDistance, minFromCoins);
+
+  if (safeElapsed < minRequired) {
+    events.push("timing_below_minimum");
+    trustScore -= EVENT_DEDUCTIONS.timing_below_minimum;
+  }
+
+  if (score <= 0 || Math.abs(score - expectedScore) > 2) {
+    events.push("score_anomaly");
+    trustScore -= EVENT_DEDUCTIONS.score_anomaly;
+  }
+
+  return {
+    trustScore: Math.max(0, trustScore),
+    rejected: trustScore < REJECT_THRESHOLD,
+    events,
+  };
 }
 
 export function evaluateTrust(

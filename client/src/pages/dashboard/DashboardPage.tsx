@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactElement } from 'react';
+import { useState, useEffect, useRef, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Pickaxe,
@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
-import { useAuthStore } from '../../store/auth';
+import { useAuthStore, api } from '../../store/auth';
 import { getWalletBalance, patchMiningAllocation, postLinkReferral } from './dashboard.api';
 import { useGameStore } from '../../store/game';
 import { formatHashrate } from '../../shared/utils/machine';
@@ -30,6 +30,8 @@ import { safeDashboardNumber, sanitizeDashboardReferralCode } from '../../shared
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
 
 type EnergyTaxSummaryLight = {
+  active: boolean;
+  unpaidDays: number;
   todayDailyCharge: number;
   fullRateTax: number;
   dailyRateTax: number;
@@ -38,25 +40,59 @@ type EnergyTaxSummaryLight = {
 
 function EnergyTaxWarning() {
   const { t } = useTranslation();
-  const { user } = useAuthStore();
-  const hasPendingTax = user?.energyHasPendingTax ?? false;
+  const energyHasPendingTax = useAuthStore((s) => s.user?.energyHasPendingTax);
+  const setUser = useAuthStore((s) => s.setUser);
   const [open, setOpen] = useState(true);
+  const [needsReminder, setNeedsReminder] = useState(false);
   const [summary, setSummary] = useState<EnergyTaxSummaryLight | null>(null);
+  const fetchStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!hasPendingTax) return;
-    fetch('/api/energy-tax/summary', { credentials: 'include' })
-      .then(r => r.json())
-      .then((d: unknown) => {
-        if (typeof d === 'object' && d !== null && 'todayDailyCharge' in d) {
-          const s = d as EnergyTaxSummaryLight;
-          setSummary({ todayDailyCharge: s.todayDailyCharge, fullRateTax: s.fullRateTax, dailyRateTax: s.dailyRateTax, totalRewards7d: s.totalRewards7d });
-        }
-      })
-      .catch(() => {});
-  }, [hasPendingTax]);
+    if (!energyHasPendingTax) {
+      fetchStartedRef.current = false;
+      setNeedsReminder(false);
+      return;
+    }
+    if (fetchStartedRef.current) return;
+    fetchStartedRef.current = true;
 
-  if (!hasPendingTax || !open) return null;
+    let cancelled = false;
+    void api
+      .get<EnergyTaxSummaryLight>('/energy-tax/summary')
+      .then((res) => {
+        if (cancelled) return;
+        const row = res.data;
+        if (row.active !== true) {
+          setNeedsReminder(false);
+          setUser({ energyHasPendingTax: false });
+          return;
+        }
+        const unpaidDays = Number(row.unpaidDays) || 0;
+        const pending = unpaidDays > 0;
+        setNeedsReminder(pending);
+        if (!pending) {
+          setUser({ energyHasPendingTax: false });
+          return;
+        }
+        setSummary({
+          active: true,
+          unpaidDays,
+          todayDailyCharge: Number(row.todayDailyCharge) || 0,
+          fullRateTax: Number(row.fullRateTax) || 0,
+          dailyRateTax: Number(row.dailyRateTax) || 0,
+          totalRewards7d: Number(row.totalRewards7d) || 0,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setNeedsReminder(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [energyHasPendingTax, setUser]);
+
+  if (!energyHasPendingTax || !needsReminder || !open) return null;
 
   const fmt = (v: number) => v.toFixed(6);
 

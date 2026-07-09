@@ -41,9 +41,17 @@ export type InternalOfferwallAttempt = {
   partnerOpenedAt?: string | null;
 };
 
+export type InternalOfferwallDailyReset = {
+  timezone: string;
+  localDate: string;
+  nextResetAt: string;
+  nextResetInMs: number;
+};
+
 export type InternalOfferwallOffersResponse = {
   ok?: boolean;
   code?: string;
+  dailyReset?: InternalOfferwallDailyReset;
   offers?: InternalOfferwallOffer[];
   openAttempts?: InternalOfferwallAttempt[];
 };
