@@ -1,5 +1,0 @@
-Root Password
-Credentials
-User	root
-Password	j)(u$s7FB$Vj
-

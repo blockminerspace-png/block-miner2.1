@@ -2,6 +2,10 @@
 __pycache__/
 *.pyc
 
+# Workspace pessoal (diagnósticos, experimentos) — nunca commitar
+scratch/
+Untitled
+
 # Dependencies
 node_modules/
 client/node_modules/
@@ -54,6 +58,13 @@ contracts/artifacts/
 # Env / secrets
 # Guia local de deploy (pode conter notas sensíveis) — não commitar
 deploy.md
+
+# Arquivos sensíveis na raiz (credenciais VM, API keys) — NUNCA commitar
+root.txt
+offerwallme
+rotacionarads
+shibainu
+ads.txt
 # Ficheiro único de deploy (host/user/password) — ler deploy.secrets.example
 deploy.secrets.local
 # deploy.py na raiz é versionado (sem segredos); segredos só em deploy.secrets.local ou BLOCKMINER_VPS_PW
