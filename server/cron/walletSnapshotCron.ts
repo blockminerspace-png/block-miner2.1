@@ -14,6 +14,9 @@ import { fetchMultiChainSnapshot } from "../services/multiChainWalletService.js"
 import type { ChainNftHolding } from "../services/multiChainWalletService.js";
 import { fetchTrackedWalletsLive } from "../services/transparencyWalletService.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("walletSnapshotCron");
+
 const SNAPSHOT_INTERVAL_MS = Number(process.env.WALLET_SNAPSHOT_INTERVAL_MS) || 10 * 60 * 1000;
 const STARTUP_DELAY_MS = 20_000; // 20s after start — gives DB time to connect
 
@@ -96,7 +99,7 @@ async function syncLiquidityPoolPositions(walletId: number, nfts: ChainNftHoldin
 
   if (toDelete.length > 0) {
     await prisma.transparencyLiquidityPoolPosition.deleteMany({ where: { id: { in: toDelete } } });
-    console.log(`[wallet-snapshot] removed ${toDelete.length} closed LP position(s) for wallet ${walletId}`);
+    logger.info(`[wallet-snapshot] removed ${toDelete.length} closed LP position(s) for wallet ${walletId}`);
   }
 }
 
@@ -105,11 +108,11 @@ async function syncLiquidityPoolPositions(walletId: number, nfts: ChainNftHoldin
 
 async function runSnapshot(): Promise<void> {
   if (_running) {
-    console.log("[wallet-snapshot] already running — skipped");
+    logger.info("[wallet-snapshot] already running — skipped");
     return;
   }
   _running = true;
-  console.log("[wallet-snapshot] starting multi-chain snapshot run");
+  logger.info("[wallet-snapshot] starting multi-chain snapshot run");
   const started = Date.now();
 
   try {
@@ -120,7 +123,7 @@ async function runSnapshot(): Promise<void> {
     });
 
     if (!wallets.length) {
-      console.log("[wallet-snapshot] no public wallets configured");
+      logger.info("[wallet-snapshot] no public wallets configured");
       return;
     }
 
@@ -132,7 +135,7 @@ async function runSnapshot(): Promise<void> {
 
         if (wallet.displayMode === "current_balance") {
           // Full multi-chain snapshot
-          console.log(`[wallet-snapshot] multi-chain fetch for ${wallet.address}`);
+          logger.info(`[wallet-snapshot] multi-chain fetch for ${wallet.address}`);
           const snap = await fetchMultiChainSnapshot(wallet.address);
           const hasFreshUsd =
             snap.totalUsd != null ||
@@ -170,7 +173,7 @@ async function runSnapshot(): Promise<void> {
 
           await syncLiquidityPoolPositions(wallet.id, snap.nfts);
 
-          console.log(`[wallet-snapshot] ${wallet.address} done — totalUsd=${snap.totalUsd?.toFixed(2)}, chains=${snap.chains.map(c => c.name).join(",")}`);
+          logger.info(`[wallet-snapshot] ${wallet.address} done — totalUsd=${snap.totalUsd?.toFixed(2)}, { error: String(chains=${snap.chains.map(c => c.name) }).join(",")}`);
         } else {
           // Polygon-only (total_received / total_sent)
           const data = await fetchTrackedWalletsLive([wallet]);
@@ -202,18 +205,18 @@ async function runSnapshot(): Promise<void> {
             },
           });
 
-          console.log(
+          logger.info(
             `[wallet-snapshot] ${wallet.address} (${wallet.displayMode}) done — usd=${nextTotalUsd?.toFixed?.(2) ?? "preserved"}${entry.isPartialUsd ? " partial-usd" : ""}`,
           );
         }
       } catch (err) {
-        console.error(`[wallet-snapshot] wallet ${wallet.address} failed:`, (err as Error)?.message);
+        logger.error(`[wallet-snapshot] wallet ${wallet.address} failed:`, { error: (err as Error)?.message });
       }
     }
   } finally {
     _running = false;
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-    console.log(`[wallet-snapshot] run complete in ${elapsed}s`);
+    logger.info(`[wallet-snapshot] run complete in ${elapsed}s`);
   }
 }
 
@@ -226,7 +229,7 @@ export function startWalletSnapshotCron(): Record<string, unknown> {
     void runSnapshot();
   }, SNAPSHOT_INTERVAL_MS);
 
-  console.log(`[wallet-snapshot] cron scheduled — interval ${SNAPSHOT_INTERVAL_MS / 60000}min, startup delay ${STARTUP_DELAY_MS / 1000}s`);
+  logger.info(`[wallet-snapshot] cron scheduled`, { intervalMin: SNAPSHOT_INTERVAL_MS / 60000, startupDelaySec: STARTUP_DELAY_MS / 1000 });
 
   return { walletSnapshotStartup: startupTimer, walletSnapshotInterval: intervalTimer };
 }

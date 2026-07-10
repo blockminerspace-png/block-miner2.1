@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 import prisma from "../src/db/prisma.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("adminUserInsightsController");
+
 function parseUserIdParam(req: Request<{ id: string }>): number | null {
   const userId = parseInt(req.params.id, 10);
   if (!userId || Number.isNaN(userId)) return null;
@@ -124,7 +127,7 @@ export async function getUserWalletLedger(req: Request<UserIdParams>, res: Respo
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[adminUserInsights] wallet ledger", msg);
+    logger.error("[adminUserInsights] wallet ledger", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error loading wallet ledger" });
   }
 }
@@ -292,7 +295,7 @@ export async function getUserActivitySummary(req: Request<UserIdParams>, res: Re
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[adminUserInsights] activity summary", msg);
+    logger.error("[adminUserInsights] activity summary", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error loading activity summary" });
   }
 }

@@ -25,7 +25,7 @@ export async function listRooms(req: Request, res: Response): Promise<void> {
     const payload = await roomsService.listRoomsForUser(user.id);
     res.json(payload);
   } catch (err: unknown) {
-    logger.error("listRooms error", prismaSafeErrorMeta(err));
+    logger.error("listRooms error", { error: String(prismaSafeErrorMeta(err)) });
     res.status(500).json({ ok: false, message: "Erro ao listar salas." });
   }
 }
@@ -48,7 +48,7 @@ export async function buyRoom(req: Request, res: Response): Promise<void> {
       message: result.message,
     });
   } catch (err: unknown) {
-    logger.error("buyRoom error", prismaSafeErrorMeta(err));
+    logger.error("buyRoom error", { error: String(prismaSafeErrorMeta(err)) });
     res.status(500).json({ ok: false, message: "Erro ao comprar sala." });
   }
 }
@@ -102,11 +102,11 @@ export async function installMiner(req: Request, res: Response): Promise<void> {
         res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
         return;
       }
-      logger.error("installMiner error", prismaSafeErrorMeta(err));
+      logger.error("installMiner error", { error: String(prismaSafeErrorMeta(err)) });
       res.status(500).json({ ok: false, message: "Erro ao instalar máquina." });
     }
   } catch (err: unknown) {
-    logger.error("installMiner error", prismaSafeErrorMeta(err));
+    logger.error("installMiner error", { error: String(prismaSafeErrorMeta(err)) });
     res.status(500).json({ ok: false, message: "Erro ao instalar máquina." });
   }
 }
@@ -157,11 +157,11 @@ export async function uninstallMiner(req: Request, res: Response): Promise<void>
         res.status(400).json({ ok: false, code: "RACK_EMPTY", message: "Este rack não tem máquina instalada." });
         return;
       }
-      logger.error("uninstallMiner error", prismaSafeErrorMeta(err));
+      logger.error("uninstallMiner error", { error: String(prismaSafeErrorMeta(err)) });
       res.status(500).json({ ok: false, message: "Erro ao remover máquina." });
     }
   } catch (err: unknown) {
-    logger.error("uninstallMiner error", prismaSafeErrorMeta(err));
+    logger.error("uninstallMiner error", { error: String(prismaSafeErrorMeta(err)) });
     res.status(500).json({ ok: false, message: "Erro ao remover máquina." });
   }
 }
@@ -212,7 +212,7 @@ export async function uninstallMinerBatch(req: Request, res: Response): Promise<
       res.status(500).json({ ok: false, message: "Erro ao remover máquinas." });
     }
   } catch (err: unknown) {
-    logger.error("uninstallMinerBatch error", prismaSafeErrorMeta(err));
+    logger.error("uninstallMinerBatch error", { error: String(prismaSafeErrorMeta(err)) });
     res.status(500).json({ ok: false, message: "Erro ao remover máquinas." });
   }
 }
@@ -224,7 +224,7 @@ export async function getSlotsSummary(req: Request, res: Response): Promise<void
     const payload = await roomsService.getSlotsSummaryForUser(user.id);
     res.json(payload);
   } catch (err: unknown) {
-    logger.error("getSlotsSummary error", prismaSafeErrorMeta(err));
+    logger.error("getSlotsSummary error", { error: String(prismaSafeErrorMeta(err)) });
     res.status(500).json({ ok: false, message: "Erro ao buscar slots." });
   }
 }

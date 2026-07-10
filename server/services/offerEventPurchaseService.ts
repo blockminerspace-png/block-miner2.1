@@ -16,6 +16,9 @@ import { errMsg, prismaErrCode } from "../types/tsNarrowing.js";
 
 import { normalizePersistableMinerImageUrl } from "../utils/ownedMachineImage.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("offerEventPurchaseService");
+
 async function incrementSoldCountOptimistic(tx, minerId, quantity = 1) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const m = await tx.eventMiner.findUnique({ where: { id: minerId } });
@@ -227,7 +230,7 @@ export async function purchaseEventMinerForUser(userId, eventMinerId, quantity =
     if (msg === "STOCK_BUSY") {
       return { ok: false, status: 409, code: "retry", message: "Please try again." };
     }
-    console.error("purchaseEventMinerForUser:", e);
+    logger.error("purchaseEventMinerForUser:", { error: String(e) });
     return { ok: false, status: 500, code: "error", message: "Purchase failed." };
   }
 }

@@ -1,3 +1,6 @@
+
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("checkinChain");
 /**
  * On-chain check-in verification.
  * Primary: Polygonscan API (reliable, no rate-limit issues for low traffic).
@@ -97,7 +100,7 @@ async function getTxWithFallback(txHash) {
     try {
       return { tx: await etherscanGetTx(txHash), source: "etherscan" };
     } catch (e: unknown) {
-      console.warn(
+      logger.warn(
         "[checkinChain] Etherscan V2 getTx failed, falling back to RPC:",
         e instanceof Error ? e.message : String(e)
       );
@@ -111,7 +114,7 @@ async function getReceiptWithFallback(txHash, source) {
     try {
       return await etherscanGetReceipt(txHash);
     } catch (e: unknown) {
-      console.warn(
+      logger.warn(
         "[checkinChain] Etherscan V2 getReceipt failed, falling back to RPC:",
         e instanceof Error ? e.message : String(e)
       );

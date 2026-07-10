@@ -6,13 +6,22 @@ export type AuthSessionUser = Pick<
   "id" | "name" | "username" | "email" | "isBanned" | "polBalance" | "usdcBalance"
 >;
 
+export interface AdminContext {
+  role: string;
+  adminId?: number;
+  sessionId?: string;
+  email?: string;
+  name?: string;
+  permissions: string[];
+}
+
 declare global {
   namespace Express {
     interface Request {
       /** Set by `requireAuth` / `authenticateTokenOptional` (see `getUserById` select). */
       user?: AuthSessionUser | null;
       /** Set by admin JWT middlewares. */
-      admin?: { role: "admin" };
+      admin?: AdminContext;
       /** Set by `requireCriticalIdempotency`. */
       criticalIdempotency?: {
         scope: string;

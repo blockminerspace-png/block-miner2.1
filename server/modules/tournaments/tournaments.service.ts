@@ -21,6 +21,9 @@ import { getCachedLeaderboard, setCachedLeaderboard, invalidateLeaderboardCache 
 import { normalizeDepositSummary, isDepositTournamentMetric, depositRankingUnit } from "./depositTournamentPresentation.js";
 import { reconcileTournament } from "./application/tournament-engine.js";
 import { processTournamentOutboxBatch } from "./infrastructure/outbox/tournament-outbox.processor.js";
+
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("tournaments.service");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 
@@ -335,11 +338,11 @@ export async function finalizeTournament(tournamentId: number): Promise<{ ranked
       console.info(`[tournaments] recurring: spawned next cycle #${next.id} for "${tournament.name}"`);
       if (next.status === "ACTIVE" && next.metric === "MINIGAME_WINS") {
         void backfillMinigameTournamentFromLogs(next.id).catch((err) => {
-          console.error(`[tournaments] minigame backfill recurring #${next.id}:`, err);
+          logger.error(`[tournaments] minigame backfill recurring #${next.id}:`, { error: String(err) });
         });
       }
     } catch (err) {
-      console.error(`[tournaments] failed to spawn next cycle for #${tournamentId}:`, err);
+      logger.error(`[tournaments] failed to spawn next cycle for #${tournamentId}:`, { error: String(err) });
     }
   }
 
@@ -715,7 +718,7 @@ export async function adminCreateTournament(data: {
 
   if (status === "ACTIVE" && data.metric === "MINIGAME_WINS") {
     void backfillMinigameTournamentFromLogs(tournament.id).catch((err) => {
-      console.error(`[tournaments] minigame backfill failed for #${tournament.id}:`, err);
+      logger.error(`[tournaments] minigame backfill failed for #${tournament.id}:`, { error: String(err) });
     });
   }
 

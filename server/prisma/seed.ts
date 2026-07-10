@@ -2,12 +2,15 @@ import 'dotenv/config';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pkg from '@prisma/client';
+
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("seed");
 const { PrismaClient, Prisma } = pkg;
 
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  console.error("Error: DATABASE_URL is not defined in environment variables.");
+  logger.error("Error: DATABASE_URL is not defined in environment variables.");
   process.exit(1);
 }
 
@@ -70,7 +73,7 @@ async function main() {
     }
   ];
 
-  console.log('Seed: Start seeding miners...');
+  logger.info('Seed: Start seeding miners...');
   for (const minerData of miners) {
     const { showInShop: _s, isActive: _a, price: _p, ...technicalFields } = minerData;
     const isFaucetMiner = minerData.slug === "faucet-micro-miner";
@@ -94,14 +97,14 @@ async function main() {
       await prisma.faucetReward.create({
         data: { minerId: faucetMiner.id, isActive: true, cooldownMs: 3600000 },
       });
-      console.log("Seed: Faucet reward created!");
+      logger.info("Seed: Faucet reward created!");
     } else {
-      console.log("Seed: Faucet reward already present, skipping.");
+      logger.info("Seed: Faucet reward already present, skipping.");
     }
   }
 
   // 3. Seed Auto Mining Reward
-  console.log('Seed: Configuring Auto Mining Reward...');
+  logger.info('Seed: Configuring Auto Mining Reward...');
   await prisma.autoMiningReward.upsert({
     where: { slug: 'pulse-gpu-v1' },
     update: {
@@ -139,14 +142,14 @@ async function main() {
       blkCycleBoost: 1
     }
   });
-  console.log('Seed: BLK economy config OK');
+  logger.info('Seed: BLK economy config OK');
 
   const legacyBoth = await prisma.user.updateMany({
     where: { miningPayoutMode: "both" },
     data: { miningPayoutMode: "pol" }
   });
   if (legacyBoth.count > 0) {
-    console.log(`Seed: mining mode 'both' -> 'pol' for ${legacyBoth.count} user(s)`);
+    logger.info(`Seed: mining mode 'both' -> 'pol' for ${legacyBoth.count} user(s)`);
   }
 
   const defaultMilestones = [
@@ -206,14 +209,14 @@ async function main() {
       },
     });
   }
-  console.log('Seed: check-in streak milestones OK');
+  logger.info('Seed: check-in streak milestones OK');
 
-  console.log('Seed: All data seeded successfully!');
+  logger.info('Seed: All data seeded successfully!');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    logger.error(e);
     process.exit(1);
   })
   .finally(async () => {

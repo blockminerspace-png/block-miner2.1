@@ -929,7 +929,11 @@ healthcheck:
 
 **App e workers** dependem de `db` e `redis` saudáveis (`depends_on: condition: service_healthy`). Garante que app não tenta conectar num Postgres ainda subindo.
 
-**App não tem healthcheck próprio (atualmente).** Idealmente teria — `GET /health` que checa DB + Redis. Refactor futuro.
+**App (Fase 5–6):** healthcheck Docker em `GET /health/live` (processo vivo). Readiness operacional em `GET /health/ready` (Postgres, Redis, BullMQ, Socket.IO, mining engine, cron, storage). Métricas Prometheus em `GET /metrics`. Alertas in-process em `GET /health/alerts`.
+
+**Graceful shutdown (Fase 6):** `SIGTERM`/`SIGINT` fecham HTTP + Socket.IO, desconectam Redis e Prisma antes de sair (`GRACEFUL_SHUTDOWN_TIMEOUT_MS`, default 25s). `stop_grace_period: 30s` no container `app`.
+
+**Deploy zero-downtime:** arquitetura atual é **single-instance** — `docker compose up` recria o container `app` com janela breve de 502. Mitigações: graceful shutdown, readiness loop pós-deploy (`/health/ready`), merge de lazy-chunks Vite, `lazyWithRetry` no cliente, SPA `index.html` sem cache. HA real exige segundo backend + upstream nginx (documentado, não implementado).
 
 ---
 
@@ -957,7 +961,9 @@ healthcheck:
 
 | Script | Pra que serve |
 |---|---|
-| `vm-deploy-local-over-ssh.py` | **Deploy completo** — git archive → sftp → rebuild |
+| `vm-deploy-local-over-ssh.py` | **Deploy completo** — git archive → sftp → rebuild + readiness loop |
+| `deploy-production-safe.sh` | Wrapper para CI/SSH (`npm run deploy`, GitHub Actions) |
+| `deploy.py` | Atalho para `vm-deploy-local-over-ssh.py` |
 | `vm-patch-smtp.py` | Patch focado nas vars SMTP + `force-recreate` |
 | `fix-and-redeploy.py` | Quando migration quebra — fix + rebuild |
 | `fraud-enrich-ips.mjs` | Enriquece `UserIpLog` com ASN + proxy detection (background fill) |
@@ -1357,15 +1363,64 @@ A constante em todos: **trabalho pesado vai pro worker via fila**, **trabalho s�
 
 ---
 
+## Parte 6 — Observabilidade, operação e recuperação (Fase 5–6)
+
+### Endpoints operacionais
+
+| Rota | Uso |
+|------|-----|
+| `GET /health` | Liveness básico (compatível com deploy legado) |
+| `GET /health/live` | Processo vivo (Docker healthcheck) |
+| `GET /health/ready` | Readiness — DB, Redis, BullMQ, socket, mining, cron |
+| `GET /health/alerts` | Alertas in-process |
+| `GET /metrics` | Prometheus text format |
+
+### Camada `server/shared/observability/`
+
+Métricas HTTP, Prisma, Socket.IO, BullMQ, Redis, cron e mining. Logs estruturados com `requestId`, `correlationId`, `module`, `action`, `durationMs`.
+
+### Graceful shutdown
+
+`server/shared/shutdown/gracefulShutdown.ts` — em `SIGTERM`/`SIGINT`: para HTTP, fecha Socket.IO, desconecta Redis e Prisma. Env: `GRACEFUL_SHUTDOWN_TIMEOUT_MS` (default 25000).
+
+### Troubleshooting rápido
+
+| Sintoma | Verificar |
+|---------|-----------|
+| 502 após deploy | `docker compose logs app`; aguardar `/health/ready`; nginx upstream |
+| Socket desconecta | Cliente: `game.ts` reconnect; sessão de jogo: retorna ao hub |
+| Mining parado | `/health/ready` → check `mining`; logs `MiningCron` |
+| Fila parada | Redis + `block-miner-worker`; `/metrics` bullmq gauges |
+| Callback falhou | Logs `Zerads` / `offerwallme`; IP allowlist Cloudflare |
+
+### Relatórios de fase
+
+| Documento | Conteúdo |
+|-----------|----------|
+| `RELATORIO_FASE3_FINAL.md` | Arquitetura modular |
+| `RELATORIO_FASE4_ESTABILIZACAO.md` | Hardening economia |
+| `RELATORIO_FASE4B_FINAL.md` | UTC global |
+| `RELATORIO_FASE5_OBSERVABILIDADE.md` | Métricas e health |
+| `RELATORIO_FASE6_FINAL.md` | Produção, zero-downtime, qualidade |
+| `RELATORIO_FASE6A_OBSERVABILIDADE.md` | Stack Prometheus + Grafana + Alertmanager |
+| `RELATORIO_FASE7_FINAL.md` | Release final — produção e monitorização |
+| `OBSERVABILITY_STACK.md` | Guia operacional da stack de monitoramento |
+| `MONITORING.md` | Índice de monitorização |
+| `DEPLOY.md` / `PRODUCTION.md` / `OPERATIONS.md` | Deploy e ops |
+| `BACKUP.md` / `RESTORE.md` / `TROUBLESHOOTING.md` | Recuperação |
+
+---
+
 ## Fim da documentação base
 
-Essas 5 partes cobrem o BlockMiner em profundidade suficiente pra alguém novo entender o "o quê" e o "porquê" do projeto:
+Essas 6 partes cobrem o BlockMiner em profundidade suficiente pra alguém novo entender o "o quê" e o "porquê" do projeto:
 
 1. **Visão geral e stack** — o que é o produto, que tecnologias usa, por que cada uma.
 2. **Arquitetura monolito modular** — como o código é organizado, por que essas fronteiras.
 3. **Modelo de dados** — 14 domínios no banco, por que cada um existe.
 4. **Infraestrutura e deploy** — 6 containers, deploy via SSH, quirks operacionais.
 5. **Fluxos críticos** — registro, login, mining, check-in, offerwall, depósito, saque, faucet, audit.
+6. **Observabilidade e operação** — health, métricas, shutdown, troubleshooting.
 
 Outros recursos em `docs/`:
 - `audits/` — auditorias arquivadas

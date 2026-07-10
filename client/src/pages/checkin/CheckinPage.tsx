@@ -153,15 +153,15 @@ export default function Checkin() {
     if (!tryBeginPay('balance')) return;
     try {
       const d = await postCheckinBalanceDaily();
-      if (d.ok && d.status === 'confirmed') {
+      if (d.ok && d.alreadyCheckedIn) {
+        toast.success(t('checkin.claimed'));
+        await fetchStatus();
+      } else if (d.ok && d.status === 'confirmed') {
         toast.success(
           t('checkin.reward_msg', {
             amount: `${formatPolFromWei(status.checkinBalanceAmountWei)} POL`,
           }),
         );
-        await fetchStatus();
-      } else if (d.ok && d.alreadyCheckedIn) {
-        toast.success(t('checkin.claimed'));
         await fetchStatus();
       } else if (!d.ok) {
         toast.error(translateCheckinApi(d.code, d.message));
@@ -171,11 +171,14 @@ export default function Checkin() {
       const payload = readApiErrorPayload(err);
       if (payload?.code) {
         toast.error(translateCheckinApi(payload.code, payload.message));
-        await fetchStatus();
       } else {
         const msg = err instanceof Error ? err.message : t('common.error');
         toast.error(msg);
       }
+      // Always refresh after any error — the server may have committed before the
+      // network dropped. Without this, the UI keeps the button enabled and the
+      // user has to click twice.
+      await fetchStatus();
     } finally {
       endPay();
     }
@@ -210,6 +213,13 @@ export default function Checkin() {
         await fetchStatus();
       }
     } catch (err: unknown) {
+      // CheckinWalletError fires before any server call (wallet UI rejection, wrong network, etc.)
+      // so the server state is unchanged — no need to refresh.
+      const isPreServerError =
+        err instanceof CheckinWalletError ||
+        (err as { code?: number | string }).code === 4001 ||
+        (err as { code?: number | string }).code === '4001';
+
       if (err instanceof CheckinWalletError) {
         if (err.code === 'USER_REJECTED') {
           toast.error(t('checkin.rejected_wallet'));
@@ -235,11 +245,17 @@ export default function Checkin() {
           const payload = readApiErrorPayload(err);
           if (payload?.code) {
             toast.error(translateCheckinApi(payload.code, payload.message));
-            await fetchStatus();
           } else {
             toast.error(e?.message || t('common.error'));
           }
         }
+      }
+
+      // For any error that could have reached the server, refresh status so the UI
+      // reflects the real DB state. Prevents double-click when the network drops
+      // after the server already committed the check-in.
+      if (!isPreServerError) {
+        await fetchStatus();
       }
     } finally {
       endPay();

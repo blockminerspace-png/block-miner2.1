@@ -38,7 +38,7 @@ export async function postReadEarnRedeem(req: Request, res: Response): Promise<v
       userAgent,
       logger: {
         error: (msg: string, meta?: object) =>
-          logger.error(msg, meta as Record<string, unknown> | undefined),
+          logger.error(msg, { error: String(meta as Record<string, unknown> | undefined) }),
       },
     });
 

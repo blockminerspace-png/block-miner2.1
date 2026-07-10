@@ -146,7 +146,7 @@ function createPublicStateService({ engine, get, run, all }) {
         state.miner.activeTemporaryHashRate = userGameHash;
       }
     } catch (error) {
-      logger.error("buildPublicState DB augmentation failed", prismaSafeErrorMeta(error));
+      logger.error("buildPublicState DB augmentation failed", { error: String(prismaSafeErrorMeta(error)) });
     }
 
     const safe = sanitizePublicStateForSocket(state);

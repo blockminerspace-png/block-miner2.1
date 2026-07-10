@@ -10,8 +10,8 @@ const csrfMiddleware = readFileSync(
   new URL("../server/middleware/csrf.ts", import.meta.url),
   "utf8",
 );
-const adminRoutes = readFileSync(
-  new URL("../server/routes/admin.ts", import.meta.url),
+const adminContentRoutes = readFileSync(
+  new URL("../server/modules/admin/routes/content.routes.ts", import.meta.url),
   "utf8",
 );
 const errorBoundary = readFileSync(
@@ -52,11 +52,11 @@ describe("client error report pipeline", () => {
   });
 
   it("admin router exposes GET and DELETE for /client-errors (both categories)", () => {
-    assert.match(adminRoutes, /adminRouter\.get\(["']\/client-errors["']/);
-    assert.match(adminRoutes, /adminRouter\.delete\(["']\/client-errors["']/);
+    assert.match(adminContentRoutes, /router\.get\(["']\/client-errors["']/);
+    assert.match(adminContentRoutes, /router\.delete\(["']\/client-errors["']/);
     // admin now fetches both crash and api_failure reports
-    assert.match(adminRoutes, /client_error_report/);
-    assert.match(adminRoutes, /client_api_failure/);
+    assert.match(adminContentRoutes, /client_error_report/);
+    assert.match(adminContentRoutes, /client_api_failure/);
   });
 
   it("ErrorBoundary self-heals stale chunks via throttled reload (1× per 60s)", () => {

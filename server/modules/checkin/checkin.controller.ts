@@ -695,6 +695,7 @@ async function confirmDailyCheckin(req: Request, res: Response) {
   }
   const userId = requireUserId(req);
   const today = getCheckinPeriodKey();
+  checkinLog.info("checkin_wallet_start", { userId, periodKey: today });
   const body = parseTxHashFromBody(req.body);
   if ("error" in body && body.error) {
     return jsonCheckinError(res, 400, body.error.code, body.error.message);
@@ -754,6 +755,7 @@ async function confirmDailyCheckin(req: Request, res: Response) {
 
   const existingQuick = await findDailyCheckinForBrazilDay(prisma, userId, today);
   if (existingQuick?.status === "confirmed") {
+    checkinLog.info("checkin_wallet_already_checked_in", { userId, periodKey: today });
     return jsonSuccessWithStreak(res, userId, {
       alreadyCheckedIn: true,
       status: "confirmed",
@@ -842,6 +844,7 @@ async function confirmDailyCheckin(req: Request, res: Response) {
     });
 
     if (outcome.type === "already") {
+      checkinLog.info("checkin_wallet_already_checked_in_tx", { userId, periodKey: today });
       return jsonSuccessWithStreak(res, userId, {
         alreadyCheckedIn: true,
         status: "confirmed",
@@ -869,9 +872,11 @@ async function confirmDailyCheckin(req: Request, res: Response) {
       logCheckinSideEffectFailure("notifyDailyTaskLoginDay after wallet confirm", e)
     );
 
+    const streakAfterWallet = await computeCheckinStreak(userId);
+    checkinLog.info("checkin_wallet_confirmed", { userId, periodKey: today, streakAfter: streakAfterWallet });
     logSecurityEvent(
       "checkin_wallet_confirm_success",
-      { userId, walletLinked: true, checkinDate: today, txHash, cadence: "daily" },
+      { userId, walletLinked: true, checkinDate: today, txHash, cadence: "daily", streakAfter: streakAfterWallet },
       req
     );
     logUserActivity("CHECKIN_DAILY_CONFIRMED", req, {
@@ -951,6 +956,8 @@ export async function checkinBalance(req: Request, res: Response) {
   const cost = polDecimalFromWei(balanceWei);
   const synthTx = balanceCheckinSyntheticTxHash(userId, today);
 
+  checkinLog.info("checkin_balance_start", { userId, periodKey: today });
+
   try {
     const outcome = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BalanceOutcome> => {
       await advisoryXactTryLockOrThrow(tx, `checkin:${userId}`);
@@ -961,9 +968,11 @@ export async function checkinBalance(req: Request, res: Response) {
         select: { walletAddress: true, polBalance: true, isBanned: true }
       });
       if (!user || user.isBanned) {
+        checkinLog.warn("checkin_balance_rejected", { userId, periodKey: today, reason: "FORBIDDEN" });
         throw new CheckinHttpError("FORBIDDEN", "forbidden");
       }
       if (requiresWalletForOffchainCheckin() && !user.walletAddress?.trim()) {
+        checkinLog.warn("checkin_balance_rejected", { userId, periodKey: today, reason: "WALLET_REQUIRED" });
         throw new CheckinHttpError("WALLET_REQUIRED", "wallet");
       }
 
@@ -972,11 +981,13 @@ export async function checkinBalance(req: Request, res: Response) {
         return { kind: "already" };
       }
       if (existing?.status === "pending") {
+        checkinLog.warn("checkin_balance_rejected", { userId, periodKey: today, reason: "CHECKIN_PENDING_PAYMENT" });
         throw new CheckinHttpError("CHECKIN_PENDING_PAYMENT", "pending");
       }
 
       const bal = new Prisma.Decimal(user.polBalance != null ? user.polBalance.toString() : "0");
       if (bal.lt(cost)) {
+        checkinLog.warn("checkin_balance_rejected", { userId, periodKey: today, reason: "INSUFFICIENT_BALANCE" });
         throw new CheckinHttpError("INSUFFICIENT_BALANCE", "balance");
       }
 
@@ -1007,6 +1018,7 @@ export async function checkinBalance(req: Request, res: Response) {
     });
 
     if (outcome.kind === "already") {
+      checkinLog.info("checkin_balance_already_checked_in", { userId, periodKey: today });
       return jsonSuccessWithStreak(res, userId, {
         alreadyCheckedIn: true,
         status: "confirmed",
@@ -1028,6 +1040,8 @@ export async function checkinBalance(req: Request, res: Response) {
       logCheckinSideEffectFailure("notifyDailyTaskLoginDay after balance checkin", e)
     );
 
+    const streakAfterBalance = await computeCheckinStreak(userId);
+    checkinLog.info("checkin_balance_confirmed", { userId, periodKey: today, streakAfter: streakAfterBalance });
     logSecurityEvent(
       "checkin_balance_confirm_success",
       {
@@ -1035,7 +1049,8 @@ export async function checkinBalance(req: Request, res: Response) {
         checkinDate: today,
         cadence: "daily",
         paymentMethod: "balance",
-        amountPol: Number(balanceWei) / 1e18
+        amountPol: Number(balanceWei) / 1e18,
+        streakAfter: streakAfterBalance,
       },
       req
     );

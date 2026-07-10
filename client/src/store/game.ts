@@ -267,6 +267,9 @@ export const useGameStore = create<MiningGameStore>()((set, get) => ({
 
     socket.on('connect', () => {
       joinWithCookieToken();
+      void get().fetchMachines();
+      void get().fetchVault();
+      void get().fetchInventory();
     });
 
     socket.on('state:update', (payload: unknown) => {

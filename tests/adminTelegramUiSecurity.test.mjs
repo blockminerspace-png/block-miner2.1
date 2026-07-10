@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 test("admin Telegram routes are under admin auth and expose finance automation endpoints", () => {
-  const routes = fs.readFileSync("dist/server/routes/admin.js", "utf8");
-  assert.match(routes, /adminRouter\.use\(requireAdminAuth, adminLimiter\)/);
-  assert.match(routes, /\/finance\/telegram\/settings/);
-  assert.match(routes, /\/finance\/telegram\/events\/:id\/retry/);
+  const composer = fs.readFileSync("dist/server/modules/admin/admin.routes.js", "utf8");
+  const economy = fs.readFileSync("dist/server/modules/admin/routes/economy.routes.js", "utf8");
+  assert.match(composer, /adminRouter\.use\(requireAdminAuth, adminLimiter\)/);
+  assert.match(economy, /\/finance\/telegram\/settings/);
+  assert.match(economy, /\/finance\/telegram\/events\/:id\/retry/);
 });
 
 test("admin finance UI does not render raw HTML or editable Telegram token fields", () => {

@@ -9,6 +9,9 @@ import {
   purchaseMiniPassLevels,
 } from "../services/miniPass/miniPassPurchaseService.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("miniPassController");
+
 function langFromReq(req: Request): string {
   const raw = req.headers["accept-language"];
   if (Array.isArray(raw)) return raw[0] ?? "en";
@@ -22,7 +25,7 @@ export async function listMiniPassSeasons(req: Request, res: Response): Promise<
     const rows = await listLiveMiniPassSeasons(langFromReq(req));
     res.json({ ok: true, seasons: rows });
   } catch (e: unknown) {
-    console.error("listMiniPassSeasons", e);
+    logger.error("listMiniPassSeasons", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -50,7 +53,7 @@ export async function getMiniPassSeason(req: Request<SeasonParams>, res: Respons
     const { ok: _ok, status: _st, code: _cd, ...rest } = data;
     res.json({ ok: true, ...rest });
   } catch (e: unknown) {
-    console.error("getMiniPassSeason", e);
+    logger.error("getMiniPassSeason", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -82,7 +85,7 @@ export async function postClaimMiniPassReward(req: Request<ClaimParams>, res: Re
       summary: r.summary,
     });
   } catch (e: unknown) {
-    console.error("postClaimMiniPassReward", e);
+    logger.error("postClaimMiniPassReward", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -111,7 +114,7 @@ export async function postBuyMiniPassLevels(
     }
     res.json({ ok: true, purchaseId: r.purchaseId, polBalance: r.polBalance });
   } catch (e: unknown) {
-    console.error("postBuyMiniPassLevels", e);
+    logger.error("postBuyMiniPassLevels", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -136,7 +139,7 @@ export async function postCompleteMiniPass(req: Request<SeasonParams>, res: Resp
     }
     res.json({ ok: true, purchaseId: r.purchaseId, polBalance: r.polBalance });
   } catch (e: unknown) {
-    console.error("postCompleteMiniPass", e);
+    logger.error("postCompleteMiniPass", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }

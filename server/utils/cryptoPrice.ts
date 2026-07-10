@@ -1,3 +1,6 @@
+
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("cryptoPrice");
 const PRICE_TTL_MS = 2 * 60 * 1000;
 const priceCache = new Map<string, { price: number; timestamp: number }>();
 const inflightPriceFetches = new Map<string, Promise<number>>();
@@ -66,11 +69,11 @@ async function getCachedPrice(cacheKey: string, fetcher: () => Promise<number | 
       }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching ${cacheKey} price from CoinGecko:`, msg);
+      logger.error(`Error fetching ${cacheKey} price from CoinGecko:`, { error: String(msg) });
     }
 
     if (cached) {
-      console.warn(`Using stale ${cacheKey} price cache.`);
+      logger.warn(`Using stale ${cacheKey} price cache.`);
       return cached.price;
     }
 

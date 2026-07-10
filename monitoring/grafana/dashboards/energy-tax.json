@@ -1,0 +1,159 @@
+{
+  "uid": "bm-energy-tax",
+  "title": "BlockMiner — Energy Tax",
+  "tags": ["blockminer", "energy-tax", "economy"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Pagamentos manuais de taxa (total acumulado)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "blockminer_module_actions_total{module=\"energy-tax\",action=\"paid\"}",
+        "refId": "A"
+      }],
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "title": "Execuções do sweep semanal (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{
+        "expr": "blockminer_module_actions_total{module=\"energy-tax\",action=\"sweep\"}",
+        "refId": "A"
+      }],
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "title": "Último sweep semanal (segundos atrás)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "time() - blockminer_cron_last_run_unix{job=\"energy_tax_weekly_sweep\"}",
+        "refId": "A"
+      }],
+      "options": {
+        "colorMode": "thresholds",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 604800 },
+            { "color": "red", "value": 691200 }
+          ]
+        }
+      },
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 4,
+      "title": "Status do Redis (lock sweep)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{
+        "expr": "blockminer_redis_connected",
+        "refId": "A"
+      }],
+      "options": {
+        "colorMode": "thresholds",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "thresholds": {
+          "steps": [
+            { "color": "red", "value": null },
+            { "color": "green", "value": 1 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Pagamentos de taxa — taxa/minuto",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "rate(blockminer_module_actions_total{module=\"energy-tax\",action=\"paid\"}[15m]) * 60",
+        "legendFormat": "pagamentos/min",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqpm" } }
+    },
+    {
+      "id": 6,
+      "title": "Módulo Energy Tax — todas as ações",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "sum by (action) (rate(blockminer_module_actions_total{module=\"energy-tax\"}[15m]))",
+        "legendFormat": "{{action}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 7,
+      "title": "API /energy-tax — latência P50/P95/P99 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(blockminer_http_request_duration_ms_bucket{route=~\"/api/energy-tax.*\"}[5m])) by (le))",
+          "legendFormat": "P50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blockminer_http_request_duration_ms_bucket{route=~\"/api/energy-tax.*\"}[5m])) by (le))",
+          "legendFormat": "P95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(blockminer_http_request_duration_ms_bucket{route=~\"/api/energy-tax.*\"}[5m])) by (le))",
+          "legendFormat": "P99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 8,
+      "title": "API /energy-tax — erros 5xx",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{
+        "expr": "sum(rate(blockminer_http_errors_5xx_total{route=~\"/api/energy-tax.*\"}[5m]))",
+        "legendFormat": "5xx/s",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "fixed", "fixedColor": "red" } } }
+    },
+    {
+      "id": 9,
+      "title": "Prisma — queries lentas (>1s) no módulo Energy Tax",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [{
+        "expr": "sum by (model) (rate(blockminer_prisma_slow_queries_total{model=~\"energyTaxCharge|zeradsCallback|offerwallMeCallback|internalOfferwallAttempt|blockMinerReward\"}[15m]))",
+        "legendFormat": "{{model}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 10,
+      "title": "Heartbeat do sweep — timeline",
+      "description": "Unix timestamp do último sweep. Deve avançar uma vez por semana (segunda 00h UTC).",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [{
+        "expr": "blockminer_cron_last_run_unix{job=\"energy_tax_weekly_sweep\"}",
+        "legendFormat": "último sweep",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "dateTimeAsIso" } }
+    }
+  ]
+}

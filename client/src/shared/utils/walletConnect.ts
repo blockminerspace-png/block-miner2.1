@@ -26,6 +26,3 @@ export function getWalletConnectMetadataUrl() {
   if (fromEnv) return fromEnv;
   return 'https://blockminer.space';
 }
-
-/** @deprecated No singleton; kept so tests that mock reset do not break imports. */
-export function resetWalletConnectSingletonForTests() {}

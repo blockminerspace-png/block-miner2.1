@@ -1,0 +1,59 @@
+{
+  "uid": "bm-security",
+  "title": "BlockMiner — Segurança",
+  "tags": ["blockminer", "security"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "401 Unauthorized/s",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum(rate(blockminer_http_requests_total{status=\"401\"}[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "title": "403 Forbidden/s",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "targets": [{ "expr": "sum(rate(blockminer_http_requests_total{status=\"403\"}[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "404 Not Found/s",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "targets": [{ "expr": "sum(rate(blockminer_http_requests_total{status=\"404\"}[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "title": "500 / 502 rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "sum(rate(blockminer_http_requests_total{status=\"500\"}[5m]))", "legendFormat": "500", "refId": "A" },
+        { "expr": "sum(rate(blockminer_http_requests_total{status=\"502\"}[5m]))", "legendFormat": "502", "refId": "B" },
+        { "expr": "sum(rate(blockminer_http_errors_5xx_total[5m]))", "legendFormat": "5xx counter", "refId": "C" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Readiness probe",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 6 },
+      "targets": [{ "expr": "probe_success{probe=\"readiness\"}", "refId": "A" }]
+    },
+    {
+      "id": 6,
+      "title": "Notas",
+      "type": "text",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 10 },
+      "options": {
+        "content": "Rate limit, CSRF e JWT falhas dedicadas: usar logs `security-*.log` e audit outbox até métricas `blockminer_security_*` (fase futura). 502 em nginx: correlacionar com deploy e `probe_success`."
+      }
+    }
+  ]
+}

@@ -3,6 +3,9 @@ import { createRateLimiter } from "../../middleware/rateLimit.js";
 import { recordPageView } from "./traffic.service.js";
 import prisma from "../../src/db/prisma.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("traffic.routes");
+
 export const trafficRouter = express.Router();
 
 const limiter = createRateLimiter({ windowMs: 30_000, max: 3 });
@@ -95,7 +98,7 @@ trafficRouter.post("/client-error", clientErrorLimiter, async (req, res) => {
 
   // Structured log so it shows up in docker logs even if DB write fails
   // eslint-disable-next-line no-console
-  console.error(
+  logger.error(
     "[" + action + "]",
     JSON.stringify({ category, message, statusCode, code, operation, url, userAgent, ip, buildId }),
   );

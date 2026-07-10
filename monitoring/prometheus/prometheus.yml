@@ -1,0 +1,85 @@
+# BlockMiner observability — Prometheus (Fase 6A)
+# Scrape interval/timeout per spec; labels on every target.
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: blockminer
+    environment: production
+
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: blockminer
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["block-miner-app:3000"]
+        labels:
+          job: blockminer
+          instance: block-miner-app
+          environment: production
+          version: "2.1"
+
+  - job_name: blockminer-readiness
+    metrics_path: /probe
+    params:
+      module: [http_ready]
+    static_configs:
+      - targets: ["http://block-miner-app:3000/health/ready"]
+        labels:
+          job: blockminer
+          instance: block-miner-app
+          environment: production
+          version: "2.1"
+          probe: readiness
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          job: node
+          instance: blockminer-host
+          environment: production
+          version: "2.1"
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          job: postgres
+          instance: block-miner-db
+          environment: production
+          version: "2.1"
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          job: redis
+          instance: block-miner-redis
+          environment: production
+          version: "2.1"
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          job: prometheus
+          instance: prometheus
+          environment: production
+          version: "2.1"

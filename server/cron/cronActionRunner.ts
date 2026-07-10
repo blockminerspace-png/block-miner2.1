@@ -122,7 +122,7 @@ function writeWithLevel(
       return;
     }
     if (typeof logger.warn === "function") {
-      logger.warn(message, payload);
+      logger.warn(message, { error: String(payload) });
     }
   } catch {
     /* never let a log call take down the cron runner */

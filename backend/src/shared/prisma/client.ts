@@ -18,7 +18,23 @@ const pool = new pg.Pool({
     Number.parseInt(String(process.env.PG_POOL_CONNECTION_TIMEOUT_MS || "10000").trim(), 10) || 10000,
 });
 
+import { recordPrismaQuery } from "#server/shared/observability/metricsRegistry.js";
+
 const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const basePrisma = new PrismaClient({ adapter });
+
+const prisma = basePrisma.$extends({
+  query: {
+    $allModels: {
+      async $allOperations({ model, operation, args, query }) {
+        const start = process.hrtime.bigint();
+        const result = await query(args);
+        const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+        recordPrismaQuery(String(model), String(operation), durationMs);
+        return result;
+      },
+    },
+  },
+});
 
 export default prisma;

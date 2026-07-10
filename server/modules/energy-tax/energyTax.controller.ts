@@ -8,6 +8,9 @@ import {
   EnergyTaxNotStarted,
 } from "./energyTax.service.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("energyTax.controller");
+
 export async function getSummary(req: Request, res: Response): Promise<void> {
   const userId = (req as any).user?.id as number | undefined;
   if (!userId) {
@@ -18,7 +21,7 @@ export async function getSummary(req: Request, res: Response): Promise<void> {
     const summary = await computeWeekSummary(userId);
     res.json({ ok: true, ...summary });
   } catch (err) {
-    console.error("[energy-tax summary]", err);
+    logger.error("[energy-tax summary]", { error: String(err) });
     res.status(500).json({ ok: false, message: "Erro ao carregar resumo." });
   }
 }
@@ -55,7 +58,7 @@ export async function postPayDaily(req: Request, res: Response): Promise<void> {
       });
       return;
     }
-    console.error("[energy-tax pay-daily]", err);
+    logger.error("[energy-tax pay-daily]", { error: String(err) });
     res.status(500).json({ ok: false, message: "Erro ao processar pagamento." });
   }
 }

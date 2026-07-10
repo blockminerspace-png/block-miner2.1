@@ -12,6 +12,7 @@ import {
   type ActivityBreakdown,
   type MiningBreakdown,
 } from "./energyTaxActivity.service.js";
+import { economyMetrics } from "../../shared/observability/index.js";
 
 /**
  * Taxa de Energia — regras de negócio em docs/rules/ENERGY_TAX.md.
@@ -473,6 +474,7 @@ export async function payDailyTax(userId: number, now: Date = new Date()) {
   });
 
   logger.info("daily charge created", { userId, taxedDay, amount });
+  economyMetrics.energyTaxPaid();
   await checkAndUpdateEnergyBlock(userId);
   return result;
 }
@@ -627,5 +629,6 @@ export async function runWeeklySweep(now: Date = new Date()) {
   }
 
   logger.info("sweep finished", { touched, chargesCreated });
+  economyMetrics.energyTaxSweep(chargesCreated);
   return { touched, chargesCreated };
 }

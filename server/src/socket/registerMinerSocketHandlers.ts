@@ -96,7 +96,7 @@ export function registerMinerSocketHandlers({
         }
       } catch (error) {
         const meta = prismaSafeErrorMeta(error);
-        logger.error("miner:join failed", meta);
+        logger.error("miner:join failed", { error: String(meta) });
         callback?.({ ok: false, message: "Não foi possível carregar sua sala de mineração." });
       }
     });
@@ -115,7 +115,7 @@ export function registerMinerSocketHandlers({
         try {
           await persistMinerProfile(miner);
         } catch (error) {
-          logger.error("miner:toggle persist failed", prismaSafeErrorMeta(error));
+          logger.error("miner:toggle persist failed", { error: String(prismaSafeErrorMeta(error)) });
         }
       }
       callback?.({ ok: true, state: safeSocketPublicState(engine, minerId) });
@@ -146,7 +146,7 @@ export function registerMinerSocketHandlers({
           try {
             await persistMinerProfile(miner);
           } catch (error) {
-            logger.error("miner:upgrade-rig persist failed", prismaSafeErrorMeta(error));
+            logger.error("miner:upgrade-rig persist failed", { error: String(prismaSafeErrorMeta(error)) });
           }
         }
       }
@@ -172,7 +172,7 @@ export function registerMinerSocketHandlers({
         try {
           await persistMinerProfile(miner);
         } catch (error) {
-          logger.error("miner:wallet-link persist failed", prismaSafeErrorMeta(error));
+          logger.error("miner:wallet-link persist failed", { error: String(prismaSafeErrorMeta(error)) });
         }
       }
       callback?.({
@@ -190,7 +190,7 @@ export function registerMinerSocketHandlers({
           try {
             await persistMinerProfile(miner);
           } catch (error) {
-            logger.error("miner:disconnect persist failed", prismaSafeErrorMeta(error));
+            logger.error("miner:disconnect persist failed", { error: String(prismaSafeErrorMeta(error)) });
           }
         }
         engine.setConnected(minerId, false);

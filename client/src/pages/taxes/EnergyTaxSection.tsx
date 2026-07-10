@@ -53,14 +53,13 @@ type EnergyTaxSummary = {
   history: Array<ChargeRow & { rewardsBase: number; periodDayStartsAt: string }>;
 };
 
-const BRT = 'America/Sao_Paulo';
+const DISPLAY_TZ = 'UTC';
 
 function fmtPol(n: number, decimals = 6): string {
   if (!Number.isFinite(n)) return '0';
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-/** Início do primeiro período taxável (21h BRT = startsAt ISO). */
 function firstTaxableDayStartMs(startsAtIso: string): number {
   return new Date(startsAtIso).getTime();
 }
@@ -70,9 +69,9 @@ function fmtPeriodEndKey(endKey: string): string {
   return `${d}/${m}`;
 }
 
-function fmtBrtNow(locale: string): string {
+function fmtUtcNow(locale: string): string {
   return new Date().toLocaleString(locale, {
-    timeZone: BRT,
+    timeZone: DISPLAY_TZ,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -81,18 +80,23 @@ function fmtBrtNow(locale: string): string {
   });
 }
 
-function nextMondayBrtCountdown(now = new Date()): string {
-  const offsetMs = 3 * 60 * 60 * 1000;
-  const brtNow = new Date(now.getTime() - offsetMs);
-  const day = brtNow.getUTCDay();
+/** Countdown to next Monday 00:00 UTC (weekly auto sweep). */
+function nextMondayUtcCountdown(now = new Date()): string {
+  const day = now.getUTCDay();
   let daysAhead = (1 - day + 7) % 7;
-  if (daysAhead === 0 && brtNow.getUTCHours() >= 21) daysAhead = 7;
-  const target = new Date(brtNow);
-  target.setUTCDate(target.getUTCDate() + daysAhead);
-  target.setUTCHours(21, 0, 0, 0);
-  const ms = target.getTime() - brtNow.getTime();
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
+  if (daysAhead === 0) daysAhead = 7;
+  const target = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() + daysAhead,
+    0,
+    0,
+    0,
+    0,
+  );
+  const ms = target - now.getTime();
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
   if (h >= 24) {
     const d = Math.floor(h / 24);
     return `${d}d ${h % 24}h`;
@@ -112,7 +116,7 @@ export default function EnergyTaxSection() {
   const locale = i18n.language || 'pt-BR';
   const fmtDayLabel = (iso: string) =>
     new Date(iso).toLocaleDateString(locale, {
-      timeZone: BRT,
+      timeZone: DISPLAY_TZ,
       weekday: 'short',
       day: '2-digit',
       month: '2-digit',
@@ -169,7 +173,7 @@ export default function EnergyTaxSection() {
   const totalAct = summary.totalActivitiesToday;
   const todayExempt = summary.todayExempt;
   const todayBlocked = notYetActive || summary.todayPaid || (!todayExempt && summary.yesterdayRewards <= 0);
-  const ctdown = nextMondayBrtCountdown();
+  const ctdown = nextMondayUtcCountdown();
   const firstTaxableMs = firstTaxableDayStartMs(summary.startsAt);
   const currentPeriodEndKey = summary.currentPeriodEndKey ?? '';
   const closedPeriodLabel = summary.lastClosedPeriodEndKey
@@ -362,7 +366,7 @@ export default function EnergyTaxSection() {
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0 text-right">
             <span className="text-[10px] text-slate-500 font-mono">
-              {t('taxes.energy_tax.server_clock', { datetime: fmtBrtNow(locale) })}
+              {t('taxes.energy_tax.server_clock', { datetime: fmtUtcNow(locale) })}
             </span>
             <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />

@@ -10,6 +10,9 @@ import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
 import { CHAINS } from "./chains/index.js";
 import type { ChainConfig, PriceKey } from "./chains/index.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("multiChainWalletService");
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type ChainTokenHolding = {
@@ -409,9 +412,9 @@ async function fetchUniV3LpValue(
   try {
     const [bal] = await call(nfpmAddress, nfpmIface, "balanceOf", [walletAddress]);
     nftCount = BigInt(bal.toString());
-    console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… balanceOf → ${nftCount}`);
+    logger.info(`[uniV3-lp] NFPM=${nfpmAddress.slice(0, 10)}… balanceOf → ${nftCount}`);
   } catch (err) {
-    console.warn(`[uniV3-lp] balanceOf failed (${nfpmAddress.slice(0,10)}…):`, (err as Error)?.message?.slice(0, 80));
+    logger.warn(`[uniV3-lp] balanceOf failed (${nfpmAddress.slice(0, 10)}…):`, (err as Error)?.message?.slice(0, 80));
     return { totalUsd: 0, nftPositions: [] };
   }
   if (nftCount === 0n) return { totalUsd: 0, nftPositions: [] };
@@ -425,13 +428,13 @@ async function fetchUniV3LpValue(
       call(nfpmAddress, nfpmIface, "tokenOfOwnerByIndex", [walletAddress, BigInt(i)])
         .then(([tid]) => BigInt(tid.toString()))
         .catch((err: unknown) => {
-          console.warn(`[uniV3-lp] tokenOfOwnerByIndex(${i}) failed:`, String((err as Error)?.message).slice(0, 60));
+          logger.warn(`[uniV3-lp] tokenOfOwnerByIndex(${i}) failed:`, { error: (err as Error)?.message?.slice(0, 60) });
           return null;
         }),
     ),
   );
   const tokenIds = tokenIdResults.filter((tid): tid is bigint => tid !== null);
-  console.log(`[uniV3-lp] NFPM=${nfpmAddress.slice(0,10)}… scanning ${tokenIds.length} position(s)`);
+  logger.info(`[uniV3-lp] NFPM=${nfpmAddress.slice(0, 10)}… scanning ${tokenIds.length} position(s)`);
 
   // ─── Value each position ──────────────────────────────────────────────────
   let totalUsd = 0;
@@ -448,7 +451,7 @@ async function fetchUniV3LpValue(
       const tokensOwed0 = BigInt(posResult[10].toString());
       const tokensOwed1 = BigInt(posResult[11].toString());
 
-      console.log(`[uniV3-lp] pos#${tokenId}: liq=${liquidity} owed0=${tokensOwed0} owed1=${tokensOwed1} t0=${token0.slice(0,8)} t1=${token1.slice(0,8)} fee=${fee}`);
+      logger.info(`[uniV3-lp] pos#${tokenId}: liq=${liquidity} owed0=${tokensOwed0} owed1=${tokensOwed1} t0=${token0.slice(0, 8)} t1=${token1.slice(0,8)} fee=${fee}`);
       if (liquidity === 0n && tokensOwed0 === 0n && tokensOwed1 === 0n) continue;
 
       // Get token metadata (decimals + symbol)
@@ -501,7 +504,7 @@ async function fetchUniV3LpValue(
         else if (usd0 != null && p0in1 > 0) posUsd += h1 * (usd0 * p0in1);
       }
 
-      console.log(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(8)} usd=$${posUsd.toFixed(2)}`);
+      logger.info(`[uniV3-lp] pos#${tokenId}: ${s0}/${s1} h0=${h0.toFixed(4)} h1=${h1.toFixed(4)} p0in1=${p0in1.toFixed(8)} usd=$${posUsd.toFixed(2)}`);
       if (posUsd > 0) {
         const tokenUri = await fetchErc721TokenUri(provider, nfpmAddress, tokenId);
         const meta = tokenUri ? await fetchNftMeta(tokenUri) : null;
@@ -528,7 +531,7 @@ async function fetchUniV3LpValue(
         });
       }
     } catch (err) {
-      console.warn(`[uniV3-lp] pos#${tokenId} error:`, String((err as Error)?.message).slice(0, 100));
+      logger.warn(`[uniV3-lp] pos#${tokenId} error:`, { error: (err as Error)?.message?.slice(0, 100) });
     }
   }
   return { totalUsd, nftPositions };
@@ -564,7 +567,7 @@ async function buildLiquidityPositionNft(
       posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId]);
     } catch {
       if (mintBlock == null) return null;
-      console.log(`[uniV3-backfill] pos#${tokenId} burned — retrying at block ${mintBlock}`);
+      logger.info(`[uniV3-backfill] pos#${tokenId} burned — retrying at block ${mintBlock}`);
       posResult = await call(nfpmAddress, nfpmIface, "positions", [tokenId], mintBlock);
     }
     const token0    = String(posResult[2]);
@@ -679,9 +682,9 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
           mintBlocks.set(tid, blk);
         }
       }
-      console.log(`[uniV3-backfill] ${chain.name}: Etherscan found ${tokenIds.size} tokenId(s)`);
+      logger.info(`[uniV3-backfill] ${chain.name}: Etherscan found ${tokenIds.size} tokenId(s)`);
     } catch (err) {
-      console.warn(`[uniV3-backfill] ${chain.name} Etherscan failed:`, (err as Error)?.message?.slice(0, 60));
+      logger.warn(`[uniV3-backfill] ${chain.name} Etherscan failed:`, { error: (err as Error)?.message?.slice(0, 60) });
     }
 
     // Strategy 2: chunked eth_getLogs — run in parallel with Etherscan, union results.
@@ -732,9 +735,9 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
           }
         } catch { /* chunk failed, continue */ }
       }
-      console.log(`[uniV3-backfill] ${chain.name}: after eth_getLogs union → ${tokenIds.size} tokenId(s), ${mintBlocks.size} with mint block`);
+      logger.info(`[uniV3-backfill] ${chain.name}: after eth_getLogs union → ${tokenIds.size} tokenId(s), ${mintBlocks.size} with mint block`);
     } catch (err) {
-      console.warn(`[uniV3-backfill] ${chain.name} eth_getLogs failed:`, (err as Error)?.message?.slice(0, 60));
+      logger.warn(`[uniV3-backfill] ${chain.name} eth_getLogs failed:`, { error: (err as Error)?.message?.slice(0, 60) });
     }
 
     for (const tokenId of tokenIds) {
@@ -753,7 +756,7 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
         );
         if (built) results.push({ ...built, status: "legacy" });
       } catch (err) {
-        console.warn(`[uniV3-backfill] ${chain.name} pos#${tokenId}:`, (err as Error)?.message?.slice(0, 60));
+        logger.warn(`[uniV3-backfill] ${chain.name} pos#${tokenId}:`, { error: (err as Error)?.message?.slice(0, 60) });
       }
     }
 
@@ -768,7 +771,7 @@ export async function backfillHistoricalLiquidityPoolPositions(address: string):
   const discovered: HistoricalLiquidityPoolPosition[] = [];
   for (const result of settled) {
     if (result.status === "fulfilled") discovered.push(...result.value);
-    else console.warn("[uniV3-backfill] chain task rejected:", result.reason);
+    else logger.warn("[uniV3-backfill] chain task rejected:", { error: String(result.reason) });
   }
   return discovered;
 }
@@ -863,7 +866,7 @@ async function fetchChainSnapshot(
       prices,
       chain,
     ).catch(err => {
-      console.warn(`[uniV3-lp] ${chain.name} primary:`, (err as Error)?.message);
+      logger.warn(`[uniV3-lp] ${chain.name} primary:`, { error: (err as Error)?.message });
       return { totalUsd: 0, nftPositions: [] };
     });
     lpUsd = primaryLp.totalUsd;
@@ -923,14 +926,14 @@ async function fetchAllBasePrices(): Promise<Prices> {
       brl:  get("brla-digital"),
     };
   } catch (err) {
-    console.warn("[multi-chain] base price fetch failed:", (err as Error)?.message);
+    logger.warn("[multi-chain] base price fetch failed:", { error: (err as Error)?.message });
     return { pol: null, eth: null, btc: null, bnb: null, avax: null, brl: null };
   }
 }
 
 export async function fetchMultiChainSnapshot(address: string): Promise<MultiChainSnapshot> {
   const prices = await fetchAllBasePrices();
-  console.log(`[multi-chain] prices — POL=$${prices.pol?.toFixed(4)}, ETH=$${prices.eth?.toFixed(2)}, BTC=$${prices.btc?.toFixed(0)}, BNB=$${prices.bnb?.toFixed(2)}, AVAX=$${prices.avax?.toFixed(2)}, BRL=$${prices.brl?.toFixed(4)}`);
+  logger.info(`[multi-chain] prices — POL=$${prices.pol?.toFixed(4)}, ETH=$${prices.eth?.toFixed(2)}, BTC=$${prices.btc?.toFixed(0)}, BNB=$${prices.bnb?.toFixed(2)}, AVAX=$${prices.avax?.toFixed(2)}, BRL=$${prices.brl?.toFixed(4)}`);
 
   // Run all chains in parallel; settled so a single slow/broken RPC never blocks the rest.
   const settled = await Promise.allSettled(
@@ -942,12 +945,12 @@ export async function fetchMultiChainSnapshot(address: string): Promise<MultiCha
     const chain = CHAINS[i];
     const result = settled[i];
     if (result.status === "rejected") {
-      console.warn(`[multi-chain] ${chain.name} failed for ${address}:`, result.reason?.message);
+      logger.warn(`[multi-chain] ${chain.name} failed for ${address}:`, { error: String(result.reason?.message) });
       continue;
     }
     const snap = result.value;
     const hasBalance = snap.nativeBalance > 0 || snap.tokens.length > 0 || snap.nfts.length > 0 || snap.lpUsd > 0;
-    console.log(`[multi-chain] ${chain.name} — native=${snap.nativeBalance.toFixed(4)} ${chain.nativeSymbol}, tokens=${snap.tokens.length}, lp=$${snap.lpUsd.toFixed(2)}, usd=${snap.totalChainUsd?.toFixed(2) ?? "0"}`);
+    logger.info(`[multi-chain] ${chain.name} — native=${snap.nativeBalance.toFixed(4)} ${chain.nativeSymbol}, tokens=${snap.tokens.length}, lp=$${snap.lpUsd.toFixed(2)}, usd=${snap.totalChainUsd?.toFixed(2) ?? "0"}`);
     if (hasBalance) chainSnapshots.push(snap);
   }
 

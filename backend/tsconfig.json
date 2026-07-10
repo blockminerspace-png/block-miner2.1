@@ -126,6 +126,51 @@
       "#server/modules/publicSupport/publicSupport.routes.js": [
         "./src/types/stubs/stub-server-modules-publicSupport-routes.d.ts"
       ],
+      "#server/modules/admin/index.js": [
+        "./src/types/stubs/stub-server-modules-admin-index.d.ts"
+      ],
+      "#server/modules/auth/index.js": [
+        "./src/types/stubs/stub-server-routes-auth.d.ts"
+      ],
+      "#server/modules/faucet/index.js": [
+        "./src/types/stubs/stub-server-routes-faucet.d.ts"
+      ],
+      "#server/modules/wallet/index.js": [
+        "./src/types/stubs/stub-server-modules-wallet-index.d.ts"
+      ],
+      "#server/modules/shop/index.js": [
+        "./src/types/stubs/stub-server-routes-shop.d.ts"
+      ],
+      "#server/modules/inventory/index.js": [
+        "./src/types/stubs/stub-server-routes-inventory.d.ts"
+      ],
+      "#server/modules/machines/index.js": [
+        "./src/types/stubs/stub-server-routes-machines.d.ts"
+      ],
+      "#server/modules/vault/index.js": [
+        "./src/types/stubs/stub-server-routes-vault.d.ts"
+      ],
+      "#server/modules/rooms/index.js": [
+        "./src/types/stubs/stub-server-routes-rooms.d.ts"
+      ],
+      "#server/modules/checkin/index.js": [
+        "./src/types/stubs/stub-server-modules-checkin-index.d.ts"
+      ],
+      "#server/modules/tasks/index.js": [
+        "./src/types/stubs/stub-server-routes-daily-tasks.d.ts"
+      ],
+      "#server/modules/stats/index.js": [
+        "./src/types/stubs/stub-server-routes-stats.d.ts"
+      ],
+      "#server/modules/youtube/index.js": [
+        "./src/types/stubs/stub-server-routes-youtube.d.ts"
+      ],
+      "#server/modules/support/index.js": [
+        "./src/types/stubs/stub-server-routes-support.d.ts"
+      ],
+      "#server/modules/reward-inbox/index.js": [
+        "./src/types/stubs/stub-server-routes-reward-inbox.d.ts"
+      ],
       "#server/routes/admin-auth.js": [
         "./src/types/stubs/stub-server-routes-admin-auth.d.ts"
       ],
@@ -209,6 +254,84 @@
       ],
       "#server/modules/partnerGames/partnerGames.routes.js": [
         "./src/types/stubs/stub-server-modules-partnerGames-routes.d.ts"
+      ],
+      "#server/modules/mining/index.js": [
+        "./src/types/stubs/stub-server-routes-mining.d.ts"
+      ],
+      "#server/modules/racks/index.js": [
+        "./src/types/stubs/stub-server-routes-racks.d.ts"
+      ],
+      "#server/modules/read-earn/index.js": [
+        "./src/types/stubs/stub-server-routes-read-earn.d.ts"
+      ],
+      "#server/modules/offer-events/index.js": [
+        "./src/types/stubs/stub-server-routes-offer-events.d.ts"
+      ],
+      "#server/modules/mini-pass/index.js": [
+        "./src/types/stubs/stub-server-routes-mini-pass.d.ts"
+      ],
+      "#server/modules/chat/index.js": [
+        "./src/types/stubs/stub-server-routes-chat.d.ts"
+      ],
+      "#server/modules/ranking/index.js": [
+        "./src/types/stubs/stub-server-routes-ranking.d.ts"
+      ],
+      "#server/modules/shortlinks/index.js": [
+        "./src/types/stubs/stub-server-routes-shortlink.d.ts"
+      ],
+      "#server/modules/games/index.js": [
+        "./src/types/stubs/stub-server-routes-games.d.ts"
+      ],
+      "#server/modules/session/index.js": [
+        "./src/types/stubs/stub-server-routes-session.d.ts"
+      ],
+      "#server/modules/notifications/index.js": [
+        "./src/types/stubs/stub-server-routes-notification.d.ts"
+      ],
+      "#server/modules/broadcast/index.js": [
+        "./src/types/stubs/stub-server-routes-broadcast.d.ts"
+      ],
+      "#server/modules/swap/index.js": [
+        "./src/types/stubs/stub-server-routes-swap.d.ts"
+      ],
+      "#server/modules/users/index.js": [
+        "./src/types/stubs/stub-server-modules-users-index.d.ts"
+      ],
+      "#server/modules/sidebar-nav/index.js": [
+        "./src/types/stubs/stub-server-routes-sidebar-nav.d.ts"
+      ],
+      "#server/modules/public-stats/public-live-stats.controller.js": [
+        "./src/types/stubs/stub-server-controllers-publicLiveStatsController.d.ts"
+      ],
+      "#server/modules/public-stats/public-stats.controller.js": [
+        "./src/types/stubs/stub-server-controllers-publicStatsController.d.ts"
+      ],
+      "#server/modules/banners/banner.controller.js": [
+        "./src/types/stubs/stub-server-controllers-bannerController.d.ts"
+      ],
+      "#server/modules/transparency/transparency.controller.js": [
+        "./src/types/stubs/stub-server-controllers-transparencyController.d.ts"
+      ],
+      "#server/shared/observability/index.js": [
+        "./src/types/stubs/stub-server-shared-observability-index.d.ts"
+      ],
+      "#server/shared/observability/metricsRegistry.js": [
+        "./src/types/stubs/stub-server-shared-observability-metricsRegistry.d.ts"
+      ],
+      "#server/middleware/observabilityMetrics.js": [
+        "./src/types/stubs/stub-server-middleware-observabilityMetrics.d.ts"
+      ],
+      "#server/middleware/requestContext.js": [
+        "./src/types/stubs/stub-server-middleware-requestContext.d.ts"
+      ],
+      "#server/src/db/prisma.js": [
+        "./src/types/stubs/stub-server-src-db-prisma.d.ts"
+      ],
+      "#server/modules/admin-system/index.js": [
+        "./src/types/stubs/stub-server-modules-admin-system-index.d.ts"
+      ],
+      "#server/middleware/adminAuth.js": [
+        "./src/types/stubs/stub-server-middleware-adminAuth.d.ts"
       ]
     }
   },

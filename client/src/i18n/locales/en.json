@@ -918,7 +918,8 @@
       "mining": "Mining",
       "rewards_tasks": "Rewards & Tasks",
       "engagement": "Engagement",
-      "system": "System"
+      "system": "System",
+      "administration": "Administration"
     },
     "aria_main_nav": "Main navigation",
     "nav": {
@@ -950,7 +951,10 @@
       "ptc": "PTC",
       "partner_games": "Partner Games",
       "tournaments": "Tournaments",
-      "burn_events": "Burn Events"
+      "burn_events": "Burn Events",
+      "admin_users": "Admin users",
+      "admin_audit": "Admin audit log",
+      "my_profile": "My profile"
     },
     "logout": "Sign out"
   },
@@ -3618,7 +3622,14 @@
     "col_pol": "POL Earned"
   },
   "offerwall": {
-    "subtitle": "Earn POL with ads and external offers"
+    "subtitle": "Earn POL with ads and external offers",
+    "offerwallme": {
+      "description": "Complete advertiser offers and earn POL instantly. 10 offers/day = fee-free withdrawal.",
+      "reward_label": "POL per offer",
+      "credit_time": "Instant",
+      "maintenance_badge": "Maintenance",
+      "maintenance_msg": "Temporarily under maintenance. Back soon."
+    }
   },
   "tournaments": {
     "header": {

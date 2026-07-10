@@ -87,7 +87,7 @@ export async function createNotification({
     }
     return notification;
   } catch (error: unknown) {
-    console.error("Failed to create notification", error);
+    logger.error("Failed to create notification", { error: String(error) });
     return undefined;
   }
 }

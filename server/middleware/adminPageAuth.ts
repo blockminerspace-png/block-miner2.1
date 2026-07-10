@@ -47,7 +47,7 @@ export function adminPageAuth(req: Request, res: Response, next: NextFunction): 
       return;
     }
 
-    req.admin = { role: "admin" };
+    req.admin = { role: "admin", permissions: ["*"] };
     next();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

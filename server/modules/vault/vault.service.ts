@@ -538,5 +538,5 @@ export async function retrieveFromVaultForUser(
 }
 
 export function logVaultListFailure(err: unknown): void {
-  logger.error("getVault failed", prismaSafeErrorMeta(err));
+  logger.error("getVault failed", { error: String(prismaSafeErrorMeta(err)) });
 }

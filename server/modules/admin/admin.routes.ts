@@ -1,0 +1,32 @@
+import express from "express";
+import type { NextFunction, Request, Response } from "express";
+import { requireAdminAuth } from "../../middleware/adminAuth.js";
+import { adminLimiter, adminErrMessage } from "./shared/adminHttp.utils.js";
+import { adminOfferEventsRouter } from "./routes/offer-events.routes.js";
+import { adminMiniPassRouter } from "./routes/mini-pass.routes.js";
+import { adminLogsRouter } from "./routes/logs.routes.js";
+import { adminMinersRouter } from "../admin-miners/index.js";
+import { router as configRouter } from "./routes/config.routes.js";
+import { router as analyticsRouter } from "./routes/analytics.routes.js";
+import { router as contentRouter } from "./routes/content.routes.js";
+import { router as usersRouter } from "./routes/users.routes.js";
+import { router as economyRouter } from "./routes/economy.routes.js";
+import { router as systemRouter } from "./routes/system.routes.js";
+import { router as userInsightsRouter } from "./routes/user-insights.routes.js";
+import { router as supportRouter } from "./routes/support.routes.js";
+
+export const adminRouter = express.Router();
+
+adminRouter.use(requireAdminAuth, adminLimiter);
+adminRouter.use(adminOfferEventsRouter);
+adminRouter.use(adminMiniPassRouter);
+adminRouter.use("/logs", adminLogsRouter);
+adminRouter.use(adminMinersRouter);
+adminRouter.use(configRouter);
+adminRouter.use(analyticsRouter);
+adminRouter.use(contentRouter);
+adminRouter.use(usersRouter);
+adminRouter.use(economyRouter);
+adminRouter.use(systemRouter);
+adminRouter.use(userInsightsRouter);
+adminRouter.use(supportRouter);

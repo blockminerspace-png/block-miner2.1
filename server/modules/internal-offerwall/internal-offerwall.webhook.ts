@@ -1,5 +1,8 @@
 import crypto from "crypto";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("internal-offerwall.webhook");
+
 function webhookUrl(): string | null {
   const u = String(process.env.INTERNAL_OFFERWALL_WEBHOOK_URL || "").trim();
   return u || null;
@@ -37,7 +40,7 @@ export function notifyInternalOfferwallCompletion(payload: {
     .then(() => {})
     .catch((e) => {
       if (process.env.NODE_ENV !== "test") {
-        console.warn("internalOfferwall webhook failed", (e as Error)?.message || e);
+        logger.warn("internalOfferwall webhook failed", { error: (e as Error)?.message || String(e) });
       }
     })
     .finally(() => clearTimeout(t));

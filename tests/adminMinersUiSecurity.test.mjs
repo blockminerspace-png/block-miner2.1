@@ -15,7 +15,7 @@ const shopController = readFileSync(
   new URL("../server/modules/shop/shop.controller.ts", import.meta.url),
   "utf8",
 );
-const adminRoutes = readFileSync(new URL("../dist/server/routes/admin.js", import.meta.url), "utf8");
+const adminRoutes = readFileSync(new URL("../dist/server/modules/admin/admin.routes.js", import.meta.url), "utf8");
 const adminMinersRoutes = readFileSync(
   new URL("../dist/server/modules/admin-miners/adminMiners.routes.js", import.meta.url),
   "utf8",

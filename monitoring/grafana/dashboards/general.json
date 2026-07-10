@@ -1,0 +1,91 @@
+{
+  "uid": "bm-general",
+  "title": "BlockMiner — Geral",
+  "tags": ["blockminer", "general"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Uptime (app)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "blockminer_process_uptime_seconds", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 2,
+      "title": "Requests/s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{ "expr": "sum(rate(blockminer_http_requests_total[5m]))", "legendFormat": "rps", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "HTTP latency P95 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(blockminer_http_request_duration_ms_bucket[5m])) by (le))",
+        "legendFormat": "p95",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "4xx / 5xx rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "sum(rate(blockminer_http_errors_4xx_total[5m]))", "legendFormat": "4xx", "refId": "A" },
+        { "expr": "sum(rate(blockminer_http_errors_5xx_total[5m]))", "legendFormat": "5xx", "refId": "B" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "CPU %",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 12 },
+      "targets": [{
+        "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+        "legendFormat": "cpu",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 6,
+      "title": "RAM used %",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 12 },
+      "targets": [{
+        "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+        "legendFormat": "ram",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 7,
+      "title": "Disk free % (/)",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 20 },
+      "targets": [{
+        "expr": "(node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) * 100",
+        "refId": "A"
+      }],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    },
+    {
+      "id": 8,
+      "title": "Network RX/TX",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 18, "x": 6, "y": 20 },
+      "targets": [
+        { "expr": "sum(rate(node_network_receive_bytes_total[5m]))", "legendFormat": "rx", "refId": "A" },
+        { "expr": "sum(rate(node_network_transmit_bytes_total[5m]))", "legendFormat": "tx", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps" } }
+    }
+  ]
+}

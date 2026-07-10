@@ -2,6 +2,9 @@ import prisma from "../src/db/prisma.js";
 import { serializeSupportPayload } from "../utils/supportMessagePayload.js";
 import { emitSupportReply } from "./supportRealtime.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("supportTicketService");
+
 /**
  * @param {number} supportMessageId
  * @param {number} userId
@@ -51,7 +54,7 @@ export async function addUserReply(params) {
       message: typeof body === "string" ? body : "",
     });
   } catch (notifyErr) {
-    console.warn("[SupportTicket] Telegram reply notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+    logger.warn("[SupportTicket] Telegram reply notify failed:", { error: String(notifyErr instanceof Error ? notifyErr.message : notifyErr) });
   }
 
   return newReply;

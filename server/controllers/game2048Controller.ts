@@ -8,6 +8,9 @@ import {
   startGame2048Session,
 } from "../services/game2048Service.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("game2048Controller");
+
 function isApplyMoveOk(x: unknown): x is { ok: true; moved: boolean; session: unknown } {
   return (
     typeof x === "object" &&
@@ -76,7 +79,7 @@ export async function getStatus(req: Request, res: Response): Promise<void> {
     const data = await getGame2048Status(userId);
     res.json(data);
   } catch (e: unknown) {
-    console.error("game2048 getStatus", e);
+    logger.error("game2048 getStatus", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -100,7 +103,7 @@ export async function postStart(req: Request, res: Response): Promise<void> {
       cooldownSecondsRemaining: r.cooldownSecondsRemaining,
     });
   } catch (e: unknown) {
-    console.error("game2048 postStart", e);
+    logger.error("game2048 postStart", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -124,7 +127,7 @@ export async function postRestart(req: Request, res: Response): Promise<void> {
       cooldownSecondsRemaining: r.cooldownSecondsRemaining,
     });
   } catch (e: unknown) {
-    console.error("game2048 postRestart", e);
+    logger.error("game2048 postRestart", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -169,7 +172,7 @@ export async function postMove(req: Request, res: Response): Promise<void> {
       session: raw.session,
     });
   } catch (e: unknown) {
-    console.error("game2048 postMove", e);
+    logger.error("game2048 postMove", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -222,7 +225,7 @@ export async function postClaim(req: Request, res: Response): Promise<void> {
       cooldownSecondsRemaining: raw.cooldownSecondsRemaining,
     });
   } catch (e: unknown) {
-    console.error("game2048 postClaim", e);
+    logger.error("game2048 postClaim", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }

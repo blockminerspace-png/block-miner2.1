@@ -3,6 +3,9 @@ import { z } from "zod";
 import prisma from "../src/db/prisma.js";
 import { clearEventMinerOwnedImageSnapshots } from "../utils/ownedMachineImage.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("adminOfferEventController");
+
 const eventCreateSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
@@ -121,7 +124,7 @@ export async function adminListOfferEvents(req: Request, res: Response) {
       }))
     });
   } catch (e) {
-    console.error("adminListOfferEvents", e);
+    logger.error("adminListOfferEvents", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error listing events." });
   }
 }
@@ -151,7 +154,7 @@ export async function adminCreateOfferEvent(req: Request, res: Response) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ ok: false, message: "Invalid data.", errors: e.issues });
     }
-    console.error("adminCreateOfferEvent", e);
+    logger.error("adminCreateOfferEvent", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error creating event." });
   }
 }
@@ -171,7 +174,7 @@ export async function adminGetOfferEvent(req: Request, res: Response) {
     if (!event) return res.status(404).json({ ok: false, message: "Not found." });
     res.json({ ok: true, event });
   } catch (e) {
-    console.error("adminGetOfferEvent", e);
+    logger.error("adminGetOfferEvent", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error." });
   }
 }
@@ -209,7 +212,7 @@ export async function adminUpdateOfferEvent(req: Request, res: Response) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ ok: false, message: "Invalid data.", errors: e.issues });
     }
-    console.error("adminUpdateOfferEvent", e);
+    logger.error("adminUpdateOfferEvent", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error updating event." });
   }
 }
@@ -226,7 +229,7 @@ export async function adminSoftDeleteOfferEvent(req: Request, res: Response) {
     });
     res.json({ ok: true });
   } catch (e) {
-    console.error("adminSoftDeleteOfferEvent", e);
+    logger.error("adminSoftDeleteOfferEvent", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error deleting event." });
   }
 }
@@ -247,7 +250,7 @@ export async function adminListEventMiners(req: Request, res: Response) {
 
     res.json({ ok: true, event, miners });
   } catch (e) {
-    console.error("adminListEventMiners", e);
+    logger.error("adminListEventMiners", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error." });
   }
 }
@@ -287,7 +290,7 @@ export async function adminCreateEventMiner(req: Request, res: Response) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ ok: false, message: "Invalid data.", errors: e.issues });
     }
-    console.error("adminCreateEventMiner", e);
+    logger.error("adminCreateEventMiner", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error creating miner." });
   }
 }
@@ -350,7 +353,7 @@ export async function adminUpdateEventMiner(req: Request, res: Response) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ ok: false, message: "Invalid data.", errors: e.issues });
     }
-    console.error("adminUpdateEventMiner", e);
+    logger.error("adminUpdateEventMiner", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error updating miner." });
   }
 }
@@ -376,7 +379,7 @@ export async function adminRemoveEventMiner(req: Request, res: Response) {
     await prisma.eventMiner.delete({ where: { id: minerId } });
     res.json({ ok: true, deleted: true });
   } catch (e) {
-    console.error("adminRemoveEventMiner", e);
+    logger.error("adminRemoveEventMiner", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error removing miner." });
   }
 }
@@ -426,7 +429,7 @@ export async function adminListEventPurchases(req: Request, res: Response) {
       }))
     });
   } catch (e) {
-    console.error("adminListEventPurchases", e);
+    logger.error("adminListEventPurchases", { error: String(e) });
     res.status(500).json({ ok: false, message: "Error listing purchases." });
   }
 }

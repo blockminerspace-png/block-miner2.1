@@ -1,0 +1,29 @@
+# Alertmanager — routes alerts to the internal notifier (Telegram + Discord via ENV).
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: blockminer-notifier
+  group_by: ["alertname", "severity", "component"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - match:
+        severity: critical
+      receiver: blockminer-notifier
+      repeat_interval: 1h
+
+receivers:
+  - name: blockminer-notifier
+    webhook_configs:
+      - url: "http://alert-notifier:8080/alerts"
+        send_resolved: true
+
+inhibit_rules:
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal: ["alertname", "instance"]

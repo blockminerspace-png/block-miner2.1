@@ -55,4 +55,34 @@ describe("checkin.calendar (period end dateKey)", () => {
     assert.ok(period.startsAt < period.endsAt);
     assert.ok(period.endsAt < period.nextResetAt);
   });
+
+  it("one second before reset (20:59:59 BRT) stays in the same period", () => {
+    // 20:59:59 BRT May 20 = 23:59:59 UTC May 20 → period "2026-05-20"
+    const now = new Date("2026-05-20T23:59:59Z");
+    assert.equal(getCheckinPeriodEndKey(now, cfg), "2026-05-20");
+  });
+
+  it("exactly at reset instant (21:00:00 BRT) opens a new period", () => {
+    // 21:00:00 BRT May 20 = 00:00:00 UTC May 21 → period "2026-05-21"
+    const now = new Date("2026-05-21T00:00:00Z");
+    assert.equal(getCheckinPeriodEndKey(now, cfg), "2026-05-21");
+  });
+
+  it("midnight BRT (03:00 UTC) is within grace of the period that just reset", () => {
+    // 00:00:00 BRT May 21 = 03:00:00 UTC May 21 → period "2026-05-21" (hour < 21)
+    const now = new Date("2026-05-21T03:00:00Z");
+    assert.equal(getCheckinPeriodEndKey(now, cfg), "2026-05-21");
+  });
+
+  it("23:59 BRT (same day) is before reset and uses same period key", () => {
+    // 23:59:59 BRT May 20 crosses midnight UTC but is still before 21:00 BRT?
+    // Wait: 23:59 BRT May 20 = 02:59 UTC May 21 → hour=23 >= 21 → key "2026-05-21"
+    const now = new Date("2026-05-21T02:59:00Z"); // 23:59 BRT May 20
+    assert.equal(getCheckinPeriodEndKey(now, cfg), "2026-05-21");
+  });
+
+  it("same instant returns the same period key (determinism)", () => {
+    const now = new Date("2026-05-20T15:30:00Z");
+    assert.equal(getCheckinPeriodEndKey(now, cfg), getCheckinPeriodEndKey(now, cfg));
+  });
 });

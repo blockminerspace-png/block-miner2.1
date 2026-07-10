@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { checkinBalance } from "#server/controllers/checkinController.js";
+import { checkinBalance } from "#server/modules/checkin/checkin.controller.js";
 
 describe("checkinBalance", () => {
   it("returns 401 when the request is not authenticated", async () => {

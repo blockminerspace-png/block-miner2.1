@@ -26,6 +26,9 @@ import {
   requireSessionUser,
 } from "../../controllers/controllerHttpStatusError.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("machines.controller");
+
 export async function listMachines(req: Request, res: Response) {
   try {
     const user = requireSessionUser(req, res);
@@ -33,7 +36,7 @@ export async function listMachines(req: Request, res: Response) {
     const machines = await machineModel.listUserMachines(user.id);
     res.json({ ok: true, machines });
   } catch (error: unknown) {
-    console.error("Error loading machines:", error);
+    logger.error("Error loading machines:", { error: String(error) });
     res.status(500).json({ ok: false, message: "Unable to load machines." });
   }
 }
@@ -138,11 +141,11 @@ export async function removeMachine(req: Request, res: Response) {
       if (readErrorCode(error) === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      console.error("Error removing miner:", error);
+      logger.error("Error removing miner:", { error: String(error) });
       return res.status(500).json({ ok: false, message: "Error removing miner." });
     }
   } catch (error: unknown) {
-    console.error("Error removing miner:", error);
+    logger.error("Error removing miner:", { error: String(error) });
     res.status(500).json({ ok: false, message: "Error removing miner." });
   }
 }
@@ -251,11 +254,11 @@ export async function moveMachine(req: Request, res: Response) {
       if (readErrorCode(error) === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      console.error("Move Error:", error);
+      logger.error("Move Error:", { error: String(error) });
       return res.status(500).json({ ok: false, message: "Error moving machine." });
     }
   } catch (error: unknown) {
-    console.error("Move Error:", error);
+    logger.error("Move Error:", { error: String(error) });
     res.status(500).json({ ok: false, message: "Error moving machine." });
   }
 }

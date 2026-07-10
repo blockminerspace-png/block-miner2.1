@@ -4,6 +4,9 @@ import { requireAuth } from "../middleware/auth.js";
 import { buildRankingRows, rankingUserSelect } from "../services/networkHashrateService.js";
 import { isAutoMiningV2SchemaAvailable } from "../modules/auto-mining/index.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("ranking");
+
 export const rankingRouter = express.Router();
 
 function routeParamUsername(v: string | string[] | undefined): string {
@@ -30,7 +33,7 @@ rankingRouter.get("/", requireAuth, async (req, res) => {
 
     res.json({ ok: true, ranking: sortedRanking });
   } catch (error) {
-    console.error("Ranking aggregation error:", error);
+    logger.error("Ranking aggregation error:", { error: String(error) });
     res.status(500).json({ ok: false, message: "Unable to load ranking." });
   }
 });
@@ -132,7 +135,7 @@ rankingRouter.get("/room/:username", requireAuth, async (req, res) => {
       } 
     });
   } catch (error) {
-    console.error("Error fetching room data:", error);
+    logger.error("Error fetching room data:", { error: String(error) });
     res.status(500).json({ ok: false, message: "Server error" });
   }
 });

@@ -1,0 +1,229 @@
+# Prometheus alert rules — BlockMiner (Fase 6A)
+
+groups:
+  - name: blockminer.infra
+    rules:
+      - alert: RedisOffline
+        expr: blockminer_redis_connected == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis offline or unreachable"
+          description: "blockminer_redis_connected is 0 for more than 2 minutes."
+
+      - alert: PostgresOffline
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: postgres
+        annotations:
+          summary: "PostgreSQL exporter reports database down"
+          description: "pg_up is 0 — Postgres may be offline."
+
+      - alert: BullMQCongested
+        expr: blockminer_bullmq_jobs_waiting > 500 or blockminer_bullmq_jobs_failed > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: bullmq
+        annotations:
+          summary: "BullMQ queue congested or high failure count"
+          description: "waiting={{ $value }} or failed jobs elevated."
+
+      - alert: BlockMinerReadinessFailed
+        expr: probe_success{probe="readiness"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          component: app
+        annotations:
+          summary: "BlockMiner /health/ready failing"
+          description: "Readiness probe failed for 3+ minutes."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 10m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "Host memory usage above 90%"
+          description: "Available memory is critically low."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 10m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "Host CPU usage above 90%"
+          description: "Sustained high CPU on the VPS."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 10m
+        labels:
+          severity: critical
+          component: host
+        annotations:
+          summary: "Root filesystem below 10% free"
+          description: "Disk space critically low on /."
+
+  - name: blockminer.app
+    rules:
+      - alert: HighErrorRate5xx
+        expr: sum(rate(blockminer_http_errors_5xx_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Elevated HTTP 5xx error rate"
+          description: "More than 0.5 5xx/s sustained."
+
+      - alert: High403Rate
+        expr: sum(rate(blockminer_http_requests_total{status="403"}[10m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "Elevated HTTP 403 rate"
+          description: "Forbidden requests above 1/s sustained."
+
+      - alert: APISlowP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(blockminer_http_request_duration_ms_bucket[5m])) by (le)
+          ) > 5000
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API P99 latency above 5s"
+          description: "HTTP request P99 exceeds 5000ms."
+
+      - alert: SocketNoConnections
+        expr: sum(blockminer_socket_connections_active) == 0 and sum(blockminer_socket_connects_total) > 10
+        for: 15m
+        labels:
+          severity: warning
+          component: socket
+        annotations:
+          summary: "Socket.IO has zero active connections"
+          description: "No active sockets despite prior connect history."
+
+      - alert: SocketDisconnectSpike
+        expr: sum(rate(blockminer_socket_disconnects_total[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: socket
+        annotations:
+          summary: "Socket.IO disconnect rate elevated"
+          description: "Disconnect rate > 2/s — check deploy or network."
+
+      - alert: MiningStalled
+        expr: changes(blockminer_mining_block_number[15m]) == 0
+        for: 15m
+        labels:
+          severity: critical
+          component: mining
+        annotations:
+          summary: "Mining block number not advancing"
+          description: "No block number change in 15 minutes."
+
+      - alert: CronStalled
+        expr: |
+          (time() - max(blockminer_cron_last_run_unix)) > 600
+        for: 5m
+        labels:
+          severity: warning
+          component: cron
+        annotations:
+          summary: "Cron heartbeat stale"
+          description: "No cron heartbeat in the last 10 minutes."
+
+      - alert: QueueStalled
+        expr: |
+          increase(blockminer_bullmq_jobs_completed[30m]) == 0
+          and blockminer_bullmq_jobs_waiting > 0
+        for: 15m
+        labels:
+          severity: warning
+          component: bullmq
+        annotations:
+          summary: "BullMQ jobs waiting but none completed in 30m"
+          description: "Worker may be stopped or stuck."
+
+      - alert: CallbackZeradsInactive
+        expr: |
+          increase(blockminer_module_actions_total{module="callback",action="zerads"}[6h]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          component: callback
+        annotations:
+          summary: "No Zerads callback activity (6h)"
+          description: "Instrument module_actions or verify Zerads integration."
+
+      - alert: CallbackOfferwallMeInactive
+        expr: |
+          increase(blockminer_module_actions_total{module="callback",action="offerwallme"}[6h]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          component: callback
+        annotations:
+          summary: "No OfferwallMe callback activity (6h)"
+          description: "Instrument module_actions or verify OfferwallMe integration."
+
+  - name: blockminer.energy-tax
+    rules:
+      - alert: EnergyTaxSweepStalled
+        expr: |
+          (time() - blockminer_cron_last_run_unix{job="energy_tax_weekly_sweep"}) > 691200
+        for: 10m
+        labels:
+          severity: critical
+          component: energy-tax
+        annotations:
+          summary: "Energy Tax weekly sweep not executed in 8+ days"
+          description: "Last sweep was {{ $value | humanizeDuration }} ago. Expected weekly (Monday 00:00 UTC)."
+
+      - alert: EnergyTaxAPIErrors
+        expr: |
+          sum(rate(blockminer_http_errors_5xx_total{route=~"/api/energy-tax.*"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: energy-tax
+        annotations:
+          summary: "Energy Tax API returning 5xx errors"
+          description: "Error rate > 0.1/s on /api/energy-tax routes."
+
+      - alert: EnergyTaxSlowQueries
+        expr: |
+          sum(rate(blockminer_prisma_slow_queries_total{model=~"energyTaxCharge|zeradsCallback|offerwallMeCallback|internalOfferwallAttempt|blockMinerReward"}[15m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: energy-tax
+        annotations:
+          summary: "Energy Tax Prisma slow queries elevated"
+          description: "Slow queries (>1s) on Energy Tax source tables. Check composite indexes."
+
+      - alert: EnergyTaxRedisLockMissing
+        expr: blockminer_redis_connected == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: energy-tax
+        annotations:
+          summary: "Redis offline — Energy Tax sweep lock disabled"
+          description: "Without Redis, concurrent sweep lock falls back to DB unique constraint only."

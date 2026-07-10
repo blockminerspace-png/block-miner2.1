@@ -8,6 +8,9 @@ import prisma from "../src/db/prisma.js";
 import { advisoryXactTryLockOrThrow } from "../utils/pgAdvisoryLocks.js";
 import { useAuthLockoutMemoryStore, useMemorySecurityStores } from "../utils/securityStoreMode.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("accountLockoutService");
+
 const mem = new Map();
 
 function isPlainRecord(v: unknown): v is Record<string, unknown> {
@@ -94,7 +97,7 @@ export async function getAuthLockStatus(p) {
       // are never blocked by infrastructure issues. A warning is sufficient —
       // the IP-level distributed rate limiter still provides protection.
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AccountLockout] checkRow advisory lock failed (fail-open): ${msg}`);
+      logger.warn(`[AccountLockout] checkRow advisory lock failed (fail-open): ${msg}`);
       return { locked: false };
     }
   };
@@ -195,7 +198,7 @@ export async function recordAuthLoginFailure(p) {
       // Log and continue — losing a single failure count is acceptable;
       // propagating the error and returning 500 to the client is not.
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AccountLockout] bumpDb advisory lock failed (skipping bump): ${msg}`);
+      logger.warn(`[AccountLockout] bumpDb advisory lock failed (skipping bump): ${msg}`);
     }
   };
 

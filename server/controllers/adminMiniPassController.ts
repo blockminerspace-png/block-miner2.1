@@ -27,6 +27,9 @@ import {
 } from "../services/miniPass/miniPassAdminValidation.js";
 import { errMsg, paramStr, prismaErrCode } from "../types/tsNarrowing.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("adminMiniPassController");
+
 const CADENCES = new Set([CADENCE_EVENT, CADENCE_DAILY, CADENCE_WEEKLY]);
 const MISSION_TYPES = new Set([
   MISSION_PLAY_GAMES,
@@ -71,7 +74,7 @@ export async function adminListMiniPassSeasons(req: Request, res: Response) {
     });
     res.json({ ok: true, seasons: rows });
   } catch (e: unknown) {
-    console.error("adminListMiniPassSeasons", e);
+    logger.error("adminListMiniPassSeasons", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to list seasons." });
   }
 }
@@ -96,7 +99,7 @@ export async function adminGetMiniPassSeason(req: Request, res: Response) {
     if (!row) return res.status(404).json({ ok: false, message: "Not found." });
     res.json({ ok: true, season: row });
   } catch (e: unknown) {
-    console.error("adminGetMiniPassSeason", e);
+    logger.error("adminGetMiniPassSeason", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to load season." });
   }
 }
@@ -157,7 +160,7 @@ export async function adminCreateMiniPassSeason(req: Request, res: Response) {
     if (prismaErrCode(e) === "P2002") {
       return res.status(409).json({ ok: false, message: "Slug already exists." });
     }
-    console.error("adminCreateMiniPassSeason", e);
+    logger.error("adminCreateMiniPassSeason", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to create season." });
   }
 }
@@ -227,7 +230,7 @@ export async function adminUpdateMiniPassSeason(req: Request, res: Response) {
     if (prismaErrCode(e) === "P2002") {
       return res.status(409).json({ ok: false, message: "Slug already exists." });
     }
-    console.error("adminUpdateMiniPassSeason", e);
+    logger.error("adminUpdateMiniPassSeason", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to update season." });
   }
 }
@@ -242,7 +245,7 @@ export async function adminSoftDeleteMiniPassSeason(req: Request, res: Response)
     });
     res.json({ ok: true });
   } catch (e: unknown) {
-    console.error("adminSoftDeleteMiniPassSeason", e);
+    logger.error("adminSoftDeleteMiniPassSeason", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to delete season." });
   }
 }
@@ -357,7 +360,7 @@ export async function adminUpsertLevelReward(req: Request, res: Response) {
     if (prismaErrCode(e) === "P2002") {
       return res.status(409).json({ ok: false, message: "Level reward already exists for this level." });
     }
-    console.error("adminUpsertLevelReward", e);
+    logger.error("adminUpsertLevelReward", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to save reward." });
   }
 }
@@ -369,7 +372,7 @@ export async function adminDeleteLevelReward(req: Request, res: Response) {
     await prisma.miniPassLevelReward.deleteMany({ where: { id, seasonId } });
     res.json({ ok: true });
   } catch (e: unknown) {
-    console.error("adminDeleteLevelReward", e);
+    logger.error("adminDeleteLevelReward", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to delete reward." });
   }
 }
@@ -451,7 +454,7 @@ export async function adminUpsertMission(req: Request, res: Response) {
     }
     res.json({ ok: true, mission: row });
   } catch (e: unknown) {
-    console.error("adminUpsertMission", errMsg(e));
+    logger.error("adminUpsertMission", { error: String(errMsg(e)) });
     res.status(500).json({ ok: false, message: "Failed to save mission." });
   }
 }
@@ -463,7 +466,7 @@ export async function adminDeleteMission(req: Request, res: Response) {
     await prisma.miniPassMission.deleteMany({ where: { id, seasonId } });
     res.json({ ok: true });
   } catch (e: unknown) {
-    console.error("adminDeleteMission", e);
+    logger.error("adminDeleteMission", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to delete mission." });
   }
 }

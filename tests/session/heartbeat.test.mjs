@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { processHeartbeat } from "#server/controllers/sessionController.js";
+import { processHeartbeat } from "#server/modules/session/session.controller.js";
 
 function mockRes() {
   const headers = new Map();

@@ -14,6 +14,9 @@ import {
 } from "../../utils/criticalMutationIdempotency.js";
 import { logUserActivity } from "../../utils/logger.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("internal-offerwall.controller");
+
 type IdempotencyLeaseHandle = { type: "lease"; leaseToken: string };
 
 function asIdempotencyLease(lease: unknown): IdempotencyLeaseHandle {
@@ -31,7 +34,7 @@ function logSubmitErr(e: unknown, label: string) {
     if (typeof o.name === "string") name = o.name;
     meta = o.meta;
   }
-  console.error(label, { message: msg, code, name, meta });
+  logger.error(label, { message: msg, code, name, meta });
 }
 
 export async function getOffers(req: Request, res: Response): Promise<void> {
@@ -54,7 +57,7 @@ export async function getOffers(req: Request, res: Response): Promise<void> {
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("internalOfferwall getOffers", msg);
+    logger.error("internalOfferwall getOffers", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to load offers." });
   }
 }
@@ -114,12 +117,12 @@ export async function postStart(req: Request<OfferIdParams>, res: Response): Pro
     } catch (inner: unknown) {
       await cancelCriticalMutation(asIdempotencyLease(lease));
       const msg = inner instanceof Error ? inner.message : String(inner);
-      console.error("internalOfferwall postStart", msg);
+      logger.error("internalOfferwall postStart", { error: String(msg) });
       res.status(500).json({ ok: false, message: "Failed to start offer." });
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("internalOfferwall postStart", msg);
+    logger.error("internalOfferwall postStart", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to start offer." });
   }
 }
@@ -163,12 +166,12 @@ export async function postPartnerOpened(req: Request<AttemptIdParams>, res: Resp
     } catch (inner: unknown) {
       await cancelCriticalMutation(asIdempotencyLease(lease));
       const msg = inner instanceof Error ? inner.message : String(inner);
-      console.error("internalOfferwall postPartnerOpened", msg);
+      logger.error("internalOfferwall postPartnerOpened", { error: String(msg) });
       res.status(500).json({ ok: false, message: "Failed to record partner open." });
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("internalOfferwall postPartnerOpened", msg);
+    logger.error("internalOfferwall postPartnerOpened", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to record partner open." });
   }
 }
@@ -215,12 +218,12 @@ export async function postAbandon(req: Request<AttemptIdParams>, res: Response):
     } catch (inner: unknown) {
       await cancelCriticalMutation(asIdempotencyLease(lease));
       const msg = inner instanceof Error ? inner.message : String(inner);
-      console.error("internalOfferwall postAbandon", msg);
+      logger.error("internalOfferwall postAbandon", { error: String(msg) });
       res.status(500).json({ ok: false, message: "Failed to abandon attempt." });
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("internalOfferwall postAbandon", msg);
+    logger.error("internalOfferwall postAbandon", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to abandon attempt." });
   }
 }

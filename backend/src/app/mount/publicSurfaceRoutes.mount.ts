@@ -1,11 +1,12 @@
 import type { Express } from "express";
 import { trafficRouter } from "#server/modules/traffic/index.js";
-import * as publicLiveStatsController from "#server/controllers/publicLiveStatsController.js";
-import * as publicStatsController from "#server/controllers/publicStatsController.js";
-import * as bannerController from "#server/controllers/bannerController.js";
-import * as transparencyController from "#server/controllers/transparencyController.js";
+import * as publicLiveStatsController from "#server/modules/public-stats/public-live-stats.controller.js";
+import * as publicStatsController from "#server/modules/public-stats/public-stats.controller.js";
+import * as bannerController from "#server/modules/banners/banner.controller.js";
+import * as transparencyController from "#server/modules/transparency/transparency.controller.js";
 import { createRateLimiter } from "#server/middleware/rateLimit.js";
 import { healthRouter } from "../../modules/health/health.routes.js";
+import * as healthController from "../../modules/health/health.controller.js";
 import { zeradsCallbackHandler } from "#server/modules/zerads/zerads.controller.js";
 import { offerwallMeRouter } from "#server/modules/offerwallme/index.js";
 
@@ -21,6 +22,7 @@ export function mountPublicSurfaceRoutes(app: Express): void {
   app.use("/api/track", trafficRouter);
 
   app.use("/health", healthRouter);
+  app.get("/metrics", healthController.metrics);
 
   app.get("/api/banners", bannerController.getActiveBanners);
 

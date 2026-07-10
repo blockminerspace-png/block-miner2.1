@@ -10,6 +10,9 @@ import { isMiniPassSeasonLive } from "./miniPassSeasonLive.js";
 import { REWARD_POL } from "./miniPassConstants.js";
 import { errMsg, prismaErrCode } from "../../types/tsNarrowing.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("miniPassClaimService");
+
 export async function claimMiniPassLevelReward(userId, seasonId, levelRewardId) {
   try {
     const out = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -108,7 +111,7 @@ export async function claimMiniPassLevelReward(userId, seasonId, levelRewardId) 
     }
     if (msg === "SEASON_NOT_LIVE") return { ok: false, code: "season_not_live", status: 400 };
     if (msg === "FORBIDDEN") return { ok: false, code: "forbidden", status: 403 };
-    console.error("claimMiniPassLevelReward", e);
+    logger.error("claimMiniPassLevelReward", { error: String(e) });
     return { ok: false, code: "error", status: 500 };
   }
 }

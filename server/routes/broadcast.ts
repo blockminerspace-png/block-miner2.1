@@ -2,6 +2,9 @@ import express from "express";
 import prisma from "../src/db/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("broadcast");
+
 export const broadcastRouter = express.Router();
 
 // GET /api/broadcast/active
@@ -20,7 +23,7 @@ broadcastRouter.get("/active", requireAuth, async (req, res) => {
 
     res.json({ ok: true, message: message || null });
   } catch (err) {
-    console.error("broadcast/active error:", err);
+    logger.error("broadcast/active error:", { error: String(err) });
     res.status(500).json({ ok: false });
   }
 });
@@ -40,7 +43,7 @@ broadcastRouter.post("/:id/dismiss", requireAuth, async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error("broadcast/dismiss error:", err);
+    logger.error("broadcast/dismiss error:", { error: String(err) });
     res.status(500).json({ ok: false });
   }
 });

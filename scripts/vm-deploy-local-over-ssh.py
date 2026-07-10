@@ -272,6 +272,15 @@ if [[ -f "$APP_ROOT/scripts/install-vm-maintenance-cron.sh" ]]; then
   bash "$APP_ROOT/scripts/install-vm-maintenance-cron.sh" "$APP_ROOT" || true
 fi
 curl -sS -o /dev/null -w "health:%{http_code}\n" http://127.0.0.1:3000/health || true
+READY_OK=0
+for i in $(seq 1 30); do
+  CODE=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/health/ready 2>/dev/null || echo "000")
+  if [[ "$CODE" == "200" ]]; then READY_OK=1; echo "[vm] readiness OK (attempt $i)"; break; fi
+  sleep 2
+done
+if [[ "$READY_OK" != "1" ]]; then
+  echo "[vm] warning: /health/ready did not return 200 within 60s" >&2
+fi
 echo "[vm] docker steps finished"
 '''
     if _skip_docker():

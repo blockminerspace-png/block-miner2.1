@@ -6,6 +6,9 @@ import {
   createTelegramOutboxEventTx,
 } from "../services/withdrawalTelegramService.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("walletModel");
+
 async function getUserBalance(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -171,7 +174,7 @@ async function createDepositRequest(userId, amount, txHash) {
         type: "success"
       });
     } catch (notifyErr) {
-      console.error("Error creating deposit notification:", notifyErr);
+      logger.error("Error creating deposit notification:", { error: String(notifyErr) });
     }
 
     return newTx;

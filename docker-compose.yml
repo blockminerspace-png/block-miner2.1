@@ -47,6 +47,13 @@ services:
         VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
     ports:
       - "127.0.0.1:3000:3000"
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
     depends_on:
       db:
         condition: service_healthy
@@ -89,6 +96,7 @@ services:
       args:
         VITE_DISABLE_ADBLOCK_DETECTION: ${VITE_DISABLE_ADBLOCK_DETECTION:-}
         VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
+    stop_grace_period: 60s
     depends_on:
       db:
         condition: service_healthy
@@ -117,6 +125,7 @@ services:
   telegram-worker:
     container_name: block-miner-telegram-worker
     image: block-miner-worker
+    stop_grace_period: 30s
     depends_on:
       db:
         condition: service_healthy

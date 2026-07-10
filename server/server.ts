@@ -1,5 +1,6 @@
 import "dotenv/config";
 import path from "path";
+import { existsSync } from "fs";
 import http from "http";
 import crypto from "crypto";
 import { fileURLToPath, pathToFileURL } from "url";
@@ -21,7 +22,6 @@ import {
   resolveClientDistPaths,
   type SpaIndexRenderer,
 } from "./utils/spaStatic.js";
-import { mountUploadsStatic } from "./utils/uploadsStatic.js";
 import { resolveWalletConnectProjectIdFromEnv } from "./utils/walletConnectProjectId.js";
 // Models & Utils
 import { startCronTasks } from "./cron/index.js";
@@ -41,14 +41,14 @@ import { getUserById } from "./models/userModel.js";
 import { verifyAccessToken } from "./utils/authTokens.js";
 import { attachSocketIoExplicitAuthMiddleware } from "./utils/socketHandshakeAuthPolicy.js";
 import { getOrCreateMinerProfile, persistMinerProfile, syncUserBaseHashRate } from "./models/minerProfileModel.js";
+import { ensureDefaultInternalReward } from "./models/shortlinkRewardModel.js";
 import { ensureFaucetReward } from "./src/bootstrap/ensureFaucetReward.js";
-import { ensureDefaultTransparencyWallets } from "./src/bootstrap/ensureDefaultTransparencyWallets.js";
 import { startAuditOutboxWorker } from "./src/audit/index.js";
 import { applyTrustProxy, buildSocketIoCorsConfig } from "./utils/corsConfig.js";
-import { applyHttpServerTimeouts, buildSocketIoEngineOptions } from "./utils/runtimeTimeouts.js";
 import { createHttpsEnforcementMiddleware } from "./middleware/httpsEnforcement.js";
 import { runTurnstileStartupChecks } from "./middleware/turnstile.js";
 import { errMsg } from "./types/tsNarrowing.js";
+import { bootstrapAdminUsers } from "./modules/admin-system/index.js";
 
 const logger = loggerLib.child("Server");
 
@@ -74,6 +74,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PROJECT_ROOT = findBlockMinerProjectRoot(__dirname);
+const UPLOADS_STATIC_ROOT = path.resolve(process.env.UPLOADS_DIR || path.join(PROJECT_ROOT, "uploads"));
 
 const { setupExpressHttpStack } = await import(
   pathToFileURL(path.join(PROJECT_ROOT, "backend/dist/app/setupExpressHttpStack.js")).href
@@ -93,10 +94,8 @@ app.use((req, res, next) => {
   next();
 });
 const server = http.createServer(app);
-applyHttpServerTimeouts(server);
 const io = new Server(server, {
-  cors: buildSocketIoCorsConfig(),
-  ...buildSocketIoEngineOptions(),
+  cors: buildSocketIoCorsConfig()
 });
 
 /** Reject connections that send an explicit invalid JWT in `handshake.auth.token` (e.g. games SPA). */
@@ -246,16 +245,21 @@ setupExpressHttpStack(app, { ADMIN_ONLY_MODE });
 registerHttpRoutes(app);
 
 // 6. Static assets & frontend production build
-// User uploads before client dist and SPA fallback (missing file → 404, not 500 / index.html)
-mountUploadsStatic({
-  app,
-  fromModuleDir: __dirname,
-  logger: {
-    info: (message, meta) => logger.info(message, meta),
-    warn: (message, meta) => logger.warn(message, meta),
-    error: (message, meta) => logger.error(message, meta),
-  },
-});
+// Serve user-uploaded miner images from the persistent volume (survives rebuilds)
+app.use(
+  "/uploads",
+  express.static(UPLOADS_STATIC_ROOT, {
+    setHeaders(res, filePath) {
+      if (/\.svg$/i.test(filePath)) {
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Content-Security-Policy", "default-src 'none'");
+      } else if (/\.(png|jpe?g|webp|gif|ico)$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      }
+    }
+  })
+);
 
 const clientDist = resolveClientDistPaths(PROJECT_ROOT);
 const publicPath = clientDist.distPath;
@@ -267,6 +271,42 @@ if (!clientDist.indexExists) {
     indexPath: clientDist.indexPath,
   });
 }
+// Static crypto broadcast board (TradingView, etc.) — NOT under /dashboardcrypto so the SPA route
+// `/dashboardcrypto` works like `/liveserver` (no competing Express handlers → no redirect loops).
+const cryptoBroadcastDist = path.join(publicPath, "crypto-broadcast");
+const cryptoBroadcastSrc = path.join(PROJECT_ROOT, "client", "public", "crypto-broadcast");
+const cryptoBroadcastRoot = existsSync(path.join(cryptoBroadcastDist, "index.html"))
+  ? cryptoBroadcastDist
+  : cryptoBroadcastSrc;
+const cryptoBroadcastIndexPath = path.join(cryptoBroadcastRoot, "index.html");
+
+function sendCryptoBroadcastIndex(res, next) {
+  if (!existsSync(cryptoBroadcastIndexPath)) {
+    next();
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.type("html");
+  res.sendFile(cryptoBroadcastIndexPath, (err) => {
+    if (err) next(err);
+  });
+}
+
+app.get("/crypto-broadcast", (_req, res, next) => sendCryptoBroadcastIndex(res, next));
+app.get("/crypto-broadcast/", (_req, res, next) => sendCryptoBroadcastIndex(res, next));
+
+app.use(
+  "/crypto-broadcast",
+  express.static(cryptoBroadcastRoot, {
+    index: false,
+    setHeaders(res, filePath) {
+      if (/\.html$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      }
+    }
+  })
+);
+
 // Hashed Vite assets can be cached forever; unhashed JS/CSS must revalidate so users never
 // stick on an old bundle after deploy (stale check-in UI, etc.).
 // acceptRanges: false — some mobile clients + HTTP/2 + nginx proxy stall on 206 Range chains
@@ -287,14 +327,11 @@ const renderSpaIndex: SpaIndexRenderer = (html, { nonce }) => {
   const wcAppUrl = String(process.env.VITE_PUBLIC_WALLET_APP_URL || process.env.APP_URL || "")
     .trim()
     .replace(/\/+$/, "");
-  const socketTimeoutMs = String(process.env.VITE_SOCKET_TIMEOUT_MS || "").trim();
-  const runtimeEnv: Record<string, string> = {};
-  if (wcId) runtimeEnv.VITE_WALLETCONNECT_PROJECT_ID = wcId;
-  if (wcAppUrl) runtimeEnv.VITE_PUBLIC_WALLET_APP_URL = wcAppUrl;
-  if (socketTimeoutMs) runtimeEnv.VITE_SOCKET_TIMEOUT_MS = socketTimeoutMs;
-
-  if (Object.keys(runtimeEnv).length > 0) {
-    const payload = JSON.stringify(runtimeEnv);
+  if (wcId) {
+    const payload = JSON.stringify({
+      VITE_WALLETCONNECT_PROJECT_ID: wcId,
+      ...(wcAppUrl ? { VITE_PUBLIC_WALLET_APP_URL: wcAppUrl } : {}),
+    });
     const injectScript = `<script${nonceAttr}>window.__BLOCKMINER_ENV__=${payload.replace(/</g, "\\u003c")}<\/script>`;
     if (out.includes("<!--__BM_RUNTIME_CONFIG__-->")) {
       out = out.replace("<!--__BM_RUNTIME_CONFIG__-->", injectScript);
@@ -303,12 +340,6 @@ const renderSpaIndex: SpaIndexRenderer = (html, { nonce }) => {
     }
   } else {
     out = out.replace("<!--__BM_RUNTIME_CONFIG__-->", "");
-  }
-
-  const entryMatch = out.match(/\/assets\/index-[^"']+\.js/);
-  const buildId = entryMatch ? entryMatch[0].replace(/^\//, "") : "";
-  if (buildId && !out.includes('name="bm-build"')) {
-    out = out.replace("<head>", `<head>\n    <meta name="bm-build" content="${buildId}" />`);
   }
 
   return out.replace(/__CSP_NONCE__/g, nonce);
@@ -336,11 +367,15 @@ async function bootstrap() {
   try {
       const port = Number(process.env.PORT) || 3000;
       const host = process.env.HOST || '0.0.0.0';
+    // Ensure shortlink reward is correctly set up
+    await ensureDefaultInternalReward().catch((err: unknown) =>
+      logger.error("Failed to ensure shortlink reward", { error: errMsg(err) }),
+    );
     await ensureFaucetReward().catch((err: unknown) =>
       logger.error("Failed to ensure faucet reward", { error: errMsg(err) }),
     );
-    await ensureDefaultTransparencyWallets().catch((err: unknown) =>
-      logger.error("Failed to ensure default transparency wallets", { error: errMsg(err) }),
+    await bootstrapAdminUsers().catch((err: unknown) =>
+      logger.error("Failed to bootstrap admin users", { error: errMsg(err) }),
     );
     await refreshIframeHostAllowlistCache(prisma).catch((err) =>
       logger.error("Failed to warm internal offerwall iframe allowlist cache", {
@@ -386,8 +421,7 @@ async function bootstrap() {
       }
       // --- END MIGRATION GUARD ---
 
-      // LEGACY one-shot migration (RUN_STARTUP_DATA_MIGRATIONS only).
-      // Do NOT re-enable in production: it mutates expiresAt on existing reward rows.
+      // --- MIGRATION: Extend game/yt powers created with 24h to GAME_POWER_DAYS ---
       try {
         const GAME_POWER_DAYS = Number(process.env.GAME_POWER_DAYS) || 7;
         const YT_POWER_DAYS = Number(process.env.YT_POWER_DAYS) || 7;

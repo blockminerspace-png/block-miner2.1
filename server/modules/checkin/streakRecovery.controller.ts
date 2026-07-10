@@ -3,7 +3,8 @@ import prisma from "../../src/db/prisma.js";
 import { Prisma } from "@prisma/client";
 import { advisoryXactTryLockOrThrow } from "../../services/distributedLockService.js";
 import { lockUserRowForUpdate } from "../../utils/transactionLocks.js";
-import { getBrazilCheckinDateKey, addDaysToBrazilDateKey, normalizeBrazilDateKey } from "../../utils/checkinDate.js";
+import { addDaysToBrazilDateKey, normalizeBrazilDateKey } from "../../utils/checkinDate.js";
+import { getCheckinPeriodKey } from "../../utils/checkinPeriod.js";
 import { applyUserBalanceDelta } from "../../src/runtime/miningRuntime.js";
 import { getMiningEngine } from "../../src/miningEngineInstance.js";
 import loggerLib from "../../utils/logger.js";
@@ -26,7 +27,7 @@ type RecoveryStatus =
   | { eligible: true; lastStreak: number; missedDays: number; missedDateKeys: string[]; feePol: number };
 
 async function computeRecoveryStatus(userId: number, now = new Date()): Promise<RecoveryStatus> {
-  const todayKey = getBrazilCheckinDateKey(now);
+  const todayKey = getCheckinPeriodKey(now);
 
   const rows = await prisma.dailyCheckin.findMany({
     where: { userId, status: "confirmed" },
@@ -102,6 +103,7 @@ export async function payStreakRecovery(req: Request, res: Response) {
     const status = await computeRecoveryStatus(userId);
 
     if (!status.eligible) {
+      log.info("streak_recovery_not_eligible", { userId, reason: status.reason });
       return res.status(400).json({ error: "not_eligible", reason: status.reason });
     }
 
@@ -118,6 +120,7 @@ export async function payStreakRecovery(req: Request, res: Response) {
 
       const bal = user?.polBalance != null ? Number(user.polBalance) : 0;
       if (bal < feePol) {
+        log.warn("streak_recovery_rejected", { userId, reason: "INSUFFICIENT_BALANCE", bal, feePol });
         throw Object.assign(new Error("INSUFFICIENT_BALANCE"), { code: "INSUFFICIENT_BALANCE" });
       }
 
@@ -126,18 +129,23 @@ export async function payStreakRecovery(req: Request, res: Response) {
         data: { polBalance: { decrement: new Prisma.Decimal(feePol) } },
       });
 
-      // Insert synthetic confirmed rows for each missed day
-      // missedDateKeys[0] = yesterday, missedDateKeys[n-1] = oldest missed day
-      // streak order: oldest (lastStreak+1) → newest (lastStreak+missedDays)
+      // Insert synthetic confirmed rows for each missed day.
+      // missedDateKeys[0] = yesterday (most recent), missedDateKeys[n-1] = oldest missed day.
+      // streak order: oldest day gets lastStreak+1, most recent day gets lastStreak+missedDays.
+      // confirmedAt is staggered (1 ms per slot) so that DB ordering (confirmedAt DESC)
+      // returns the most recent missed day first — required for computeStreakAfterCheckin
+      // to derive the correct lastKey without relying on date comparison alone.
+      const baseConfirmedAt = new Date();
       for (let i = 0; i < missedDateKeys.length; i++) {
         const dateKey = missedDateKeys[i];
-        // missedDateKeys is sorted most-recent-first; oldest = last index
         const streakForRow = lastStreak + (missedDays - i);
+        // missedDateKeys is most-recent-first, so index 0 gets the highest confirmedAt
+        const confirmedAt = new Date(baseConfirmedAt.getTime() + (missedDateKeys.length - 1 - i));
         await tx.dailyCheckin.create({
           data: {
             userId,
             checkinDate: dateKey,
-            confirmedAt: new Date(),
+            confirmedAt,
             txHash: `streak-recovery-${userId}-${dateKey}`,
             status: "confirmed",
             amount: 0,

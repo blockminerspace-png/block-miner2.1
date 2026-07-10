@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 import prisma from "../../src/db/prisma.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("publicSupport.controller");
+
 const MAX_SUBJECT_LEN = 120;
 const MAX_MSG_LEN = 2000;
 const MAX_NAME_LEN = 80;
@@ -58,7 +61,7 @@ export async function createTicket(req: Request, res: Response) {
       message,
     });
   } catch (notifyErr) {
-    console.warn("[PublicSupport] Telegram notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+    logger.warn("[PublicSupport] Telegram notify failed:", { error: String(notifyErr instanceof Error ? notifyErr.message : notifyErr) });
   }
 
   res.status(201).json({ ok: true, ticket });
@@ -142,7 +145,7 @@ export async function addGuestMessage(req: Request, res: Response) {
       message: content,
     });
   } catch (notifyErr) {
-    console.warn("[PublicSupport] Telegram guest-message notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+    logger.warn("[PublicSupport] Telegram guest-message notify failed:", { error: String(notifyErr instanceof Error ? notifyErr.message : notifyErr) });
   }
 
   res.status(201).json({ ok: true, message: msg });

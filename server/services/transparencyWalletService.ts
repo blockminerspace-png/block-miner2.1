@@ -6,6 +6,9 @@ import { ethers } from "ethers";
 import { getPolUsdPrice, getPolUsdPriceAt, getBtcUsdPrice, getEthUsdPrice } from "../utils/cryptoPrice.js";
 import { etherscanRateLimitWait } from "../utils/etherscanRateLimiter.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("transparencyWalletService");
+
 const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 const POLYGON_CHAIN_ID_STR = "137";
 const MAX_TX_PAGE_SIZE = 100;
@@ -959,7 +962,7 @@ export async function fetchTrackedWalletsLive(wallets: unknown[]) {
         }
       }
     } catch (err) {
-      console.error("[wallets-live] wallet fetch error", { walletId: wallet.id, address: String(wallet.address || ""), displayMode, error: String((err as Error)?.message || err) });
+      logger.error("[wallets-live] wallet fetch error", { walletId: wallet.id, address: String(wallet.address || ""), displayMode, error: String((err as Error)?.message || err) });
       valuePol = null;
       valueUsd = null;
     }

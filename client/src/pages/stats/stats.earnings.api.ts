@@ -1,6 +1,8 @@
 import { api } from '../../store/auth';
+import type { EarningsUiFilter } from './stats.config';
+import { resolveEarningsWindow } from '../../shared/utils/utcStatsPeriod';
 
-export type EarningsPeriod = '7d' | '30d' | '90d' | 'all';
+export type EarningsPeriod = EarningsUiFilter;
 
 export type EarningsTotals = {
   total: number;
@@ -23,6 +25,9 @@ export type UserEarningsPayload = EarningsTotals & {
   ok?: boolean;
   referralStatsSince?: string;
   period?: EarningsPeriod;
+  fromUtc?: string | null;
+  toUtc?: string;
+  generatedAtUtc?: string;
   history?: EarningsHistoryPoint[];
   powerMeta?: {
     machineCount: number;
@@ -31,8 +36,15 @@ export type UserEarningsPayload = EarningsTotals & {
   };
 };
 
-export async function fetchEarningsStats(period: EarningsPeriod = '30d'): Promise<UserEarningsPayload> {
-  const res = await api.get<UserEarningsPayload>('/stats/earnings', { params: { period } });
+export async function fetchEarningsStats(filter: EarningsUiFilter = '30d'): Promise<UserEarningsPayload> {
+  const { fromUtc, toUtc } = resolveEarningsWindow(filter);
+  const res = await api.get<UserEarningsPayload>('/stats/earnings', {
+    params: {
+      period: filter,
+      fromUtc: fromUtc?.toISOString(),
+      toUtc: toUtc.toISOString(),
+    },
+  });
   return res.data;
 }
 

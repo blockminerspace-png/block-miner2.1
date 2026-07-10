@@ -554,7 +554,8 @@
       "mining": "Minería",
       "rewards_tasks": "Recompensas y tareas",
       "engagement": "Engagement",
-      "system": "Sistema"
+      "system": "Sistema",
+      "administration": "Administración"
     },
     "aria_main_nav": "Navegación principal",
     "nav": {
@@ -585,7 +586,10 @@
       "ptc": "PTC",
       "partner_games": "Juegos Asociados",
       "tournaments": "Torneos",
-      "burn_events": "Quema"
+      "burn_events": "Quema",
+      "admin_users": "Usuarios admin",
+      "admin_audit": "Registro de auditoría admin",
+      "my_profile": "Mi perfil"
     },
     "logout": "Cerrar sesión"
   },
@@ -3419,7 +3423,14 @@
     "col_pol": "POL Ganado"
   },
   "offerwall": {
-    "subtitle": "Gana POL con anuncios y ofertas externas"
+    "subtitle": "Gana POL con anuncios y ofertas externas",
+    "offerwallme": {
+      "description": "Completa ofertas de anunciantes y gana POL al instante. 10 ofertas/día = retiro sin comisión.",
+      "reward_label": "POL por oferta",
+      "credit_time": "Instantáneo",
+      "maintenance_badge": "Mantenimiento",
+      "maintenance_msg": "Temporalmente en mantenimiento. Volvemos pronto."
+    }
   },
   "tournaments": {
     "header": {

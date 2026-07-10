@@ -8,12 +8,13 @@ import { EARNINGS_CATEGORY_KEYS } from '../../stats.config';
 import { computeEarningsInsights, percentOfTotal, resolveTotals } from '../../utils/earningsAnalytics';
 import type { StatsDashboardContext } from '../../stats.types';
 import StatCard from '../ui/StatCard';
+import PeriodPills from '../ui/PeriodPills';
 import ChartsFallback from '../ui/ChartsFallback';
 
 const EarningsChartsPanel = lazyWithRetry(() => import('../EarningsChartsPanel'));
 const ExpiryProgressList = lazyWithRetry(() => import('../ExpiryProgressList'));
 
-function SummaryTab({ power, earnings, earningsLoading, ratioBar, onNavigateTab }: StatsDashboardContext) {
+function SummaryTab({ power, earnings, earningsLoading, earningsFilter, setEarningsFilter, ratioBar, onNavigateTab }: StatsDashboardContext) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const overview = power.overview;
@@ -25,6 +26,11 @@ function SummaryTab({ power, earnings, earningsLoading, ratioBar, onNavigateTab 
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className="text-sm font-black text-white uppercase tracking-widest">{t('powerStats.tab.summary')}</h2>
+        <PeriodPills value={earningsFilter} onChange={setEarningsFilter} />
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label={t('powerStats.total_power')}

@@ -4,6 +4,9 @@ import { fetchPendingAuditOutbox, updateAuditOutboxStatus, createAuditEventFromO
 import { sha256Digest, stableStringify } from "./utils.js";
 import { errMsg } from "../../types/tsNarrowing.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("worker");
+
 async function computeChainHash(tx, outboxEntry) {
   const previous = await tx.auditEvent.findFirst({
     orderBy: { id: "desc" },
@@ -71,7 +74,7 @@ export function startAuditOutboxWorker({ client = prisma, intervalMs = 5000 } = 
     try {
       await processAuditOutboxBatch({ client, limit: AUDIT_MAX_OUTBOX_BATCH });
     } catch (error: unknown) {
-      console.error("Audit outbox worker error:", errMsg(error));
+      logger.error("Audit outbox worker error:", { error: String(errMsg(error)) });
     }
   }, intervalMs);
 

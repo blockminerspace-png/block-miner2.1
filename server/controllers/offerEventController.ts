@@ -11,6 +11,9 @@ import { SecurityErrorCodes, buildSecurityErrorJson } from "../utils/securityErr
 import { logUserActivity } from "../utils/logger.js";
 import type { EventMiner, OfferEvent } from "@prisma/client";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("offerEventController");
+
 type IdempotencyLeaseHandle = { type: "lease"; leaseToken: string };
 
 function asIdempotencyLease(lease: unknown): IdempotencyLeaseHandle {
@@ -102,7 +105,7 @@ export async function listActiveOfferEvents(req: Request, res: Response): Promis
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("listActiveOfferEvents", msg);
+    logger.error("listActiveOfferEvents", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Unable to load offer events." });
   }
 }
@@ -145,7 +148,7 @@ export async function getOfferEventDetail(req: Request<EventDetailParams>, res: 
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("getOfferEventDetail", msg);
+    logger.error("getOfferEventDetail", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Unable to load event." });
   }
 }
@@ -190,12 +193,12 @@ export async function purchaseOfferMiner(req: Request, res: Response): Promise<v
         return;
       }
       const msg = inner instanceof Error ? inner.message : String(inner);
-      console.error("purchaseOfferMiner", msg);
+      logger.error("purchaseOfferMiner", { error: String(msg) });
       res.status(500).json({ ok: false, message: "Purchase failed." });
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("purchaseOfferMiner", msg);
+    logger.error("purchaseOfferMiner", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Purchase failed." });
   }
 }

@@ -9,7 +9,7 @@ process.env.ROOM_MAX = "4";
 process.env.RACKS_PER_ROOM = "4"; // reduzido para testes
 process.env.JWT_SECRET = process.env.JWT_SECRET || "testsecret";
 
-import * as roomsController from "#server/controllers/roomsController.js";
+import * as roomsController from "#server/modules/rooms/rooms.controller.js";
 import prisma from "#server/src/db/prisma.js";
 import * as miningRuntime from "#server/src/runtime/miningRuntime.js";
 import * as minerProfileModel from "#server/models/minerProfileModel.js";

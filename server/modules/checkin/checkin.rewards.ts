@@ -17,6 +17,9 @@ import {
   INBOX_SOURCE_CHECKIN,
 } from "../../services/rewardInboxService.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("checkin.rewards");
+
 export {
   REWARD_POL,
   REWARD_TEMPORARY_POWER,
@@ -175,7 +178,7 @@ export async function applyStreakMilestoneRewards(userId: number) {
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") continue;
       const message = error instanceof Error ? error.message : "unknown";
-      console.error("checkin.rewards apply", { userId, milestoneId: m.id, err: message });
+      logger.error("checkin.rewards apply", { userId, milestoneId: m.id, err: message });
     }
   }
 

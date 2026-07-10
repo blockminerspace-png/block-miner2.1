@@ -53,6 +53,7 @@ import {
     setAdminUserBanState,
 } from "../services/adminUserManagementService.js";
 import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("admin");
 import path from "path";
 import fs from "fs/promises";
 import { mkdirSync } from "fs";
@@ -395,7 +396,7 @@ adminRouter.get("/analytics", async (req, res) => {
             userRecentBlocks,
         });
     } catch (err) {
-        console.error('[admin analytics error]', adminErrMessage(err));
+        logger.error('[admin analytics error]', { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: 'Erro ao carregar analytics.' });
     }
 });
@@ -509,7 +510,7 @@ adminRouter.get("/analytics/inflation", async (req, res) => {
             },
         });
     } catch (err) {
-        console.error("[admin analytics inflation error]", adminErrMessage(err));
+        logger.error("[admin analytics inflation error]", { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: "Erro ao carregar inflação." });
     }
 });
@@ -563,7 +564,7 @@ adminRouter.get("/analytics/projections", async (req, res) => {
             assumptions: { blockRewardPol: BLOCK_REWARD, blocksPerDay: BLOCKS_PER_DAY },
         });
     } catch (err) {
-        console.error("[admin analytics projections error]", adminErrMessage(err));
+        logger.error("[admin analytics projections error]", { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: "Erro ao carregar projeções." });
     }
 });
@@ -651,7 +652,7 @@ adminRouter.get("/analytics/withdrawals", async (req, res) => {
             series,
         });
     } catch (err) {
-        console.error("[admin analytics withdrawals error]", adminErrMessage(err));
+        logger.error("[admin analytics withdrawals error]", { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: "Erro ao carregar saques." });
     }
 });
@@ -707,7 +708,7 @@ adminRouter.get("/analytics/distribution", async (req, res) => {
             outflows,
         });
     } catch (err) {
-        console.error("[admin analytics distribution error]", adminErrMessage(err));
+        logger.error("[admin analytics distribution error]", { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: "Erro ao carregar distribuição." });
     }
 });
@@ -735,7 +736,7 @@ adminRouter.get("/client-errors", async (req, res) => {
         });
         res.json({ ok: true, items: rows });
     } catch (err) {
-        console.error("[admin client-errors error]", adminErrMessage(err));
+        logger.error("[admin client-errors error]", { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: "Erro ao carregar reports." });
     }
 });
@@ -747,7 +748,7 @@ adminRouter.delete("/client-errors", async (_req, res) => {
         });
         res.json({ ok: true, deleted: r.count });
     } catch (err) {
-        console.error("[admin client-errors delete error]", adminErrMessage(err));
+        logger.error("[admin client-errors delete error]", { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: "Erro ao limpar reports." });
     }
 });
@@ -816,7 +817,7 @@ adminRouter.get("/users", async (req, res) => {
         if (adminErrMessage(error).startsWith("invalid_")) {
             return res.status(400).json({ ok: false, message: "Invalid user search query." });
         }
-        console.error("[admin users list]", adminErrMessage(error));
+        logger.error("[admin users list]", { error: String(adminErrMessage(error)) });
         res.status(500).json({ ok: false, message: "Unable to load users." });
     }
 });
@@ -942,7 +943,7 @@ adminRouter.post("/users/:id/adjust-balance", async (req, res) => {
             delta: nextValue - prevValue,
         });
     } catch (err) {
-        console.error("[admin adjust-balance]", adminErrMessage(err));
+        logger.error("[admin adjust-balance]", { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: "Erro ao ajustar saldo." });
     }
 });
@@ -1037,7 +1038,7 @@ adminRouter.get("/faucet/config", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[admin faucet/config get]", adminErrMessage(error));
+    logger.error("[admin faucet/config get]", { error: String(adminErrMessage(error)) });
     return res.status(500).json({ ok: false, message: "Falha ao carregar config da faucet." });
   }
 });
@@ -1114,7 +1115,7 @@ adminRouter.put("/faucet/config", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[admin faucet/config put]", adminErrMessage(error));
+    logger.error("[admin faucet/config put]", { error: String(adminErrMessage(error)) });
     return res.status(500).json({ ok: false, message: "Falha ao atualizar config da faucet." });
   }
 });
@@ -1266,7 +1267,7 @@ adminRouter.get("/finance/activity", async (req, res) => {
 
         res.json({ ok: true, activity, page, limit, total });
     } catch (error) {
-        console.error("[admin finance/activity]", adminErrMessage(error));
+        logger.error("[admin finance/activity]", { error: String(adminErrMessage(error)) });
         res.status(500).json({ ok: false, message: "Error" });
     }
 });
@@ -1282,7 +1283,7 @@ adminRouter.get("/fraud-signals", async (req, res) => {
         });
         res.json({ ok: true, ...data });
     } catch (error) {
-        console.error("[admin fraud-signals]", adminErrMessage(error));
+        logger.error("[admin fraud-signals]", { error: String(adminErrMessage(error)) });
         if (adminErrMessage(error).startsWith("invalid_")) {
             return res.status(400).json({ ok: false, message: "Invalid fraud signal query." });
         }
@@ -1303,7 +1304,7 @@ adminRouter.post("/fraud-signals/refresh-ip", fraudRefreshLimiter, async (req, r
         const intelligence = await getCachedIpIntelligence(prisma, ip, { forceRefresh: true });
         res.json({ ok: true, intelligence });
     } catch (error) {
-        console.error("[admin fraud-signals refresh-ip]", adminErrMessage(error));
+        logger.error("[admin fraud-signals refresh-ip]", { error: String(adminErrMessage(error)) });
         res.status(500).json({ ok: false, message: "Unable to refresh IP intelligence." });
     }
 });
@@ -1339,7 +1340,7 @@ adminRouter.post("/fraud-signals/reset-collection", fraudResetLimiter, async (re
             usersProfileAntiFraudCleared,
         });
     } catch (error) {
-        console.error("[admin fraud-signals reset-collection]", adminErrMessage(error));
+        logger.error("[admin fraud-signals reset-collection]", { error: String(adminErrMessage(error)) });
         res.status(500).json({ ok: false, message: "Unable to reset fraud collection data." });
     }
 });
@@ -1444,7 +1445,7 @@ adminRouter.get("/users/:id/details", async (req, res) => {
         if (!data) return res.status(404).json({ ok: false, message: 'Usuário não encontrado' });
         res.json(data);
     } catch (err) {
-        console.error('[admin details error]', adminErrMessage(err));
+        logger.error('[admin details error]', { error: String(adminErrMessage(err)) });
         res.status(500).json({ ok: false, message: 'Erro ao carregar detalhes' });
     }
 });
@@ -1591,7 +1592,7 @@ adminRouter.post("/users/:id/send-miner", async (req, res) => {
             res.json({ ok: true, message: `${quantity}x ${miner.name} enviado(s) para ${user.username || user.email}.` });
         }
     } catch (err) {
-        console.error('send-miner error', err);
+        loggerLib.child("admin").error('send-miner error', { error: String(err) });
         res.status(500).json({ ok: false, message: 'Erro ao enviar máquina.' });
     }
 });

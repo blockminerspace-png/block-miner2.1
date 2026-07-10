@@ -59,6 +59,6 @@ export function startBlkRewardCycleCron(): { blkRewardCycleTimer: ReturnType<typ
   });
 
   if (typeof handle.unref === "function") handle.unref();
-  logger.info(`BLK reward scheduler started (tick every ${TICK_MS}ms, interval from DB)`);
+  logger.info(`BLK reward scheduler started (tick every ${TICK_MS}ms, { error: String(interval from DB) })`);
   return { blkRewardCycleTimer: handle };
 }

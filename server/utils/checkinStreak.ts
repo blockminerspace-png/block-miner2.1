@@ -95,7 +95,10 @@ export async function computeStreakAfterCheckin(
     .map((r) => normalizeBrazilDateKey(r.checkinDate))
     .filter((k): k is string => Boolean(k));
 
-  const lastKey = confirmedKeys[0] ?? null;
+  // Use the most recent period key by date comparison, not by DB row order.
+  // DB ordering (confirmedAt DESC, id DESC) can put an older recovery row first
+  // when multiple rows share the same confirmedAt (e.g. after streak recovery).
+  const lastKey = confirmedKeys.reduce<string | null>((max, k) => (!max || k > max ? k : max), null);
   let lastStreak = 0;
   if (lastKey) {
     let cursor = lastKey;
@@ -106,16 +109,18 @@ export async function computeStreakAfterCheckin(
     }
   }
 
-  if (isSameCheckinPeriod(lastKey, periodKey)) {
+  const lastKeyStr = lastKey ?? "";
+
+  if (isSameCheckinPeriod(lastKeyStr, periodKey)) {
     return { streakAfter: Math.max(lastStreak, 1), usedGrace: false, usedFreeze: false };
   }
 
   const yesterday = addDaysToBrazilDateKey(periodKey, -1);
-  if (isPreviousPeriodEndKey(lastKey, periodKey)) {
+  if (isPreviousPeriodEndKey(lastKeyStr, periodKey)) {
     return { streakAfter: lastStreak + 1, usedGrace: false, usedFreeze: false };
   }
 
-  if (isPreviousPeriodEndKey(lastKey, yesterday) && isWithinGraceForPeriod(yesterday, now)) {
+  if (isPreviousPeriodEndKey(lastKeyStr, yesterday) && isWithinGraceForPeriod(yesterday, now)) {
     const graceUses = await deps.countGraceUsesInMonth(input.userId, monthKey);
     if (graceUses < deps.maxGracePerMonth) {
       return { streakAfter: lastStreak + 1, usedGrace: true, usedFreeze: false };

@@ -27,8 +27,7 @@ export type EarningsCategoryKey = (typeof EARNINGS_CATEGORY_KEYS)[number];
 
 export type EarningsUiFilter = 'today' | '7d' | '30d' | '90d' | 'all';
 
-export function earningsFilterToApiPeriod(filter: EarningsUiFilter): '7d' | '30d' | '90d' | 'all' {
-  if (filter === 'today') return '7d';
+export function earningsFilterToApiPeriod(filter: EarningsUiFilter): EarningsUiFilter {
   return filter;
 }
 

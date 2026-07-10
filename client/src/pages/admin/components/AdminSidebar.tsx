@@ -40,6 +40,9 @@ import {
   Gift,
   Sparkles,
   Settings,
+  Users2,
+  ClipboardList,
+  UserCircle2,
 } from 'lucide-react';
 
 type AdminMenuEntry = {
@@ -131,6 +134,16 @@ const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     items: [
       { icon: FileText, labelKey: 'adminSidebar.nav.logs', path: '/admin/logs' },
       { icon: FileText, labelKey: 'adminSidebar.nav.client_errors', path: '/admin/client-errors' },
+    ],
+  },
+  {
+    id: 'administration',
+    labelKey: 'adminSidebar.section.administration',
+    icon: Users2,
+    items: [
+      { icon: Users2, labelKey: 'adminSidebar.nav.admin_users', path: '/admin/admins' },
+      { icon: ClipboardList, labelKey: 'adminSidebar.nav.admin_audit', path: '/admin/admin-audit' },
+      { icon: UserCircle2, labelKey: 'adminSidebar.nav.my_profile', path: '/admin/profile' },
     ],
   },
 ];

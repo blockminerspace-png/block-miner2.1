@@ -14,6 +14,7 @@ import {
   Coins,
   Clock,
   Store,
+  Wrench,
 } from 'lucide-react';
 import { api, useAuthStore } from '../../store/auth';
 import AdRotator, { POWER_STATS_ADS } from '../../shared/components/AdRotator';
@@ -458,15 +459,6 @@ const PROVIDERS: ProviderDef[] = [
     accentColor: 'purple',
     Icon: MousePointerClick,
   },
-  {
-    id: 'offerwallme',
-    name: 'Offerwall.me',
-    description: 'Complete ofertas de anunciantes e ganhe POL instantaneamente. 10 ofertas/dia = saque sem taxa.',
-    rewardLabel: 'POL por oferta',
-    creditTime: 'Instantâneo',
-    accentColor: 'violet',
-    Icon: Store,
-  },
 ];
 
 const ACCENT: Record<string, { border: string; bg: string; icon: string; badge: string }> = {
@@ -526,6 +518,47 @@ function ProviderCard({ provider, onSelect }: { provider: ProviderDef; onSelect:
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
+function OfferwallMeMaintenanceCard() {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-2xl border border-yellow-500/25 bg-white/5 overflow-hidden flex flex-col opacity-70">
+      <div className="h-24 bg-yellow-500/10 flex items-center justify-center">
+        <Wrench className="w-10 h-10 text-yellow-400 opacity-80" />
+      </div>
+
+      <div className="p-4 flex flex-col gap-3 flex-1">
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold text-white">Offerwall.me</p>
+            <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+              {t('offerwall.offerwallme.maintenance_badge')}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+            {t('offerwall.offerwallme.description')}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/25">
+            <Coins className="w-3 h-3" />
+            {t('offerwall.offerwallme.reward_label')}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10">
+            <Clock className="w-3 h-3" />
+            {t('offerwall.offerwallme.credit_time')}
+          </span>
+        </div>
+
+        <div className="mt-auto flex items-center gap-2 rounded-xl bg-yellow-500/10 border border-yellow-500/25 px-3 py-2.5">
+          <Wrench className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+          <p className="text-xs text-yellow-300">{t('offerwall.offerwallme.maintenance_msg')}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OfferwallPage() {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
@@ -536,10 +569,6 @@ export default function OfferwallPage() {
         <ZeradsDetail onBack={() => setSelected(null)} />
       </div>
     );
-  }
-
-  if (selected === 'offerwallme') {
-    return <OfferwallMeDetail onBack={() => setSelected(null)} />;
   }
 
   return (
@@ -558,6 +587,7 @@ export default function OfferwallPage() {
         {PROVIDERS.map((p) => (
           <ProviderCard key={p.id} provider={p} onSelect={() => setSelected(p.id)} />
         ))}
+        <OfferwallMeMaintenanceCard />
       </div>
 
       <AdRotator ads={POWER_STATS_ADS} size="468x60" slotId="offerwall-bottom" />

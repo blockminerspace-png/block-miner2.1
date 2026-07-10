@@ -6,6 +6,9 @@ import { toPublicSupportReply } from "../../services/supportRealtime.js";
 import { addUserReply } from "../../services/supportTicketService.js";
 import type { SupportMessage, SupportReply } from "@prisma/client";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("support.controller");
+
 const attachmentSchema = z.object({
   url: z.string().min(1).max(512),
   mimeType: z.string().max(120).optional()
@@ -97,13 +100,13 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
         username,
       });
     } catch (notifyErr) {
-      console.warn("[SupportController] Telegram notify failed:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+      logger.warn("[SupportController] Telegram notify failed:", { error: String(notifyErr instanceof Error ? notifyErr.message : notifyErr) });
     }
 
     res.status(201).json({ ok: true, message: "Created", id: newMessage.id });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[SupportController] Error creating message:", msg);
+    logger.error("[SupportController] Error creating message:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error sending support message" });
   }
 };
@@ -142,7 +145,7 @@ export const listMessages = async (req: Request, res: Response): Promise<void> =
     res.json({ ok: true, messages, page, limit, total });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[SupportController] Error listing messages:", msg);
+    logger.error("[SupportController] Error listing messages:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error listing messages" });
   }
 };
@@ -183,7 +186,7 @@ export const getMessage = async (req: Request<MessageParams>, res: Response): Pr
     res.json({ ok: true, message: enrichTicket(row as TicketRow) });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[SupportController] Error getting message:", msg);
+    logger.error("[SupportController] Error getting message:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error getting message" });
   }
 };
@@ -201,7 +204,7 @@ export const uploadSupportImage = async (req: Request, res: Response): Promise<v
     res.json({ ok: true, url, mimeType: req.file.mimetype || null });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[SupportController] upload error:", msg);
+    logger.error("[SupportController] upload error:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Upload failed" });
   }
 };
@@ -243,7 +246,7 @@ export const replyToMessage = async (req: Request<MessageParams>, res: Response)
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[SupportController] Error replying to message:", msg);
+    logger.error("[SupportController] Error replying to message:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error sending reply" });
   }
 };

@@ -13,6 +13,9 @@ import {
   parseAdminOfferBody
 } from "./internal-offerwall.service.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("internal-offerwall.admin.controller");
+
 function offerToPlain(row: InternalOfferwallOffer | null): Record<string, unknown> | null {
   if (!row) return null;
   return {
@@ -40,7 +43,7 @@ export async function listOffers(_req: Request, res: Response): Promise<void> {
     res.json({ ok: true, offers: rows });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall listOffers", msg);
+    logger.error("adminInternalOfferwall listOffers", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to list offers." });
   }
 }
@@ -62,7 +65,7 @@ export async function createOffer(req: Request, res: Response): Promise<void> {
     res.status(201).json({ ok: true, offer: row });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall createOffer", msg);
+    logger.error("adminInternalOfferwall createOffer", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to create offer." });
   }
 }
@@ -101,7 +104,7 @@ export async function patchOffer(req: Request<IdParams>, res: Response): Promise
     res.json({ ok: true, offer: row });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall patchOffer", msg);
+    logger.error("adminInternalOfferwall patchOffer", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to update offer." });
   }
 }
@@ -117,7 +120,7 @@ export async function listAttempts(req: Request, res: Response): Promise<void> {
     res.json({ ok: true, attempts: rows });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall listAttempts", msg);
+    logger.error("adminInternalOfferwall listAttempts", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to list attempts." });
   }
 }
@@ -139,7 +142,7 @@ export async function approveAttempt(req: Request<AttemptParams>, res: Response)
     res.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall approveAttempt", msg);
+    logger.error("adminInternalOfferwall approveAttempt", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to approve attempt." });
   }
 }
@@ -150,7 +153,7 @@ export async function listFrameHosts(_req: Request, res: Response): Promise<void
     res.json({ ok: true, frameHosts: rows });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall listFrameHosts", msg);
+    logger.error("adminInternalOfferwall listFrameHosts", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to list frame hosts." });
   }
 }
@@ -170,7 +173,7 @@ export async function deactivateFrameHost(req: Request<AttemptParams>, res: Resp
     res.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall deactivateFrameHost", msg);
+    logger.error("adminInternalOfferwall deactivateFrameHost", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to update frame host." });
   }
 }
@@ -192,7 +195,7 @@ export async function rejectAttempt(req: Request<AttemptParams>, res: Response):
     res.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("adminInternalOfferwall rejectAttempt", msg);
+    logger.error("adminInternalOfferwall rejectAttempt", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Failed to reject attempt." });
   }
 }

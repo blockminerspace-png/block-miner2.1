@@ -3,6 +3,9 @@ import type { Request, Response } from "express";
 import prisma from "../src/db/prisma.js";
 import type { Prisma } from "@prisma/client";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("ptpController");
+
 const PTP_RATE_USD_PER_1000 = 0.1;
 const PTP_EARNING_PER_VIEW_USD = PTP_RATE_USD_PER_1000 / 1000;
 
@@ -50,7 +53,7 @@ export async function createAd(req: Request<unknown, unknown, CreateAdBody>, res
 
     res.json({ ok: true, message: "Ad created successfully" });
   } catch (error: unknown) {
-    console.error("Error creating ad:", error);
+    logger.error("Error creating ad:", { error: String(error) });
     res.status(500).json({
       ok: false,
       message: error instanceof Error ? error.message : String(error),

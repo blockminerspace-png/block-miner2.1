@@ -271,6 +271,9 @@ api.interceptors.response.use(
         (originalConfig as { _bmRetriedAfterRefresh?: boolean })._bmRetriedAfterRefresh = true;
         return api.request(originalConfig);
       }
+      // Refresh failed — session is truly gone. Evict auth state so ProtectedLayout redirects to /login
+      // and all polling hooks (React Query, intervals) unmount instead of looping on 401.
+      useAuthStore.setState({ user: null, isAuthenticated: false, token: null });
     }
 
     return Promise.reject(error);
@@ -464,6 +467,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       await api.post('/auth/logout');
     } finally {
+      const { useGameStore } = await import('./game');
+      useGameStore.getState().disconnectSocket();
       clearWalletSessionClearedByUserFlag();
       set({ user: null, isAuthenticated: false, token: null });
     }

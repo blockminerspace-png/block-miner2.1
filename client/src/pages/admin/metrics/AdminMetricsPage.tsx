@@ -1,19 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Server, Activity, MemoryStick, HardDrive, Cpu, RefreshCw, AlertCircle } from 'lucide-react';
+import { Server, Activity, MemoryStick, HardDrive, Cpu, RefreshCw, AlertCircle, Radio, Database, Layers } from 'lucide-react';
 import { api } from '../../../store/auth';
-import type { AdminServerMetricsResponse, AdminServerMetricsSnapshot } from '../admin.types';
+import type { AdminOpsSnapshot, AdminOpsSnapshotResponse, AdminServerMetricsResponse, AdminServerMetricsSnapshot } from '../admin.types';
 
 export default function AdminMetrics() {
     const [metrics, setMetrics] = useState<AdminServerMetricsSnapshot | null>(null);
+    const [ops, setOps] = useState<AdminOpsSnapshot | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
 
     const fetchMetrics = useCallback(async () => {
         try {
             setIsLoading(true);
-            const res = await api.get<AdminServerMetricsResponse>('/admin/server-metrics');
-            if (res.data.ok) {
-                setMetrics(res.data.metrics);
+            const [metricsRes, opsRes] = await Promise.all([
+                api.get<AdminServerMetricsResponse>('/admin/server-metrics'),
+                api.get<AdminOpsSnapshotResponse>('/admin/ops/snapshot'),
+            ]);
+            if (metricsRes.data.ok) {
+                setMetrics(metricsRes.data.metrics);
+            }
+            if (opsRes.data.ok) {
+                setOps(opsRes.data.snapshot);
             }
         } catch {
             toast.error("Erro ao carregar métricas do servidor");
@@ -24,7 +31,7 @@ export default function AdminMetrics() {
 
     useEffect(() => {
         fetchMetrics();
-        const interval = setInterval(fetchMetrics, 30000); // Update every 30s
+        const interval = setInterval(fetchMetrics, 15000);
         return () => clearInterval(interval);
     }, [fetchMetrics]);
 
@@ -189,6 +196,67 @@ export default function AdminMetrics() {
                     <InfoItem label="Total Disk" value={diskOk ? formatBytes(metrics.diskTotalBytes) : '—'} />
                 </div>
             </div>
+
+            {ops ? (
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3">
+                        <Radio className={`w-5 h-5 ${ops.readiness.ok ? 'text-emerald-500' : 'text-red-500'}`} />
+                        <h3 className="text-lg font-bold text-white">Operações em tempo real</h3>
+                        <span className={`text-xs font-bold px-2 py-1 rounded ${ops.readiness.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                            {ops.readiness.ok ? 'READY' : 'DEGRADED'}
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        <OpsStat label="Req/min" value={ops.http.requestsPerMinuteEstimate} />
+                        <OpsStat label="Sockets" value={ops.socket.connectionsActive} />
+                        <OpsStat label="Mining #" value={ops.mining.blockNumber} />
+                        <OpsStat label="BullMQ wait" value={ops.queues.bullmqWaiting} />
+                        <OpsStat label="Redis" value={ops.redis.connected ? 'UP' : 'DOWN'} />
+                        <OpsStat label="5xx total" value={ops.http.errors5xxTotal} />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                            <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><Database className="w-4 h-4" /> Health checks</h4>
+                            <ul className="space-y-2 text-xs font-mono">
+                                {Object.entries(ops.readiness.checks).map(([name, check]) => (
+                                    <li key={name} className="flex justify-between text-slate-400">
+                                        <span>{name}</span>
+                                        <span className={check.ok ? 'text-emerald-400' : 'text-red-400'}>{check.ok ? 'ok' : check.message || 'fail'} ({check.latencyMs}ms)</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                            <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><Layers className="w-4 h-4" /> Economia (contadores)</h4>
+                            {ops.economy.length === 0 ? (
+                                <p className="text-xs text-slate-500">Sem eventos instrumentados ainda nesta sessão.</p>
+                            ) : (
+                                <ul className="space-y-1 text-xs font-mono max-h-48 overflow-auto">
+                                    {ops.economy.slice(0, 20).map((row) => (
+                                        <li key={`${row.module}-${row.action}`} className="flex justify-between text-slate-400">
+                                            <span>{row.module}/{row.action}</span>
+                                            <span className="text-slate-200">{row.total}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
+                    {ops.alerts.length > 0 ? (
+                        <div className="bg-red-950/30 border border-red-900/50 rounded-2xl p-4">
+                            <p className="text-xs font-bold text-red-300 uppercase mb-2">Alertas ativos</p>
+                            <ul className="space-y-1 text-sm text-red-200">
+                                {ops.alerts.map((a) => (
+                                    <li key={a.id}>{a.severity}: {a.message}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    ) : null}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -203,6 +271,15 @@ function InfoItem({ label, value }: AdminMetricsInfoItemProps) {
         <div className="border-b border-slate-800 pb-3">
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{label}</p>
             <p className="text-sm font-mono text-slate-300">{value || 'N/A'}</p>
+        </div>
+    );
+}
+
+function OpsStat({ label, value }: { label: string; value: string | number }) {
+    return (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <p className="text-[10px] text-slate-500 uppercase font-bold">{label}</p>
+            <p className="text-lg font-black text-white mt-1">{value}</p>
         </div>
     );
 }

@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 import sqlite3 from "sqlite3";
 import config from "../config/index.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("sqlite");
+
 const sqliteConfig = config as {
   faucet?: { rewardMinerSlug?: string; cooldownMs?: number };
 };
@@ -815,7 +818,7 @@ export async function initializeDatabase() {
   try {
     await run("UPDATE user_miners SET slot_size = 2 WHERE hash_rate >= 100 AND (slot_size IS NULL OR slot_size = 1)");
   } catch (error) {
-    console.error("Failed to update Elite Miners slot_size:", error);
+    logger.error("Failed to update Elite Miners slot_size:", { error: String(error) });
   }
 
   try {
@@ -823,19 +826,19 @@ export async function initializeDatabase() {
       "UPDATE user_miners SET miner_id = (SELECT id FROM miners WHERE base_hash_rate = user_miners.hash_rate ORDER BY id ASC LIMIT 1) WHERE miner_id IS NULL"
     );
   } catch (error) {
-    console.error("Failed to backfill user_miners miner_id:", error);
+    logger.error("Failed to backfill user_miners miner_id:", { error: String(error) });
   }
 
   try {
     await run("UPDATE miners SET slot_size = 2 WHERE base_hash_rate >= 100 AND (slot_size IS NULL OR slot_size = 1)");
   } catch (error) {
-    console.error("Failed to update miners slot_size:", error);
+    logger.error("Failed to update miners slot_size:", { error: String(error) });
   }
 
   try {
     await run("UPDATE user_inventory SET slot_size = 2 WHERE hash_rate >= 100 AND (slot_size IS NULL OR slot_size = 1)");
   } catch (error) {
-    console.error("Failed to update inventory slot_size:", error);
+    logger.error("Failed to update inventory slot_size:", { error: String(error) });
   }
 
   // Transactions table for withdrawals and deposits

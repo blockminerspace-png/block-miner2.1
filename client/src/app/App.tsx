@@ -86,6 +86,9 @@ const AdminTrafficStats = lazyWithRetry(() => import('../pages/admin/AdminTraffi
 const AdminPtc = lazyWithRetry(() => import('../pages/admin/AdminPtc'));
 const AdminPartnerGames = lazyWithRetry(() => import('../pages/admin/AdminPartnerGames'));
 const AdminBurnEvents = lazyWithRetry(() => import('../pages/admin/AdminBurnEvents'));
+const AdminAdmins = lazyWithRetry(() => import('../pages/admin/AdminAdmins'));
+const AdminProfile = lazyWithRetry(() => import('../pages/admin/AdminProfile'));
+const AdminAuditLogAdmin = lazyWithRetry(() => import('../pages/admin/AdminAuditLogAdmin'));
 const PtcViewPage = lazyWithRetry(() => import('../pages/ptc/PtcViewPage'));
 const PtcCampaignsPage = lazyWithRetry(() => import('../pages/ptc/PtcCampaignsPage'));
 const ReadEarn = lazyWithRetry(() => import('../pages/read-earn'));
@@ -358,6 +361,9 @@ function App() {
             <Route path="/admin/ptc" element={<AdminPtc />} />
             <Route path="/admin/partner-games" element={<AdminPartnerGames />} />
             <Route path="/admin/burn-events" element={<AdminBurnEvents />} />
+            <Route path="/admin/admins" element={<AdminAdmins />} />
+            <Route path="/admin/profile" element={<AdminProfile />} />
+            <Route path="/admin/admin-audit" element={<AdminAuditLogAdmin />} />
           </Route>
         </Routes>
       </Suspense>

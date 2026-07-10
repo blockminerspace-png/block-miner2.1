@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WITHDRAW_MIN_POL } from "#server/controllers/walletController.js";
+import { WITHDRAW_MIN_POL } from "#server/modules/wallet/index.js";
 
 /** Same rule as requestWithdrawal in walletController.js */
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;

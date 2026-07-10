@@ -13,6 +13,7 @@ import { readErrorMessage, requireSessionUser } from "../../controllers/controll
 import { respondPrismaAwareError } from "../../utils/prismaHttpErrors.js";
 import { isAutoMiningV2SchemaAvailable } from "../auto-mining/index.js";
 import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("stats.controller");
 import { getUserEarningsStats, parseEarningsPeriod } from "./stats.earnings.service.js";
 
 const powerStatsLog = loggerLib.child("PowerStats");
@@ -176,7 +177,7 @@ export async function getPowerStats(req: Request, res: Response) {
         }
       });
     } catch (e: unknown) {
-      console.warn("getPowerStats: checkin milestones unavailable", readErrorMessage(e));
+      logger.warn("getPowerStats: checkin milestones unavailable", { error: String(readErrorMessage(e)) });
     }
 
     const agg = aggregateUserHashrates(
@@ -455,7 +456,7 @@ export async function getPowerStats(req: Request, res: Response) {
       }
     });
   } catch (e: unknown) {
-    console.error("getPowerStats", readErrorMessage(e));
+    logger.error("getPowerStats", { error: String(readErrorMessage(e)) });
     respondPrismaAwareError(res, e, "Não foi possível carregar as estatísticas de poder agora.");
   }
 }

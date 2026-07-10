@@ -10,6 +10,9 @@ import {
 } from "../services/transparencyWalletService.js";
 import { getPolUsdPrice } from "../utils/cryptoPrice.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("transparencyController");
+
 const VALID_CATEGORIES = ["infrastructure", "tooling", "marketing", "payroll", "legal", "misc"] as const;
 const VALID_INCOME_CATEGORIES = ["sponsorship", "donation", "revenue", "investment_return", "other"] as const;
 const VALID_PERIODS = ["daily", "monthly", "annual", "one_time"] as const;
@@ -698,7 +701,7 @@ export async function getPublicTrackedWalletsLive(_req: Request, res: Response):
       return;
     }
   } catch (err) {
-    console.warn("[wallets-live] DB read failed, falling back:", (err as Error)?.message);
+    logger.warn("[wallets-live] DB read failed, falling back:", { error: (err as Error)?.message });
   }
 
   // Fast path only after DB fallback fails, so stale in-memory data never masks

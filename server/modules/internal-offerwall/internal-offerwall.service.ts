@@ -44,6 +44,9 @@ import { grantInternalOfferwallRewardInTx } from "./internal-offerwall.reward-gr
 import { notifyInternalOfferwallCompletion } from "./internal-offerwall.webhook.js";
 import type { ParseAdminOfferBodyResult } from "./internal-offerwall.types.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("internal-offerwall.service");
+
 type ParseAdminOfferBodyError = {
   ok: false;
   status: number;
@@ -724,7 +727,7 @@ export async function userSubmitAttempt(userId: number, attemptId: number) {
       internalOfferwallOfferId: attempt.offerId
     });
   } catch (bumpErr) {
-    console.error("internalOfferwall userSubmitAttempt: bumpDailyTasksForUser failed after grant", {
+    logger.error("internalOfferwall userSubmitAttempt: bumpDailyTasksForUser failed after grant", {
       userId,
       attemptId,
       offerId: attempt.offerId,
@@ -735,7 +738,7 @@ export async function userSubmitAttempt(userId: number, attemptId: number) {
   try {
     await notifyMiniPassInternalOfferwall(userId, attempt.id);
   } catch (bumpErr) {
-    console.error("internalOfferwall userSubmitAttempt: notifyMiniPassInternalOfferwall failed after grant", {
+    logger.error("internalOfferwall userSubmitAttempt: notifyMiniPassInternalOfferwall failed after grant", {
       userId,
       attemptId,
       offerId: attempt.offerId,
@@ -819,7 +822,7 @@ export async function adminApproveAttempt(attemptId: number) {
       internalOfferwallOfferId: attempt.offerId
     });
   } catch (bumpErr) {
-    console.error("internalOfferwall adminApproveAttempt: bumpDailyTasksForUser failed after grant", {
+    logger.error("internalOfferwall adminApproveAttempt: bumpDailyTasksForUser failed after grant", {
       userId: attempt.userId,
       attemptId,
       offerId: attempt.offerId,
@@ -830,7 +833,7 @@ export async function adminApproveAttempt(attemptId: number) {
   try {
     await notifyMiniPassInternalOfferwall(attempt.userId, attempt.id);
   } catch (bumpErr) {
-    console.error("internalOfferwall adminApproveAttempt: notifyMiniPassInternalOfferwall failed after grant", {
+    logger.error("internalOfferwall adminApproveAttempt: notifyMiniPassInternalOfferwall failed after grant", {
       userId: attempt.userId,
       attemptId,
       offerId: attempt.offerId,

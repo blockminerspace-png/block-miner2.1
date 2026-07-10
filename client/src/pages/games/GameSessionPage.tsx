@@ -25,342 +25,52 @@ import type { GameFlowStat, GameFlowResolution } from "../../games/finish";
 import { saveGameVerifyRecord } from "../../games/finish/gameVerifyStorage";
 import { setGameCooldown } from "../../games/gameCooldownStore";
 
+import type {
+  ActiveGame,
+  CryptoIconKey,
+  MemoryBoardCard,
+  Match3Piece,
+  Match3Cell,
+  SwapAnim,
+  CartEventVariant,
+  CartServerEvent,
+  SceneryItem,
+  CartStateRef,
+  Particle,
+  CardFlipAnim,
+  GameStartedPayload,
+  MemoryGridLayout,
+  Match3GridLayout,
+} from "./gameSession/gameSession.types";
+import {
+  SOCKET_URL,
+  LOGICAL,
+  CART_LOGICAL_WIDTH,
+  CART_LOGICAL_HEIGHT,
+  CART_TOUCH_SWIPE_THRESHOLD,
+  CART_TARGET_SCORE,
+  CART_TIME_LIMIT_SECONDS,
+  MEMORY_CARD_OPEN_ANIM_MS,
+  MEMORY_CARD_CLOSE_ANIM_MS,
+  SLUG_MAP,
+  GAME_LABEL_KEYS,
+} from "./gameSession/gameSession.constants";
+import {
+  scheduleUiUpdate,
+  clearTimeoutList,
+  clampCartLane,
+  getCanvasLogicalSize,
+  getCanvasViewportStyle,
+  getCartTrackLayout,
+  getCartLaneFromPointer,
+  pointerClientXY,
+  formatMs,
+  buildGameStats,
+} from "./gameSession/gameSession.utils";
 
-type CryptoIconKey = keyof typeof CRYPTO_ICONS;
-
-/** `cryptoGameIcons.js` builds this object dynamically; treat as image map for indexing. */
+import { BlockStackArena } from "./gameSession/components/BlockStackArena";
+import { SkyRunnerArena } from "./gameSession/components/SkyRunnerArena";
 const ICON_IMAGES_MAP = ICON_IMAGES as Record<CryptoIconKey, HTMLImageElement>;
-
-/** UI route keys — map to server slugs on `game:start`. */
-type ActiveGame = "memory" | "match-3" | "cart" | "stack" | "sky" | null;
-
-type MemoryBoardCard = {
-  id: number;
-  symbol?: string | null;
-  isFlipped?: boolean;
-  isMatched?: boolean;
-};
-
-type Match3Piece = {
-  symbol: string;
-  x: number;
-  y: number;
-  visualX: number;
-  visualY: number;
-  scale?: number;
-};
-
-type Match3Cell = { cx: number; cy: number };
-
-/** Forward swap uses fx,fy,tx,ty; invalid_swap replay uses rx,ry,rfx,rfy only. */
-type SwapAnim = {
-  startTime: number;
-  duration: number;
-  fx?: number;
-  fy?: number;
-  tx?: number;
-  ty?: number;
-  rx?: number;
-  ry?: number;
-  rfx?: number;
-  rfy?: number;
-} | null;
-
-type CartEventVariant = { body?: string; accent?: string; glow?: string };
-
-type CartServerEvent = {
-  id?: string;
-  lane?: number;
-  progress?: number;
-  speed?: number;
-  kind?: string;
-  variant?: CartEventVariant;
-};
-
-type SceneryItem = {
-  x: number;
-  y: number;
-  speedFactor: number;
-  size: number;
-  type: "tree" | "pole" | "mountain";
-};
-
-type CartStateRef = {
-  lane: number;
-  renderLane: number;
-  steer: number;
-  lanes: number;
-  health: number;
-  score: number;
-  events: CartServerEvent[];
-  targetScore: number;
-  distance: number;
-  btcCount: number;
-  hit: CartServerEvent | null;
-  roadSpeed: number;
-  roadOffset: number;
-  lastServerUpdateAt: number;
-  lastFrameAt: number;
-  difficulty: number;
-  localEvents?: CartServerEvent[];
-  lastProcessedUpdate?: number;
-  physX?: number;
-  physVx?: number;
-};
-
-type Particle = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  color: string;
-  size: number;
-};
-
-type CardFlipAnim = { startTime: number; duration: number; opening: boolean };
-
-type GameStartedMemory = {
-  game: "crypto-memory";
-  board: Array<{ id: number; isFlipped?: boolean; isMatched?: boolean; symbol?: string }>;
-  score?: number;
-};
-
-type GameStartedMatch3 = {
-  game: "crypto-match-3";
-  board: string[][];
-  score?: number;
-};
-
-type GameStartedCart = {
-  game: "cart-rush";
-  lane?: number;
-  lanes?: number;
-  health?: number;
-  score?: number;
-  targetScore?: number;
-  distance?: number;
-  btcCount?: number;
-  roadSpeed?: number;
-  timeLimitSeconds?: number;
-};
-
-type GameStartedStack = {
-  game: "block-stack";
-  target: number;
-  playWidth: number;
-  blocksPlaced: number;
-  score?: number;
-  block: { width: number; travelMs: number; startedAt: number };
-  base: { leftPx: number; width: number };
-};
-
-type GameStartedSky = {
-  game: "sky-runner";
-  seed: string;
-  worldW: number;
-  worldH: number;
-  planeX: number;
-  planeRadius: number;
-  pipeW: number;
-  pipeGap: number;
-  pipeGapMin: number;
-  pipeSpawnDx: number;
-  pipeMargin: number;
-  scrollSpeedBase: number;
-  scrollSpeedMax: number;
-  difficultyRampMs: number;
-  gravity: number;
-  flapVy: number;
-  maxVy: number;
-  minFlapIntervalMs: number;
-  invulnMs: number;
-  targetPipes: number;
-  lives: number;
-  maxLives: number;
-  checkpointEveryPipes: number;
-  score?: number;
-};
-
-type GameStartedPayload =
-  | GameStartedMemory
-  | GameStartedMatch3
-  | GameStartedCart
-  | GameStartedStack
-  | GameStartedSky;
-
-type MemoryGridLayout = ReturnType<typeof getMemoryGridLayout>;
-type Match3GridLayout = ReturnType<typeof getMatch3GridLayout>;
-
-const SOCKET_URL = "/";
-const LOGICAL = MINER_GAMES_LOGICAL_SIZE;
-const CART_LOGICAL_WIDTH = 750;
-const CART_LOGICAL_HEIGHT = 500;
-const CART_TOUCH_SWIPE_THRESHOLD = 26;
-const CART_TARGET_SCORE = 250;
-const CART_TIME_LIMIT_SECONDS = 120;
-
-/** Must match server MEMORY_FLIP_OPEN_SETTLE_MS (~client open animation). */
-const MEMORY_CARD_OPEN_ANIM_MS = 300;
-const MEMORY_CARD_CLOSE_ANIM_MS = 500;
-
-/** Defer React state updates out of the canvas rAF callback stack. */
-function scheduleUiUpdate(fn: () => void) {
-  if (typeof queueMicrotask === "function") queueMicrotask(fn);
-  else void Promise.resolve().then(fn);
-}
-
-function clearTimeoutList(listRef: MutableRefObject<ReturnType<typeof setTimeout>[]>) {
-  listRef.current.forEach((id) => clearTimeout(id));
-  listRef.current = [];
-}
-
-function clampCartLane(value: number, lanes: number) {
-  return Math.max(0, Math.min(lanes - 1, value));
-}
-
-function getCanvasLogicalSize(activeGame: ActiveGame) {
-  return activeGame === "cart"
-    ? { width: CART_LOGICAL_WIDTH, height: CART_LOGICAL_HEIGHT }
-    : { width: LOGICAL, height: LOGICAL };
-}
-
-function getCanvasViewportStyle(activeGame: ActiveGame): React.CSSProperties {
-  if (activeGame === "cart") {
-    return {
-      width: "min(96vw, 1600px)",
-      aspectRatio: `${CART_LOGICAL_WIDTH} / ${CART_LOGICAL_HEIGHT}`,
-      maxWidth: "1600px",
-      maxHeight: "calc(100dvh - 220px)"
-    };
-  }
-  if (activeGame === "stack") {
-    return {
-      width: "min(calc(100vw - 16px), 540px)",
-      aspectRatio: "3 / 4",
-      maxWidth: "540px",
-      maxHeight: "calc(100dvh - 52px)"
-    };
-  }
-  if (activeGame === "sky") {
-    return {
-      width: "min(calc(100vw - 16px), 540px)",
-      aspectRatio: "3 / 4",
-      maxWidth: "540px",
-      maxHeight: "calc(100dvh - 52px)"
-    };
-  }
-
-  return {
-    width: "min(calc(100vw - 16px), calc(100dvh - 52px), 500px)",
-    aspectRatio: "1 / 1",
-    maxWidth: "500px",
-    maxHeight: "calc(100dvh - 52px)"
-  };
-}
-
-function getCartTrackLayout(lanes: number, logicalWidth = CART_LOGICAL_WIDTH, logicalHeight = CART_LOGICAL_HEIGHT) {
-  const roadX = 0;
-  const roadY = 50;
-  const roadW = logicalWidth;
-  const roadH = logicalHeight - 100;
-  const laneH = roadH / lanes;
-  return { roadX, roadY, roadW, roadH, laneH };
-}
-
-function getCartLaneFromPointer(
-  y: number,
-  lanes: number,
-  logicalWidth = CART_LOGICAL_WIDTH,
-  logicalHeight = CART_LOGICAL_HEIGHT
-) {
-  const { roadY, roadH, laneH } = getCartTrackLayout(lanes, logicalWidth, logicalHeight);
-  const boundedY = Math.max(roadY, Math.min(roadY + roadH - 1, y));
-  return clampCartLane(Math.floor((boundedY - roadY) / laneH), lanes);
-}
-
-function pointerClientXY(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): {
-  clientX: number;
-  clientY: number;
-} {
-  if ("touches" in e && e.touches.length > 0) {
-    return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-  }
-  const m = e as React.MouseEvent<HTMLCanvasElement>;
-  return { clientX: m.clientX, clientY: m.clientY };
-}
-
-function formatMs(ms: number): string {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(s / 60);
-  const rem = s % 60;
-  return `${m.toString().padStart(2, "0")}:${rem.toString().padStart(2, "0")}`;
-}
-
-/**
- * Assemble per-game stat rows for the end-of-match overlay. Pure function —
- * takes a snapshot of gameplay refs and turns them into localised label/value
- * pairs. Any missing datum is silently omitted.
- */
-function buildGameStats(
-  game: ActiveGame,
-  snap: {
-    score: number;
-    durationMs: number;
-    cart: CartStateRef | null;
-    stack: { blocksPlaced: number; target: number } | null;
-    sky: { pipesPassed: number; target: number } | null;
-    memory: { pairs: number; totalPairs: number; attempts: number } | null;
-    match3: { swaps: number; cascades: number } | null;
-  },
-  t: TFunction,
-): GameFlowStat[] {
-  const rows: GameFlowStat[] = [];
-  const durationLabel = formatMs(snap.durationMs);
-  const push = (label: string, value: string | number) => rows.push({ label, value: String(value) });
-
-  push(t("gameResult.stats.score"), snap.score);
-  push(t("gameResult.stats.duration"), durationLabel);
-
-  if (game === "cart" && snap.cart) {
-    push(t("gameResult.stats.btc"), snap.cart.btcCount || 0);
-    push(t("gameResult.stats.distance"), `${Math.floor(snap.cart.distance || 0)}m`);
-  } else if (game === "stack" && snap.stack) {
-    push(t("gameResult.stats.blocks"), `${snap.stack.blocksPlaced} / ${snap.stack.target}`);
-  } else if (game === "sky" && snap.sky) {
-    push(t("gameResult.stats.pipes"), `${snap.sky.pipesPassed} / ${snap.sky.target}`);
-    push(t("gameResult.stats.flight_time"), durationLabel);
-  } else if (game === "memory" && snap.memory) {
-    push(t("gameResult.stats.pairs"), `${snap.memory.pairs} / ${snap.memory.totalPairs}`);
-    if (snap.memory.attempts > 0) {
-      const acc = Math.round((snap.memory.pairs / snap.memory.attempts) * 100);
-      push(t("gameResult.stats.accuracy"), `${acc}%`);
-    }
-  } else if (game === "match-3" && snap.match3) {
-    push(t("gameResult.stats.combos"), snap.match3.swaps);
-    push(t("gameResult.stats.cascades"), snap.match3.cascades);
-  }
-
-  return rows;
-}
-
-
-const SLUG_MAP: Record<string, { game: Exclude<ActiveGame, null>; serverSlug: string }> = {
-  "memory": { game: "memory", serverSlug: "crypto-memory" },
-  "match-3": { game: "match-3", serverSlug: "crypto-match-3" },
-  "cart": { game: "cart", serverSlug: "cart-rush" },
-  "stack": { game: "stack", serverSlug: "block-stack" },
-  "sky": { game: "sky", serverSlug: "sky-runner" },
-};
-
-/** i18n title keys per game — persisted in the verify hand-off record. */
-const GAME_LABEL_KEYS: Record<Exclude<ActiveGame, null>, string> = {
-  "memory": "minerGames.memory_sync_title",
-  "match-3": "minerGames.power_match_title",
-  "cart": "minerGames.cart_rush_title",
-  "stack": "minerGames.block_stack_title",
-  "sky": "minerGames.sky_runner_title",
-};
 
 export default function GameSessionPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -371,9 +81,13 @@ export default function GameSessionPage() {
   const serverSlug = mapping?.serverSlug ?? "";
 
   const { t } = useTranslation();
+  const tRef = useRef(t);
+  tRef.current = t;
   const { token } = useAuthStore();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const sessionReadyRef = useRef(false);
+  const isGameOverRef = useRef(false);
 
   // Redirect to hub on invalid slug
   useEffect(() => {
@@ -382,6 +96,8 @@ export default function GameSessionPage() {
 
   const [hudScore, setHudScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
+  sessionReadyRef.current = sessionReady;
+  isGameOverRef.current = isGameOver;
   const gameStartedAtRef = useRef<number>(0);
   // Lightweight mirrors of gameplay state, snapshot-safe from inside socket callbacks.
   const hudScoreRef = useRef(0);
@@ -583,7 +299,13 @@ export default function GameSessionPage() {
 
   useEffect(() => {
     const guard = socketEmitGuardRef.current;
-    const newSocket = io(SOCKET_URL, { auth: { token }, withCredentials: true });
+    const newSocket = io(SOCKET_URL, {
+      auth: { token },
+      withCredentials: true,
+      reconnection: false,
+      transports: ['polling', 'websocket'],
+      timeout: Math.max(60_000, Number(import.meta.env.VITE_SOCKET_TIMEOUT_MS) || 120_000),
+    });
 
     // Auto-start the game for this session (socket.io queues until connected)
     if (activeGame && socketEmitGuardRef.current.tryBeginStart()) {
@@ -598,7 +320,7 @@ export default function GameSessionPage() {
     newSocket.on("game:error", (msg: unknown) => {
       guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
-      toast.error(translateGameSocketError(t, msg));
+      toast.error(translateGameSocketError(tRef.current, msg));
       setIsProcessing(false);
       setSessionReady(false);
       memoryBoardRef.current = null;
@@ -921,7 +643,7 @@ export default function GameSessionPage() {
           sky: skyProgressRef.current,
           memory: memoryProgressRef.current,
           match3: match3ProgressRef.current,
-        }, t).map((s) => ({ label: s.label, value: s.value }));
+        }, tRef.current).map((s) => ({ label: s.label, value: s.value }));
 
         // The reward is already granted (or rejected) server-side at this
         // point — build the final resolution and hand off to /games/verify.
@@ -931,7 +653,7 @@ export default function GameSessionPage() {
         if (data.success) {
           resolution = {
             outcome: "success",
-            rewardMessage: translateGameReward(t, data),
+            rewardMessage: translateGameReward(tRef.current, data),
             cooldownSeconds: cd,
             stats: captured,
           };
@@ -965,17 +687,25 @@ export default function GameSessionPage() {
       }
     );
 
+    newSocket.on("disconnect", () => {
+      if (sessionReadyRef.current && !isGameOverRef.current) {
+        toast.error(tRef.current("games.sessionDisconnected", { defaultValue: "Connection lost. Returning to games." }));
+        navigate("/games", { replace: true });
+      }
+    });
+
     setSocket(newSocket);
     return () => {
       guard.releaseStart();
       clearTimeoutList(pendingTimeoutsRef);
+      newSocket.removeAllListeners();
       newSocket.disconnect();
       if (emitTimeoutRef.current) {
         clearTimeout(emitTimeoutRef.current);
         emitTimeoutRef.current = null;
       }
     };
-  }, [token, createExplosion, t, activeGame, serverSlug, initScenery, navigate]);
+  }, [token, createExplosion, activeGame, serverSlug, initScenery, navigate]);
 
 
   useEffect(() => {
@@ -2499,769 +2229,4 @@ export default function GameSessionPage() {
     </div>
   );
 }
-
-const BlockStackArena = memo(function BlockStackArena({
-  state,
-  onDrop,
-  isGameOver,
-  t,
-}: {
-  state:
-    | {
-        target: number;
-        playWidth: number;
-        blocksPlaced: number;
-        block: { width: number; travelMs: number; startedAt: number };
-        base: { leftPx: number; width: number };
-        tower: Array<{ leftPx: number; width: number }>;
-      }
-    | null;
-  onDrop: () => void;
-  isGameOver: boolean;
-  t: TFunction;
-}) {
-  const [blockLeftPx, setBlockLeftPx] = useState(0);
-  const rafRef = useRef<number | null>(null);
-
-  // Drive the block animation locally from the server's startedAt + travelMs.
-  useEffect(() => {
-    if (!state || isGameOver) {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      return;
-    }
-    const tick = () => {
-      const now = Date.now();
-      const elapsed = Math.max(0, now - state.block.startedAt);
-      const travel = Math.max(1, state.block.travelMs);
-      const cyclePos = (elapsed % (travel * 2)) / travel;
-      const phase = cyclePos <= 1 ? cyclePos : 2 - cyclePos;
-      const maxLeft = state.playWidth - state.block.width;
-      setBlockLeftPx(phase * maxLeft);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [state, isGameOver]);
-
-  if (!state) {
-    return (
-      <div className="flex h-full w-full items-center justify-center text-xs font-bold uppercase tracking-widest text-slate-500">
-        {t("minerGames.loading")}
-      </div>
-    );
-  }
-
-  // Tower height: each block stacked grows upward from the bottom.
-  const BLOCK_H = 22;
-  const towerHeight = state.tower.length * BLOCK_H;
-  const trackHeight = 360; // visual play height for the moving block area
-
-  return (
-    <div className="relative flex h-full w-full flex-col bg-gradient-to-b from-slate-900 to-black">
-      {/* Progress bar */}
-      <div className="px-3 pt-3">
-        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-          <span>{t("minerGames.block_stack.progress", { current: state.blocksPlaced, total: state.target })}</span>
-        </div>
-        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-200"
-            style={{ width: `${(state.blocksPlaced / state.target) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Play area — relative coords scaled to state.playWidth */}
-      <div
-        className="relative mx-auto mt-4 mb-2 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/80"
-        style={{ width: state.playWidth, maxWidth: "100%", height: trackHeight }}
-      >
-        {/* Moving block */}
-        <div
-          className="absolute h-[22px] rounded-md bg-gradient-to-r from-amber-300 to-orange-500 shadow-lg"
-          style={{
-            top: 8,
-            left: blockLeftPx,
-            width: state.block.width,
-            transform: "translateZ(0)", // GPU-accel; smooth motion
-          }}
-        />
-        {/* Stacked tower (built bottom-up) */}
-        {state.tower.map((b, idx) => (
-          <div
-            key={idx}
-            className="absolute h-[22px] rounded-sm bg-gradient-to-r from-emerald-400 to-cyan-500 shadow"
-            style={{
-              left: b.leftPx,
-              width: b.width,
-              bottom: idx * BLOCK_H,
-            }}
-          />
-        ))}
-        {/* Aim guide on the next-base position */}
-        <div
-          className="absolute border-x-2 border-dashed border-emerald-400/30"
-          style={{
-            left: state.base.leftPx,
-            width: state.base.width,
-            top: 8,
-            bottom: towerHeight,
-          }}
-        />
-      </div>
-
-      {/* Drop button */}
-      <button
-        type="button"
-        onClick={onDrop}
-        disabled={isGameOver}
-        className="mx-auto mb-4 mt-auto rounded-2xl bg-primary px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {t("minerGames.block_stack.drop_button")}
-      </button>
-    </div>
-  );
-});
-
-/**
- * SkyRunnerArena — Flappy-Bird-style minigame, **100% client-side physics**.
- *
- * Architecture:
- *   - Server emits `game:started` with a seed + physics constants. After
- *     that, the client owns the simulation: gravity, scroll, pipe spawning
- *     and collision detection all run in a rAF loop. Inputs (flap on
- *     Space/ArrowUp/W/Tap/Click) take effect on the very next frame — zero
- *     input delay.
- *   - Pipes are generated by a deterministic PRNG (mulberry32) seeded from
- *     the server's hex seed, so two clients with the same seed would see
- *     the same pipe layout.
- *   - Every `checkpointEveryPipes`, we report `{pipesPassed, elapsedMs}` to
- *     the server. Server compares against the minimum theoretical pace and
- *     can drop the session if the client is faking progress.
- *   - On win/loss we emit `{type:"finish",...}` so the server runs the
- *     existing `finishGame()` (15s minimum playtime floor, reward grant).
- */
-
-/** Hex string → 32-bit seed integer (xor-fold 8 hex chars at a time). */
-function skySeedFromHex(hex: string): number {
-  let s = 0;
-  const clean = (hex || "").replace(/[^0-9a-f]/gi, "");
-  for (let i = 0; i < clean.length; i += 8) {
-    const chunk = clean.slice(i, i + 8);
-    if (chunk.length === 0) break;
-    s = (s ^ parseInt(chunk, 16)) >>> 0;
-  }
-  return s || 0x9e3779b9;
-}
-
-/** mulberry32 — tiny deterministic PRNG returning floats in [0,1). */
-function makeMulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return function () {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-type SkyPipe = {
-  id: number;
-  x: number;
-  gapTop: number;
-  gapBottom: number;
-  passed: boolean;
-};
-
-type SkyConfig = {
-  seed: string;
-  worldW: number;
-  worldH: number;
-  planeX: number;
-  planeRadius: number;
-  pipeW: number;
-  pipeGap: number;
-  pipeGapMin: number;
-  pipeSpawnDx: number;
-  pipeMargin: number;
-  scrollSpeedBase: number;
-  scrollSpeedMax: number;
-  difficultyRampMs: number;
-  gravity: number;
-  flapVy: number;
-  maxVy: number;
-  minFlapIntervalMs: number;
-  invulnMs: number;
-  targetPipes: number;
-  lives: number;
-  maxLives: number;
-  checkpointEveryPipes: number;
-};
-
-const SkyRunnerArena = memo(function SkyRunnerArena({
-  state,
-  onFlap,
-  onCheckpoint,
-  onFinish,
-  isGameOver,
-  t,
-}: {
-  state: SkyConfig | null;
-  onFlap: () => void;
-  onCheckpoint: (info: { pipesPassed: number; elapsedMs: number; lives: number; score: number }) => void;
-  onFinish: (info: { pipesPassed: number; elapsedMs: number; score: number; won: boolean }) => void;
-  isGameOver: boolean;
-  t: TFunction;
-}) {
-  // ── Live physics state. Refs so the rAF loop can mutate without rerender.
-  const physRef = useRef<{
-    y: number;
-    vy: number;
-    pipes: SkyPipe[];
-    pipeSeq: number;
-    nextSpawnX: number;
-    scrollSpeed: number;
-    elapsedMs: number;
-    lives: number;
-    invulnUntil: number;
-    pipesPassed: number;
-    score: number;
-    lastFlapAt: number;
-    rng: () => number;
-    lastFrameAt: number;
-    crashed: string | null;
-    finished: boolean;
-  } | null>(null);
-
-  // React-mirrored HUD (hearts + progress text). Re-rendered on changes only.
-  const [hud, setHud] = useState<{
-    lives: number;
-    pipesPassed: number;
-    invulnerable: boolean;
-    crashed: string | null;
-    hitFlashKey: number;
-  }>({ lives: 0, pipesPassed: 0, invulnerable: false, crashed: null, hitFlashKey: 0 });
-
-  // Reset physics on each new `state` (fresh game start).
-  useEffect(() => {
-    if (!state) {
-      physRef.current = null;
-      setHud({ lives: 0, pipesPassed: 0, invulnerable: false, crashed: null, hitFlashKey: 0 });
-      return;
-    }
-    physRef.current = {
-      y: state.worldH / 2,
-      vy: 0,
-      pipes: [],
-      pipeSeq: 0,
-      nextSpawnX: state.worldW + 200,
-      scrollSpeed: state.scrollSpeedBase,
-      elapsedMs: 0,
-      lives: state.lives,
-      invulnUntil: 0,
-      pipesPassed: 0,
-      score: 0,
-      lastFlapAt: 0,
-      rng: makeMulberry32(skySeedFromHex(state.seed)),
-      lastFrameAt: 0,
-      crashed: null,
-      finished: false,
-    };
-    setHud({
-      lives: state.lives,
-      pipesPassed: 0,
-      invulnerable: false,
-      crashed: null,
-      hitFlashKey: 0,
-    });
-  }, [state]);
-
-  // ── Input: flap (Space/ArrowUp/W keyboard; tap/click via JSX onPointerDown)
-  const flap = useCallback(() => {
-    const ph = physRef.current;
-    if (!ph || !state || ph.finished) return;
-    const now = performance.now();
-    if (now - ph.lastFlapAt < state.minFlapIntervalMs) return;
-    ph.lastFlapAt = now;
-    ph.vy = state.flapVy;
-    onFlap();
-  }, [state, onFlap]);
-
-  const flapRef = useRef(flap);
-  flapRef.current = flap;
-
-  useEffect(() => {
-    if (isGameOver) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.repeat) return;
-      const k = String(e.key || "").toLowerCase();
-      const isSpace = k === " " || e.code === "Space" || k === "spacebar";
-      const isUp = k === "arrowup" || k === "w";
-      if (!isSpace && !isUp) return;
-      const target = e.target as HTMLElement | null;
-      const tag = target?.tagName?.toLowerCase() || "";
-      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
-      e.preventDefault();
-      flapRef.current();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [isGameOver]);
-
-  // DOM nodes managed by rAF
-  const planeElRef = useRef<HTMLDivElement | null>(null);
-  const pipesLayerRef = useRef<HTMLDivElement | null>(null);
-  const pipeNodesRef = useRef<Map<number, { top: HTMLDivElement; bottom: HTMLDivElement }>>(new Map());
-  const tiltSmoothedRef = useRef(0);
-  const lastCheckpointReportedRef = useRef(0);
-
-  // Stable callback refs so the rAF closure can call latest version
-  const onCheckpointRef = useRef(onCheckpoint);
-  onCheckpointRef.current = onCheckpoint;
-  const onFinishRef = useRef(onFinish);
-  onFinishRef.current = onFinish;
-
-  const hitFlashKey = hud.hitFlashKey;
-
-  // ── rAF loop: full physics + render at monitor refresh rate
-  useEffect(() => {
-    if (!state) return;
-    let raf = 0;
-    const worldW = state.worldW;
-    const worldH = state.worldH;
-    const planeXPct = (state.planeX / worldW) * 100;
-    const planeWPct = ((state.planeRadius * 2) / worldW) * 100;
-    const pipeWPct = (state.pipeW / worldW) * 100;
-
-    // Wipe any old DOM nodes from a previous run
-    for (const pair of pipeNodesRef.current.values()) {
-      pair.top.remove();
-      pair.bottom.remove();
-    }
-    pipeNodesRef.current.clear();
-    lastCheckpointReportedRef.current = 0;
-
-    /** Push a fresh pipe at nextSpawnX, then advance nextSpawnX by pipeSpawnDx. */
-    const spawnPipe = () => {
-      const ph = physRef.current;
-      if (!ph) return;
-      const ramp = Math.min(1, ph.elapsedMs / state.difficultyRampMs);
-      const gap = state.pipeGap - (state.pipeGap - state.pipeGapMin) * ramp;
-      const minCenter = state.pipeMargin + gap / 2;
-      const maxCenter = state.worldH - state.pipeMargin - gap / 2;
-      const center = minCenter + ph.rng() * Math.max(0, maxCenter - minCenter);
-      ph.pipes.push({
-        id: ++ph.pipeSeq,
-        x: ph.nextSpawnX,
-        gapTop: center - gap / 2,
-        gapBottom: center + gap / 2,
-        passed: false,
-      });
-      ph.nextSpawnX += state.pipeSpawnDx;
-    };
-
-    const tick = () => {
-      const ph = physRef.current;
-      if (!ph) {
-        raf = requestAnimationFrame(tick);
-        return;
-      }
-      const now = performance.now();
-      const dt = ph.lastFrameAt === 0 ? 0 : Math.min(64, now - ph.lastFrameAt);
-      ph.lastFrameAt = now;
-      const dtSec = dt / 1000;
-
-      if (!ph.finished && !ph.crashed) {
-        ph.elapsedMs += dt;
-        const invulnerable = now < ph.invulnUntil;
-
-        // Ramp scroll speed with difficulty
-        const tRamp = Math.min(1, ph.elapsedMs / state.difficultyRampMs);
-        ph.scrollSpeed =
-          state.scrollSpeedBase + (state.scrollSpeedMax - state.scrollSpeedBase) * tRamp;
-
-        // Physics: gravity → vy → y
-        ph.vy = Math.min(state.maxVy, ph.vy + state.gravity * dtSec);
-        ph.y += ph.vy * dtSec;
-
-        // Scroll pipes left
-        const dx = ph.scrollSpeed * dtSec;
-        for (const p of ph.pipes) p.x -= dx;
-        ph.nextSpawnX -= dx;
-        ph.pipes = ph.pipes.filter((p) => p.x + state.pipeW > -40);
-
-        // Spawn pipes ahead until we have enough queued
-        let safety = 12;
-        while (
-          (ph.nextSpawnX < state.worldW + state.pipeSpawnDx * 2 || ph.pipes.length < 4) &&
-          safety-- > 0
-        ) {
-          spawnPipe();
-        }
-
-        // Helper: lose a life or end the run
-        let died = false;
-        const loseLife = (reason: string) => {
-          if (invulnerable) return;
-          ph.lives = Math.max(0, ph.lives - 1);
-          setHud((h) => ({
-            ...h,
-            lives: ph.lives,
-            hitFlashKey: h.hitFlashKey + 1,
-            invulnerable: ph.lives > 0,
-          }));
-          if (ph.lives <= 0) {
-            ph.crashed = reason;
-            died = true;
-          } else {
-            ph.y = state.worldH / 2;
-            ph.vy = 0;
-            ph.invulnUntil = now + state.invulnMs;
-          }
-        };
-
-        // World bounds (ceiling / floor cost a life)
-        if (ph.y - state.planeRadius <= 0) {
-          ph.y = state.planeRadius + 1;
-          loseLife("ceiling");
-        } else if (ph.y + state.planeRadius >= state.worldH) {
-          ph.y = state.worldH - state.planeRadius - 1;
-          loseLife("floor");
-        }
-
-        // Pipe collisions + scoring
-        if (!died) {
-          const pl = state.planeX - state.planeRadius;
-          const pr = state.planeX + state.planeRadius;
-          const pt = ph.y - state.planeRadius;
-          const pb = ph.y + state.planeRadius;
-          for (const p of ph.pipes) {
-            const pLeft = p.x;
-            const pRight = p.x + state.pipeW;
-            const overlapsX = pr > pLeft && pl < pRight;
-            if (overlapsX && !invulnerable) {
-              if (pt < p.gapTop || pb > p.gapBottom) {
-                p.passed = true;
-                loseLife("pipe");
-                break;
-              }
-            }
-            if (!p.passed && pRight < pl) {
-              p.passed = true;
-              ph.pipesPassed += 1;
-              ph.score += 100;
-              setHud((h) => ({ ...h, pipesPassed: ph.pipesPassed }));
-            }
-          }
-        }
-
-        // Drop invulnerability flag when it expires
-        const stillInvulnerable = now < ph.invulnUntil;
-        setHud((h) =>
-          h.invulnerable !== stillInvulnerable ? { ...h, invulnerable: stillInvulnerable } : h
-        );
-
-        // Anti-cheat checkpoint every N pipes
-        const cpStep = Math.max(1, state.checkpointEveryPipes);
-        const cpEpoch = Math.floor(ph.pipesPassed / cpStep);
-        if (cpEpoch > lastCheckpointReportedRef.current && ph.pipesPassed > 0) {
-          lastCheckpointReportedRef.current = cpEpoch;
-          onCheckpointRef.current({
-            pipesPassed: ph.pipesPassed,
-            elapsedMs: Math.floor(ph.elapsedMs),
-            lives: ph.lives,
-            score: ph.score,
-          });
-        }
-
-        // Win / lose: emit finish exactly once
-        if (!ph.finished) {
-          if (ph.pipesPassed >= state.targetPipes) {
-            ph.finished = true;
-            onFinishRef.current({
-              pipesPassed: ph.pipesPassed,
-              elapsedMs: Math.floor(ph.elapsedMs),
-              score: ph.score,
-              won: true,
-            });
-          } else if (ph.crashed) {
-            ph.finished = true;
-            const reason = ph.crashed;
-            setHud((h) => ({ ...h, crashed: reason }));
-            onFinishRef.current({
-              pipesPassed: ph.pipesPassed,
-              elapsedMs: Math.floor(ph.elapsedMs),
-              score: ph.score,
-              won: false,
-            });
-          }
-        }
-      }
-
-      // ── Render
-      // Plane
-      const targetTilt = Math.max(-30, Math.min(70, (ph.vy / 800) * 60));
-      tiltSmoothedRef.current += (targetTilt - tiltSmoothedRef.current) * 0.22;
-      if (planeElRef.current) {
-        const yPct = (ph.y / worldH) * 100;
-        planeElRef.current.style.top = `${yPct}%`;
-        planeElRef.current.style.left = `${planeXPct}%`;
-        planeElRef.current.style.width = `${planeWPct}%`;
-        planeElRef.current.style.transform = `translate(-50%, -50%) rotate(${tiltSmoothedRef.current.toFixed(2)}deg)`;
-        planeElRef.current.style.opacity =
-          now < ph.invulnUntil ? (Math.floor(now / 90) % 2 === 0 ? "0.35" : "1") : "1";
-      }
-
-      // Pipes
-      const layer = pipesLayerRef.current;
-      if (layer) {
-        const seenIds = new Set<number>();
-        for (const cp of ph.pipes) {
-          seenIds.add(cp.id);
-          const leftPct = (cp.x / worldW) * 100;
-          const topH = (cp.gapTop / worldH) * 100;
-          const bottomY = (cp.gapBottom / worldH) * 100;
-          let pair = pipeNodesRef.current.get(cp.id);
-          if (!pair) {
-            const top = document.createElement("div");
-            const bottom = document.createElement("div");
-            const pipeClass = "absolute will-change-transform";
-            top.className = pipeClass;
-            bottom.className = pipeClass;
-            const grad =
-              "linear-gradient(to right, #047857 0%, #10b981 30%, #34d399 55%, #10b981 75%, #064e3b 100%)";
-            top.style.background = grad;
-            bottom.style.background = grad;
-            top.style.borderRight = "4px solid #022c22";
-            bottom.style.borderRight = "4px solid #022c22";
-            top.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
-            bottom.style.boxShadow = "inset -6px 0 0 rgba(0,0,0,0.18), inset 6px 0 0 rgba(255,255,255,0.18)";
-            const capTop = document.createElement("div");
-            const capBottom = document.createElement("div");
-            const capCss =
-              "position:absolute;left:-4px;right:-8px;height:18px;background:linear-gradient(to right,#047857,#10b981 50%,#064e3b);border:3px solid #022c22;border-radius:4px;box-shadow:0 2px 0 rgba(0,0,0,0.2)";
-            capTop.style.cssText = capCss + ";bottom:-6px";
-            capBottom.style.cssText = capCss + ";top:-6px";
-            top.appendChild(capTop);
-            bottom.appendChild(capBottom);
-            layer.appendChild(top);
-            layer.appendChild(bottom);
-            pair = { top, bottom };
-            pipeNodesRef.current.set(cp.id, pair);
-          }
-          pair.top.style.left = `${leftPct}%`;
-          pair.top.style.top = "0";
-          pair.top.style.width = `${pipeWPct}%`;
-          pair.top.style.height = `${topH}%`;
-          pair.bottom.style.left = `${leftPct}%`;
-          pair.bottom.style.top = `${bottomY}%`;
-          pair.bottom.style.width = `${pipeWPct}%`;
-          pair.bottom.style.bottom = "0";
-        }
-        for (const [id, pair] of pipeNodesRef.current.entries()) {
-          if (!seenIds.has(id)) {
-            pair.top.remove();
-            pair.bottom.remove();
-            pipeNodesRef.current.delete(id);
-          }
-        }
-      }
-
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [state]);
-
-  if (!state) {
-    return (
-      <div className="flex h-full w-full items-center justify-center text-xs font-bold uppercase tracking-widest text-slate-500">
-        {t("minerGames.loading")}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={t("minerGames.sky_runner.flap_aria")}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        flap();
-      }}
-      className="relative h-full w-full select-none overflow-hidden"
-      style={{
-        touchAction: "manipulation",
-        background:
-          "linear-gradient(to bottom, #0c4a6e 0%, #0284c7 25%, #38bdf8 55%, #7dd3fc 80%, #bae6fd 100%)",
-      }}
-    >
-      {/* Sun */}
-      <div
-        className="pointer-events-none absolute rounded-full"
-        style={{
-          left: "78%",
-          top: "8%",
-          width: "16%",
-          aspectRatio: "1 / 1",
-          background:
-            "radial-gradient(circle at 35% 35%, #fef9c3 0%, #fde047 45%, rgba(253,224,71,0) 70%)",
-          filter: "blur(2px)",
-        }}
-      />
-
-      {/* Parallax clouds — purely decorative */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[6%] top-[14%] h-8 w-28 rounded-full bg-white/80 blur-[2px]" />
-        <div className="absolute left-[14%] top-[16%] h-10 w-20 rounded-full bg-white/85 blur-[1px]" />
-        <div className="absolute left-[45%] top-[28%] h-7 w-20 rounded-full bg-white/70 blur-[2px]" />
-        <div className="absolute left-[28%] top-[58%] h-6 w-24 rounded-full bg-white/60 blur-[2px]" />
-        <div className="absolute left-[68%] top-[44%] h-9 w-32 rounded-full bg-white/75 blur-[1.5px]" />
-        <div className="absolute left-[8%] top-[78%] h-5 w-16 rounded-full bg-white/55 blur-[2px]" />
-      </div>
-
-      {/* Pipes layer (rAF-managed nodes) */}
-      <div
-        ref={pipesLayerRef}
-        className="pointer-events-none absolute inset-0"
-        style={{ contain: "layout paint" }}
-      />
-
-      {/* Plane (rAF-managed transform) */}
-      <div
-        ref={planeElRef}
-        className="absolute will-change-transform"
-        style={{
-          left: `${(state.planeX / state.worldW) * 100}%`,
-          top: "50%",
-          width: `${(state.planeRadius * 2 / state.worldW) * 100}%`,
-          aspectRatio: "1 / 1",
-          transform: "translate(-50%, -50%)",
-          transformOrigin: "center",
-          filter: "drop-shadow(0 6px 8px rgba(0,0,0,0.35))",
-        }}
-      >
-        <svg viewBox="0 0 80 80" className="h-full w-full" aria-hidden>
-          <defs>
-            <linearGradient id="planeBodyGrad" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="#fef9c3" />
-              <stop offset="55%" stopColor="#fde047" />
-              <stop offset="100%" stopColor="#ca8a04" />
-            </linearGradient>
-            <linearGradient id="planeWingGrad" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#fb7185" />
-              <stop offset="100%" stopColor="#9f1239" />
-            </linearGradient>
-            <radialGradient id="cockpitGrad" cx="0.4" cy="0.35" r="0.6">
-              <stop offset="0%" stopColor="#bae6fd" />
-              <stop offset="100%" stopColor="#0c4a6e" />
-            </radialGradient>
-          </defs>
-          {/* Body */}
-          <path
-            d="M8 42 Q14 30 32 32 L56 30 Q66 30 72 36 L74 42 Q66 50 56 50 L32 50 Q14 50 8 42 Z"
-            fill="url(#planeBodyGrad)"
-            stroke="#854d0e"
-            strokeWidth="2"
-            strokeLinejoin="round"
-          />
-          {/* Wing */}
-          <path
-            d="M30 38 L46 18 L54 18 L48 38 Z"
-            fill="url(#planeWingGrad)"
-            stroke="#7f1d1d"
-            strokeWidth="2"
-            strokeLinejoin="round"
-          />
-          {/* Lower wing shadow */}
-          <path d="M30 44 L46 56 L54 56 L48 44 Z" fill="#dc2626" opacity="0.85" stroke="#7f1d1d" strokeWidth="1.5" />
-          {/* Tail fin */}
-          <path d="M10 42 L4 26 L16 36 Z" fill="#dc2626" stroke="#7f1d1d" strokeWidth="2" strokeLinejoin="round" />
-          {/* Cockpit */}
-          <ellipse cx="58" cy="38" rx="6" ry="4.5" fill="url(#cockpitGrad)" stroke="#0c4a6e" strokeWidth="1.5" />
-          {/* Propeller hub */}
-          <circle cx="73" cy="42" r="2.5" fill="#1f2937" />
-          {/* Propeller blades (spinning illusion: two thin ellipses crossed) */}
-          <ellipse cx="73" cy="42" rx="1" ry="12" fill="#475569" opacity="0.5">
-            <animateTransform attributeName="transform" type="rotate" from="0 73 42" to="360 73 42" dur="0.12s" repeatCount="indefinite" />
-          </ellipse>
-        </svg>
-      </div>
-
-      {/* Ground (decorative) */}
-      <div
-        className="pointer-events-none absolute bottom-0 left-0 right-0 h-6"
-        style={{
-          background:
-            "linear-gradient(to bottom, #65a30d 0%, #4d7c0f 40%, #365314 100%)",
-          boxShadow: "inset 0 4px 0 rgba(255,255,255,0.15)",
-        }}
-      />
-
-      {/* HUD: lives + progress (top bar) */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 flex items-center justify-between gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white">
-        {/* Lives (hearts) */}
-        <div
-          className="flex shrink-0 items-center gap-1 rounded-full bg-black/40 px-2.5 py-1.5 backdrop-blur-sm"
-          aria-label={t("minerGames.sky_runner.lives_aria", { lives: hud.lives })}
-        >
-          {Array.from({ length: state.maxLives }).map((_, i) => {
-            const filled = i < hud.lives;
-            return (
-              <svg
-                key={i}
-                viewBox="0 0 24 24"
-                className={[
-                  "h-4 w-4 transition-all duration-300",
-                  filled
-                    ? "text-rose-400 drop-shadow-[0_0_4px_rgba(244,114,182,0.7)]"
-                    : "text-slate-600 opacity-50",
-                ].join(" ")}
-                fill={filled ? "currentColor" : "none"}
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-              </svg>
-            );
-          })}
-        </div>
-
-        {/* Pipe progress */}
-        <span className="rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm drop-shadow">
-          {t("minerGames.sky_runner.pipes_progress", { current: hud.pipesPassed, total: state.targetPipes })}
-        </span>
-
-        {/* Tap hint */}
-        <span className="hidden rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm drop-shadow sm:inline">
-          {t("minerGames.sky_runner.tap_hint")}
-        </span>
-      </div>
-
-      {/* Hit flash overlay — re-mounts on every life loss */}
-      {hitFlashKey > 0 ? (
-        <div
-          key={hitFlashKey}
-          className="pointer-events-none absolute inset-0 animate-ping bg-red-500/35"
-          style={{ animationDuration: "600ms", animationIterationCount: 1 }}
-        />
-      ) : null}
-
-      {hud.crashed ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-red-900/40 backdrop-blur-sm">
-          <span className="rounded-2xl bg-red-600/95 px-6 py-3 text-2xl font-black uppercase tracking-widest text-white shadow-2xl ring-4 ring-red-300/40">
-            {t("minerGames.sky_runner.crashed")}
-          </span>
-        </div>
-      ) : null}
-    </div>
-  );
-});
 

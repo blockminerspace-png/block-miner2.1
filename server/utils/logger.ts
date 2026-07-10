@@ -74,7 +74,7 @@ function fileNameForLevel(level: string): string {
 function writeLine(level: string, record: Record<string, unknown>): void {
   const line = `${JSON.stringify(record)}\n`;
   if (process.env.NODE_ENV !== "test") {
-    console.log(line.trimEnd());
+    console.info(line.trimEnd());
   }
   if (!shouldWriteFiles()) return;
   try {
@@ -135,20 +135,20 @@ class Logger {
     emitStructured(level, this.category, message, normalizeDetails(details), req);
   }
 
-  error(message: string, details?: Record<string, unknown>, req?: Request | null | undefined): void {
-    this._emit("ERROR", message, details, req);
+  error(message: string, details?: unknown, req?: Request | null | undefined): void {
+    this._emit("ERROR", message, details as Record<string, unknown> | undefined, req);
   }
 
-  warn(message: string, details?: Record<string, unknown>, req?: Request | null | undefined): void {
-    this._emit("WARN", message, details, req);
+  warn(message: string, details?: unknown, req?: Request | null | undefined): void {
+    this._emit("WARN", message, details as Record<string, unknown> | undefined, req);
   }
 
-  info(message: string, details?: Record<string, unknown>, req?: Request | null | undefined): void {
-    this._emit("INFO", message, details, req);
+  info(message: string, details?: unknown, req?: Request | null | undefined): void {
+    this._emit("INFO", message, details as Record<string, unknown> | undefined, req);
   }
 
-  debug(message: string, details?: Record<string, unknown>, req?: Request | null | undefined): void {
-    this._emit("DEBUG", message, details, req);
+  debug(message: string, details?: unknown, req?: Request | null | undefined): void {
+    this._emit("DEBUG", message, details as Record<string, unknown> | undefined, req);
   }
 
   /**

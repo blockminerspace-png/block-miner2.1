@@ -7,6 +7,8 @@ import { createCspMiddleware } from "#server/middleware/csp.js";
 import { createCsrfMiddleware } from "#server/middleware/csrf.js";
 import { auditContextMiddleware } from "#server/src/audit/index.js";
 import { createHttpRequestLogger } from "#server/middleware/httpRequestLogger.js";
+import { createObservabilityMetricsMiddleware } from "#server/middleware/observabilityMetrics.js";
+import { createRequestContextMiddleware } from "#server/middleware/requestContext.js";
 import { buildExpressCorsOptions } from "#server/utils/corsConfig.js";
 
 function envFlag(name: string, defaultValue = false): boolean {
@@ -60,6 +62,9 @@ export function setupExpressHttpStack(app: Express, opts: SetupExpressHttpStackO
   app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
   app.use(createCsrfMiddleware());
 
+  app.use(createRequestContextMiddleware());
+  app.use(createObservabilityMetricsMiddleware());
+
   const globalLimiter = createDistributedRateLimiter({
     windowMs: 15 * 60 * 1000,
     max: 5000,
@@ -72,13 +77,14 @@ export function setupExpressHttpStack(app: Express, opts: SetupExpressHttpStackO
   });
   app.use("/api", auditContextMiddleware);
   app.use("/api", globalLimiter);
-  app.use("/api", createHttpRequestLogger());
+  app.use(createHttpRequestLogger());
 
   if (ADMIN_ONLY_MODE) {
     app.use((req, res, next) => {
       const allowedPrefixes = [
         "/api/admin",
         "/health",
+        "/metrics",
         "/uploads",
         "/assets",
         "/socket.io",

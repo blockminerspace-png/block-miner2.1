@@ -7,6 +7,9 @@ import {
   REWARD_MACHINE,
 } from "../modules/checkin/checkin.milestoneRules.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("adminCheckinMilestoneController");
+
 function getPrismaCode(e: unknown): string | undefined {
   if (e !== null && typeof e === "object" && "code" in e) {
     const c = (e as { code?: unknown }).code;
@@ -58,7 +61,7 @@ export async function listCheckinMilestones(_req: Request, res: Response): Promi
       })),
     });
   } catch (e: unknown) {
-    console.error("admin listCheckinMilestones", e);
+    logger.error("admin listCheckinMilestones", { error: String(e) });
     if (isMissingMilestoneTablesError(e)) {
       res.status(503).json({
         ok: false,
@@ -105,7 +108,7 @@ export async function createCheckinMilestone(
       });
       return;
     }
-    console.error("admin createCheckinMilestone", e);
+    logger.error("admin createCheckinMilestone", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to create milestone." });
   }
 }
@@ -150,7 +153,7 @@ export async function updateCheckinMilestone(
       });
       return;
     }
-    console.error("admin updateCheckinMilestone", e);
+    logger.error("admin updateCheckinMilestone", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to update milestone." });
   }
 }
@@ -178,7 +181,7 @@ export async function deleteCheckinMilestone(req: Request<IdParams>, res: Respon
       });
       return;
     }
-    console.error("admin deleteCheckinMilestone", e);
+    logger.error("admin deleteCheckinMilestone", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to delete milestone." });
   }
 }

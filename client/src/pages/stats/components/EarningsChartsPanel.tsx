@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import type { EarningsTotals, EarningsHistoryPoint } from '../stats.earnings.api';
 import { formatPolAmount } from '../stats.earnings.api';
+import { formatUtcChartDay } from '../../../shared/utils/utcStatsPeriod';
 
 const SLICE_COLORS: Record<string, string> = {
   mining: '#22c55e',
@@ -72,8 +73,9 @@ function EarningsChartsPanelInner({ totals, history, mode = 'full' }: Props) {
   const lineData = useMemo(
     () =>
       (history || []).map((p) => ({
-        date: p.date.slice(5),
+        date: formatUtcChartDay(p.date),
         total: p.total,
+        rawDate: p.date,
       })),
     [history],
   );

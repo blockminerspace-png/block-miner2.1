@@ -42,10 +42,14 @@ export function useSupportTicketSocket(
     };
 
     if (sock.connected) subscribe();
-    else sock.once('connect', subscribe);
+    sock.on('connect', subscribe);
+
+    const room = `support:${supportMessageId}`;
 
     return () => {
       sock.off('support:reply', handleReply);
+      sock.off('connect', subscribe);
+      if (sock.connected) sock.leave(room);
     };
   }, [supportMessageId, socket]);
 }

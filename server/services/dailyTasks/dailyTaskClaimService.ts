@@ -10,6 +10,9 @@ import {
   type InboxRewardPayload,
 } from "../rewardInboxService.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("dailyTaskClaimService");
+
 const CHECKIN_APP_PATH = SIDEBAR_ITEM_REGISTRY.checkin.path;
 
 /**
@@ -166,7 +169,7 @@ export async function claimDailyTaskReward(userId, taskDefinitionId) {
     if (msg === "ALREADY_CLAIMED") return { ok: false, code: "already_claimed", status: 409 };
     if (msg === "TASK_NOT_FOUND") return { ok: false, code: "not_found", status: 404 };
     if (msg === "FORBIDDEN") return { ok: false, code: "forbidden", status: 403 };
-    console.error("claimDailyTaskReward", e);
+    logger.error("claimDailyTaskReward", { error: String(e) });
     return { ok: false, code: "error", status: 500 };
   }
 }

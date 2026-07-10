@@ -77,7 +77,7 @@ export async function listBrokenMachineGroupsController(req: Request, res: Respo
     const groups = await listBrokenMachineGroups(prisma);
     return res.json({ ok: true, groups, total: groups.reduce((s, g) => s + g.count, 0) });
   } catch (err: unknown) {
-    console.error("listBrokenMachineGroups", err);
+    logger.error("listBrokenMachineGroups", { error: String(err) });
     return res.status(500).json({ ok: false, message: "Erro ao listar máquinas problemáticas." });
   }
 }
@@ -107,7 +107,7 @@ export async function assignBrokenMachinesController(req: Request, res: Response
       : await assignMinerToGroup(prisma, { minerName, hashRate, location, catalogMinerId });
     return res.status(result.ok ? 200 : 400).json(result);
   } catch (err: unknown) {
-    console.error("assignBrokenMachines", err);
+    logger.error("assignBrokenMachines", { error: String(err) });
     return handleAdminMinersError(res, err, "Erro ao atribuir mineradora.");
   }
 }
@@ -118,7 +118,7 @@ export async function listOrphanMachineTypesController(req: Request, res: Respon
     const types = await listOrphanMachineTypes(prisma);
     return res.json({ ok: true, types });
   } catch (err: unknown) {
-    console.error("listOrphanMachineTypes", err);
+    logger.error("listOrphanMachineTypes", { error: String(err) });
     return res.status(500).json({ ok: false, message: ADMIN_MINERS_ERROR });
   }
 }
@@ -166,7 +166,7 @@ export async function relinkOrphanMachineTypesController(req: Request, res: Resp
     const result = await relinkOrphanMachineTypeToCatalog(prisma, minerName);
     return res.status(result.ok ? 200 : 400).json(result);
   } catch (err: unknown) {
-    console.error("relinkOrphanMachineTypes", err);
+    logger.error("relinkOrphanMachineTypes", { error: String(err) });
     return handleAdminMinersError(res, err, "Erro ao reparar instâncias órfãs.");
   }
 }

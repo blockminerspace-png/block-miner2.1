@@ -2,6 +2,9 @@ import type { Request, Response } from "express";
 import { getDailyTasksDashboard } from "../../services/dailyTasks/dailyTaskDashboardService.js";
 import { claimDailyTaskReward } from "../../services/dailyTasks/dailyTaskClaimService.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("tasks.controller");
+
 type TaskParams = { taskId: string };
 
 export async function getDailyTasks(req: Request, res: Response): Promise<void> {
@@ -14,7 +17,7 @@ export async function getDailyTasks(req: Request, res: Response): Promise<void> 
     const data = await getDailyTasksDashboard(userId);
     res.json({ ok: true, ...data });
   } catch (e: unknown) {
-    console.error("getDailyTasks", e);
+    logger.error("getDailyTasks", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }
@@ -39,7 +42,7 @@ export async function postClaimDailyTask(req: Request<TaskParams>, res: Response
     }
     res.json({ ok: true, summary: r.summary });
   } catch (e: unknown) {
-    console.error("postClaimDailyTask", e);
+    logger.error("postClaimDailyTask", { error: String(e) });
     res.status(500).json({ ok: false, code: "error" });
   }
 }

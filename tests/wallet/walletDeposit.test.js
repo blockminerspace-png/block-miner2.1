@@ -7,7 +7,7 @@ process.env.DEPOSIT_WALLET_ADDRESS = "0xTestDepositAddress";
 
 // Mocking the database interactions
 import walletModel from "#server/models/walletModel.js";
-import * as walletController from "#server/controllers/walletController.js";
+import * as walletController from "#server/modules/wallet/wallet.controller.js";
 import prisma from "#server/src/db/prisma.js";
 
 function createRes() {

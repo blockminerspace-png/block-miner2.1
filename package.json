@@ -47,10 +47,13 @@
     "lint": "eslint . --ext .js",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "backup": "npm run build:server && node scripts/backup.js",
+    "backup": "npm run build:server && node scripts/run-database-backup.mjs",
     "clear-faucet-inventory": "npm run build:server && node scripts/clear-faucet-inventory-expiry.mjs",
     "fix:miner-images": "node scripts/fixDuplicateMinerImageUrls.js",
-    "install-hooks": "git config core.hooksPath .githooks || true"
+    "install-hooks": "git config core.hooksPath .githooks || true",
+    "observability:config": "docker compose -f docker-compose.observability.yml config",
+    "observability:up": "docker compose -f docker-compose.yml -f docker-compose.observability.yml --env-file monitoring/.env.observability.example up -d",
+    "observability:down": "docker compose -f docker-compose.observability.yml down"
   },
   "keywords": [],
   "author": "",
@@ -68,7 +71,6 @@
     "bullmq": "^5.76.6",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
-    "csv-parser": "^3.2.0",
     "dotenv": "^17.3.1",
     "ethers": "^6.16.0",
     "express": "^5.2.1",

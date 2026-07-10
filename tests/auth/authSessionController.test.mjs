@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import authRouterDefault, { authRouter } from "#server/routes/auth.js";
+import { authRouter } from "#server/modules/auth/index.js";
 import { getSession } from "#server/modules/auth/session/session.controller.js";
 
 function createMockResponse() {
@@ -24,8 +24,8 @@ function createMockResponse() {
   };
 }
 
-test("auth route compatibility exports default and named router", () => {
-  assert.equal(authRouterDefault, authRouter);
+test("auth module exports named router", () => {
+  assert.ok(authRouter);
 });
 
 test("GET /api/auth/session without cookie returns safe unauthenticated JSON, not 500", async () => {

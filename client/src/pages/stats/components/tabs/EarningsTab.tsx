@@ -5,6 +5,7 @@ import { Coins, TrendingUp, Calendar, Award } from 'lucide-react';
 import { EARNINGS_CATEGORY_KEYS } from '../../stats.config';
 import { computeEarningsInsights, percentOfTotal, resolveTotals } from '../../utils/earningsAnalytics';
 import { formatPolAmount } from '../../stats.earnings.api';
+import { formatUtcChartDay } from '../../../../shared/utils/utcStatsPeriod';
 import type { StatsDashboardContext } from '../../stats.types';
 import StatCard from '../ui/StatCard';
 import PeriodPills from '../ui/PeriodPills';
@@ -46,7 +47,7 @@ function EarningsTab({ earnings, earningsLoading, earningsFilter, setEarningsFil
               ? `${formatPolAmount(insights.bestDay.total, locale)} POL`
               : '—'
           }
-          sub={insights.bestDay?.date}
+          sub={insights.bestDay ? formatUtcChartDay(insights.bestDay.date) : undefined}
           icon={Award}
           accent="text-emerald-400"
         />
@@ -57,7 +58,7 @@ function EarningsTab({ earnings, earningsLoading, earningsFilter, setEarningsFil
               ? `${formatPolAmount(insights.lastEarning.total, locale)} POL`
               : '—'
           }
-          sub={insights.lastEarning?.date ?? t('powerStats.charts.no_data')}
+          sub={insights.lastEarning ? formatUtcChartDay(insights.lastEarning.date) : t('powerStats.charts.no_data')}
           icon={Calendar}
           accent="text-violet-400"
         />
@@ -82,7 +83,7 @@ function EarningsTab({ earnings, earningsLoading, earningsFilter, setEarningsFil
                   <td className="p-3 font-medium text-white">{t(`powerStats.earnings.sources.${key}`)}</td>
                   <td className="p-3 font-mono text-amber-300">{formatPolAmount(val, locale)} POL</td>
                   <td className="p-3 text-sky-400">{percentOfTotal(val, totals.total)}%</td>
-                  <td className="p-3 text-slate-500 text-xs">{last ?? '—'}</td>
+                  <td className="p-3 text-slate-500 text-xs">{last ? formatUtcChartDay(last) : '—'}</td>
                 </tr>
               );
             })}

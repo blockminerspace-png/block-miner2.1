@@ -5,6 +5,9 @@ import { PURCHASE_BUY_LEVEL, PURCHASE_COMPLETE_PASS, XP_SOURCE_PURCHASE } from "
 import { xpCapForSeason, xpRemainingToCap } from "./miniPassLevelMath.js";
 import { isMiniPassSeasonLive } from "./miniPassSeasonLive.js";
 import { applyMiniPassXp } from "./miniPassXpService.js";
+
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("miniPassPurchaseService");
 function polBalanceOf(user) {
   return user?.polBalance != null ? Number(user.polBalance) : 0;
 }
@@ -150,7 +153,7 @@ export async function purchaseMiniPassLevels(userId, seasonId, quantity = 1) {
     if (gate === "FORBIDDEN" || msg === "USER_BLOCKED") {
       return { ok: false, code: "forbidden", status: 403 };
     }
-    console.error("purchaseMiniPassLevels", e);
+    logger.error("purchaseMiniPassLevels", { error: String(e) });
     return { ok: false, code: "error", status: 500 };
   }
 }
@@ -290,7 +293,7 @@ export async function purchaseMiniPassComplete(userId, seasonId) {
     if (gate === "FORBIDDEN" || msg === "USER_BLOCKED") {
       return { ok: false, code: "forbidden", status: 403 };
     }
-    console.error("purchaseMiniPassComplete", e);
+    logger.error("purchaseMiniPassComplete", { error: String(e) });
     return { ok: false, code: "error", status: 500 };
   }
 }

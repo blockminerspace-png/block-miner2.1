@@ -2681,3 +2681,86 @@ model EnergyTaxCharge {
   @@index([userId, createdAt])
   @@map("energy_tax_charges")
 }
+
+model AdminUser {
+  id             Int       @id @default(autoincrement())
+  name           String
+  email          String    @unique
+  passwordHash   String    @map("password_hash")
+  role           String    @default("admin")
+  permissions    Json?
+  isActive       Boolean   @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at")
+  lastLoginIp    String?   @map("last_login_ip")
+  lastLoginUa    String?   @map("last_login_ua")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdById    Int?      @map("created_by_id")
+  updatedById    Int?      @map("updated_by_id")
+
+  sessions       AdminSession[]
+  auditLogs      AdminAuditLog[]
+  passwordResets AdminPasswordReset[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id             String    @id
+  adminId        Int       @map("admin_id")
+  ipAddress      String?   @map("ip_address")
+  userAgent      String?   @map("user_agent")
+  country        String?
+  city           String?
+  expiresAt      DateTime  @map("expires_at")
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  admin          AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+model AdminAuditLog {
+  id          BigInt    @id @default(autoincrement())
+  adminId     Int?      @map("admin_id")
+  adminEmail  String?   @map("admin_email")
+  sessionId   String?   @map("session_id")
+  action      String
+  module      String?
+  resource    String?
+  resourceId  String?   @map("resource_id")
+  oldValue    Json?     @map("old_value")
+  newValue    Json?     @map("new_value")
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  success     Boolean   @default(true)
+  errorMsg    String?   @map("error_msg")
+  durationMs  Int?      @map("duration_ms")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  admin       AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([adminId])
+  @@index([createdAt])
+  @@index([action])
+  @@index([module])
+  @@map("admin_audit_logs")
+}
+
+model AdminPasswordReset {
+  id        Int       @id @default(autoincrement())
+  adminId   Int       @map("admin_id")
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("admin_password_resets")
+}

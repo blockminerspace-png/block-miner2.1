@@ -9,6 +9,9 @@ import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { getClientIp } from "../utils/clientIp.js";
 import type { SupportMessage, SupportReply, User } from "@prisma/client";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("adminSupportController");
+
 const attachmentSchema = z.object({
   url: z.string().min(1).max(512),
   mimeType: z.string().max(120).optional()
@@ -92,7 +95,7 @@ export const listMessages = async (req: Request, res: Response): Promise<void> =
     res.json({ ok: true, messages, page, limit, total });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[AdminSupportController] Error listing messages:", msg);
+    logger.error("[AdminSupportController] Error listing messages:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error listing messages" });
   }
 };
@@ -137,7 +140,7 @@ export const getMessage = async (req: Request<IdParams>, res: Response): Promise
     res.json({ ok: true, message: enrichTicket(row as AdminTicketRow) });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[AdminSupportController] Error getting message:", msg);
+    logger.error("[AdminSupportController] Error getting message:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error getting message" });
   }
 };
@@ -162,7 +165,7 @@ export const getPlayerDossier = async (req: Request<IdParams>, res: Response): P
     res.json(result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[AdminSupportController] Error loading player dossier:", msg);
+    logger.error("[AdminSupportController] Error loading player dossier:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error loading player dossier" });
   }
 };
@@ -261,7 +264,7 @@ export const creditPol = async (req: Request<IdParams>, res: Response): Promise<
       });
       return;
     } catch (replyErr) {
-      console.error("[AdminSupportController] Could not append credit note to ticket:", replyErr);
+      logger.error("[AdminSupportController] Could not append credit note to ticket:", { error: String(replyErr) });
       res.json({
         ok: true,
         message: "POL credited",
@@ -273,7 +276,7 @@ export const creditPol = async (req: Request<IdParams>, res: Response): Promise<
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[AdminSupportController] Error crediting POL:", msg);
+    logger.error("[AdminSupportController] Error crediting POL:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error crediting POL" });
   }
 };
@@ -314,7 +317,7 @@ export const replyToMessage = async (req: Request<IdParams>, res: Response): Pro
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[AdminSupportController] Error replying to message:", msg);
+    logger.error("[AdminSupportController] Error replying to message:", { error: String(msg) });
     res.status(500).json({ ok: false, message: "Error sending reply" });
   }
 };

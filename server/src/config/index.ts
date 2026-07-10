@@ -2,6 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("index");
+
 function loadJson(filePath: string): Record<string, unknown> {
   try {
     const txt = fs.readFileSync(filePath, "utf8");
@@ -94,8 +97,8 @@ function failStartup(message: string): never {
   help.push("  PowerShell:  $env:DB_PATH = \"./data/blockminer.db\"");
   help.push("  bash:        export DB_PATH=./data/blockminer.db");
   help.push("To persist for your shell, add the above to your profile or use a .env file.");
-  console.error("Configuration validation failed:", message);
-  console.error(help.join("\n"));
+  logger.error("Configuration validation failed:", { error: String(message) });
+  logger.error(help.join("\n"));
   throw new Error(message);
 }
 

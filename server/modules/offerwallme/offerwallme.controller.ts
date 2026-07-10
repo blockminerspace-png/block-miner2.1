@@ -15,10 +15,10 @@ import {
 const logger = loggerLib.child("OfferwallMeController");
 
 export const OFFERWALLME_API_KEY =
-  (process.env.OFFERWALLME_API_KEY ?? "yyu8i3jt58by9do1fbdr0fyn60yn5u").trim();
+  (process.env.OFFERWALLME_API_KEY ?? "").trim();
 
 const SECRET_KEY =
-  (process.env.OFFERWALLME_SECRET ?? "53ef7ec6bf3dac68f4c5528e057059e5").trim();
+  (process.env.OFFERWALLME_SECRET ?? "").trim();
 
 const PAYOUT_MULTIPLIER = 0.80;
 const FALLBACK_POL_PRICE = 0.20;

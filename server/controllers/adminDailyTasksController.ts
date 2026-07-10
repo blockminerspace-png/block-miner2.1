@@ -6,6 +6,9 @@ import {
   parsePatchDailyTaskDefinition,
 } from "../services/dailyTasks/dailyTaskDefinitionAdminValidation.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("adminDailyTasksController");
+
 function prismaErrCode(e: unknown): string | undefined {
   if (e !== null && typeof e === "object" && "code" in e) {
     const c = (e as { code?: unknown }).code;
@@ -23,7 +26,7 @@ export async function listDefinitions(_req: Request, res: Response): Promise<voi
     });
     res.json({ ok: true, definitions: rows });
   } catch (e: unknown) {
-    console.error("adminDailyTasks listDefinitions", e);
+    logger.error("adminDailyTasks listDefinitions", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to load daily task definitions." });
   }
 }
@@ -70,7 +73,7 @@ export async function patchDefinition(
       res.status(409).json({ ok: false, message: "Slug already exists." });
       return;
     }
-    console.error("adminDailyTasks patchDefinition", e);
+    logger.error("adminDailyTasks patchDefinition", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to update daily task definition." });
   }
 }
@@ -129,7 +132,7 @@ export async function createDefinition(req: Request, res: Response): Promise<voi
       res.status(400).json({ ok: false, message: "Invalid foreign key (miner or event miner)." });
       return;
     }
-    console.error("adminDailyTasks createDefinition", e);
+    logger.error("adminDailyTasks createDefinition", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to create daily task definition." });
   }
 }
@@ -148,7 +151,7 @@ export async function deleteDefinition(req: Request<DefinitionIdParams>, res: Re
       res.status(404).json({ ok: false, message: "Task definition not found." });
       return;
     }
-    console.error("adminDailyTasks deleteDefinition", e);
+    logger.error("adminDailyTasks deleteDefinition", { error: String(e) });
     res.status(500).json({ ok: false, message: "Failed to delete daily task definition." });
   }
 }

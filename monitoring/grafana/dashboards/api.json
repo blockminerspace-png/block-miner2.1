@@ -1,0 +1,70 @@
+{
+  "uid": "bm-api",
+  "title": "BlockMiner — API",
+  "tags": ["blockminer", "api"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total requests/s",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum(rate(blockminer_http_requests_total[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "title": "Mean latency (ms)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(blockminer_http_request_duration_ms_sum[5m])) / sum(rate(blockminer_http_request_duration_ms_count[5m]))",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 3,
+      "title": "P95 / P99 latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(blockminer_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "A" },
+        { "expr": "histogram_quantile(0.99, sum(rate(blockminer_http_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "B" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Top routes by volume",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "topk(10, sum by (route) (rate(blockminer_http_requests_total[5m])))",
+        "legendFormat": "{{route}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 5,
+      "title": "Slowest routes (p95 ms)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "topk(10, histogram_quantile(0.95, sum by (le, route) (rate(blockminer_http_request_duration_ms_bucket[5m]))))",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 6,
+      "title": "Errors 4xx / 5xx",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "sum(rate(blockminer_http_errors_4xx_total[5m]))", "legendFormat": "4xx", "refId": "A" },
+        { "expr": "sum(rate(blockminer_http_errors_5xx_total[5m]))", "legendFormat": "5xx", "refId": "B" }
+      ]
+    }
+  ]
+}

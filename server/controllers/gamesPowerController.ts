@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 import prisma from "../src/db/prisma.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("gamesPowerController");
+
 /**
  * GET /api/games/active-powers
  * Read-only: sums non-expired UserPowerGame rows for the authenticated user
@@ -59,7 +62,7 @@ export async function getActiveGamePowers(req: Request, res: Response): Promise<
       breakdown,
     });
   } catch (err: unknown) {
-    console.error("getActiveGamePowers", err);
+    logger.error("getActiveGamePowers", { error: String(err) });
     res.status(500).json({ ok: false, message: "Unable to load game powers." });
   }
 }

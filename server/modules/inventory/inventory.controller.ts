@@ -15,6 +15,9 @@ import {
 import { INVENTORY_ERROR } from "./inventory.errors.js";
 import * as inventoryService from "./inventory.service.js";
 
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("inventory.controller");
+
 export async function getInventory(req: Request, res: Response) {
   try {
     const user = requireSessionUser(req, res);
@@ -22,7 +25,7 @@ export async function getInventory(req: Request, res: Response) {
     const inventory = await inventoryService.listInventoryForUser(user.id);
     res.json({ ok: true, inventory });
   } catch (err: unknown) {
-    console.error("getInventory failed", prismaSafeErrorMeta(err));
+    logger.error("getInventory failed", { error: String(prismaSafeErrorMeta(err)) });
     res.status(500).json({ ok: false, message: "Unable to load inventory." });
   }
 }
@@ -75,11 +78,11 @@ export async function installInventoryItem(req: Request, res: Response) {
       if (errCode === "P2034" || errCode === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      console.error("Install Error:", prismaSafeErrorMeta(error));
+      logger.error("Install Error:", { error: String(prismaSafeErrorMeta(error)) });
       return res.status(500).json({ ok: false, message: "Internal server error during installation." });
     }
   } catch (error: unknown) {
-    console.error("Install Error:", prismaSafeErrorMeta(error));
+    logger.error("Install Error:", { error: String(prismaSafeErrorMeta(error)) });
     res.status(500).json({ ok: false, message: "Internal server error during installation." });
   }
 }
@@ -114,11 +117,11 @@ export async function removeInventoryItem(req: Request, res: Response) {
       if (errCode === "P2034" || errCode === "DISTRIBUTED_LOCK_BUSY") {
         return res.status(409).json(buildSecurityErrorJson(SecurityErrorCodes.RACE_CONDITION_DETECTED));
       }
-      console.error("removeInventoryItem failed", prismaSafeErrorMeta(error));
+      logger.error("removeInventoryItem failed", { error: String(prismaSafeErrorMeta(error)) });
       return res.status(500).json({ ok: false, message: "Error removing item." });
     }
   } catch (error: unknown) {
-    console.error("removeInventoryItem failed", prismaSafeErrorMeta(error));
+    logger.error("removeInventoryItem failed", { error: String(prismaSafeErrorMeta(error)) });
     res.status(500).json({ ok: false, message: "Error removing item." });
   }
 }

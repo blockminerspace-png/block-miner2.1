@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 import prisma from "../src/db/prisma.js";
 
+import loggerLib from "../utils/logger.js";
+const logger = loggerLib.child("bannerController");
+
 export async function getActiveBanners(_req: Request, res: Response): Promise<void> {
   try {
     const now = new Date();
@@ -18,7 +21,7 @@ export async function getActiveBanners(_req: Request, res: Response): Promise<vo
     });
     res.json({ ok: true, banners });
   } catch (err: unknown) {
-    console.error("[bannerController] getActiveBanners:", err);
+    logger.error("[bannerController] getActiveBanners:", { error: String(err) });
     res.status(500).json({ ok: false, message: "Erro ao buscar banners." });
   }
 }
@@ -30,7 +33,7 @@ export async function adminList(_req: Request, res: Response): Promise<void> {
     });
     res.json({ ok: true, banners });
   } catch (err: unknown) {
-    console.error("[bannerController] adminList:", err);
+    logger.error("[bannerController] adminList:", { error: String(err) });
     res.status(500).json({ ok: false, message: "Erro ao listar banners." });
   }
 }
@@ -69,7 +72,7 @@ export async function adminCreate(req: Request<unknown, unknown, BannerWriteBody
     });
     res.json({ ok: true, banner });
   } catch (err: unknown) {
-    console.error("[bannerController] adminCreate:", err);
+    logger.error("[bannerController] adminCreate:", { error: String(err) });
     res.status(500).json({ ok: false, message: "Erro ao criar banner." });
   }
 }
@@ -96,7 +99,7 @@ export async function adminUpdate(req: Request<IdParams, unknown, BannerWriteBod
     });
     res.json({ ok: true, banner });
   } catch (err: unknown) {
-    console.error("[bannerController] adminUpdate:", err);
+    logger.error("[bannerController] adminUpdate:", { error: String(err) });
     res.status(500).json({ ok: false, message: "Erro ao atualizar banner." });
   }
 }
@@ -107,7 +110,7 @@ export async function adminDelete(req: Request<IdParams>, res: Response): Promis
     await prisma.dashboardBanner.delete({ where: { id } });
     res.json({ ok: true });
   } catch (err: unknown) {
-    console.error("[bannerController] adminDelete:", err);
+    logger.error("[bannerController] adminDelete:", { error: String(err) });
     res.status(500).json({ ok: false, message: "Erro ao excluir banner." });
   }
 }

@@ -1,42 +1,40 @@
 import type { EarningsCategoryKey } from '../stats.config';
 import type { EarningsHistoryPoint, EarningsTotals, UserEarningsPayload } from '../stats.earnings.api';
+import { utcDateKey } from '../../../shared/utils/utcStatsPeriod';
 
-export type DailyEarningsDelta = { date: string; total: number; byCategory: Partial<Record<EarningsCategoryKey, number>> };
+export type DailyEarningsDelta = {
+  date: string;
+  total: number;
+  byCategory: Partial<Record<EarningsCategoryKey, number>>;
+};
 
+/** History points are already per UTC calendar day (not cumulative). */
 export function deriveDailyDeltas(history: EarningsHistoryPoint[]): DailyEarningsDelta[] {
   const sorted = [...(history || [])].sort((a, b) => a.date.localeCompare(b.date));
-  return sorted.map((point, index) => {
-    const prev = index > 0 ? sorted[index - 1] : null;
+  const keys: EarningsCategoryKey[] = [
+    'mining',
+    'offerwall',
+    'faucet',
+    'shortlinks',
+    'autoMining',
+    'games',
+    'youtube',
+    'checkin',
+    'referrals',
+  ];
+  return sorted.map((point) => {
     const byCategory: Partial<Record<EarningsCategoryKey, number>> = {};
-    const keys: EarningsCategoryKey[] = [
-      'mining',
-      'offerwall',
-      'faucet',
-      'shortlinks',
-      'autoMining',
-      'games',
-      'youtube',
-      'checkin',
-      'referrals',
-    ];
     for (const key of keys) {
-      const cur = Number(point[key]) || 0;
-      const before = prev ? Number(prev[key]) || 0 : 0;
-      byCategory[key] = Math.max(0, cur - before);
+      byCategory[key] = Number(point[key]) || 0;
     }
-    const total = prev ? Math.max(0, point.total - prev.total) : point.total;
-    return { date: point.date, total, byCategory };
+    return { date: point.date, total: Number(point.total) || 0, byCategory };
   });
-}
-
-function utcTodayKey(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function utcYesterdayKey(): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return utcDateKey(d);
 }
 
 export function computeEarningsInsights(
@@ -44,7 +42,7 @@ export function computeEarningsInsights(
   history: EarningsHistoryPoint[] | undefined,
 ) {
   const deltas = deriveDailyDeltas(history || []);
-  const todayKey = utcTodayKey();
+  const todayKey = utcDateKey();
   const yesterdayKey = utcYesterdayKey();
 
   const todayRow = deltas.find((d) => d.date === todayKey);

@@ -534,6 +534,30 @@ export type AdminOfferEventMinerFormState = {
 };
 
 /** GET `/admin/server-metrics` — `metrics` payload (see `adminController.getServerMetrics`). */
+export type AdminOpsSnapshot = {
+  timestamp: string;
+  readiness: { ok: boolean; checks: Record<string, { ok: boolean; latencyMs: number; message?: string }> };
+  alerts: Array<{ id: string; severity: string; message: string; module: string; since: string }>;
+  socket: {
+    engineClients: number;
+    connectionsActive: number;
+    connectsTotal: number;
+    disconnectsTotal: number;
+  };
+  mining: { blockNumber: number; activeMiners: number; engineRunning: boolean };
+  queues: { bullmqWaiting: number; bullmqActive: number; bullmqFailed: number };
+  redis: { connected: number };
+  http: { requestsTotal: number; errors4xxTotal: number; errors5xxTotal: number; requestsPerMinuteEstimate: number };
+  database: { prismaQueriesTotal: number; prismaSlowQueriesTotal: number };
+  cron: { schedulerStartedAt: string | null };
+  economy: Array<{ module: string; action: string; total: number }>;
+  process: { uptimeSeconds: number; pid: number; memoryRssBytes: number; memoryHeapUsedBytes: number };
+};
+
+export type AdminOpsSnapshotResponse =
+  | { ok: true; snapshot: AdminOpsSnapshot }
+  | { ok: false; message?: string };
+
 export type AdminServerMetricsSnapshot = {
   cpuUsagePercent: number;
   cpuCores: number;

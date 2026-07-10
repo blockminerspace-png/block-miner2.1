@@ -1,4 +1,7 @@
 import _prisma from "../../src/db/prisma.js";
+
+import loggerLib from "../../utils/logger.js";
+const logger = loggerLib.child("tournaments.cron");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 import { computeScoresForTournament, finalizeTournament, alignActiveTournamentWindows } from "./tournaments.service.js";
@@ -41,7 +44,7 @@ export function startTournamentsCron(): Record<string, unknown> {
 
   void runLifecycleManager();
   void alignActiveTournamentWindows().catch((err) =>
-    console.error("[tournaments] align windows error:", err),
+    logger.error("[tournaments] align windows error:", { error: String(err) }),
   );
   void runScoreUpdater();
   if (isTournamentIncrementalScoringEnabled()) {
@@ -71,11 +74,11 @@ async function runScoreUpdater(): Promise<void> {
         }
         await computeScoresForTournament(tournament);
       } catch (err) {
-        console.error(`[tournaments] score update failed for #${tournament.id}:`, err);
+        logger.error(`[tournaments] score update failed for #${tournament.id}:`, { error: String(err) });
       }
     }
   } catch (err) {
-    console.error("[tournaments] score updater error:", err);
+    logger.error("[tournaments] score updater error:", { error: String(err) });
   }
 }
 
@@ -84,12 +87,12 @@ async function runShadowValidation(): Promise<void> {
     const reports = await runOfferwallShadowValidation();
     const drift = reports.filter((r) => r.driftCount > 0);
     if (drift.length > 0) {
-      console.warn(
+      logger.warn(
         `[tournaments] shadow validation drift in ${drift.length} offerwall tournament(s) (no auto-fix)`,
       );
     }
   } catch (err) {
-    console.error("[tournaments] shadow validation error:", err);
+    logger.error("[tournaments] shadow validation error:", { error: String(err) });
   }
 }
 
@@ -100,10 +103,10 @@ async function runReconcile(): Promise<void> {
     const corrected = withDrift.filter((r) => r.corrected > 0);
     const detectedOnly = withDrift.filter((r) => r.corrected === 0);
     if (corrected.length > 0) {
-      console.warn(`[tournaments] reconcile auto-corrected drift in ${corrected.length} deposit tournament(s)`);
+      logger.warn(`[tournaments] reconcile auto-corrected drift in ${corrected.length} deposit tournament(s)`);
     }
     if (detectedOnly.length > 0) {
-      console.warn(`[tournaments] reconcile detected drift in ${detectedOnly.length} offerwall tournament(s) (no auto-fix)`);
+      logger.warn(`[tournaments] reconcile detected drift in ${detectedOnly.length} offerwall tournament(s) (no auto-fix)`);
     }
     const active = await prisma.tournament.findMany({ where: { status: "ACTIVE" } });
     for (const t of active) {
@@ -112,7 +115,7 @@ async function runReconcile(): Promise<void> {
       }
     }
   } catch (err) {
-    console.error("[tournaments] reconcile error:", err);
+    logger.error("[tournaments] reconcile error:", { error: String(err) });
   }
 }
 
@@ -127,7 +130,7 @@ async function runLifecycleManager(): Promise<void> {
       console.info(`[tournaments] activated tournament #${t.id} "${t.name}"`);
       if (t.metric === "MINIGAME_WINS") {
         void backfillMinigameTournamentFromLogs(t.id).catch((err) => {
-          console.error(`[tournaments] minigame backfill on activate #${t.id}:`, err);
+          logger.error(`[tournaments] minigame backfill on activate #${t.id}:`, { error: String(err) });
         });
       }
     }
@@ -140,10 +143,10 @@ async function runLifecycleManager(): Promise<void> {
         const { ranked, rewarded } = await finalizeTournament(t.id);
         console.info(`[tournaments] finalized #${t.id} "${t.name}" — ${ranked} ranked, ${rewarded} rewarded`);
       } catch (err) {
-        console.error(`[tournaments] finalization failed for #${t.id}:`, err);
+        logger.error(`[tournaments] finalization failed for #${t.id}:`, { error: String(err) });
       }
     }
   } catch (err) {
-    console.error("[tournaments] lifecycle manager error:", err);
+    logger.error("[tournaments] lifecycle manager error:", { error: String(err) });
   }
 }
